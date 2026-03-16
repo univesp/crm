@@ -28,6 +28,7 @@ jobs:
       IMAGE_NAME: ${{ vars.IMAGE_NAME }}
       FRAPPE_SITE_NAME: ${{ vars.FRAPPE_SITE_NAME }}
       PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
+      DOMAIN_MAPPING_MODE: none
       DB_TYPE: ${{ vars.DB_TYPE }}
       DB_SETUP_MODE: ${{ vars.DB_SETUP_MODE }}
       DB_NAME: ${{ vars.DB_NAME }}

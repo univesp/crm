@@ -7,6 +7,7 @@ IMAGE_URI=${IMAGE_URI:-}
 FRAPPE_SITE_NAME=${FRAPPE_SITE_NAME:-homolog.crm.univesp.br}
 PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-${FRAPPE_SITE_NAME}}
 PUBLIC_URL=${PUBLIC_URL:-https://${PUBLIC_DOMAIN}}
+DOMAIN_MAPPING_MODE=${DOMAIN_MAPPING_MODE:-none}
 DB_TYPE=${DB_TYPE:-postgres}
 DB_PORT=${DB_PORT:-}
 DB_SETUP_MODE=${DB_SETUP_MODE:-existing}
@@ -154,25 +155,27 @@ gcloud run deploy "${SCHEDULER_SERVICE}" \
 	--startup-probe=timeoutSeconds=5,periodSeconds=10,failureThreshold=30,httpGet.port=8080,httpGet.path=/healthz \
 	--command /usr/local/bin/start-scheduler.sh
 
-if ! gcloud beta run domain-mappings describe \
-	--project "${PROJECT_ID}" \
-	--region "${REGION}" \
-	--domain "${PUBLIC_DOMAIN}" >/tmp/domain-mapping.json 2>/dev/null; then
-	gcloud beta run domain-mappings create \
+if [[ "${DOMAIN_MAPPING_MODE}" == "cloud_run" ]]; then
+	if ! gcloud beta run domain-mappings describe \
 		--project "${PROJECT_ID}" \
 		--region "${REGION}" \
-		--service "${WEB_SERVICE}" \
-		--domain "${PUBLIC_DOMAIN}" >/dev/null
-fi
+		--domain "${PUBLIC_DOMAIN}" >/tmp/domain-mapping.json 2>/dev/null; then
+		gcloud beta run domain-mappings create \
+			--project "${PROJECT_ID}" \
+			--region "${REGION}" \
+			--service "${WEB_SERVICE}" \
+			--domain "${PUBLIC_DOMAIN}" >/dev/null
+	fi
 
-gcloud beta run domain-mappings describe \
-	--project "${PROJECT_ID}" \
-	--region "${REGION}" \
-	--domain "${PUBLIC_DOMAIN}" \
-	--format=json > /tmp/domain-mapping.json
+	gcloud beta run domain-mappings describe \
+		--project "${PROJECT_ID}" \
+		--region "${REGION}" \
+		--domain "${PUBLIC_DOMAIN}" \
+		--format=json > /tmp/domain-mapping.json
 
-if [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${CLOUDFLARE_ZONE_ID:-}" ]]; then
-	"$(dirname "$0")/cloudflare_upsert_dns.sh" /tmp/domain-mapping.json
-else
-	jq -r '.status.resourceRecords[] | "\(.type) \(.name) -> \(.rrdata)"' /tmp/domain-mapping.json
+	if [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${CLOUDFLARE_ZONE_ID:-}" ]]; then
+		"$(dirname "$0")/cloudflare_upsert_dns.sh" /tmp/domain-mapping.json
+	else
+		jq -r '.status.resourceRecords[] | "\(.type) \(.name) -> \(.rrdata)"' /tmp/domain-mapping.json
+	fi
 fi
