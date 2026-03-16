@@ -10,9 +10,13 @@ VPC_NETWORK=${VPC_NETWORK:-default}
 VPC_CONNECTOR=${VPC_CONNECTOR:-}
 VPC_CONNECTOR_RANGE=${VPC_CONNECTOR_RANGE:-10.8.0.0/28}
 CREATE_REDIS=${CREATE_REDIS:-false}
-REDIS_INSTANCE=${REDIS_INSTANCE:-}
-REDIS_SIZE_GB=${REDIS_SIZE_GB:-1}
-REDIS_TIER=${REDIS_TIER:-basic}
+REDIS_BACKEND=${REDIS_BACKEND:-vm}
+REDIS_VM_NAME=${REDIS_VM_NAME:-}
+REDIS_VM_ZONE=${REDIS_VM_ZONE:-${REGION}-d}
+REDIS_VM_MACHINE_TYPE=${REDIS_VM_MACHINE_TYPE:-e2-small}
+REDIS_VM_TAG=${REDIS_VM_TAG:-crm-homolog-redis}
+REDIS_VM_PORT=${REDIS_VM_PORT:-6379}
+REDIS_VM_STARTUP_SCRIPT=${REDIS_VM_STARTUP_SCRIPT:-$(dirname "$0")/redis-vm-startup.sh}
 
 if [[ -z "${PROJECT_ID}" || -z "${RUNTIME_SERVICE_ACCOUNT}" || -z "${SITES_BUCKET}" || -z "${VPC_CONNECTOR}" ]]; then
 	printf 'GCP_PROJECT_ID, CLOUDRUN_RUNTIME_SERVICE_ACCOUNT, SITES_BUCKET and VPC_CONNECTOR are required.\n' >&2
@@ -77,20 +81,65 @@ if ! gcloud compute networks vpc-access connectors describe "${VPC_CONNECTOR}" -
 fi
 
 if [[ "${CREATE_REDIS}" == "true" ]]; then
-	if [[ -z "${REDIS_INSTANCE}" ]]; then
-		printf 'REDIS_INSTANCE is required when CREATE_REDIS=true.\n' >&2
+	if [[ "${REDIS_BACKEND}" != "vm" ]]; then
+		printf 'Unsupported REDIS_BACKEND=%s. Frappe bootstrap requires CLIENT commands that Cloud Memorystore blocks; use REDIS_BACKEND=vm.\n' "${REDIS_BACKEND}" >&2
 		exit 1
 	fi
 
-	if ! gcloud redis instances describe "${REDIS_INSTANCE}" --region "${REGION}" >/dev/null 2>&1; then
-		gcloud redis instances create "${REDIS_INSTANCE}" \
-			--region "${REGION}" \
-			--network "${VPC_NETWORK}" \
-			--size "${REDIS_SIZE_GB}" \
-			--tier "${REDIS_TIER}" \
-			--redis-version redis_7_2
+	if [[ -z "${REDIS_VM_NAME}" ]]; then
+		printf 'REDIS_VM_NAME is required when CREATE_REDIS=true.\n' >&2
+		exit 1
 	fi
 
-	gcloud redis instances describe "${REDIS_INSTANCE}" --region "${REGION}" \
-		--format='value(host,port)'
+	if [[ ! -f "${REDIS_VM_STARTUP_SCRIPT}" ]]; then
+		printf 'Redis startup script not found: %s\n' "${REDIS_VM_STARTUP_SCRIPT}" >&2
+		exit 1
+	fi
+
+	if ! gcloud compute firewall-rules describe "${REDIS_VM_TAG}-allow-cloudrun" >/dev/null 2>&1; then
+		gcloud compute firewall-rules create "${REDIS_VM_TAG}-allow-cloudrun" \
+			--network "${VPC_NETWORK}" \
+			--direction INGRESS \
+			--priority 900 \
+			--action ALLOW \
+			--rules "tcp:${REDIS_VM_PORT}" \
+			--source-ranges "${VPC_CONNECTOR_RANGE}" \
+			--target-tags "${REDIS_VM_TAG}"
+	fi
+
+	if ! gcloud compute firewall-rules describe "${REDIS_VM_TAG}-allow-iap-ssh" >/dev/null 2>&1; then
+		gcloud compute firewall-rules create "${REDIS_VM_TAG}-allow-iap-ssh" \
+			--network "${VPC_NETWORK}" \
+			--direction INGRESS \
+			--priority 900 \
+			--action ALLOW \
+			--rules tcp:22 \
+			--source-ranges 35.235.240.0/20 \
+			--target-tags "${REDIS_VM_TAG}"
+	fi
+
+	if ! gcloud compute firewall-rules describe "${REDIS_VM_TAG}-deny-public" >/dev/null 2>&1; then
+		gcloud compute firewall-rules create "${REDIS_VM_TAG}-deny-public" \
+			--network "${VPC_NETWORK}" \
+			--direction INGRESS \
+			--priority 1000 \
+			--action DENY \
+			--rules "tcp:${REDIS_VM_PORT},tcp:22" \
+			--source-ranges 0.0.0.0/0 \
+			--target-tags "${REDIS_VM_TAG}"
+	fi
+
+	if ! gcloud compute instances describe "${REDIS_VM_NAME}" --zone "${REDIS_VM_ZONE}" >/dev/null 2>&1; then
+		gcloud compute instances create "${REDIS_VM_NAME}" \
+			--zone "${REDIS_VM_ZONE}" \
+			--network "${VPC_NETWORK}" \
+			--machine-type "${REDIS_VM_MACHINE_TYPE}" \
+			--tags "${REDIS_VM_TAG}" \
+			--metadata-from-file startup-script="${REDIS_VM_STARTUP_SCRIPT}" \
+			--image-family debian-12 \
+			--image-project debian-cloud
+	fi
+
+	gcloud compute instances describe "${REDIS_VM_NAME}" --zone "${REDIS_VM_ZONE}" \
+		--format="value(networkInterfaces[0].networkIP)"
 fi

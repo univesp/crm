@@ -17,6 +17,8 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
   - Para suporte upstream mais conservador, o ideal seria uma instância MariaDB compatível.
 - SSL: o fluxo padrão aqui usa `Cloud Run domain mapping` com certificado gerenciado pelo Google e renovação automática. Isso substitui `certbot` porque Cloud Run gerenciado não recebe certificado PEM diretamente como um VM/reverse proxy clássico. Se você insistir em `certbot + Let's Encrypt`, a arquitetura correta passa a ser `External HTTPS Load Balancer + Certificate Manager/self-managed cert`, não domain mapping direto.
 - DNS Cloudflare: o deploy cria ou lê o `domain mapping` e sincroniza os registros no Cloudflare via API. Os registros são gravados com `proxied=false` para não atrapalhar validação e renovação do certificado gerenciado.
+- Redis: `Cloud Memorystore for Redis` não funciona com esse bootstrap do Frappe porque o Google bloqueia a família de comandos `CLIENT` e o `redis-py` usado pelo Frappe chama `CLIENT ID`. O caminho validado aqui é Redis 7 autogerenciado em uma VM privada com firewall restrito ao range do connector do Cloud Run.
+- Cloud SQL: para instâncias sem IP público, o container sobe o `cloud-sql-proxy` com `--private-ip`.
 
 ## Pré-requisitos
 
@@ -63,11 +65,11 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 ### Google Cloud / domínio
 
 - O domínio `univesp.br` ou o subdomínio apropriado precisa estar verificado no Google para o `Cloud Run domain mapping`.
-- O service account usado pelo GitHub OIDC precisa ter permissões para Artifact Registry, Cloud Run, Secret Manager e, se for provisionar tudo, VPC Access e Memorystore.
+- O service account usado pelo GitHub OIDC precisa ter permissões para Artifact Registry, Cloud Run, Secret Manager e, se for provisionar tudo, VPC Access e Compute Engine.
 
 ## Fluxo
 
-1. Execute `ops/cloudrun/provision.sh` autenticado no GCP para criar Artifact Registry, bucket, service account, VPC connector e permissões mínimas do runtime.
+1. Execute `ops/cloudrun/provision.sh` autenticado no GCP para criar Artifact Registry, bucket, service account, VPC connector, Redis VM e permissões mínimas do runtime.
 2. Alimente os secrets do GitHub.
 3. Rode o workflow `Univesp Cloud Run Homolog`.
 4. O workflow:
@@ -98,6 +100,9 @@ export GCP_REGION=us-east1
 export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
 export SITES_BUCKET=univesp-201808-crm-homolog-sites
 export VPC_CONNECTOR=crm-homolog-connector
+export CREATE_REDIS=true
+export REDIS_BACKEND=vm
+export REDIS_VM_NAME=crm-homolog-redis
 ./ops/cloudrun/provision.sh
 ```
 

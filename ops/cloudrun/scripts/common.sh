@@ -10,6 +10,7 @@ DB_TYPE=${DB_TYPE:-postgres}
 DB_HOST=${DB_HOST:-127.0.0.1}
 DB_PORT=${DB_PORT:-}
 DB_SETUP_MODE=${DB_SETUP_MODE:-existing}
+CLOUD_SQL_IP_TYPE=${CLOUD_SQL_IP_TYPE:-private}
 PORT=${PORT:-8080}
 
 if [[ -z "${DB_PORT}" ]]; then
@@ -59,6 +60,7 @@ start_cloud_sql_proxy() {
 
 	log "Starting Cloud SQL Proxy for ${INSTANCE_CONNECTION_NAME} on ${DB_HOST}:${DB_PORT}"
 	/usr/local/bin/cloud-sql-proxy \
+		$([[ "${CLOUD_SQL_IP_TYPE}" == "private" ]] && printf '%s ' --private-ip) \
 		--address "${DB_HOST}" \
 		--port "${DB_PORT}" \
 		"${INSTANCE_CONNECTION_NAME}" &
