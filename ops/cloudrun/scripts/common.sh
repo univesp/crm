@@ -89,7 +89,18 @@ configure_common_site() {
 }
 
 site_bootstrapped() {
-	[[ -f "${SITE_DIR}/site_config.json" ]]
+	[[ -f "${SITE_DIR}/site_config.json" ]] || return 1
+
+	if [[ -z "${DB_NAME:-}" || -z "${DB_PASSWORD:-}" ]]; then
+		return 0
+	fi
+
+	if db_schema_ready; then
+		return 0
+	fi
+
+	log "Site config exists but the database schema is incomplete"
+	return 1
 }
 
 require_site() {
@@ -121,6 +132,11 @@ bootstrap_site() {
 
 	root_user=${DB_ROOT_USERNAME:-}
 	db_user=${DB_USER:-${DB_NAME}}
+
+	if [[ -f "${SITE_DIR}/site_config.json" ]]; then
+		log "Removing stale site_config.json before retrying bootstrap"
+		rm -f "${SITE_DIR}/site_config.json"
+	fi
 
 	if [[ -z "${root_user}" ]]; then
 		if [[ "${DB_TYPE}" == "postgres" ]]; then
@@ -170,6 +186,40 @@ bootstrap_site() {
 	fi
 	bench --site "${SITE_NAME}" clear-cache
 	bench --site "${SITE_NAME}" migrate
+}
+
+db_schema_ready() {
+	local db_user
+
+	db_user=${DB_USER:-${DB_NAME}}
+
+	if [[ "${DB_TYPE}" == "postgres" ]]; then
+		local result
+
+		result=$(
+			PGPASSWORD="${DB_PASSWORD}" \
+				psql \
+					--host "${DB_HOST}" \
+					--port "${DB_PORT}" \
+					--username "${db_user}" \
+					--dbname "${DB_NAME}" \
+					--tuples-only \
+					--no-align \
+					--command "SELECT to_regclass('public.\"tabDefaultValue\"') IS NOT NULL" 2>/dev/null | tr -d '[:space:]'
+		)
+		[[ "${result}" == "t" ]]
+		return
+	fi
+
+	mysql \
+		--host="${DB_HOST}" \
+		--port="${DB_PORT}" \
+		--user="${db_user}" \
+		--password="${DB_PASSWORD}" \
+		--database="${DB_NAME}" \
+		--batch \
+		--skip-column-names \
+		--execute="SHOW TABLES LIKE 'tabDefaultValue'" 2>/dev/null | grep -qx 'tabDefaultValue'
 }
 
 start_health_server() {
