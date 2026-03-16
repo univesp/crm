@@ -25,6 +25,11 @@ log() {
 	printf '[cloudrun] %s\n' "$*"
 }
 
+clear_site_runtime_cache() {
+	log "Clearing shared website and asset cache for ${SITE_NAME}"
+	bench --site "${SITE_NAME}" execute frappe.cache_manager.clear_global_cache
+}
+
 require_env() {
 	local name
 
@@ -125,6 +130,7 @@ bootstrap_site() {
 		if [[ -n "${HOST_NAME:-}" ]]; then
 			bench --site "${SITE_NAME}" set-config host_name "${HOST_NAME}"
 		fi
+		clear_site_runtime_cache
 		return 0
 	fi
 
@@ -186,6 +192,7 @@ bootstrap_site() {
 	fi
 	bench --site "${SITE_NAME}" clear-cache
 	bench --site "${SITE_NAME}" migrate
+	clear_site_runtime_cache
 }
 
 db_schema_ready() {
