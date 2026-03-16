@@ -9,6 +9,7 @@ SOCKETIO_PORT=${SOCKETIO_PORT:-9000}
 DB_TYPE=${DB_TYPE:-postgres}
 DB_HOST=${DB_HOST:-127.0.0.1}
 DB_PORT=${DB_PORT:-}
+DB_SETUP_MODE=${DB_SETUP_MODE:-existing}
 PORT=${PORT:-8080}
 
 if [[ -z "${DB_PORT}" ]]; then
@@ -114,7 +115,7 @@ bootstrap_site() {
 		return 0
 	fi
 
-	require_env ADMIN_PASSWORD DB_NAME DB_PASSWORD DB_ROOT_PASSWORD
+	require_env ADMIN_PASSWORD DB_NAME DB_PASSWORD
 
 	root_user=${DB_ROOT_USERNAME:-}
 	db_user=${DB_USER:-${DB_NAME}}
@@ -137,17 +138,27 @@ bootstrap_site() {
 		--db-port "${DB_PORT}"
 		--db-name "${DB_NAME}"
 		--db-password "${DB_PASSWORD}"
-		--db-root-username "${root_user}"
-		--db-root-password "${DB_ROOT_PASSWORD}"
 	)
+
+	if [[ "${DB_SETUP_MODE}" == "existing" ]]; then
+		create_site_cmd+=(--no-setup-db)
+	fi
 
 	if [[ "${DB_TYPE}" == "postgres" ]]; then
 		create_site_cmd+=(--db-user "${db_user}")
-	else
+	elif [[ "${DB_SETUP_MODE}" != "existing" ]]; then
 		create_site_cmd+=(--mariadb-user-host-login-scope "%")
 	fi
 
-	log "Bootstrapping site ${SITE_NAME} with ${DB_TYPE}"
+	if [[ "${DB_SETUP_MODE}" != "existing" ]]; then
+		require_env DB_ROOT_PASSWORD
+		create_site_cmd+=(
+			--db-root-username "${root_user}"
+			--db-root-password "${DB_ROOT_PASSWORD}"
+		)
+	fi
+
+	log "Bootstrapping site ${SITE_NAME} with ${DB_TYPE} (${DB_SETUP_MODE})"
 	"${create_site_cmd[@]}"
 
 	bench --site "${SITE_NAME}" set-config mute_emails 1

@@ -29,6 +29,7 @@ jobs:
       FRAPPE_SITE_NAME: ${{ vars.FRAPPE_SITE_NAME }}
       PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
       DB_TYPE: ${{ vars.DB_TYPE }}
+      DB_SETUP_MODE: ${{ vars.DB_SETUP_MODE }}
       DB_NAME: ${{ vars.DB_NAME }}
       DB_USER: ${{ vars.DB_USER }}
       DB_ROOT_USERNAME: ${{ vars.DB_ROOT_USERNAME }}
@@ -41,7 +42,6 @@ jobs:
       REDIS_CACHE_SECRET_NAME: ${{ vars.REDIS_CACHE_SECRET_NAME }}
       REDIS_QUEUE_SECRET_NAME: ${{ vars.REDIS_QUEUE_SECRET_NAME }}
       REDIS_SOCKETIO_SECRET_NAME: ${{ vars.REDIS_SOCKETIO_SECRET_NAME }}
-      DB_ROOT_PASSWORD_SECRET_NAME: ${{ vars.DB_ROOT_PASSWORD_SECRET_NAME }}
       DB_PASSWORD_SECRET_NAME: ${{ vars.DB_PASSWORD_SECRET_NAME }}
       ADMIN_PASSWORD_SECRET_NAME: ${{ vars.ADMIN_PASSWORD_SECRET_NAME }}
       CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
@@ -65,12 +65,6 @@ jobs:
       - name: Optionally provision base infrastructure
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
         run: ./ops/cloudrun/provision.sh
-
-      - name: Sync DB root password to Secret Manager
-        env:
-          SECRET_NAME: ${{ vars.DB_ROOT_PASSWORD_SECRET_NAME }}
-          SECRET_VALUE: ${{ secrets.DB_ROOT_PASSWORD }}
-        run: ./ops/cloudrun/sync_secret.sh
 
       - name: Sync DB password to Secret Manager
         env:

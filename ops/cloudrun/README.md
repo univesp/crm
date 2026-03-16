@@ -27,7 +27,6 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 - Secrets:
   - `GCP_WORKLOAD_IDENTITY_PROVIDER`
   - `GCP_DEPLOYER_SERVICE_ACCOUNT`
-  - `DB_ROOT_PASSWORD`
   - `DB_PASSWORD`
   - `ADMIN_PASSWORD`
   - `REDIS_CACHE_URL`
@@ -44,6 +43,7 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 - `FRAPPE_SITE_NAME=homolog.crm.univesp.br`
 - `PUBLIC_DOMAIN=homolog.crm.univesp.br`
 - `DB_TYPE=postgres`
+- `DB_SETUP_MODE=existing`
 - `DB_NAME=crm_homolog`
 - `DB_USER=crm_homolog`
 - `DB_ROOT_USERNAME=postgres`
@@ -56,7 +56,6 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 - `REDIS_CACHE_SECRET_NAME=crm-homolog-redis-cache-url`
 - `REDIS_QUEUE_SECRET_NAME=crm-homolog-redis-queue-url`
 - `REDIS_SOCKETIO_SECRET_NAME=crm-homolog-redis-socketio-url`
-- `DB_ROOT_PASSWORD_SECRET_NAME=crm-homolog-db-root-password`
 - `DB_PASSWORD_SECRET_NAME=crm-homolog-db-password`
 - `ADMIN_PASSWORD_SECRET_NAME=crm-homolog-admin-password`
 - `CLOUDFLARE_ZONE_ID=<zone id do domínio univesp.br>`
@@ -79,6 +78,14 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
    - publica `web`, `worker` e `scheduler`,
    - cria o `domain mapping`,
    - sincroniza os registros DNS no Cloudflare.
+
+## Banco gerenciado
+
+O fluxo atual assume `DB_SETUP_MODE=existing`, ou seja:
+
+- o usuário e o banco são criados no Cloud SQL via `gcloud sql`;
+- o job de bootstrap do Frappe usa `bench new-site --no-setup-db`;
+- nenhuma senha de superusuário do PostgreSQL precisa ficar exposta para o container.
 
 ## Comandos locais úteis
 
