@@ -1,0 +1,71 @@
+ARG FRAPPE_BRANCH=version-16
+ARG CLOUD_SQL_PROXY_VERSION=2.18.2
+
+FROM frappe/build:${FRAPPE_BRANCH} AS builder
+
+ARG FRAPPE_BRANCH=version-16
+ARG FRAPPE_PATH=https://github.com/frappe/frappe
+ARG APPS_JSON_BASE64
+
+USER root
+
+RUN if [ -n "${APPS_JSON_BASE64}" ]; then \
+    mkdir -p /opt/frappe && echo "${APPS_JSON_BASE64}" | base64 -d > /opt/frappe/apps.json; \
+  fi
+
+USER frappe
+
+RUN export APP_INSTALL_ARGS="" && \
+  if [ -n "${APPS_JSON_BASE64}" ]; then \
+    export APP_INSTALL_ARGS="--apps_path=/opt/frappe/apps.json"; \
+  fi && \
+  bench init ${APP_INSTALL_ARGS} \
+    --frappe-branch=${FRAPPE_BRANCH} \
+    --frappe-path=${FRAPPE_PATH} \
+    --no-procfile \
+    --no-backups \
+    --skip-redis-config-generation \
+    --verbose \
+    /home/frappe/frappe-bench && \
+  cd /home/frappe/frappe-bench && \
+  echo "{}" > sites/common_site_config.json && \
+  find apps -mindepth 1 -path "*/.git" | xargs rm -fr
+
+FROM frappe/base:${FRAPPE_BRANCH}
+
+ARG CLOUD_SQL_PROXY_VERSION=2.18.2
+
+USER root
+
+ADD https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud-sql-proxy.linux.amd64 /usr/local/bin/cloud-sql-proxy
+
+RUN chmod 0755 /usr/local/bin/cloud-sql-proxy
+
+COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe/frappe-bench
+COPY ops/cloudrun/nginx/frappe.conf.template /templates/nginx/frappe.conf.template
+COPY ops/cloudrun/scripts/common.sh /usr/local/bin/common.sh
+COPY ops/cloudrun/scripts/start-bootstrap.sh /usr/local/bin/start-bootstrap.sh
+COPY ops/cloudrun/scripts/start-web.sh /usr/local/bin/start-web.sh
+COPY ops/cloudrun/scripts/start-worker.sh /usr/local/bin/start-worker.sh
+COPY ops/cloudrun/scripts/start-scheduler.sh /usr/local/bin/start-scheduler.sh
+COPY ops/cloudrun/scripts/health_server.py /opt/univesp/health_server.py
+
+RUN chmod 0755 \
+  /usr/local/bin/common.sh \
+  /usr/local/bin/start-bootstrap.sh \
+  /usr/local/bin/start-web.sh \
+  /usr/local/bin/start-worker.sh \
+  /usr/local/bin/start-scheduler.sh \
+  /opt/univesp/health_server.py
+
+USER frappe
+
+WORKDIR /home/frappe/frappe-bench
+
+VOLUME [ \
+  "/home/frappe/frappe-bench/sites", \
+  "/home/frappe/frappe-bench/sites/assets", \
+  "/home/frappe/frappe-bench/logs" \
+]
+
+CMD ["/usr/local/bin/start-web.sh"]
