@@ -53,6 +53,7 @@ gcloud config set project "${PROJECT_ID}" >/dev/null
 volume_arg="name=site,type=cloud-storage,bucket=${SITES_BUCKET},readonly=false,mount-options=implicit-dirs"
 mount_arg="volume=site,mount-path=/home/frappe/frappe-bench/sites/${FRAPPE_SITE_NAME}"
 common_env="FRAPPE_SITE_NAME=${FRAPPE_SITE_NAME},DB_TYPE=${DB_TYPE},DB_SETUP_MODE=${DB_SETUP_MODE},DB_HOST=127.0.0.1,DB_PORT=${DB_PORT},INSTANCE_CONNECTION_NAME=${CLOUDSQL_INSTANCE},HOST_NAME=${PUBLIC_URL}"
+common_env="${common_env},FRAPPE_SITE_NAME_HEADER=${FRAPPE_SITE_NAME_HEADER:-${FRAPPE_SITE_NAME}}"
 redis_secrets="REDIS_CACHE_URL=${REDIS_CACHE_SECRET_NAME}:latest,REDIS_QUEUE_URL=${REDIS_QUEUE_SECRET_NAME}:latest,REDIS_SOCKETIO_URL=${REDIS_SOCKETIO_SECRET_NAME}:latest"
 
 gcloud run jobs deploy "${BOOTSTRAP_JOB}" \
