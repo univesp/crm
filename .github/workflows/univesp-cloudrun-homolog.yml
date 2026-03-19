@@ -12,7 +12,11 @@ on:
       - main
     paths:
       - ".github/workflows/univesp-cloudrun-homolog.yml"
+      - "crm/**"
+      - "frontend/**"
       - "ops/cloudrun/**"
+      - "package.json"
+      - "yarn.lock"
 
 permissions:
   contents: read
