@@ -9,7 +9,8 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 
 ## Decisões importantes
 
-- Branch: use `main`, não `develop`. Em 16 de março de 2026 o próprio README do projeto marca `main` como estável e `develop` como futuro/v2.
+- Base upstream: use `main`, não `develop`. Em 16 de março de 2026 o próprio README do projeto marca `main` como estável e `develop` como futuro/v2.
+- Estratégia do fork: mantenha `origin/main` como espelho limpo do upstream e deixe traduções `pt_BR`, GitHub Actions, Cloud Run e `univesp-frontend` somente em `univesp/cloudrun-homolog`.
 - Frappe branch: a imagem usa `version-16` para viabilizar PostgreSQL. O código oficial do Frappe v16 expõe suporte a PostgreSQL, mas marca esse caminho como experimental.
 - Banco: com as instâncias citadas (`pgsql17-prod` e `mysql8-geral`), não existe uma combinação 100% suportada pelo upstream sem trade-off:
   - `PostgreSQL 17` + `version-16`: caminho explícito no código do Frappe, porém experimental.
@@ -67,11 +68,54 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 - O domínio `univesp.br` ou o subdomínio apropriado precisa estar verificado no Google para o `Cloud Run domain mapping`.
 - O service account usado pelo GitHub OIDC precisa ter permissões para Artifact Registry, Cloud Run, Secret Manager e, se for provisionar tudo, VPC Access e Compute Engine.
 
+## Estratégia de branches do fork
+
+Use esta divisão de responsabilidade:
+
+- `upstream/main`: fonte estável do projeto.
+- `origin/main`: espelho limpo do upstream no seu fork. Não suba commits da Univesp aqui.
+- `origin/univesp/cloudrun-homolog`: branch longa com tudo que é específico da Univesp.
+
+O workflow `Univesp Cloud Run Homolog` agora dispara apenas em `push` para `univesp/cloudrun-homolog`, então o deploy não depende mais de promover essas customizações para a `main` do fork.
+
+Sincronização recomendada:
+
+```bash
+./scripts/sync-univesp-fork.sh
+```
+
+Esse script:
+
+1. garante o remote `upstream` apontando para `https://github.com/frappe/crm.git`;
+2. atualiza sua `main` local por `fast-forward` a partir de `upstream/main`;
+3. permite espelhar essa `main` em `origin/main`;
+4. reaplica `univesp/cloudrun-homolog` sobre a `main` já sincronizada.
+
+O fluxo correto para o seu caso é sempre sincronizar primeiro `upstream/main -> origin/main` e só depois atualizar `univesp/cloudrun-homolog`.
+
+Casos comuns:
+
+```bash
+# Atualiza só as branches locais
+./scripts/sync-univesp-fork.sh
+
+# Atualiza a main local e espelha no fork
+PUSH_MAIN=true ./scripts/sync-univesp-fork.sh
+
+# Atualiza a main do fork e publica a branch customizada reescrita com rebase
+PUSH_MAIN=true PUSH_CUSTOM=true ./scripts/sync-univesp-fork.sh
+
+# Atualiza a main do fork e publica a branch customizada sem reescrever histórico
+SYNC_MODE=merge PUSH_MAIN=true PUSH_CUSTOM=true ./scripts/sync-univesp-fork.sh
+```
+
+Use `SYNC_MODE=rebase` quando a branch for basicamente sua e você quiser histórico linear. Use `SYNC_MODE=merge` quando a branch já estiver compartilhada com outras pessoas e você quiser evitar `force-push`.
+
 ## Fluxo
 
 1. Execute `ops/cloudrun/provision.sh` autenticado no GCP para criar Artifact Registry, bucket, service account, VPC connector, Redis VM e permissões mínimas do runtime.
 2. Alimente os secrets do GitHub.
-3. Rode o workflow `Univesp Cloud Run Homolog`.
+3. Faça push em `univesp/cloudrun-homolog` ou rode manualmente o workflow `Univesp Cloud Run Homolog`.
 4. O workflow:
    - autentica no GCP via Workload Identity Federation,
    - builda a imagem em Artifact Registry,

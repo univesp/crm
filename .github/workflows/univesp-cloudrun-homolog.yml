@@ -9,13 +9,14 @@ on:
         default: "false"
   push:
     branches:
-      - main
+      - univesp/cloudrun-homolog
     paths:
       - ".github/workflows/univesp-cloudrun-homolog.yml"
       - "crm/**"
       - "frontend/**"
       - "ops/cloudrun/**"
       - "package.json"
+      - "univesp-frontend/**"
       - "yarn.lock"
 
 permissions:
