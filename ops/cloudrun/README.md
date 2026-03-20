@@ -87,8 +87,8 @@ Sincronização recomendada:
 Esse script:
 
 1. garante o remote `upstream` apontando para `https://github.com/frappe/crm.git`;
-2. atualiza sua `main` local por `fast-forward` a partir de `upstream/main`;
-3. permite espelhar essa `main` em `origin/main`;
+2. trata sua `main` local como espelho de `upstream/main`, criando um backup local se houver commits próprios no fork;
+3. permite espelhar essa `main` em `origin/main`, usando `force-with-lease` quando necessário;
 4. reaplica `univesp/cloudrun-homolog` sobre a `main` já sincronizada.
 
 O fluxo correto para o seu caso é sempre sincronizar primeiro `upstream/main -> origin/main` e só depois atualizar `univesp/cloudrun-homolog`.

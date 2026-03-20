@@ -8,6 +8,7 @@ CUSTOM_BRANCH=${CUSTOM_BRANCH:-univesp/cloudrun-homolog}
 SYNC_MODE=${SYNC_MODE:-rebase}
 PUSH_MAIN=${PUSH_MAIN:-false}
 PUSH_CUSTOM=${PUSH_CUSTOM:-false}
+BACKUP_DIVERGED_MAIN=${BACKUP_DIVERGED_MAIN:-true}
 
 log() {
 	printf '[sync-univesp] %s\n' "$*"
@@ -47,13 +48,29 @@ ensure_local_branch() {
 }
 
 sync_stable_branch() {
+	local counts upstream_only local_only backup_branch
+
 	ensure_local_branch "${STABLE_BRANCH}" "${UPSTREAM_REMOTE}/${STABLE_BRANCH}"
-	log "Fast-forwarding ${STABLE_BRANCH} from ${UPSTREAM_REMOTE}/${STABLE_BRANCH}"
-	git merge --ff-only "${UPSTREAM_REMOTE}/${STABLE_BRANCH}" >/dev/null
+	counts=$(git rev-list --left-right --count "${UPSTREAM_REMOTE}/${STABLE_BRANCH}...${STABLE_BRANCH}")
+	upstream_only=${counts%%$'\t'*}
+	local_only=${counts##*$'\t'}
+
+	if [[ "${local_only}" != "0" && "${BACKUP_DIVERGED_MAIN}" == "true" ]]; then
+		backup_branch="backup/${STABLE_BRANCH}-before-upstream-sync-$(date +%Y%m%d-%H%M%S)"
+		log "Creating backup branch ${backup_branch} at ${STABLE_BRANCH}"
+		git branch "${backup_branch}" "${STABLE_BRANCH}"
+	fi
+
+	if [[ "${upstream_only}" == "0" && "${local_only}" == "0" ]]; then
+		log "${STABLE_BRANCH} already matches ${UPSTREAM_REMOTE}/${STABLE_BRANCH}"
+	else
+		log "Resetting ${STABLE_BRANCH} to mirror ${UPSTREAM_REMOTE}/${STABLE_BRANCH}"
+		git reset --hard "${UPSTREAM_REMOTE}/${STABLE_BRANCH}" >/dev/null
+	fi
 
 	if [[ "${PUSH_MAIN}" == "true" ]]; then
 		log "Pushing ${STABLE_BRANCH} to origin/${STABLE_BRANCH}"
-		git push origin "${STABLE_BRANCH}"
+		git push --force-with-lease origin "${STABLE_BRANCH}"
 	fi
 }
 
