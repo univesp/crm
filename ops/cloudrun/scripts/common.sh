@@ -30,6 +30,13 @@ clear_site_runtime_cache() {
 	bench --site "${SITE_NAME}" execute frappe.cache_manager.clear_global_cache
 }
 
+refresh_assets_runtime_cache() {
+	log "Refreshing shared assets_json cache for ${SITE_NAME}"
+	if ! bench --site "${SITE_NAME}" execute crm.utils.assets.refresh_assets_json_cache; then
+		log "Warning: failed to refresh shared assets_json cache for ${SITE_NAME}"
+	fi
+}
+
 require_env() {
 	local name
 
@@ -131,6 +138,7 @@ bootstrap_site() {
 			bench --site "${SITE_NAME}" set-config host_name "${HOST_NAME}"
 		fi
 		clear_site_runtime_cache
+		refresh_assets_runtime_cache
 		return 0
 	fi
 
@@ -193,6 +201,7 @@ bootstrap_site() {
 	bench --site "${SITE_NAME}" clear-cache
 	bench --site "${SITE_NAME}" migrate
 	clear_site_runtime_cache
+	refresh_assets_runtime_cache
 }
 
 db_schema_ready() {

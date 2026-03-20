@@ -31,14 +31,6 @@ RUN export APP_INSTALL_ARGS="" && \
   echo "{}" > sites/common_site_config.json && \
   find apps -mindepth 1 -path "*/.git" | xargs rm -fr
 
-RUN cd /home/frappe/frappe-bench && \
-  ls -1 apps > sites/apps.txt && \
-  cd apps/crm && \
-  yarn install --check-files && \
-  yarn build && \
-  cd /home/frappe/frappe-bench && \
-  bench build
-
 FROM frappe/base:${FRAPPE_BRANCH}
 
 ARG CLOUD_SQL_PROXY_VERSION=2.18.2

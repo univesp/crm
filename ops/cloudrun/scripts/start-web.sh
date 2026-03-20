@@ -6,6 +6,7 @@ source /usr/local/bin/common.sh
 start_cloud_sql_proxy
 configure_common_site
 require_site
+refresh_assets_runtime_cache
 start_gunicorn
 start_socketio
 start_nginx
