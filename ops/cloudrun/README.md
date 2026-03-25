@@ -7,6 +7,34 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 - `scheduler`: Cloud Run privado, instância fixa, CPU sempre alocada, executando `bench schedule`.
 - `bootstrap`: Cloud Run Job idempotente para criar o site, instalar o app e rodar `migrate`.
 
+## Modo econômico para homolog
+
+Se a homolog vai ficar um tempo com pouco uso e sem necessidade de processar fila em tempo real, use o perfil barato:
+
+- `DEPLOY_PROFILE=single-user` reduz `web` para `1 vCPU`, `1 GiB`, `minScale=0`, `maxScale=1`.
+- Esse mesmo perfil também "estaciona" `worker` e `scheduler`: ambos passam a `minScale=0` e CPU com throttling, então podem escalar para zero.
+- Resultado prático: a aplicação web continua acessível, mas jobs assíncronos e rotinas agendadas deixam de ser garantidos enquanto o ambiente estiver estacionado.
+
+Trade-offs do modo econômico:
+
+- filas Redis podem acumular;
+- envios assíncronos, notificações e tarefas em background podem atrasar ou não rodar;
+- tarefas periódicas do Frappe deixam de ser confiáveis até reativar o modo completo.
+
+Para alternar apenas os serviços existentes, sem rebuild da imagem e sem mexer no banco:
+
+```bash
+export GCP_PROJECT_ID=univesp-201808
+MODE=parked ./ops/cloudrun/set-service-mode.sh
+```
+
+Para restaurar o comportamento atual:
+
+```bash
+export GCP_PROJECT_ID=univesp-201808
+MODE=full ./ops/cloudrun/set-service-mode.sh
+```
+
 ## Decisões importantes
 
 - Base upstream: use `main`, não `develop`. Em 16 de março de 2026 o próprio README do projeto marca `main` como estável e `develop` como futuro/v2.
@@ -161,5 +189,20 @@ export CLOUDSQL_INSTANCE=univesp-201808:us-east1:pgsql17-prod
 export SITES_BUCKET=univesp-201808-crm-homolog-sites
 export VPC_CONNECTOR=crm-homolog-connector
 export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
+./ops/cloudrun/deploy.sh
+```
+
+Executar deploy barato para homolog de baixa utilização:
+
+```bash
+export PATH="$HOME/.local/src/google-cloud-sdk/bin:$PATH"
+export GCP_PROJECT_ID=univesp-201808
+export GCP_REGION=us-east1
+export IMAGE_URI=us-east1-docker.pkg.dev/univesp-201808/crm/frappe-crm:manual
+export CLOUDSQL_INSTANCE=univesp-201808:us-east1:pgsql17-prod
+export SITES_BUCKET=univesp-201808-crm-homolog-sites
+export VPC_CONNECTOR=crm-homolog-connector
+export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
+export DEPLOY_PROFILE=single-user
 ./ops/cloudrun/deploy.sh
 ```
