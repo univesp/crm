@@ -2,8 +2,14 @@ export default {
   content: ['./index.html', './src/**/*.{vue,js}'],
   theme: {
     extend: {
+      fontFamily: {
+        heading: ['Barlow', 'sans-serif'],
+        body: ['Open Sans', 'sans-serif'],
+      },
       boxShadow: {
-        float: '0 20px 80px rgba(15, 23, 42, 0.12)',
+        float: 'var(--shadow-lg)',
+        panel: 'var(--shadow-md)',
+        soft: 'var(--shadow-sm)',
       },
     },
   },

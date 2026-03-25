@@ -1,45 +1,45 @@
 export const journeyStages = [
   {
     id: 'overview',
-    label: 'Mapa da jornada',
+    label: 'Visao institucional',
     route: '/',
-    description: 'Visao da trilha completa do primeiro contato ao handoff.',
-    output: 'Blueprint visual e escopo do MVP.',
+    description: 'Entrada da Central de Atendimento com foco em aluno, OP e gestao.',
+    output: 'Direcao do produto, prioridades e recortes do MVP.',
   },
   {
     id: 'triage',
-    label: 'Triagem guiada',
+    label: 'Entrada e triagem',
     route: '/triagem',
-    description: 'Fluxos prontos com perguntas iniciais e opcoes fechadas.',
-    output: 'Intencao classificada e contexto capturado.',
+    description: 'Roteiros guiados para capturar motivo, urgencia e evidencias.',
+    output: 'Intencao classificada e contexto minimo do caso.',
   },
   {
     id: 'ticket',
-    label: 'Ticket Frappe',
+    label: 'Registro do protocolo',
     route: '/ticket',
-    description: 'Contrato do ticket, payload e roteamento para fila.',
-    output: 'Payload inicial e operacoes esperadas.',
+    description: 'Contrato do ticket e distribuicao do atendimento no Frappe.',
+    output: 'Payload inicial, historico e fila responsavel.',
   },
   {
     id: 'ai',
-    label: 'Chatbot IA',
+    label: 'Atendimento assistido',
     route: '/chat-ia',
-    description: 'Sessao assistida com contexto do ticket e guardrails.',
-    output: 'Resposta guiada e criterio de escalacao.',
+    description: 'IA com contexto do caso, playbooks e criterio de escalacao.',
+    output: 'Resposta guiada, orientacao e decisao de continuidade.',
   },
   {
     id: 'handoff',
-    label: 'Handoff humano',
+    label: 'Escalacao humana',
     route: '/handoff',
-    description: 'Transferencia sem perda de contexto para atendimento final.',
-    output: 'Briefing do atendente e checklist de transicao.',
+    description: 'Transferencia para atendimento humano sem perda de contexto.',
+    output: 'Briefing operacional e checklist de transicao.',
   },
   {
     id: 'integrations',
-    label: 'Integracoes e SSO',
+    label: 'Integracoes e governanca',
     route: '/integracoes',
-    description: 'Arquitetura de APIs, SAML e organizacao do frontend.',
-    output: 'Contratos e pasta base para evolucao.',
+    description: 'Contratos com Frappe, SAML, IA e organizacao da camada frontend.',
+    output: 'Dependencias, contratos e base tecnica para evolucao.',
   },
 ]
 
@@ -319,16 +319,24 @@ export const integrationBlueprint = [
 
 export const folderBlueprint = [
   {
+    path: 'docs',
+    purpose: 'Documentacao funcional viva, arquitetura e regras do frontend institucional.',
+  },
+  {
+    path: 'mocks',
+    purpose: 'Dados de produto para FAQ, protocolos, filas e dashboard sem backend real.',
+  },
+  {
     path: 'src/pages',
-    purpose: 'Telas da jornada: triagem, ticket, IA, handoff e integracoes.',
+    purpose: 'Telas e rotas do fluxo base, aluno, OP e admin.',
   },
   {
     path: 'src/components',
-    purpose: 'Blocos reutilizaveis como cards, perguntas e wrappers de secao.',
+    purpose: 'Blocos reutilizaveis para cards, metricas, status e wrappers de secao.',
   },
   {
     path: 'src/data',
-    purpose: 'Catalogo de fluxos, jornadas e estruturas mockadas.',
+    purpose: 'Blueprints estruturais, navegacao e metadados de arquitetura.',
   },
   {
     path: 'src/services',

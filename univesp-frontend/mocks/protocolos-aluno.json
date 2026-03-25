@@ -1,0 +1,34 @@
+{
+  "protocolos": [
+    {
+      "numero": "UVSP-20260319-104",
+      "assunto": "Rematricula para o proximo semestre",
+      "status": "aguardando_acao_op",
+      "criticidade": "alta",
+      "fila_atual": "Secretaria Academica",
+      "sla": "4h uteis",
+      "origem": "faq_nao_resolvida",
+      "pendencia": "Enviar comprovante complementar"
+    },
+    {
+      "numero": "UVSP-20260316-091",
+      "assunto": "Segunda via de boleto",
+      "status": "registrado_por_faq",
+      "criticidade": "media",
+      "fila_atual": "Sem fila",
+      "sla": "encerrado",
+      "origem": "faq_resolvida",
+      "pendencia": "Nenhuma"
+    },
+    {
+      "numero": "UVSP-20260311-072",
+      "assunto": "Erro de acesso ao AVA",
+      "status": "em_analise_area_interna",
+      "criticidade": "critica",
+      "fila_atual": "Suporte Academico Digital",
+      "sla": "1h util",
+      "origem": "protocolo_aberto",
+      "pendencia": "Aguardando analise interna"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "student-22100489",
+  "nome": "Marina Costa",
+  "email": "marina.costa@example.com",
+  "ra": "22100489",
+  "perfil": "aluno",
+  "curso": "Pedagogia",
+  "polo": "Guarulhos",
+  "origem_autenticacao": "acesso_unificado",
+  "status_sessao": "autenticado"
+}

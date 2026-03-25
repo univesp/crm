@@ -3,52 +3,14 @@ import { defineStore } from 'pinia'
 import { attendanceFlows, summarizeAnswers } from '@/data/flowBlueprint'
 import { buildConversationPreview, buildBotContext, buildTransferBrief } from '@/services/aiOrchestrator'
 import { buildTicketDraft, getFrappeOperations } from '@/services/frappeClient'
-
-const defaultAnswersByFlow = {
-  matricula: {
-    persona: 'active_student',
-    need: 're_enrollment',
-    urgency: 'this_week',
-    evidence: 'has_attachment',
-  },
-  financeiro: {
-    persona: 'student_owner',
-    need: 'duplicate_invoice',
-    urgency: 'due_today',
-    evidence: 'invoice_number',
-  },
-  documentos: {
-    persona: 'active_student',
-    need: 'enrollment_statement',
-    urgency: 'week',
-    evidence: 'clear_path',
-  },
-  ava: {
-    persona: 'course_access',
-    need: 'hard_block',
-    urgency: 'assessment_today',
-    evidence: 'print_and_error',
-  },
-}
+import { defaultAnswersByFlow, mockCustomer, mockSession } from '../../mocks/journey'
 
 export const useJourneyStore = defineStore('journey', {
   state: () => ({
     activeFlowId: 'matricula',
     answers: { ...defaultAnswersByFlow.matricula },
-    customer: {
-      name: 'Marina Costa',
-      email: 'marina.costa@example.com',
-      ra: '22100489',
-      polo: 'Polo Guarulhos',
-      course: 'Pedagogia',
-      channel: 'Portal UNIVESP',
-      ssoStatus: 'Autenticado via SAML',
-    },
-    session: {
-      protocol: 'UVSP-20260319-104',
-      stage: 'overview',
-      priority: 'Alta',
-    },
+    customer: { ...mockCustomer },
+    session: { ...mockSession },
   }),
   getters: {
     activeFlow(state) {

@@ -35,11 +35,11 @@ watch(
       <main class="flex-1 pb-8">
         <header class="surface-panel rise-in mb-6 flex flex-col gap-5 p-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <span class="soft-chip">Omnichannel blueprint</span>
+            <span class="soft-chip">Central de Atendimento UNIVESP</span>
             <h1 class="mt-4 text-4xl font-semibold text-slate-950">{{ pageTitle }}</h1>
             <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Base para desenhar triagem inicial, contrato do ticket, conversa com IA e transferencia
-              para atendimento humano sem perder contexto.
+              Camada frontend da UNIVESP para receber o aluno, apoiar a operacao e preparar a
+              gestao para a futura integracao com Frappe via API.
             </p>
           </div>
 
@@ -52,15 +52,15 @@ watch(
             </div>
             <div class="inner-panel px-4 py-3">
               <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Cliente
+                Identificacao
               </p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ journey.customer.ssoStatus }}</p>
             </div>
             <div class="inner-panel px-4 py-3">
               <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Prioridade
+                Fila atual
               </p>
-              <p class="mt-2 text-sm font-semibold text-slate-900">{{ journey.session.priority }}</p>
+              <p class="mt-2 text-sm font-semibold text-slate-900">{{ journey.activeFlow.queue }}</p>
             </div>
           </div>
         </header>

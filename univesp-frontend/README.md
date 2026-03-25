@@ -1,51 +1,92 @@
-# UNIVESP Frontend Prototype
+# UNIVESP Frontend
 
-Prototipo visual para desenhar a jornada de atendimento:
+Frontend institucional do Sistema de Atendimento da Univesp, construido como camada propria em Vue 3 e preparado para operar em modo mock agora e integrar com Frappe depois.
 
-- triagem inicial com perguntas e opcoes prontas
-- geracao de ticket para Frappe
-- conversa assistida por IA
-- handoff para atendimento humano
-- espaco reservado para SSO SAML e integracoes
+## Stack atual
 
-## Stack
+- Framework: Vue 3
+- Bundler e dev server: Vite 5
+- Estado: Pinia
+- Rotas: Vue Router
+- Estilizacao: Tailwind CSS + tokens locais em `src/index.css`
+- Linguagem: JavaScript com componentes `.vue`
+- Package manager recomendado: `npm`
 
-- Vue 3
-- Vue Router
-- Pinia
-- Tailwind CSS
-- Vite
+## Requisitos locais
 
-## Como rodar
+- Node.js 20 LTS recomendado
+- Node.js 24.x validado neste workspace, embora 20 LTS siga como referencia recomendada
+- npm 10 ou superior
+- acesso ao registro npm configurado na rede da TI
+- navegador moderno para preview local
+
+Arquivo auxiliar:
+
+- `.nvmrc`
+
+## Primeira preparacao
 
 ```bash
 cd univesp-frontend
 npm install
-npm run dev
+cp .env.example .env.local
 ```
 
-Se preferir `yarn`, os scripts tambem seguem o padrao `yarn install` e `yarn dev`.
+No Windows PowerShell:
 
-## Telas
+```powershell
+Set-Location .\univesp-frontend
+Copy-Item .env.example .env.local
+```
 
-- `/` mapa geral da jornada
-- `/triagem` fluxo inicial com perguntas e respostas
-- `/ticket` preview do contrato do ticket no Frappe
-- `/chat-ia` simulacao do chatbot com contexto do ticket
-- `/handoff` transferencia para atendente humano
-- `/integracoes` arquitetura, SAML e mapa das pastas
+Scripts de apoio:
+
+- `scripts/setup-local.ps1`
+- `scripts/setup-local.sh`
+
+## Scripts disponiveis
+
+- `npm run dev`
+- `npm run build`
+- `npm run preview`
+- `npm run lint`
+- `npm run typecheck`
+- `npm run check`
+
+## Variaveis de ambiente
+
+As variaveis base estao em `.env.example`. Nesta fase:
+
+- `VITE_ENABLE_MOCKS=true` mantem o frontend desacoplado de backend real
+- `VITE_APP_BASE`, `VITE_DEV_PORT` e `VITE_PREVIEW_PORT` ajudam no encaixe futuro como modulo
+- URLs de Frappe, SAML, IA e handoff sao placeholders e nao representam integracoes ativas
+
+## Rotas atuais
+
+- Institucional: `/`, `/integracoes`, `/triagem`, `/ticket`, `/chat-ia`, `/handoff`
+- Aluno: `/aluno`, `/aluno/protocolo`, `/aluno/solicitacoes`, `/aluno/solicitacoes/:protocolId`
+- OP: `/op/fila`, `/op/playbook`
+- Admin: `/admin/dashboard`, `/admin/faq`
+
+As rotas ficam centralizadas em `src/router.js`.
 
 ## Estrutura
 
-- `src/pages`: telas por etapa da jornada
-- `src/components`: blocos reutilizaveis
-- `src/data`: blueprint dos fluxos e catalogos mockados
-- `src/services`: contratos placeholder para Frappe, IA e SAML
-- `src/stores`: estado compartilhado do prototipo
+- `src/pages`: paginas e rotas
+- `src/components`: componentes reutilizaveis
+- `src/stores`: estado local
+- `src/services`: runtime, catalogos e contratos futuros
+- `mocks`: dados mockados e exemplos de importacao
+- `docs`: documentacao funcional, tecnica e operacional
 
-## Proximos passos
+## Documentacao operacional
 
-1. Trocar mocks por endpoints reais do Frappe.
-2. Definir o contrato de autenticacao SAML com o IdP.
-3. Decidir se o ticket sera `Issue`, `HD Ticket` ou um DocType customizado.
-4. Integrar a sessao do chatbot ao protocolo criado no backend.
+- `docs/ambiente-local.md`
+- `docs/ti-checklist-frontend.md`
+
+## Limites desta fase
+
+- nao ha integracao real com backend
+- nao ha autenticacao real
+- o preview local ainda depende de abertura manual de servidor no shell do time
+- o shell do Codex nao herda `C:\Program Files\nodejs` automaticamente no `PATH`, entao a validacao precisou usar o executavel instalado de forma explicita

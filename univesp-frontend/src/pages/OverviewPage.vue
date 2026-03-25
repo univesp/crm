@@ -3,6 +3,8 @@ import MetricCard from '@/components/MetricCard.vue'
 import SectionPanel from '@/components/SectionPanel.vue'
 import StageCard from '@/components/StageCard.vue'
 import { integrationBlueprint, journeyStages } from '@/data/flowBlueprint'
+import { experiencePillars } from '@/data/frontendBlueprint'
+import { servicePersonas } from '../../mocks/personas'
 import { useJourneyStore } from '@/stores/journey'
 
 const journey = useJourneyStore()
@@ -11,55 +13,92 @@ const journey = useJourneyStore()
 <template>
   <div class="grid gap-6">
     <SectionPanel
-      eyebrow="Blueprint"
-      title="Sequencia sugerida para o primeiro MVP"
-      description="Este prototipo organiza a experiencia de atendimento em blocos claros para voce esbocar telas, contratos e responsabilidades antes de integrar tudo no CRM."
+      eyebrow="Posicionamento"
+      title="Uma central de atendimento pensada para a operacao real da UNIVESP"
+      description="Esta primeira camada do frontend organiza a experiencia institucional antes da integracao definitiva com Frappe. O foco e reduzir atrito para o aluno, dar contexto para o OP e criar visibilidade para a gestao."
     >
-      <div class="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <div class="rounded-[28px] bg-slate-950 p-7 text-white">
+      <div class="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        <div class="rounded-[32px] bg-slate-950 p-7 text-white">
           <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/45">
-            Jornada principal
+            Direcao desta fase
           </p>
-          <h3 class="mt-4 text-4xl font-semibold">
-            Primeiro contato, triagem, ticket, IA, handoff humano.
+          <h3 class="mt-4 max-w-3xl text-4xl font-semibold">
+            Receber o aluno com menos friccao, organizar a operacao e preparar a integracao futura.
           </h3>
           <p class="mt-4 max-w-2xl text-sm leading-7 text-white/75">
-            O recorte aqui e proposital: receber o aluno ja autenticado, coletar contexto minimo,
-            abrir um protocolo no Frappe, tentar resolver com IA e so depois escalar com briefing.
+            O recorte atual comeca no frontend institucional: entrada autenticada, triagem guiada,
+            protocolo rastreavel, atendimento assistido e escalacao humana com briefing pronto.
           </p>
           <div class="mt-6 flex flex-wrap gap-3">
             <RouterLink
               to="/triagem"
               class="rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950"
             >
-              Ir para triagem
+              Ver a entrada do atendimento
             </RouterLink>
             <RouterLink
               to="/integracoes"
               class="rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-white"
             >
-              Ver integracoes
+              Revisar dependencias
             </RouterLink>
           </div>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
           <MetricCard
-            label="Fluxos base"
+            label="Perfis atendidos"
+            :value="3"
+            hint="Aluno, operacao OP e gestao administrativa."
+          />
+          <MetricCard
+            label="Fluxos priorizados"
             :value="4"
             hint="Matricula, financeiro, documentos e suporte ao AVA."
           />
           <MetricCard
-            label="Cobertura do prototipo"
-            :value="`${journey.completion}%`"
-            hint="As respostas da triagem alimentam as demais etapas."
-          />
-          <MetricCard
             label="Canal inicial"
             :value="journey.customer.channel"
-            hint="Preparado para receber usuario autenticado via SAML."
+            hint="Base preparada para autenticacao institucional via SAML."
           />
         </div>
+      </div>
+    </SectionPanel>
+
+    <SectionPanel
+      eyebrow="Personas"
+      title="A jornada precisa funcionar para tres frentes ao mesmo tempo"
+      description="O frontend institucional nao e apenas uma tela de abertura. Ele precisa equilibrar autonomia do aluno, produtividade operacional e leitura de gestao."
+    >
+      <div class="grid gap-4 xl:grid-cols-3">
+        <RouterLink
+          v-for="persona in servicePersonas"
+          :key="persona.id"
+          :to="persona.route"
+          :class="[
+            'group flex h-full flex-col rounded-[28px] border border-slate-900/10 p-6 transition-all duration-200 hover:-translate-y-1',
+            persona.accentClass,
+          ]"
+        >
+          <div class="flex items-center justify-between gap-4">
+            <span :class="['soft-chip', persona.chipClass]">{{ persona.id }}</span>
+            <span class="text-sm font-semibold opacity-70">Visao prioritaria</span>
+          </div>
+          <h3 class="mt-8 text-3xl font-semibold">{{ persona.name }}</h3>
+          <p class="mt-3 text-sm leading-7 opacity-80">{{ persona.summary }}</p>
+          <div class="mt-6 grid gap-2">
+            <div
+              v-for="highlight in persona.highlights"
+              :key="highlight"
+              class="rounded-[20px] border border-current/10 px-4 py-3 text-sm"
+            >
+              {{ highlight }}
+            </div>
+          </div>
+          <span class="mt-6 text-sm font-semibold">
+            {{ persona.cta }}
+          </span>
+        </RouterLink>
       </div>
     </SectionPanel>
 
@@ -74,56 +113,29 @@ const journey = useJourneyStore()
 
     <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
       <SectionPanel
-        eyebrow="Recorte"
-        title="O que precisa nascer junto"
-        description="Para o atendimento funcionar bem, nao basta uma tela bonita. E preciso desenhar os contratos entre frontend, Frappe, IA e fila humana."
+        eyebrow="Experiencia"
+        title="Principios que sustentam a central"
+        description="Esses pilares orientam o frontend institucional e evitam que a experiencia vire apenas um mock visual desconectado da operacao."
       >
         <div class="grid gap-4 md:grid-cols-2">
-          <div class="inner-panel p-5">
+          <div
+            v-for="pillar in experiencePillars"
+            :key="pillar.id"
+            class="inner-panel p-5"
+          >
             <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Entrada
+              {{ pillar.id }}
             </p>
-            <h3 class="mt-3 text-xl font-semibold text-slate-950">SSO e triagem sem friccao</h3>
-            <p class="mt-3 text-sm leading-6 text-slate-600">
-              O aluno nao deve preencher dados que ja vieram do IdP. O formulario inicial deve
-              focar em intencao, urgencia e evidencias.
-            </p>
-          </div>
-          <div class="inner-panel p-5">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Persistencia
-            </p>
-            <h3 class="mt-3 text-xl font-semibold text-slate-950">Ticket como fonte de contexto</h3>
-            <p class="mt-3 text-sm leading-6 text-slate-600">
-              Tudo o que a IA usar ou resumir deve voltar para o ticket. Isso evita handoff cego e
-              recontato desnecessario.
-            </p>
-          </div>
-          <div class="inner-panel p-5">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">IA</p>
-            <h3 class="mt-3 text-xl font-semibold text-slate-950">Resposta com limites claros</h3>
-            <p class="mt-3 text-sm leading-6 text-slate-600">
-              O bot precisa de playbooks e criterio explicito de escalacao. Nao deve improvisar
-              politica academica ou financeira.
-            </p>
-          </div>
-          <div class="inner-panel p-5">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Operacao
-            </p>
-            <h3 class="mt-3 text-xl font-semibold text-slate-950">Fila humana com briefing pronto</h3>
-            <p class="mt-3 text-sm leading-6 text-slate-600">
-              O atendente final precisa receber protocolo, transcript resumido, anexos e decisao da
-              triagem em uma unica visao.
-            </p>
+            <h3 class="mt-3 text-xl font-semibold text-slate-950">{{ pillar.name }}</h3>
+            <p class="mt-3 text-sm leading-6 text-slate-600">{{ pillar.description }}</p>
           </div>
         </div>
       </SectionPanel>
 
       <SectionPanel
-        eyebrow="Esteiras"
-        title="Pontos criticos de integracao"
-        description="Esses eixos devem ser tratados cedo para o prototipo virar produto sem retrabalho."
+        eyebrow="Entrega"
+        title="Pontos criticos para a proxima etapa"
+        description="A camada visual ja antecipa dependencias que vao determinar a viabilidade do produto em operacao."
       >
         <div class="grid gap-3">
           <div
@@ -145,6 +157,16 @@ const journey = useJourneyStore()
               </span>
             </div>
           </div>
+        </div>
+
+        <div class="mt-5 rounded-[28px] bg-amber-50 p-5 text-amber-950">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-700">
+            Leitura de gestao
+          </p>
+          <p class="mt-3 text-sm leading-6">
+            O frontend institucional ja deixa explicito onde dependemos de backend, autenticacao e
+            fila humana. Isso reduz retrabalho quando a integracao com Frappe sair do mock.
+          </p>
         </div>
       </SectionPanel>
     </div>
