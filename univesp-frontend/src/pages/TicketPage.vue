@@ -1,15 +1,48 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import MetricCard from '@/components/MetricCard.vue'
 import SectionPanel from '@/components/SectionPanel.vue'
-import { frappeModelNotes } from '@/services/frappeClient'
+import { frappeModelNotes, submitTicketDraft } from '@/services/frappeClient'
 import { useJourneyStore } from '@/stores/journey'
 
 const journey = useJourneyStore()
 
 const draft = computed(() => journey.ticketDraft)
 const operations = computed(() => journey.frappeOperations)
+const submitting = ref(false)
+const submitError = ref('')
+const submitSuccess = ref('')
+
+function resolveTicketLabel(ticket) {
+  if (!ticket || typeof ticket !== 'object') {
+    return 'Ticket criado no Frappe CRM.'
+  }
+
+  const documentName = ticket.name || ticket.subject || ticket.title
+  if (!documentName) {
+    return 'Ticket criado no Frappe CRM.'
+  }
+
+  return `Ticket ${documentName} criado no Frappe CRM.`
+}
+
+async function handleSubmitTicket() {
+  submitting.value = true
+  submitError.value = ''
+  submitSuccess.value = ''
+
+  try {
+    const ticket = await submitTicketDraft(draft.value)
+    journey.setRemoteTicket(ticket)
+    submitSuccess.value = resolveTicketLabel(ticket)
+  } catch (error) {
+    submitError.value =
+      error instanceof Error ? error.message : 'Falha ao criar o ticket no Frappe CRM.'
+  } finally {
+    submitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -27,6 +60,25 @@ const operations = computed(() => journey.frappeOperations)
         title="Preview do ticket no Frappe"
         description="Use este bloco como contrato inicial entre o frontend e o backend. Ele mostra o que a tela deve enviar assim que a triagem termina."
       >
+        <template #action>
+          <button
+            type="button"
+            class="login-primary-button"
+            :disabled="submitting"
+            @click="handleSubmitTicket"
+          >
+            {{ submitting ? 'Enviando...' : 'Criar ticket no Frappe' }}
+          </button>
+        </template>
+
+        <div v-if="submitSuccess" class="login-banner is-success mb-5">
+          {{ submitSuccess }}
+        </div>
+
+        <div v-if="submitError" class="login-banner is-danger mb-5">
+          {{ submitError }}
+        </div>
+
         <div class="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
           <div class="grid gap-3">
             <div
@@ -84,6 +136,14 @@ JSON.stringify(draft.payload, null, 2)
             >
               {{ note }}
             </div>
+          </div>
+
+          <div
+            v-if="journey.remoteTicket"
+            class="mt-5 inner-panel p-4 text-sm leading-6 text-slate-700"
+          >
+            Integracao ativa: o frontend ja criou um documento real no Frappe CRM e guardou o
+            retorno mais recente desta sessao.
           </div>
 
           <RouterLink

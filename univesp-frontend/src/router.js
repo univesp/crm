@@ -1,11 +1,22 @@
 const routes = [
   {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/pages/LoginPage.vue'),
+    meta: {
+      title: 'Login UNIVESP',
+      layout: 'auth',
+      publicOnly: true,
+    },
+  },
+  {
     path: '/',
     name: 'overview',
     component: () => import('@/pages/OverviewPage.vue'),
     meta: {
       title: 'Visao institucional',
       stage: 'overview',
+      requiresAuth: true,
     },
   },
   {
@@ -15,6 +26,7 @@ const routes = [
     meta: {
       title: 'Entrada e triagem',
       stage: 'triage',
+      requiresAuth: true,
     },
   },
   {
@@ -24,6 +36,7 @@ const routes = [
     meta: {
       title: 'Registro do protocolo',
       stage: 'ticket',
+      requiresAuth: true,
     },
   },
   {
@@ -33,6 +46,7 @@ const routes = [
     meta: {
       title: 'Atendimento assistido',
       stage: 'ai',
+      requiresAuth: true,
     },
   },
   {
@@ -42,6 +56,7 @@ const routes = [
     meta: {
       title: 'Escalacao humana',
       stage: 'handoff',
+      requiresAuth: true,
     },
   },
   {
@@ -51,6 +66,7 @@ const routes = [
     meta: {
       title: 'Integracoes e governanca',
       stage: 'integrations',
+      requiresAuth: true,
     },
   },
   {
@@ -60,6 +76,7 @@ const routes = [
     meta: {
       title: 'Home do atendimento',
       stage: 'student-home',
+      requiresAuth: true,
     },
   },
   {
@@ -69,6 +86,7 @@ const routes = [
     meta: {
       title: 'Minhas solicitacoes',
       stage: 'student-requests',
+      requiresAuth: true,
     },
   },
   {
@@ -78,6 +96,7 @@ const routes = [
     meta: {
       title: 'Protocolo mockado',
       stage: 'student-protocol',
+      requiresAuth: true,
     },
   },
   {
@@ -87,6 +106,7 @@ const routes = [
     meta: {
       title: 'Detalhe do protocolo',
       stage: 'student-request-detail',
+      requiresAuth: true,
     },
   },
   {
@@ -96,6 +116,7 @@ const routes = [
     meta: {
       title: 'Fila operacional',
       stage: 'operator-queue',
+      requiresAuth: true,
     },
   },
   {
@@ -105,6 +126,7 @@ const routes = [
     meta: {
       title: 'FAQ operacional',
       stage: 'operator-playbook',
+      requiresAuth: true,
     },
   },
   {
@@ -114,6 +136,7 @@ const routes = [
     meta: {
       title: 'Dashboard geral',
       stage: 'admin-dashboard',
+      requiresAuth: true,
     },
   },
   {
@@ -123,7 +146,12 @@ const routes = [
     meta: {
       title: 'Gestao da FAQ',
       stage: 'admin-faq',
+      requiresAuth: true,
     },
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/login',
   },
 ]
 

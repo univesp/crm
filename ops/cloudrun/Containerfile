@@ -31,6 +31,16 @@ RUN export APP_INSTALL_ARGS="" && \
   echo "{}" > sites/common_site_config.json && \
   find apps -mindepth 1 -path "*/.git" | xargs rm -fr
 
+FROM node:20-alpine AS univesp_frontend_builder
+
+WORKDIR /build/univesp-frontend
+
+COPY univesp-frontend/package*.json ./
+RUN npm ci
+
+COPY univesp-frontend/ ./
+RUN npm run build
+
 FROM frappe/base:${FRAPPE_BRANCH}
 
 ARG CLOUD_SQL_PROXY_VERSION=2.18.2
@@ -42,6 +52,7 @@ ADD https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD
 RUN chmod 0755 /usr/local/bin/cloud-sql-proxy
 
 COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe/frappe-bench
+COPY --from=univesp_frontend_builder /build/univesp-frontend/dist /opt/univesp/frontend
 COPY ops/cloudrun/nginx/frappe.conf.template /templates/nginx/frappe.conf.template
 COPY ops/cloudrun/scripts/common.sh /usr/local/bin/common.sh
 COPY ops/cloudrun/scripts/start-bootstrap.sh /usr/local/bin/start-bootstrap.sh

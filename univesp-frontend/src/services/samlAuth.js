@@ -1,13 +1,18 @@
 export const samlBlueprint = {
-  identityProvider: 'Keycloak, Azure AD ou outro IdP institucional',
-  serviceProviderEntityId:
-    import.meta.env.VITE_SAML_ENTITY_ID || 'urn:univesp:service-desk',
+  identityProvider: 'login.univesp.br com o mesmo gateway SSO do SGP',
+  serviceProviderEntityId: import.meta.env.VITE_SAML_ENTITY_ID || 'crm_development',
+  nameIdFormat:
+    import.meta.env.VITE_SAML_NAME_ID_FORMAT ||
+    'urn:oasis:names:tc:SAML:2.0:nameid-format:email',
+  nameIdAttribute: import.meta.env.VITE_SAML_NAME_ID_ATTRIBUTE || 'mail',
   assertionConsumerUrl:
-    import.meta.env.VITE_SAML_ACS_URL ||
-    'https://service.example.com/api/method/univesp.api.sso.consume_saml',
-  singleLogoutUrl: 'https://service.example.com/api/method/univesp.api.sso.logout',
+    import.meta.env.VITE_SAML_ACS_URL || 'http://localhost:8080/consume',
+  singleLogoutUrl: import.meta.env.VITE_SAML_LOGOUT_URL || 'http://localhost:8080/logout',
+  azureRedirectUri:
+    import.meta.env.VITE_AZURE_REDIRECT_URI ||
+    'http://localhost:8080/api/sso/azure/callback',
   sessionPolicy:
-    'Criar cookie HTTP-only para web e token de servico para chamadas internas ao backend.',
+    'O frontend libera o acesso pela sessao SSO institucional; Frappe fica apenas como API.',
 }
 
 export const samlClaims = [
@@ -21,6 +26,30 @@ export const samlClaims = [
 ]
 
 export const environmentChecklist = [
+  {
+    key: 'VITE_FRAPPE_BASE_URL',
+    purpose: 'Base do backend Frappe para tickets e consulta de contexto.',
+  },
+  {
+    key: 'VITE_SSO_SESSION_PATH',
+    purpose: 'Endpoint que replica o contrato do SGP para sessao atual, por padrao /api/me.',
+  },
+  {
+    key: 'VITE_SSO_START_PATH',
+    purpose: 'Inicio generico do SSO que classifica email e redireciona para Azure ou SAML.',
+  },
+  {
+    key: 'VITE_SSO_AZURE_START_PATH',
+    purpose: 'Entrada direta do Azure AD para @univesp.br e @*.univesp.br.',
+  },
+  {
+    key: 'VITE_SSO_SAML_START_PATH',
+    purpose: 'Entrada direta do SAML para @aluno.univesp.br.',
+  },
+  {
+    key: 'VITE_SSO_LOGOUT_PATH',
+    purpose: 'Endpoint de logout da sessao SSO, por padrao /api/sso/logout.',
+  },
   {
     key: 'VITE_FRAPPE_BASE_URL',
     purpose: 'Base do backend Frappe para tickets e consulta de contexto.',
@@ -43,7 +72,15 @@ export const environmentChecklist = [
   },
   {
     key: 'VITE_SAML_ACS_URL',
-    purpose: 'Assertion consumer service que recebe a resposta SAML.',
+    purpose: 'Assertion consumer service do frontend/gateway. Local: http://localhost:8080/consume.',
+  },
+  {
+    key: 'VITE_SAML_LOGOUT_URL',
+    purpose: 'Single logout do perfil SAML. Homolog: https://homolog.crm.univesp.br/logout.',
+  },
+  {
+    key: 'VITE_AZURE_REDIRECT_URI',
+    purpose: 'Callback do OAuth2/Azure AD. Homolog: https://homolog.crm.univesp.br/api/sso/azure/callback.',
   },
   {
     key: 'VITE_SAML_IDP_METADATA_URL',

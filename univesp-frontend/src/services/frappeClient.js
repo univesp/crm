@@ -1,3 +1,10 @@
+import {
+  callFrappeMethod,
+  createResource,
+  getFrappeRuntimeConfig,
+  unwrapFrappePayload,
+} from '@/services/frappeApi'
+
 export function buildTicketDraft({ customer, session, flow, answerSummary }) {
   const subjectSeed =
     answerSummary.find((item) => item.questionId === 'need')?.answer || flow.name
@@ -77,8 +84,88 @@ export function getFrappeOperations(flow) {
 }
 
 export const frappeModelNotes = [
+  'Preferir sessao/cookie do Frappe para navegacao web; nao embutir api_secret em VITE_.',
   'Definir se o ticket sera Issue, HD Ticket ou DocType customizado.',
   'Persistir transcript resumido e nao a conversa completa por default.',
   'Guardar o estado da triagem em campo JSON para reuso posterior.',
   'Planejar eventos para atualizacao em tempo real da fila do atendente.',
 ]
+
+export function getFrappeIntegrationProfile() {
+  const config = getFrappeRuntimeConfig()
+
+  return {
+    ...config,
+    apiBaseUrl: `${config.baseUrl}${config.apiPrefix}`,
+    authSummary:
+      config.authMode === 'token'
+        ? 'Token manual de dev/homolog armazenado no browser.'
+        : 'Sessao web do Frappe via cookie HTTP-only.',
+  }
+}
+
+export async function submitTicketDraft(ticketDraft) {
+  return unwrapFrappePayload(await createResource(ticketDraft.doctype, ticketDraft.payload))
+}
+
+export async function attachTriageContext({
+  documentName,
+  protocol,
+  flow,
+  customer,
+  session,
+  answerSummary,
+}) {
+  return callFrappeMethod('univesp.api.ticket.attach_triage', {
+    document_name: documentName,
+    custom_protocol: protocol,
+    custom_flow_id: flow.id,
+    custom_queue: flow.queue,
+    custom_channel: customer.channel,
+    custom_sso_status: customer.ssoStatus,
+    custom_student_ra: customer.ra,
+    custom_student_polo: customer.polo,
+    custom_priority: session.priority,
+    custom_triage_summary: answerSummary.map((item) => ({
+      question: item.question,
+      answer: item.answer,
+      value: item.value,
+    })),
+  })
+}
+
+export async function appendChatSummary({
+  documentName,
+  protocol,
+  flow,
+  conversationPreview,
+  transferBrief,
+}) {
+  return callFrappeMethod('univesp.api.ticket.append_chat_summary', {
+    document_name: documentName,
+    custom_protocol: protocol,
+    custom_flow_id: flow.id,
+    custom_queue: flow.queue,
+    summary: conversationPreview,
+    handoff_context: transferBrief,
+  })
+}
+
+export async function requestHumanHandoff({
+  documentName,
+  protocol,
+  flow,
+  customer,
+  session,
+  transferBrief,
+}) {
+  return callFrappeMethod('univesp.api.ticket.request_handoff', {
+    document_name: documentName,
+    custom_protocol: protocol,
+    queue: flow.queue,
+    customer_name: customer.name,
+    customer_email: customer.email,
+    priority: session.priority,
+    summary: transferBrief,
+  })
+}

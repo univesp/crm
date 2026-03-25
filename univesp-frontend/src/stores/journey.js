@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { attendanceFlows, summarizeAnswers } from '@/data/flowBlueprint'
 import { buildConversationPreview, buildBotContext, buildTransferBrief } from '@/services/aiOrchestrator'
 import { buildTicketDraft, getFrappeOperations } from '@/services/frappeClient'
+import { describeSsoFlow } from '@/services/ssoClient'
 import { defaultAnswersByFlow, mockCustomer, mockSession } from '../../mocks/journey'
 
 export const useJourneyStore = defineStore('journey', {
@@ -11,6 +12,7 @@ export const useJourneyStore = defineStore('journey', {
     answers: { ...defaultAnswersByFlow.matricula },
     customer: { ...mockCustomer },
     session: { ...mockSession },
+    remoteTicket: null,
   }),
   getters: {
     activeFlow(state) {
@@ -72,6 +74,24 @@ export const useJourneyStore = defineStore('journey', {
     },
     setStage(stage) {
       this.session.stage = stage
+    },
+    applyAuthenticatedUser(user) {
+      if (!user) {
+        return
+      }
+
+      const displayName = user.displayName || user.email || this.customer.name
+      const email = user.email || this.customer.email
+
+      this.customer = {
+        ...this.customer,
+        name: displayName,
+        email,
+        ssoStatus: describeSsoFlow(user.flow, email),
+      }
+    },
+    setRemoteTicket(ticket) {
+      this.remoteTicket = ticket
     },
   },
 })

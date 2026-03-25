@@ -172,6 +172,33 @@ import { personaJourneys } from '../../mocks/personas'
           </div>
           <div class="inner-panel p-4">
             <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Logout URL
+            </p>
+            <p class="mt-2 break-all text-sm font-semibold text-slate-900">
+              {{ samlBlueprint.singleLogoutUrl }}
+            </p>
+          </div>
+          <div class="inner-panel p-4">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Azure callback
+            </p>
+            <p class="mt-2 break-all text-sm font-semibold text-slate-900">
+              {{ samlBlueprint.azureRedirectUri }}
+            </p>
+          </div>
+          <div class="inner-panel p-4">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+              NameID
+            </p>
+            <p class="mt-2 text-sm font-semibold text-slate-900">
+              {{ samlBlueprint.nameIdFormat }}
+            </p>
+            <p class="mt-2 text-sm text-slate-600">
+              Atributo: {{ samlBlueprint.nameIdAttribute }}
+            </p>
+          </div>
+          <div class="inner-panel p-4">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
               Politica de sessao
             </p>
             <p class="mt-2 text-sm leading-6 text-slate-700">{{ samlBlueprint.sessionPolicy }}</p>

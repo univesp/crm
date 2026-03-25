@@ -3,12 +3,15 @@ import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import AppSidebar from '@/components/AppSidebar.vue'
+import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
 
 const route = useRoute()
+const auth = useAuthStore()
 const journey = useJourneyStore()
 
 const pageTitle = computed(() => route.meta.title || 'UNIVESP Service Blueprint')
+const isAuthLayout = computed(() => route.meta.layout === 'auth')
 
 watch(
   () => route.meta.stage,
@@ -22,7 +25,11 @@ watch(
 </script>
 
 <template>
-  <div class="relative min-h-screen overflow-hidden">
+  <div v-if="isAuthLayout" class="relative min-h-screen overflow-hidden">
+    <RouterView />
+  </div>
+
+  <div v-else class="relative min-h-screen overflow-hidden">
     <div class="pointer-events-none absolute inset-0">
       <div class="absolute -left-16 top-10 h-64 w-64 rounded-full bg-amber-400/20 blur-3xl"></div>
       <div class="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-emerald-500/15 blur-3xl"></div>
@@ -46,6 +53,14 @@ watch(
           <div class="flex flex-wrap gap-3">
             <div class="inner-panel px-4 py-3">
               <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                Usuario
+              </p>
+              <p class="mt-2 text-sm font-semibold text-slate-900">
+                {{ auth.displayName || journey.customer.email }}
+              </p>
+            </div>
+            <div class="inner-panel px-4 py-3">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
                 Protocolo
               </p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ journey.session.protocol }}</p>
@@ -62,6 +77,13 @@ watch(
               </p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ journey.activeFlow.queue }}</p>
             </div>
+            <button
+              type="button"
+              class="inline-flex items-center rounded-full bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              @click="auth.logout()"
+            >
+              Sair
+            </button>
           </div>
         </header>
 
