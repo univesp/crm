@@ -116,7 +116,15 @@ const routes = [
     meta: {
       title: 'Fila operacional',
       stage: 'operator-queue',
-      requiresAuth: true,
+    },
+  },
+  {
+    path: '/op/fila/:caseId',
+    name: 'operator-case-detail',
+    component: () => import('@/pages/operator/OperatorCaseDetailPage.vue'),
+    meta: {
+      title: 'Detalhe operacional',
+      stage: 'operator-case-detail',
     },
   },
   {
@@ -150,8 +158,22 @@ const routes = [
     },
   },
   {
-    path: '/:pathMatch(.*)*',
-    redirect: '/login',
+    path: '/admin/parametros',
+    name: 'admin-parameters',
+    component: () => import('@/pages/admin/AdminParametersPage.vue'),
+    meta: {
+      title: 'Parametros de SLA e criticidade',
+      stage: 'admin-parameters',
+    },
+  },
+  {
+    path: '/admin/permissoes',
+    name: 'admin-permissions',
+    component: () => import('@/pages/admin/AdminPermissionsPage.vue'),
+    meta: {
+      title: 'Permissoes e visibilidade',
+      stage: 'admin-permissions',
+    },
   },
 ]
 

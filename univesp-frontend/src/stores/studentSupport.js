@@ -10,6 +10,12 @@ import {
   buildResolvedState,
   validateProtocolDraft,
 } from '@/services/studentSupportFlow'
+import {
+  buildOperatorActionLog,
+  buildOperatorCaseDetail,
+  buildOperatorQueueEntries as buildOperatorQueueRuntime,
+} from '@/services/operatorQueueRuntime'
+import { buildAdminDashboardData } from '@/services/adminDashboardRuntime'
 import { studentProtocols } from '../../mocks/operations'
 
 const STORAGE_KEY = 'univesp-student-support'
@@ -23,6 +29,7 @@ function defaultState() {
     records: [],
     protocols: [],
     analyticsEvents: [],
+    operatorActionLogs: [],
   }
 }
 
@@ -61,6 +68,9 @@ export const useStudentSupportStore = defineStore('studentSupport', {
     latestProtocol(state) {
       return state.protocols[0] || null
     },
+    latestOperatorAction(state) {
+      return state.operatorActionLogs[state.operatorActionLogs.length - 1] || null
+    },
     protocolValidation(state) {
       return validateProtocolDraft(state.protocolDraft)
     },
@@ -70,6 +80,28 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         protocols: state.protocols,
         protocolDraft: state.protocolDraft,
         seededProtocols: studentProtocols,
+      })
+    },
+    operatorQueueEntries(state) {
+      return buildOperatorQueueRuntime({
+        protocols: state.protocols,
+        actionLogs: state.operatorActionLogs,
+      })
+    },
+    operatorCaseById(state) {
+      return (caseId) =>
+        buildOperatorCaseDetail({
+          caseId,
+          protocols: state.protocols,
+          records: state.records,
+          actionLogs: state.operatorActionLogs,
+        })
+    },
+    adminDashboardData(state) {
+      return buildAdminDashboardData({
+        protocols: state.protocols,
+        records: state.records,
+        actionLogs: state.operatorActionLogs,
       })
     },
   },
@@ -89,6 +121,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
           records: this.records,
           protocols: this.protocols,
           analyticsEvents: this.analyticsEvents,
+          operatorActionLogs: this.operatorActionLogs,
         }),
       )
     },
@@ -237,6 +270,26 @@ export const useStudentSupportStore = defineStore('studentSupport', {
     },
     findLocalProtocolById(protocolId) {
       return this.protocols.find((protocol) => protocol.protocolNumber === protocolId) || null
+    },
+    registerOperatorAction({ caseId, actionType, note = '', playbook, currentDate = new Date() }) {
+      const caseEntry = this.operatorQueueEntries.find((entry) => entry.id === caseId) || null
+
+      if (!caseEntry) {
+        return null
+      }
+
+      const actionLog = buildOperatorActionLog({
+        caseEntry,
+        actionType,
+        note,
+        playbook,
+        currentDate,
+      })
+
+      this.operatorActionLogs = [...this.operatorActionLogs, actionLog]
+      this.persistState()
+
+      return actionLog
     },
   },
 })

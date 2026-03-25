@@ -63,6 +63,18 @@ export const navigationSections = [
         route: '/admin/faq',
         description: 'Governanca das FAQs do aluno e do OP.',
       },
+      {
+        id: 'admin-parameters',
+        label: 'Parametros operacionais',
+        route: '/admin/parametros',
+        description: 'SLA, criticidade e impacto por tema, subtema e fila.',
+      },
+      {
+        id: 'admin-permissions',
+        label: 'Permissoes e visibilidade',
+        route: '/admin/permissoes',
+        description: 'Matriz de acesso por perfil, fila e area com auditoria administrativa.',
+      },
     ],
   },
 ]
