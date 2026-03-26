@@ -10,7 +10,7 @@ export const samlBlueprint = {
   singleLogoutUrl: import.meta.env.VITE_SAML_LOGOUT_URL || 'http://localhost:8080/logout',
   azureRedirectUri:
     import.meta.env.VITE_AZURE_REDIRECT_URI ||
-    'http://localhost:8080/api/sso/azure/callback',
+    'http://localhost:8080/crm/login',
   sessionPolicy:
     'O frontend libera o acesso pela sessao SSO institucional; Frappe fica apenas como API.',
 }

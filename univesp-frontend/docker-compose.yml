@@ -52,13 +52,9 @@ services:
       VITE_FRAPPE_PROXY_TARGET: http://frappe:8000
       VITE_FRAPPE_SOCKETIO_TARGET: http://frappe:9000
       VITE_FRAPPE_TICKET_DOCTYPE: Issue
-      VITE_SSO_BASE_URL: ""
-      VITE_SSO_SESSION_PATH: /api/me
-      VITE_SSO_START_PATH: /api/sso/start
-      VITE_SSO_AZURE_START_PATH: /api/sso/azure/start
-      VITE_SSO_SAML_START_PATH: /api/sso/saml/start
-      VITE_SSO_LOGOUT_PATH: /api/sso/logout
-      VITE_SSO_LOGOUT_METHOD: POST
+      VITE_AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      VITE_AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      VITE_AZURE_REDIRECT_URI: http://localhost:8080/crm/login
       VITE_DEFAULT_AUTH_ROUTE: /
       VITE_SSO_DEV_BYPASS: "true"
       VITE_SSO_DEV_BYPASS_EMAIL: ${VITE_SSO_DEV_BYPASS_EMAIL:-admin@univesp.br}
@@ -69,7 +65,6 @@ services:
       VITE_SAML_ACS_URL: http://localhost:8080/consume
       VITE_SAML_LOGOUT_URL: http://localhost:8080/logout
       VITE_SAML_IDP_METADATA_URL: https://login.univesp.br/simplesaml/saml2/idp/metadata.php
-      VITE_AZURE_REDIRECT_URI: http://localhost:8080/api/sso/azure/callback
       VITE_HANDOFF_WEBHOOK_URL: https://contact-center.example.com/handoff
     ports:
       - "8080:8080"

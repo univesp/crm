@@ -2,11 +2,10 @@ import { computed, ref } from 'vue'
 import { defineStore, getActivePinia } from 'pinia'
 
 import {
-  buildAzureStartUrl,
-  buildSamlStartUrl,
-  buildSsoStartUrl,
+  buildAzureLoginUrl,
   fetchCurrentSsoUser,
   getPublicAppPath,
+  isAzureConfigured,
   logoutFromSso,
   normalizeInternalRouteTarget,
 } from '@/services/ssoClient'
@@ -22,6 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => status.value === 'authenticated' && !!user.value)
   const isAnonymous = computed(() => status.value === 'anonymous')
   const displayName = computed(() => user.value?.displayName || user.value?.email || '')
+  const azureReady = computed(() => isAzureConfigured())
 
   async function loadSession({ force = false } = {}) {
     if (sessionLoaded.value && !force) {
@@ -61,39 +61,51 @@ export const useAuthStore = defineStore('auth', () => {
     errorMessage.value = ''
   }
 
-  function getLoginUrl(redirectTo, email = '') {
-    return buildSsoStartUrl({
-      email,
-      next: normalizeInternalRouteTarget(redirectTo),
-    })
+  function getLoginUrl(redirectTo) {
+    try {
+      return buildAzureLoginUrl({ next: normalizeInternalRouteTarget(redirectTo) })
+    } catch {
+      return `${window.location.origin}/login`
+    }
   }
 
   function getDirectAccessUrl(flow, redirectTo) {
-    const next = normalizeInternalRouteTarget(redirectTo)
-    if (flow === 'admin' || flow === 'academico') {
-      return buildAzureStartUrl({ tenant: flow, next })
-    }
-    return buildSamlStartUrl({ next })
+    // Todos os fluxos usam o mesmo Azure AD agora
+    return getLoginUrl(redirectTo)
   }
 
-  async function redirectToLogin(redirectTo, email = '') {
+  async function redirectToLogin(redirectTo) {
     status.value = 'redirecting'
-    window.location.assign(getLoginUrl(redirectTo, email))
+    errorMessage.value = ''
+
+    try {
+      const url = buildAzureLoginUrl({
+        next: normalizeInternalRouteTarget(redirectTo),
+      })
+      window.location.assign(url)
+    } catch (err) {
+      status.value = 'anonymous'
+      errorMessage.value = err.message || 'Falha ao iniciar login SSO.'
+    }
   }
 
   async function logout(redirectTo = '/login') {
     const targetRoute = normalizeInternalRouteTarget(redirectTo, '/login')
     status.value = 'loading'
     try {
-      await logoutFromSso(user.value?.email || '')
+      const result = logoutFromSso()
+      // Se o logout ja redirecionou para o Azure, nao precisamos fazer nada
+      if (result?.redirected) {
+        return
+      }
     } catch {
-      // The frontend should still return to the login screen even if the gateway logout fails.
+      // Continua para limpar estado local
     } finally {
       user.value = null
       sessionLoaded.value = false
       status.value = 'anonymous'
-      window.location.assign(getPublicAppPath(targetRoute))
     }
+    window.location.assign(getPublicAppPath(targetRoute))
   }
 
   return {
@@ -105,6 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isAnonymous,
     displayName,
+    azureReady,
     loadSession,
     clearError,
     getLoginUrl,

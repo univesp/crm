@@ -37,7 +37,7 @@ function clearLoginError() {
 async function handleSubmit() {
   clearLoginError()
   redirecting.value = true
-  await auth.redirectToLogin(redirectPath.value, email.value)
+  await auth.redirectToLogin(redirectPath.value)
 }
 
 watch(
@@ -105,6 +105,11 @@ watch(
             </button>
           </form>
 
+          <div v-if="!auth.azureReady" class="crm-sso-warning">
+            <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+            Azure AD nao configurado. Defina VITE_AZURE_CLIENT_ID e VITE_AZURE_TENANT_ID no .env.
+          </div>
+
           <div class="crm-sso-divider" aria-hidden="true">
             <span></span>
             <p>Acesso direto</p>
@@ -154,6 +159,9 @@ watch(
   --accent-soft-strong: rgba(176, 31, 43, 0.18);
   --danger: #8d1117;
   --danger-soft: rgba(141, 17, 23, 0.12);
+  --warning-bg: rgba(234, 179, 8, 0.12);
+  --warning-border: rgba(234, 179, 8, 0.3);
+  --warning-text: #854d0e;
   --shadow: 0 24px 72px rgba(46, 11, 14, 0.14);
   --shadow-strong: 0 42px 120px rgba(46, 11, 14, 0.2);
   --radius-xl: 32px;
@@ -393,6 +401,26 @@ watch(
   opacity: 0.8;
 }
 
+.crm-sso-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--warning-border);
+  border-radius: 16px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.crm-sso-warning .material-symbols-outlined {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
 .crm-sso-divider {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -486,6 +514,9 @@ watch(
     --accent-soft-strong: rgba(255, 179, 186, 0.22);
     --danger: #ffb3ba;
     --danger-soft: rgba(255, 179, 186, 0.16);
+    --warning-bg: rgba(234, 179, 8, 0.1);
+    --warning-border: rgba(234, 179, 8, 0.2);
+    --warning-text: #fbbf24;
     --shadow: 0 26px 72px rgba(0, 0, 0, 0.42);
     --shadow-strong: 0 48px 132px rgba(0, 0, 0, 0.5);
     background:

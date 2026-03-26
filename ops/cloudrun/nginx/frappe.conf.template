@@ -81,6 +81,22 @@ server {
 		try_files /${FRAPPE_SITE_NAME_HEADER}/public/$uri @webserver;
 	}
 
+	location ^~ /desk {
+		try_files /${FRAPPE_SITE_NAME_HEADER}/public/$uri @webserver;
+	}
+
+	location ^~ /login {
+		try_files /${FRAPPE_SITE_NAME_HEADER}/public/$uri @webserver;
+	}
+
+	location ^~ /logout {
+		try_files /${FRAPPE_SITE_NAME_HEADER}/public/$uri @webserver;
+	}
+
+	location ^~ /printview {
+		try_files /${FRAPPE_SITE_NAME_HEADER}/public/$uri @webserver;
+	}
+
 	location ^~ /oauth {
 		try_files /${FRAPPE_SITE_NAME_HEADER}/public/$uri @webserver;
 	}

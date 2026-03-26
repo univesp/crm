@@ -1,30 +1,61 @@
+/**
+ * SSO Client — autenticacao Azure AD via MSAL.js (client-side).
+ *
+ * O SSO eh 100% gerenciado pelo frontend, sem depender do Frappe.
+ * O Frappe CRM eh acessado apenas como API de dados (leads, etc.)
+ * via API Key configurada em VITE_FRAPPE_API_KEY / VITE_FRAPPE_API_SECRET.
+ *
+ * Fluxo:
+ *   1. Usuario clica "Entrar com SSO"
+ *   2. MSAL.js redireciona para Azure AD
+ *   3. Azure AD autentica e retorna token (id_token)
+ *   4. Frontend extrai dados do usuario do token
+ *   5. Sessao armazenada em sessionStorage
+ *   6. Chamadas ao Frappe usam API Key (nao o token Azure)
+ */
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
 const appBasePath = normalizeBasePath(
   import.meta.env.VITE_ROUTER_BASE || import.meta.env.VITE_APP_BASE || '/',
 )
+
 const devBypassConfig = {
   enabled: isTruthy(import.meta.env.VITE_SSO_DEV_BYPASS, false),
   email: String(import.meta.env.VITE_SSO_DEV_BYPASS_EMAIL || 'admin@univesp.br').trim(),
   name: String(import.meta.env.VITE_SSO_DEV_BYPASS_NAME || 'Administrador Local').trim(),
 }
+
 const defaultRoute = normalizeInternalRouteTarget(
   import.meta.env.VITE_DEFAULT_AUTH_ROUTE || '/',
   '/',
   appBasePath,
 )
 
+/** Azure AD / MSAL configuration */
+const azureConfig = {
+  clientId: String(import.meta.env.VITE_AZURE_CLIENT_ID || '').trim(),
+  tenantId: String(import.meta.env.VITE_AZURE_TENANT_ID || '').trim(),
+  redirectUri: String(
+    import.meta.env.VITE_AZURE_REDIRECT_URI || `${getOrigin()}/login`,
+  ).trim(),
+  scopes: ['openid', 'profile', 'email'],
+}
+
 const runtimeConfig = {
-  ssoBaseUrl: normalizeBaseUrl(import.meta.env.VITE_SSO_BASE_URL || ''),
-  sessionPath: normalizePath(import.meta.env.VITE_SSO_SESSION_PATH || '/api/me'),
-  startPath: normalizePath(import.meta.env.VITE_SSO_START_PATH || '/api/sso/start'),
-  azureStartPath: normalizePath(
-    import.meta.env.VITE_SSO_AZURE_START_PATH || '/api/sso/azure/start',
-  ),
-  samlStartPath: normalizePath(import.meta.env.VITE_SSO_SAML_START_PATH || '/api/sso/saml/start'),
-  logoutPath: normalizePath(import.meta.env.VITE_SSO_LOGOUT_PATH || '/api/sso/logout'),
-  logoutMethod: normalizeHttpMethod(import.meta.env.VITE_SSO_LOGOUT_METHOD || 'POST'),
   appBasePath,
   defaultRoute,
+  /** Chave usada para guardar sessao SSO no sessionStorage */
+  sessionStorageKey: 'univesp.sso.session',
 }
+
+const SSO_SESSION_KEY = runtimeConfig.sessionStorageKey
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 export class SsoApiError extends Error {
   constructor(message, details = {}) {
@@ -37,7 +68,7 @@ export class SsoApiError extends Error {
 }
 
 export function getSsoRuntimeConfig() {
-  return { ...runtimeConfig }
+  return { ...runtimeConfig, azure: { ...azureConfig } }
 }
 
 export function getDefaultAuthenticatedRoute() {
@@ -46,6 +77,10 @@ export function getDefaultAuthenticatedRoute() {
 
 export function hasSsoDevBypass() {
   return devBypassConfig.enabled
+}
+
+export function isAzureConfigured() {
+  return Boolean(azureConfig.clientId && azureConfig.tenantId)
 }
 
 export function classifyInstitutionalEmail(email) {
@@ -82,6 +117,10 @@ export function describeSsoFlow(flow, email = '') {
   }
   return 'SSO institucional ativo'
 }
+
+// ---------------------------------------------------------------------------
+// Route helpers
+// ---------------------------------------------------------------------------
 
 export function normalizeInternalRouteTarget(
   value,
@@ -134,79 +173,253 @@ export function getPublicAppPath(value = runtimeConfig.defaultRoute) {
   return `${pathname}${url.search}${url.hash}`
 }
 
-export function buildSsoStartUrl({ email = '', next = runtimeConfig.defaultRoute } = {}) {
-  return withQuery(runtimeConfig.startPath, {
-    email: String(email || '').trim(),
+// ---------------------------------------------------------------------------
+// Azure AD OAuth2 — Authorization Code Flow (sem MSAL lib, puro redirect)
+// ---------------------------------------------------------------------------
+
+/**
+ * Gera a URL de autorizacao do Azure AD e redireciona o navegador.
+ * Usa o Authorization Code Flow com PKCE simplificado (implicit/id_token).
+ *
+ * Se MSAL.js for instalado no futuro, basta trocar esta funcao
+ * por msalInstance.loginRedirect().
+ */
+export function buildAzureLoginUrl({ next = runtimeConfig.defaultRoute } = {}) {
+  if (!azureConfig.clientId || !azureConfig.tenantId) {
+    throw new SsoApiError(
+      'Azure AD nao configurado. Defina VITE_AZURE_CLIENT_ID e VITE_AZURE_TENANT_ID.',
+    )
+  }
+
+  // Salvar o state para validacao no callback
+  const state = JSON.stringify({
     next: getPublicAppPath(next),
+    nonce: generateNonce(),
   })
+  sessionStorage.setItem('univesp.sso.state', state)
+
+  const nonce = JSON.parse(state).nonce
+  const params = new URLSearchParams({
+    client_id: azureConfig.clientId,
+    response_type: 'id_token',
+    redirect_uri: azureConfig.redirectUri,
+    scope: azureConfig.scopes.join(' '),
+    response_mode: 'fragment',
+    state: btoa(state),
+    nonce,
+  })
+
+  return `https://login.microsoftonline.com/${azureConfig.tenantId}/oauth2/v2.0/authorize?${params.toString()}`
 }
 
-export function buildAzureStartUrl({ tenant, next = runtimeConfig.defaultRoute } = {}) {
-  return withQuery(runtimeConfig.azureStartPath, {
-    tenant,
-    next: getPublicAppPath(next),
-  })
+/**
+ * Processa o callback do Azure AD apos o redirect.
+ * Extrai o id_token do fragment da URL e decodifica os claims.
+ *
+ * Retorna o usuario normalizado ou null se nao houver token.
+ */
+export function processAzureCallback() {
+  const hash = window.location.hash
+  if (!hash || !hash.includes('id_token=')) {
+    return null
+  }
+
+  const params = new URLSearchParams(hash.substring(1))
+  const idToken = params.get('id_token')
+  const stateParam = params.get('state')
+
+  if (!idToken) {
+    return null
+  }
+
+  // Decodificar o JWT (id_token) para extrair claims
+  const claims = decodeJwtPayload(idToken)
+  if (!claims) {
+    return null
+  }
+
+  // Validar state
+  let nextRoute = runtimeConfig.defaultRoute
+  if (stateParam) {
+    try {
+      const stateData = JSON.parse(atob(stateParam))
+      nextRoute = stateData.next || runtimeConfig.defaultRoute
+    } catch {
+      // Ignorar state invalido
+    }
+  }
+
+  const user = {
+    id: claims.oid || claims.sub || claims.email,
+    email: claims.email || claims.preferred_username || claims.upn || '',
+    displayName: claims.name || claims.given_name || claims.email || '',
+    firstName: claims.given_name || '',
+    lastName: claims.family_name || '',
+    flow: classifyInstitutionalEmail(
+      claims.email || claims.preferred_username || claims.upn,
+    ),
+    idToken,
+    raw: claims,
+  }
+
+  // Salvar sessao
+  saveSession(user)
+
+  // Limpar o fragment da URL
+  if (window.history.replaceState) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  }
+
+  return { user, nextRoute }
 }
 
-export function buildSamlStartUrl({ next = runtimeConfig.defaultRoute } = {}) {
-  return withQuery(runtimeConfig.samlStartPath, {
-    next: getPublicAppPath(next),
-  })
-}
+// ---------------------------------------------------------------------------
+// Session management (sessionStorage — nao depende do Frappe)
+// ---------------------------------------------------------------------------
 
+/**
+ * Verifica se ha um usuario SSO autenticado.
+ * Primeiro tenta o callback do Azure, depois o sessionStorage.
+ */
 export async function fetchCurrentSsoUser() {
   if (devBypassConfig.enabled) {
     return buildDevBypassUser()
   }
 
-  const payload = await ssoRequest(runtimeConfig.sessionPath)
-  if (!payload || !payload.authenticated || !payload.user) {
+  // 1. Se estamos voltando do Azure AD, processar o callback
+  const callbackResult = processAzureCallback()
+  if (callbackResult?.user) {
+    return callbackResult.user
+  }
+
+  // 2. Verificar sessao existente no sessionStorage
+  return loadSession()
+}
+
+export function logoutFromSso() {
+  clearSession()
+
+  // Se Azure configurado, redirecionar para logout do Azure tambem
+  if (azureConfig.clientId && azureConfig.tenantId) {
+    const logoutUrl = new URL(
+      `https://login.microsoftonline.com/${azureConfig.tenantId}/oauth2/v2.0/logout`,
+    )
+    logoutUrl.searchParams.set('post_logout_redirect_uri', `${getOrigin()}/login`)
+    window.location.assign(logoutUrl.toString())
+    return { ok: true, redirected: true }
+  }
+
+  return { ok: true, redirected: false }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy compat — buildSsoStartUrl / buildAzureStartUrl / buildSamlStartUrl
+// ---------------------------------------------------------------------------
+
+export function buildSsoStartUrl({ email = '', next = runtimeConfig.defaultRoute } = {}) {
+  try {
+    return buildAzureLoginUrl({ next })
+  } catch {
+    return `${getOrigin()}/login`
+  }
+}
+
+export function buildAzureStartUrl({ tenant, next = runtimeConfig.defaultRoute } = {}) {
+  try {
+    return buildAzureLoginUrl({ next })
+  } catch {
+    return `${getOrigin()}/login`
+  }
+}
+
+export function buildSamlStartUrl({ next = runtimeConfig.defaultRoute } = {}) {
+  try {
+    return buildAzureLoginUrl({ next })
+  } catch {
+    return `${getOrigin()}/login`
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Session persistence
+// ---------------------------------------------------------------------------
+
+function saveSession(user) {
+  if (typeof sessionStorage === 'undefined') return
+  const sessionData = {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    flow: user.flow,
+    savedAt: Date.now(),
+  }
+  sessionStorage.setItem(SSO_SESSION_KEY, JSON.stringify(sessionData))
+}
+
+function loadSession() {
+  if (typeof sessionStorage === 'undefined') return null
+  const raw = sessionStorage.getItem(SSO_SESSION_KEY)
+  if (!raw) return null
+
+  try {
+    const data = JSON.parse(raw)
+    if (!data || !data.email) return null
+
+    // Sessao expira em 8 horas
+    const maxAge = 8 * 60 * 60 * 1000
+    if (Date.now() - (data.savedAt || 0) > maxAge) {
+      clearSession()
+      return null
+    }
+
+    return {
+      id: data.id,
+      email: data.email,
+      displayName: data.displayName,
+      firstName: data.firstName || '',
+      lastName: data.lastName || '',
+      flow: data.flow || classifyInstitutionalEmail(data.email),
+      raw: data,
+    }
+  } catch {
+    clearSession()
     return null
   }
-
-  return normalizeSsoUser(payload.user)
 }
 
-export async function logoutFromSso(email = '') {
-  if (devBypassConfig.enabled) {
-    return { ok: true, email }
-  }
-
-  const method = runtimeConfig.logoutMethod
-  if (method === 'GET') {
-    return ssoRequest(withQuery(runtimeConfig.logoutPath, { email }), {
-      method,
-    })
-  }
-
-  return ssoRequest(runtimeConfig.logoutPath, {
-    method,
-    body: { email },
-  })
+function clearSession() {
+  if (typeof sessionStorage === 'undefined') return
+  sessionStorage.removeItem(SSO_SESSION_KEY)
+  sessionStorage.removeItem('univesp.sso.state')
 }
 
-async function ssoRequest(path, options = {}) {
-  const headers = new Headers(options.headers || {})
-  headers.set('Accept', 'application/json')
-  const response = await fetch(resolveApiUrl(path), {
-    method: options.method || 'GET',
-    headers,
-    body: normalizeRequestBody(options.body, headers),
-    credentials: 'include',
-    redirect: 'follow',
-  })
+// ---------------------------------------------------------------------------
+// JWT helpers
+// ---------------------------------------------------------------------------
 
-  const payload = await parseResponsePayload(response)
-  if (!response.ok) {
-    throw new SsoApiError(extractErrorMessage(payload, response.status), {
-      status: response.status,
-      url: response.url,
-      payload,
-    })
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = parts[1]
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(decoded)
+  } catch {
+    return null
   }
-
-  return payload
 }
+
+function generateNonce() {
+  const array = new Uint8Array(16)
+  crypto.getRandomValues(array)
+  return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+// ---------------------------------------------------------------------------
+// Dev bypass
+// ---------------------------------------------------------------------------
 
 function buildDevBypassUser() {
   const email = devBypassConfig.email || 'admin@univesp.br'
@@ -223,178 +436,34 @@ function buildDevBypassUser() {
   }
 }
 
-function normalizeSsoUser(rawUser) {
-  if (typeof rawUser === 'string') {
-    return {
-      id: rawUser,
-      email: rawUser,
-      displayName: rawUser,
-      flow: classifyInstitutionalEmail(rawUser),
-      raw: rawUser,
-    }
-  }
+// ---------------------------------------------------------------------------
+// String helpers
+// ---------------------------------------------------------------------------
 
-  const email = extractUserField(rawUser, [
-    'email',
-    'mail',
-    'userPrincipalName',
-    'upn',
-    'preferred_username',
-  ])
-  const displayName =
-    extractUserField(rawUser, ['displayName', 'fullName', 'full_name', 'name', 'givenName']) ||
-    email
-  const id = extractUserField(rawUser, ['id', 'sub', 'name']) || email
-  const flow =
-    extractUserField(rawUser, ['flow', 'authFlow', 'tenant', 'auth_flow']) ||
-    classifyInstitutionalEmail(email)
-
-  return {
-    id,
-    email,
-    displayName,
-    flow,
-    raw: rawUser,
-  }
-}
-
-function extractUserField(source, candidates) {
-  if (!source || typeof source !== 'object') {
-    return ''
-  }
-
-  for (const key of candidates) {
-    const value = source[key]
-    if (Array.isArray(value) && value.length) {
-      return String(value[0]).trim()
-    }
-    if (value !== undefined && value !== null && String(value).trim()) {
-      return String(value).trim()
-    }
-  }
-
-  return ''
-}
-
-function normalizeBaseUrl(value) {
-  return String(value || '').trim().replace(/\/+$/, '')
+function normalizeBasePath(value) {
+  const normalized = normalizePath(value)
+  if (normalized === '/') return '/'
+  return normalized.endsWith('/') ? normalized : `${normalized}/`
 }
 
 function normalizePath(value) {
   const trimmed = String(value || '').trim()
-  if (!trimmed) {
-    return '/'
-  }
-
+  if (!trimmed) return '/'
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
 }
 
-function normalizeBasePath(value) {
-  const normalized = normalizePath(value)
-  if (normalized === '/') {
-    return '/'
-  }
-  return normalized.endsWith('/') ? normalized : `${normalized}/`
-}
-
 function trimTrailingSlash(value) {
-  if (!value || value === '/') {
-    return value
-  }
+  if (!value || value === '/') return value
   return value.replace(/\/+$/, '')
-}
-
-function normalizeHttpMethod(value) {
-  return String(value || 'POST').trim().toUpperCase() === 'GET' ? 'GET' : 'POST'
 }
 
 function isTruthy(value, fallback = false) {
   const normalized = String(value || '').trim().toLowerCase()
-  if (!normalized) {
-    return fallback
-  }
+  if (!normalized) return fallback
   return ['1', 'true', 'yes', 'on'].includes(normalized)
 }
 
-function resolveApiUrl(path) {
-  const normalizedPath = String(path || '')
-  if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
-    return normalizedPath
-  }
-
-  const baseUrl = runtimeConfig.ssoBaseUrl || getOrigin()
-  return new URL(normalizePath(normalizedPath), baseUrl).toString()
-}
-
-function withQuery(path, params = {}) {
-  const url = new URL(resolveApiUrl(path))
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') {
-      return
-    }
-    url.searchParams.set(key, String(value))
-  })
-  return url.toString()
-}
-
 function getOrigin() {
-  if (typeof window !== 'undefined') {
-    return window.location.origin
-  }
+  if (typeof window !== 'undefined') return window.location.origin
   return 'http://localhost'
-}
-
-function normalizeRequestBody(body, headers) {
-  if (body === undefined || body === null) {
-    return undefined
-  }
-
-  if (body instanceof FormData || body instanceof URLSearchParams || body instanceof Blob) {
-    return body
-  }
-
-  if (typeof body === 'string') {
-    if (!headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json')
-    }
-    return body
-  }
-
-  headers.set('Content-Type', 'application/json')
-  return JSON.stringify(body)
-}
-
-async function parseResponsePayload(response) {
-  const rawBody = await response.text()
-  if (!rawBody) {
-    return null
-  }
-
-  const contentType = response.headers.get('content-type') || ''
-  if (!contentType.includes('application/json')) {
-    return rawBody
-  }
-
-  try {
-    return JSON.parse(rawBody)
-  } catch {
-    return rawBody
-  }
-}
-
-function extractErrorMessage(payload, status) {
-  if (payload && typeof payload === 'object') {
-    if (typeof payload.error === 'string' && payload.error.trim()) {
-      return payload.error.trim()
-    }
-    if (typeof payload.message === 'string' && payload.message.trim()) {
-      return payload.message.trim()
-    }
-  }
-
-  if (status === 401 || status === 403) {
-    return 'Sua sessao institucional expirou. Entre novamente com SSO.'
-  }
-
-  return 'Falha ao validar a sessao institucional.'
 }
