@@ -96,4 +96,10 @@ email_service_config = {
 		"smtp_server": "smtp.yandex.com",
 		"smtp_port": 587,
 	},
+	"Postfix": {
+		"email_server": "relay.univesp.br",
+		"use_ssl": 1,
+		"smtp_server": "relay.univesp.br",
+		"smtp_port": 25,
+	},
 }
