@@ -45,7 +45,7 @@ const azureConfigs = {
     tenantId: String(import.meta.env.VITE_AZURE_ACADEMICO_TENANT_ID || '').trim(),
   },
   redirectUri: String(
-    import.meta.env.VITE_AZURE_REDIRECT_URI || `${getOrigin()}/login`,
+    import.meta.env.VITE_AZURE_REDIRECT_URI || `${getOrigin()}/sso`,
   ).trim(),
   scopes: ['openid', 'profile', 'email'],
 }
@@ -312,14 +312,18 @@ export async function fetchCurrentSsoUser() {
 }
 
 export function logoutFromSso() {
+  const sessionUser = loadSession()
   clearSession()
 
   // Se Azure configurado, redirecionar para logout do Azure tambem
-  if (azureConfig.clientId && azureConfig.tenantId) {
+  const flow = sessionUser?.flow || 'admin'
+  const config = azureConfigs[flow] || azureConfigs.admin
+
+  if (config && config.clientId && config.tenantId) {
     const logoutUrl = new URL(
-      `https://login.microsoftonline.com/${azureConfig.tenantId}/oauth2/v2.0/logout`,
+      `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/logout`,
     )
-    logoutUrl.searchParams.set('post_logout_redirect_uri', `${getOrigin()}/login`)
+    logoutUrl.searchParams.set('post_logout_redirect_uri', `${getOrigin()}/sso`)
     window.location.assign(logoutUrl.toString())
     return { ok: true, redirected: true }
   }
@@ -335,7 +339,7 @@ export function buildSsoStartUrl({ email = '', next = runtimeConfig.defaultRoute
   try {
     return buildAzureLoginUrl({ next })
   } catch {
-    return `${getOrigin()}/login`
+    return `${getOrigin()}/sso`
   }
 }
 
@@ -343,7 +347,7 @@ export function buildAzureStartUrl({ tenant, next = runtimeConfig.defaultRoute }
   try {
     return buildAzureLoginUrl({ next })
   } catch {
-    return `${getOrigin()}/login`
+    return `${getOrigin()}/sso`
   }
 }
 
@@ -351,7 +355,7 @@ export function buildSamlStartUrl({ next = runtimeConfig.defaultRoute } = {}) {
   try {
     return buildAzureLoginUrl({ next })
   } catch {
-    return `${getOrigin()}/login`
+    return `${getOrigin()}/sso`
   }
 }
 

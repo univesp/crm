@@ -26,7 +26,7 @@ router.beforeEach(async (to) => {
     await auth.loadSession()
     if (auth.isAuthenticated) {
       const redirectTo = normalizeInternalRouteTarget(String(to.query.redirect || fallbackRoute))
-      return redirectTo === '/login' ? fallbackRoute : redirectTo
+      return redirectTo === '/sso' ? fallbackRoute : redirectTo
     }
     return true
   }

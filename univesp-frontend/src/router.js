@@ -1,6 +1,6 @@
 const routes = [
   {
-    path: '/login',
+    path: '/sso',
     name: 'login',
     component: () => import('@/pages/LoginPage.vue'),
     meta: {

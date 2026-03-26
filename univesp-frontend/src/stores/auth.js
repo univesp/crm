@@ -65,7 +65,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       return buildAzureLoginUrl({ next: normalizeInternalRouteTarget(redirectTo), flow })
     } catch {
-      return `${window.location.origin}/login`
+      return `${window.location.origin}/sso`
     }
   }
 
@@ -89,8 +89,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function logout(redirectTo = '/login') {
-    const targetRoute = normalizeInternalRouteTarget(redirectTo, '/login')
+  async function logout(redirectTo = '/sso') {
+    const targetRoute = normalizeInternalRouteTarget(redirectTo, '/sso')
     status.value = 'loading'
     try {
       const result = logoutFromSso()
