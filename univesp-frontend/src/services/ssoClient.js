@@ -35,9 +35,15 @@ const defaultRoute = normalizeInternalRouteTarget(
 )
 
 /** Azure AD / MSAL configuration */
-const azureConfig = {
-  clientId: String(import.meta.env.VITE_AZURE_CLIENT_ID || '').trim(),
-  tenantId: String(import.meta.env.VITE_AZURE_TENANT_ID || '').trim(),
+const azureConfigs = {
+  admin: {
+    clientId: String(import.meta.env.VITE_AZURE_ADMIN_CLIENT_ID || import.meta.env.VITE_AZURE_CLIENT_ID || '').trim(),
+    tenantId: String(import.meta.env.VITE_AZURE_ADMIN_TENANT_ID || import.meta.env.VITE_AZURE_TENANT_ID || '').trim(),
+  },
+  academico: {
+    clientId: String(import.meta.env.VITE_AZURE_ACADEMICO_CLIENT_ID || '').trim(),
+    tenantId: String(import.meta.env.VITE_AZURE_ACADEMICO_TENANT_ID || '').trim(),
+  },
   redirectUri: String(
     import.meta.env.VITE_AZURE_REDIRECT_URI || `${getOrigin()}/login`,
   ).trim(),
@@ -80,7 +86,7 @@ export function hasSsoDevBypass() {
 }
 
 export function isAzureConfigured() {
-  return Boolean(azureConfig.clientId && azureConfig.tenantId)
+  return Boolean(azureConfigs.admin.clientId || azureConfigs.academico.clientId)
 }
 
 export function classifyInstitutionalEmail(email) {
@@ -184,32 +190,41 @@ export function getPublicAppPath(value = runtimeConfig.defaultRoute) {
  * Se MSAL.js for instalado no futuro, basta trocar esta funcao
  * por msalInstance.loginRedirect().
  */
-export function buildAzureLoginUrl({ next = runtimeConfig.defaultRoute } = {}) {
-  if (!azureConfig.clientId || !azureConfig.tenantId) {
+/**
+ * Gera a URL de autorizacao do Azure AD e redireciona o navegador.
+ * Usa o Authorization Code Flow com PKCE simplificado (implicit/id_token).
+ *
+ * Recebe o flow (admin, academico) para usar o tenant/client id correto.
+ */
+export function buildAzureLoginUrl({ next = runtimeConfig.defaultRoute, flow = 'admin' } = {}) {
+  const config = azureConfigs[flow] || azureConfigs.admin
+
+  if (!config || !config.clientId || !config.tenantId) {
     throw new SsoApiError(
-      'Azure AD nao configurado. Defina VITE_AZURE_CLIENT_ID e VITE_AZURE_TENANT_ID.',
+      `Azure AD nao configurado adequadamente para o fluxo: ${flow}.`,
     )
   }
 
-  // Salvar o state para validacao no callback
+  // Salvar o state para validacao no callback e lembrar o fluxo original
   const state = JSON.stringify({
     next: getPublicAppPath(next),
     nonce: generateNonce(),
+    flow,
   })
   sessionStorage.setItem('univesp.sso.state', state)
 
   const nonce = JSON.parse(state).nonce
   const params = new URLSearchParams({
-    client_id: azureConfig.clientId,
+    client_id: config.clientId,
     response_type: 'id_token',
-    redirect_uri: azureConfig.redirectUri,
-    scope: azureConfig.scopes.join(' '),
+    redirect_uri: azureConfigs.redirectUri,
+    scope: azureConfigs.scopes.join(' '),
     response_mode: 'fragment',
     state: btoa(state),
     nonce,
   })
 
-  return `https://login.microsoftonline.com/${azureConfig.tenantId}/oauth2/v2.0/authorize?${params.toString()}`
+  return `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize?${params.toString()}`
 }
 
 /**

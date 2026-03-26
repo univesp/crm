@@ -61,26 +61,26 @@ export const useAuthStore = defineStore('auth', () => {
     errorMessage.value = ''
   }
 
-  function getLoginUrl(redirectTo) {
+  function getLoginUrl(flow, redirectTo) {
     try {
-      return buildAzureLoginUrl({ next: normalizeInternalRouteTarget(redirectTo) })
+      return buildAzureLoginUrl({ next: normalizeInternalRouteTarget(redirectTo), flow })
     } catch {
       return `${window.location.origin}/login`
     }
   }
 
   function getDirectAccessUrl(flow, redirectTo) {
-    // Todos os fluxos usam o mesmo Azure AD agora
-    return getLoginUrl(redirectTo)
+    return getLoginUrl(flow, redirectTo)
   }
 
-  async function redirectToLogin(redirectTo) {
+  async function redirectToLogin(redirectTo, flow = 'admin') {
     status.value = 'redirecting'
     errorMessage.value = ''
 
     try {
       const url = buildAzureLoginUrl({
         next: normalizeInternalRouteTarget(redirectTo),
+        flow,
       })
       window.location.assign(url)
     } catch (err) {
