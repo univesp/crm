@@ -65,6 +65,11 @@ server {
 		proxy_pass http://socketio-server;
 	}
 
+	location = /api/sso/azure/callback {
+		root /opt/univesp/frontend;
+		try_files /index.html =404;
+	}
+
 	location ^~ /api/ {
 		try_files /${FRAPPE_SITE_NAME_HEADER}/public/$uri @webserver;
 	}
