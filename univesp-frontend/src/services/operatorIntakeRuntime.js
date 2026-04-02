@@ -104,7 +104,13 @@ export function buildOperatorAssistedCase({
   const timestamp = buildTimestampParts(currentDate)
   const protocolNumber = `UVSP-${timestamp.compact.slice(0, 8)}-${timestamp.compact.slice(8, 14)}`
   const channelLabel =
-    contactChannel === 'presencial' ? 'Atendimento presencial' : 'Atendimento por telefone'
+    contactChannel === 'presencial'
+      ? 'Atendimento presencial'
+      : contactChannel === 'email'
+        ? 'Atendimento por e-mail'
+        : contactChannel === 'outro'
+          ? 'Atendimento por outro canal'
+          : 'Atendimento por telefone'
   const routing = buildCaseRoutingContext({
     studentPolo: studentData.polo,
     theme: context.theme,

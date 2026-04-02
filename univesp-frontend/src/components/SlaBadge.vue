@@ -35,7 +35,7 @@ const toneClass = computed(() => {
 </script>
 
 <template>
-  <span :class="['badge-base', toneClass]">
+  <span :class="['badge-base', toneClass]" :aria-label="`Prazo de resposta: ${label}`">
     {{ label }}
   </span>
 </template>

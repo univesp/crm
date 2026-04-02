@@ -349,6 +349,75 @@ function resolveSourceLabel(source = '') {
   return 'Base operacional'
 }
 
+export function resolveQueueBucket(entry = {}) {
+  const status = normalizeText(entry.status)
+  const pending = normalizeText(entry.pendingLabel)
+
+  if (status.includes('faq') || status.includes('respondido') || status.includes('conclu')) {
+    return 'completed'
+  }
+
+  if (
+    status.includes('complement') ||
+    pending.includes('complement') ||
+    pending.includes('anexo') ||
+    pending.includes('aluno precisa')
+  ) {
+    return 'waiting_student'
+  }
+
+  if (
+    status.includes('retorno da area') ||
+    status.includes('escalado') ||
+    pending.includes('secretaria') ||
+    pending.includes('area')
+  ) {
+    return 'waiting_area'
+  }
+
+  return 'needs_action'
+}
+
+export function resolveOperationalStatus(entry = {}) {
+  const status = normalizeText(entry.status)
+  const bucket = resolveQueueBucket(entry)
+  const sla = normalizeText(entry.sla)
+
+  if (status.includes('faq')) {
+    return 'Respondido FAQ'
+  }
+
+  if (status.includes('respondido') || status.includes('leitura do aluno')) {
+    return 'Respondido OP'
+  }
+
+  if (sla.includes('vencid')) {
+    return 'Atrasado'
+  }
+
+  if (bucket === 'waiting_student') {
+    return 'Aguardando aluno'
+  }
+
+  if (bucket === 'waiting_area') {
+    return 'Aguardando area'
+  }
+
+  if (status.includes('prioridade maxima') || entry.slaState === 'Em risco') {
+    return 'Urgente'
+  }
+
+  if (status.includes('validacao')) {
+    return 'Em andamento'
+  }
+
+  return 'Pendente'
+}
+
+export function shouldShowResponseDeadline(entry = {}) {
+  return resolveQueueBucket(entry) !== 'waiting_student'
+}
+
 function resolveAssignedOperatorName({
   assignedOperator = '',
   polo = '',
@@ -893,7 +962,7 @@ export function filterOperatorQueueEntries(entries = [], filters = {}) {
   return entries.filter((entry) => {
     return (
       matchesQuery(filters.search, entry.searchText, entry.subject, entry.student, entry.studentRa, entry.id) &&
-      matchesFilter(filters.status, entry.status) &&
+      matchesFilter(filters.status, resolveOperationalStatus(entry)) &&
       matchesFilter(filters.polo, entry.polo) &&
       matchesFilter(filters.sla, entry.slaState) &&
       matchesFilter(filters.origin, entry.originLabel) &&
@@ -906,7 +975,15 @@ export function filterOperatorQueueEntries(entries = [], filters = {}) {
 
 export function buildOperatorQueueFilterOptions(entries = []) {
   return {
-    status: buildFilterOptions(entries, 'status'),
+    status: [
+      { value: 'todos', label: 'Todos' },
+      ...Array.from(new Set(entries.map((entry) => resolveOperationalStatus(entry)).filter(Boolean))).map(
+        (value) => ({
+          value,
+          label: value,
+        }),
+      ),
+    ],
     polo: buildFilterOptions(entries, 'polo'),
     sla: buildFilterOptions(entries, 'slaState'),
     origin: buildFilterOptions(entries, 'originLabel'),

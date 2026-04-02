@@ -83,6 +83,13 @@ watch(
   </div>
 
   <div v-else :class="['relative min-h-screen overflow-hidden', shellThemeClass]">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[120] focus:rounded-full focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-slate-950"
+    >
+      Pular para o conteudo principal
+    </a>
+
     <div class="pointer-events-none absolute inset-0">
       <div class="absolute -left-16 top-10 h-64 w-64 rounded-full bg-[rgba(209,50,57,0.12)] blur-3xl"></div>
       <div class="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-[rgba(16,18,20,0.06)] blur-3xl"></div>
@@ -103,7 +110,7 @@ watch(
         <AppSidebar />
       </div>
 
-      <main class="flex-1 pb-8">
+      <main id="main-content" class="flex-1 pb-8">
         <MockContextBar v-if="!isStudentShell && !isOperationalShell" />
 
         <header
@@ -150,6 +157,7 @@ watch(
               <select
                 v-if="isManagerOperationalShell"
                 v-model="operationalPoloModel"
+                aria-label="Selecionar polo do gestor"
                 class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
               >
                 <option v-for="polo in auth.mockContext.linkedPolos" :key="polo" :value="polo">

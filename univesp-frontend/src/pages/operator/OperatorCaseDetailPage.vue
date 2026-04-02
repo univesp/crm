@@ -23,6 +23,7 @@ const pendingConfirmationAction = ref('')
 const lastActionFingerprint = ref('')
 const lastActionAt = ref(0)
 const lastSuggestedNote = ref('')
+const confirmationPanelRef = ref(null)
 const queueFlashStorageKey = computed(() => `univesp-operator-queue-flash:${auth.mockContext.profileKey}`)
 
 const detail = computed(() => studentSupportStore.operatorCaseById(route.params.caseId, auth.mockContext))
@@ -308,6 +309,16 @@ watch(selectedDecision, () => {
 
   operatorNote.value = ''
   lastSuggestedNote.value = ''
+})
+
+watch(pendingConfirmationAction, (actionType) => {
+  if (!actionType) {
+    return
+  }
+
+  nextTick(() => {
+    confirmationPanelRef.value?.focus()
+  })
 })
 
 const historySummary = computed(() => {
@@ -701,6 +712,7 @@ const confirmationCopy = computed(() => {
                   v-for="option in decisionOptions"
                   :key="option.id"
                   type="button"
+                  :aria-pressed="selectedDecision === option.id ? 'true' : 'false'"
                   :class="[
                     'grid gap-1 rounded-[14px] border px-4 py-4 text-left transition',
                     option.toneClass,
@@ -722,12 +734,19 @@ const confirmationCopy = computed(() => {
                     ref="operatorNoteRef"
                     v-model="operatorNote"
                     rows="5"
+                    :aria-invalid="noteError ? 'true' : 'false'"
+                    :aria-describedby="noteError ? 'operator-note-error' : undefined"
                     class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
                     :placeholder="activeDecision.placeholder"
                   />
                 </label>
 
-                <p v-if="noteError" class="mt-2 text-sm font-semibold text-[var(--color-danger)]">
+                <p
+                  v-if="noteError"
+                  id="operator-note-error"
+                  role="alert"
+                  class="mt-2 text-sm font-semibold text-[var(--color-danger)]"
+                >
                   {{ noteError }}
                 </p>
 
@@ -738,6 +757,8 @@ const confirmationCopy = computed(() => {
 
                 <div
                   v-if="actionFeedback.message"
+                  :role="actionFeedback.type === 'success' ? 'status' : 'alert'"
+                  :aria-live="actionFeedback.type === 'success' ? 'polite' : 'assertive'"
                   :class="[
                     'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
                     actionFeedback.type === 'success'
@@ -785,6 +806,10 @@ const confirmationCopy = computed(() => {
 
                 <div
                   v-if="confirmationCopy"
+                  ref="confirmationPanelRef"
+                  tabindex="-1"
+                  role="region"
+                  aria-label="Confirmacao da proxima acao"
                   class="mt-4 rounded-[14px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
                 >
                   <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>

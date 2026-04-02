@@ -7,6 +7,9 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import {
   buildOperatorQueueFilterOptions,
   filterOperatorQueueEntries,
+  resolveOperationalStatus,
+  resolveQueueBucket,
+  shouldShowResponseDeadline,
 } from '@/services/operatorQueueRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
@@ -21,6 +24,20 @@ const flashStorageKey = computed(() => `univesp-operator-queue-flash:${auth.mock
 const flashMessage = ref('')
 const showMobileFilters = ref(false)
 const refreshTick = ref(0)
+const PAGE_INCREMENT = 25
+const flatVisibleCount = ref(PAGE_INCREMENT)
+const groupVisibleCounts = reactive({
+  needs_action: PAGE_INCREMENT,
+  waiting_student: PAGE_INCREMENT,
+  waiting_area: PAGE_INCREMENT,
+  completed: PAGE_INCREMENT,
+})
+const groupOpenState = reactive({
+  needs_action: true,
+  waiting_student: false,
+  waiting_area: false,
+  completed: false,
+})
 
 const bucketDefinitions = [
   {
@@ -29,7 +46,8 @@ const bucketDefinitions = [
     activeClass: 'border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.88)] text-[var(--color-danger)]',
     inactiveClass: 'border-[rgba(166,31,40,0.16)] bg-white text-[var(--color-danger)]',
     rowClass: 'bg-[rgba(166,31,40,0.82)]',
-    surfaceClass: 'bg-[rgba(253,236,237,0.14)]',
+    surfaceClass: 'bg-[rgba(253,236,237,0.06)]',
+    sectionClass: 'bg-[rgba(253,236,237,0.58)] text-[var(--color-danger)]',
   },
   {
     id: 'waiting_student',
@@ -37,7 +55,8 @@ const bucketDefinitions = [
     activeClass: 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.92)] text-[#9a5b00]',
     inactiveClass: 'border-[rgba(202,138,4,0.16)] bg-white text-[#9a5b00]',
     rowClass: 'bg-[rgba(202,138,4,0.82)]',
-    surfaceClass: 'bg-[rgba(254,243,199,0.12)]',
+    surfaceClass: 'bg-[rgba(254,243,199,0.05)]',
+    sectionClass: 'bg-[rgba(254,243,199,0.62)] text-[#9a5b00]',
   },
   {
     id: 'waiting_area',
@@ -45,7 +64,8 @@ const bucketDefinitions = [
     activeClass: 'border-[rgba(8,115,145,0.2)] bg-[rgba(224,242,254,0.92)] text-[#0b6e8c]',
     inactiveClass: 'border-[rgba(8,115,145,0.16)] bg-white text-[#0b6e8c]',
     rowClass: 'bg-[rgba(8,115,145,0.82)]',
-    surfaceClass: 'bg-[rgba(224,242,254,0.12)]',
+    surfaceClass: 'bg-[rgba(224,242,254,0.05)]',
+    sectionClass: 'bg-[rgba(224,242,254,0.6)] text-[#0b6e8c]',
   },
   {
     id: 'completed',
@@ -53,7 +73,8 @@ const bucketDefinitions = [
     activeClass: 'border-[rgba(26,111,67,0.2)] bg-[rgba(220,252,231,0.9)] text-[var(--color-success)]',
     inactiveClass: 'border-[rgba(26,111,67,0.16)] bg-white text-[var(--color-success)]',
     rowClass: 'bg-[rgba(26,111,67,0.82)]',
-    surfaceClass: 'bg-[rgba(220,252,231,0.10)]',
+    surfaceClass: 'bg-[rgba(220,252,231,0.05)]',
+    sectionClass: 'bg-[rgba(220,252,231,0.58)] text-[var(--color-success)]',
   },
   {
     id: 'all',
@@ -64,18 +85,6 @@ const bucketDefinitions = [
     surfaceClass: 'bg-white',
   },
 ]
-
-const bucketOrder = {
-  needs_action: 0,
-  waiting_student: 1,
-  waiting_area: 2,
-  completed: 3,
-  all: 4,
-}
-
-function normalizeText(value = '') {
-  return String(value).trim().toLowerCase()
-}
 
 function compareText(left = '', right = '') {
   return String(left).localeCompare(String(right), 'pt-BR', { sensitivity: 'base' })
@@ -97,73 +106,12 @@ function buildDefaultFilters() {
   }
 }
 
-function resolveQueueBucket(entry) {
-  const status = normalizeText(entry.status)
-  const pending = normalizeText(entry.pendingLabel)
+function resetQueueDensityWindows() {
+  flatVisibleCount.value = PAGE_INCREMENT
 
-  if (status.includes('faq') || status.includes('respondido') || status.includes('conclu')) {
-    return 'completed'
+  for (const bucket of ['needs_action', 'waiting_student', 'waiting_area', 'completed']) {
+    groupVisibleCounts[bucket] = PAGE_INCREMENT
   }
-
-  if (
-    status.includes('complement') ||
-    pending.includes('complement') ||
-    pending.includes('anexo') ||
-    pending.includes('aluno precisa')
-  ) {
-    return 'waiting_student'
-  }
-
-  if (
-    status.includes('retorno da area') ||
-    status.includes('escalado') ||
-    pending.includes('secretaria') ||
-    pending.includes('area')
-  ) {
-    return 'waiting_area'
-  }
-
-  return 'needs_action'
-}
-
-function resolveOperationalStatus(entry) {
-  const status = normalizeText(entry.status)
-  const bucket = resolveQueueBucket(entry)
-  const sla = normalizeText(entry.sla)
-
-  if (status.includes('faq')) {
-    return 'Respondido FAQ'
-  }
-
-  if (status.includes('respondido') || status.includes('leitura do aluno')) {
-    return 'Respondido OP'
-  }
-
-  if (sla.includes('vencid')) {
-    return 'Atrasado'
-  }
-
-  if (bucket === 'waiting_student') {
-    return 'Aguardando aluno'
-  }
-
-  if (bucket === 'waiting_area') {
-    return 'Aguardando area'
-  }
-
-  if (status.includes('prioridade maxima') || entry.slaState === 'Em risco') {
-    return 'Urgente'
-  }
-
-  if (status.includes('validacao')) {
-    return 'Em andamento'
-  }
-
-  return 'Pendente'
-}
-
-function shouldShowResponseDeadline(entry) {
-  return resolveQueueBucket(entry) !== 'waiting_student'
 }
 
 function loadPersistedQueueState() {
@@ -204,7 +152,6 @@ function applyRouteSearch(searchValue) {
   }
 
   filters.search = normalizedSearch
-  filters.bucket = 'all'
 }
 
 function persistQueueState(scrollY = typeof window !== 'undefined' ? window.scrollY : 0) {
@@ -283,20 +230,11 @@ function compareEntries(left, right, field) {
   }
 }
 
-const orderedQueue = computed(() => {
+function sortQueueEntries(entries) {
   const direction = filters.sortDirection === 'desc' ? -1 : 1
   const field = filters.sortField || 'sla'
 
-  return [...bucketFilteredEntries.value].sort((left, right) => {
-    if (filters.bucket === 'all') {
-      const leftBucketOrder = bucketOrder[resolveQueueBucket(left)] ?? Number.MAX_SAFE_INTEGER
-      const rightBucketOrder = bucketOrder[resolveQueueBucket(right)] ?? Number.MAX_SAFE_INTEGER
-
-      if (leftBucketOrder !== rightBucketOrder) {
-        return leftBucketOrder - rightBucketOrder
-      }
-    }
-
+  return [...entries].sort((left, right) => {
     const primary = compareEntries(left, right, field)
 
     if (primary !== 0) {
@@ -305,7 +243,29 @@ const orderedQueue = computed(() => {
 
     return compareEntries(left, right, 'sla')
   })
-})
+}
+
+const orderedQueue = computed(() => sortQueueEntries(bucketFilteredEntries.value))
+const visibleFlatQueue = computed(() => orderedQueue.value.slice(0, flatVisibleCount.value))
+const hasMoreFlatQueue = computed(() => orderedQueue.value.length > flatVisibleCount.value)
+
+const groupedQueueSections = computed(() =>
+  bucketDefinitions
+    .filter((bucket) => bucket.id !== 'all')
+    .map((bucket) => {
+      const entries = sortQueueEntries(
+        utilityFilteredEntries.value.filter((entry) => resolveQueueBucket(entry) === bucket.id),
+      )
+
+      return {
+        ...bucket,
+        entries,
+        visibleEntries: entries.slice(0, groupVisibleCounts[bucket.id]),
+        hasMore: entries.length > groupVisibleCounts[bucket.id],
+      }
+    })
+    .filter((bucket) => bucket.entries.length),
+)
 
 const scopeBadges = computed(() => {
   if (!isManagerView.value) {
@@ -429,6 +389,18 @@ function sortIndicator(field) {
   return filters.sortDirection === 'asc' ? '↑' : '↓'
 }
 
+function ariaSort(field) {
+  if (filters.sortField !== field) {
+    return 'none'
+  }
+
+  return filters.sortDirection === 'asc' ? 'ascending' : 'descending'
+}
+
+function headerId(field) {
+  return `operator-queue-col-${field}`
+}
+
 function buildCaseRoute(caseId) {
   persistQueueState()
   return `/op/fila/${caseId}`
@@ -449,9 +421,26 @@ function rowSurfaceClass(entry) {
   return bucketDefinitions.find((item) => item.id === bucket)?.surfaceClass || 'bg-white'
 }
 
+function sectionToneClass(bucketId) {
+  return bucketDefinitions.find((item) => item.id === bucketId)?.sectionClass || 'bg-slate-50 text-slate-700'
+}
+
+function toggleGroupedSection(bucketId) {
+  groupOpenState[bucketId] = !groupOpenState[bucketId]
+}
+
+function showMoreFlatQueue() {
+  flatVisibleCount.value += PAGE_INCREMENT
+}
+
+function showMoreGroup(bucketId) {
+  groupVisibleCounts[bucketId] += PAGE_INCREMENT
+}
+
 watch(
   filters,
   () => {
+    resetQueueDensityWindows()
     persistQueueState()
   },
   { deep: true },
@@ -497,6 +486,8 @@ onUnmounted(() => {
   <div class="grid gap-3">
     <div
       v-if="flashMessage"
+      role="status"
+      aria-live="polite"
       class="rounded-[16px] border border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] px-4 py-3 text-sm leading-6 text-[var(--color-success)]"
     >
       {{ flashMessage }}
@@ -519,6 +510,7 @@ onUnmounted(() => {
             v-for="bucket in quickBuckets"
             :key="bucket.id"
             type="button"
+            :aria-pressed="bucket.active ? 'true' : 'false'"
             :class="[
               'inline-flex items-center gap-2 rounded-[14px] border px-4 py-2.5 text-sm font-semibold transition',
               bucket.active ? bucket.activeClass : bucket.inactiveClass,
@@ -569,16 +561,102 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <div
+          class="hidden gap-3 lg:grid"
+          :class="[
+            showPoloFilter || showOperatorFilter
+              ? 'lg:grid-cols-[repeat(6,minmax(0,1fr))]'
+              : 'lg:grid-cols-[repeat(4,minmax(0,1fr))]',
+          ]"
+        >
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Status</span>
+            <select
+              v-model="filters.status"
+              class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700"
+            >
+              <option v-for="option in filterOptions.status" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Prazo</span>
+            <select
+              v-model="filters.sla"
+              class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700"
+            >
+              <option v-for="option in filterOptions.sla" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Pendencia</span>
+            <select
+              v-model="filters.pending"
+              class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700"
+            >
+              <option v-for="option in filterOptions.pending" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Escalonamento</span>
+            <select
+              v-model="filters.escalation"
+              class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700"
+            >
+              <option
+                v-for="option in filterOptions.escalation"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label v-if="showPoloFilter" class="grid gap-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Polo</span>
+            <select
+              v-model="filters.polo"
+              class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700"
+            >
+              <option v-for="option in filterOptions.polo" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label v-if="showOperatorFilter" class="grid gap-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Operador</span>
+            <select
+              v-model="filters.operator"
+              class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700"
+            >
+              <option v-for="option in filterOptions.operator" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+        </div>
+
         <div v-if="activeFilterChips.length" class="flex flex-wrap gap-2">
           <button
             v-for="chip in activeFilterChips"
             :key="chip.key"
             type="button"
+            :aria-label="`Remover filtro ${chip.label}`"
             class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700"
             @click="clearFilterChip(chip.key)"
           >
             <span>{{ chip.label }}</span>
-            <span aria-hidden="true">x</span>
+            <span aria-hidden="true">×</span>
           </button>
         </div>
       </div>
@@ -586,123 +664,271 @@ onUnmounted(() => {
 
     <section
       v-if="orderedQueue.length"
+      role="table"
+      aria-label="Fila operacional de atendimentos"
       class="overflow-hidden rounded-[16px] border border-slate-200 bg-white"
     >
-      <div
-        :class="[
-          'hidden gap-4 border-b border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-semibold text-slate-500 lg:grid',
-          isManagerView
-            ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,2.3fr)_minmax(0,2.3fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]'
-            : 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,2.4fr)_minmax(0,2.5fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]',
-        ]"
-      >
-        <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('student')">
-          Aluno <span>{{ sortMarker('student') }}</span>
-        </button>
-        <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('ra')">
-          RA <span>{{ sortMarker('ra') }}</span>
-        </button>
-        <button
-          v-if="isManagerView"
-          type="button"
-          class="text-left transition hover:text-slate-900"
-          @click="toggleSort('polo')"
+      <div role="rowgroup" class="hidden border-b border-slate-200 bg-slate-50/70 px-4 py-3 lg:block">
+        <div
+          :class="[
+            'gap-4 text-xs font-semibold text-slate-500 lg:grid',
+            isManagerView
+              ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,2.3fr)_minmax(0,2.3fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]'
+              : 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,2.4fr)_minmax(0,2.5fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]',
+          ]"
+          role="row"
         >
-          Polo <span>{{ sortMarker('polo') }}</span>
-        </button>
-        <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('subject')">
-          Assunto <span>{{ sortMarker('subject') }}</span>
-        </button>
-        <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('pending')">
-          Pendencia atual <span>{{ sortMarker('pending') }}</span>
-        </button>
-        <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('protocol')">
-          Protocolo <span>{{ sortMarker('protocol') }}</span>
-        </button>
-        <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('status')">
-          Status <span>{{ sortMarker('status') }}</span>
-        </button>
-        <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('sla')">
-          Prazo de resposta <span>{{ sortMarker('sla') }}</span>
-        </button>
-        <p class="text-right">Acao</p>
+          <div :id="headerId('student')" role="columnheader" :aria-sort="ariaSort('student')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('student')">
+              Aluno <span aria-hidden="true">{{ sortMarker('student') }}</span>
+            </button>
+          </div>
+          <div :id="headerId('ra')" role="columnheader" :aria-sort="ariaSort('ra')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('ra')">
+              RA <span aria-hidden="true">{{ sortMarker('ra') }}</span>
+            </button>
+          </div>
+          <div
+            v-if="isManagerView"
+            :id="headerId('polo')"
+            role="columnheader"
+            :aria-sort="ariaSort('polo')"
+          >
+            <button
+              type="button"
+              class="text-left transition hover:text-slate-900"
+              @click="toggleSort('polo')"
+            >
+              Polo <span aria-hidden="true">{{ sortMarker('polo') }}</span>
+            </button>
+          </div>
+          <div :id="headerId('subject')" role="columnheader" :aria-sort="ariaSort('subject')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('subject')">
+              Assunto <span aria-hidden="true">{{ sortMarker('subject') }}</span>
+            </button>
+          </div>
+          <div :id="headerId('pending')" role="columnheader" :aria-sort="ariaSort('pending')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('pending')">
+              Pendencia atual <span aria-hidden="true">{{ sortMarker('pending') }}</span>
+            </button>
+          </div>
+          <div :id="headerId('protocol')" role="columnheader" :aria-sort="ariaSort('protocol')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('protocol')">
+              Protocolo <span aria-hidden="true">{{ sortMarker('protocol') }}</span>
+            </button>
+          </div>
+          <div :id="headerId('status')" role="columnheader" :aria-sort="ariaSort('status')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('status')">
+              Status <span aria-hidden="true">{{ sortMarker('status') }}</span>
+            </button>
+          </div>
+          <div :id="headerId('sla')" role="columnheader" :aria-sort="ariaSort('sla')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('sla')">
+              Prazo de resposta <span aria-hidden="true">{{ sortMarker('sla') }}</span>
+            </button>
+          </div>
+          <div :id="headerId('action')" role="columnheader" class="text-right">Acao</div>
+        </div>
       </div>
 
-      <div class="divide-y divide-slate-200">
+      <template v-if="filters.bucket === 'all'">
+        <div class="divide-y divide-slate-200">
+          <section
+            v-for="bucket in groupedQueueSections"
+            :key="bucket.id"
+            class="bg-white"
+          >
+            <button
+              type="button"
+              :aria-expanded="groupOpenState[bucket.id] ? 'true' : 'false'"
+              :aria-controls="`queue-group-${bucket.id}`"
+              :class="['flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold', sectionToneClass(bucket.id)]"
+              @click="toggleGroupedSection(bucket.id)"
+            >
+              <div class="flex items-center gap-3">
+                <span class="h-2.5 w-2.5 rounded-full bg-current"></span>
+                <span>{{ bucket.label }}</span>
+                <span class="rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                  {{ bucket.entries.length }}
+                </span>
+              </div>
+              <span class="text-xs font-semibold text-slate-500">
+                {{ groupOpenState[bucket.id] ? 'Ocultar' : 'Mostrar' }}
+              </span>
+            </button>
+
+            <div
+              v-if="groupOpenState[bucket.id]"
+              :id="`queue-group-${bucket.id}`"
+              role="rowgroup"
+              class="divide-y divide-slate-200"
+            >
+              <article
+                v-for="item in bucket.visibleEntries"
+                :key="item.id"
+                role="row"
+                :class="['grid grid-cols-[6px_minmax(0,1fr)]', rowSurfaceClass(item)]"
+              >
+                <div :class="rowToneClass(item)" aria-hidden="true"></div>
+                <div class="px-4 py-3">
+                  <div
+                    :class="[
+                      'hidden gap-4 lg:grid lg:items-center',
+                      isManagerView
+                        ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,2.3fr)_minmax(0,2.3fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]'
+                        : 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,2.4fr)_minmax(0,2.5fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]',
+                    ]"
+                  >
+                    <div class="min-w-0" role="cell" :aria-labelledby="headerId('student')">
+                      <p class="truncate text-sm font-medium leading-5 text-slate-900">{{ item.student }}</p>
+                    </div>
+                    <div class="min-w-0" role="cell" :aria-labelledby="headerId('ra')">
+                      <p class="truncate text-sm leading-5 text-slate-700">{{ item.studentRa || 'Nao informado' }}</p>
+                    </div>
+                    <div v-if="isManagerView" class="min-w-0" role="cell" :aria-labelledby="headerId('polo')">
+                      <p class="truncate text-sm leading-5 text-slate-700">{{ item.polo }}</p>
+                    </div>
+                    <div class="min-w-0" role="cell" :aria-labelledby="headerId('subject')">
+                      <p class="truncate text-sm font-semibold leading-5 text-slate-950">{{ item.subject }}</p>
+                    </div>
+                    <div class="min-w-0" role="cell" :aria-labelledby="headerId('pending')">
+                      <p class="line-clamp-2 text-sm leading-5 text-slate-900">{{ item.pendingLabel }}</p>
+                    </div>
+                    <div class="min-w-0" role="cell" :aria-labelledby="headerId('protocol')">
+                      <p class="truncate text-xs font-medium leading-5 text-slate-600">{{ item.id }}</p>
+                    </div>
+                    <div class="min-w-0" role="cell" :aria-labelledby="headerId('status')">
+                      <StatusBadge :label="resolveOperationalStatus(item)" />
+                    </div>
+                    <div class="min-w-0" role="cell" :aria-labelledby="headerId('sla')">
+                      <SlaBadge v-if="shouldShowResponseDeadline(item)" :label="item.sla" />
+                    </div>
+                    <div class="justify-self-end" role="cell" :aria-labelledby="headerId('action')">
+                      <RouterLink
+                        :to="buildCaseRoute(item.id)"
+                        class="inline-flex items-center justify-center rounded-[12px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(209,50,57,0.12)]"
+                      >
+                        Abrir
+                      </RouterLink>
+                    </div>
+                  </div>
+
+                  <div class="grid gap-2.5 lg:hidden">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0 flex-1">
+                        <p class="text-base font-semibold leading-6 text-slate-950">{{ item.subject }}</p>
+                        <p class="mt-1 text-sm leading-5 text-slate-600">{{ item.student }}</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-500">RA {{ item.studentRa || 'Nao informado' }} | {{ item.id }}</p>
+                      </div>
+
+                      <RouterLink
+                        :to="buildCaseRoute(item.id)"
+                        class="inline-flex items-center justify-center rounded-[12px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(209,50,57,0.12)]"
+                      >
+                        Abrir
+                      </RouterLink>
+                    </div>
+
+                    <p class="text-sm leading-5 text-slate-900">{{ item.pendingLabel }}</p>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                      <StatusBadge :label="resolveOperationalStatus(item)" />
+                      <SlaBadge v-if="shouldShowResponseDeadline(item)" :label="item.sla" />
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <div v-if="bucket.hasMore" class="px-4 py-3">
+                <button
+                  type="button"
+                  class="rounded-[12px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  @click="showMoreGroup(bucket.id)"
+                >
+                  Mostrar mais {{ bucket.label.toLowerCase() }}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </template>
+
+      <div v-else role="rowgroup" class="divide-y divide-slate-200">
         <article
-          v-for="item in orderedQueue"
+          v-for="item in visibleFlatQueue"
           :key="item.id"
+          role="row"
           :class="['grid grid-cols-[6px_minmax(0,1fr)]', rowSurfaceClass(item)]"
         >
           <div :class="rowToneClass(item)" aria-hidden="true"></div>
-          <div class="px-4 py-4">
+          <div class="px-4 py-3">
             <div
               :class="[
-                'hidden gap-4 lg:grid lg:items-start',
+                'hidden gap-4 lg:grid lg:items-center',
                 isManagerView
                   ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,2.3fr)_minmax(0,2.3fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]'
                   : 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,2.4fr)_minmax(0,2.5fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]',
               ]"
             >
-              <div class="min-w-0">
-                <p class="text-sm font-medium leading-6 text-slate-900">{{ item.student }}</p>
+              <div class="min-w-0" role="cell" :aria-labelledby="headerId('student')">
+                <p class="truncate text-sm font-medium leading-5 text-slate-900">{{ item.student }}</p>
               </div>
 
-              <div class="min-w-0">
-                <p class="text-sm leading-6 text-slate-700">{{ item.studentRa || 'Nao informado' }}</p>
+              <div class="min-w-0" role="cell" :aria-labelledby="headerId('ra')">
+                <p class="truncate text-sm leading-5 text-slate-700">{{ item.studentRa || 'Nao informado' }}</p>
               </div>
 
-              <div v-if="isManagerView" class="min-w-0">
-                <p class="text-sm leading-6 text-slate-700">{{ item.polo }}</p>
+              <div v-if="isManagerView" class="min-w-0" role="cell" :aria-labelledby="headerId('polo')">
+                <p class="truncate text-sm leading-5 text-slate-700">{{ item.polo }}</p>
               </div>
 
-              <div class="min-w-0">
-                <p class="text-sm font-semibold leading-6 text-slate-950">{{ item.subject }}</p>
+              <div class="min-w-0" role="cell" :aria-labelledby="headerId('subject')">
+                <p class="truncate text-sm font-semibold leading-5 text-slate-950">{{ item.subject }}</p>
               </div>
 
-              <div class="min-w-0">
-                <p class="text-sm leading-6 text-slate-900">{{ item.pendingLabel }}</p>
+              <div class="min-w-0" role="cell" :aria-labelledby="headerId('pending')">
+                <p class="line-clamp-2 text-sm leading-5 text-slate-900">{{ item.pendingLabel }}</p>
               </div>
 
-              <div class="min-w-0">
-                <p class="text-sm leading-6 text-slate-700">{{ item.id }}</p>
+              <div class="min-w-0" role="cell" :aria-labelledby="headerId('protocol')">
+                <p class="truncate text-xs font-medium leading-5 text-slate-600">{{ item.id }}</p>
               </div>
 
-              <div class="min-w-0">
+              <div class="min-w-0" role="cell" :aria-labelledby="headerId('status')">
                 <StatusBadge :label="resolveOperationalStatus(item)" />
               </div>
 
-              <div class="min-w-0">
+              <div class="min-w-0" role="cell" :aria-labelledby="headerId('sla')">
                 <SlaBadge v-if="shouldShowResponseDeadline(item)" :label="item.sla" />
               </div>
 
-              <div class="justify-self-end">
+              <div class="justify-self-end" role="cell" :aria-labelledby="headerId('action')">
                 <RouterLink
                   :to="buildCaseRoute(item.id)"
-                  class="inline-flex items-center justify-center rounded-[14px] bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(209,50,57,0.14)]"
+                  class="inline-flex items-center justify-center rounded-[12px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(209,50,57,0.12)]"
                 >
                   Abrir
                 </RouterLink>
               </div>
             </div>
 
-            <div class="grid gap-3 lg:hidden">
+            <div class="grid gap-2.5 lg:hidden">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0 flex-1">
                   <p class="text-base font-semibold leading-6 text-slate-950">{{ item.subject }}</p>
-                  <p class="mt-1 text-sm leading-6 text-slate-600">{{ item.student }}</p>
+                  <p class="mt-1 text-sm leading-5 text-slate-600">{{ item.student }}</p>
                   <p class="mt-1 text-xs leading-5 text-slate-500">RA {{ item.studentRa || 'Nao informado' }} | {{ item.id }}</p>
                 </div>
 
                 <RouterLink
                   :to="buildCaseRoute(item.id)"
-                  class="inline-flex items-center justify-center rounded-[14px] bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(209,50,57,0.14)]"
+                  class="inline-flex items-center justify-center rounded-[12px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(209,50,57,0.12)]"
                 >
                   Abrir
                 </RouterLink>
               </div>
 
-              <p class="text-sm leading-6 text-slate-900">{{ item.pendingLabel }}</p>
+              <p class="text-sm leading-5 text-slate-900">{{ item.pendingLabel }}</p>
 
               <div class="flex flex-wrap items-center gap-2">
                 <StatusBadge :label="resolveOperationalStatus(item)" />
@@ -711,10 +937,20 @@ onUnmounted(() => {
             </div>
           </div>
         </article>
+
+        <div v-if="hasMoreFlatQueue" class="px-4 py-3">
+          <button
+            type="button"
+            class="rounded-[12px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            @click="showMoreFlatQueue"
+          >
+            Carregar mais atendimentos
+          </button>
+        </div>
       </div>
     </section>
 
-    <div v-else class="rounded-[16px] border border-slate-200 bg-white px-6 py-6">
+    <div v-else role="status" aria-live="polite" class="rounded-[16px] border border-slate-200 bg-white px-6 py-6">
       <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">
         Nenhum atendimento encontrado
       </p>

@@ -22,6 +22,7 @@ const verifiedSummary = ref('')
 const verifiedSummaryRef = ref(null)
 const pendingConfirmationAction = ref('')
 const isSubmitting = ref(false)
+const confirmationPanelRef = ref(null)
 const actionFeedback = ref({
   type: '',
   message: '',
@@ -491,6 +492,16 @@ watch(
   },
 )
 
+watch(pendingConfirmationAction, (actionType) => {
+  if (!actionType) {
+    return
+  }
+
+  nextTick(() => {
+    confirmationPanelRef.value?.focus()
+  })
+})
+
 watch(
   () => auth.mockContext.currentPolo,
   (currentPolo) => {
@@ -573,7 +584,7 @@ watch(
             </button>
           </div>
 
-          <div v-if="formErrors.contactChannel" class="text-sm font-semibold text-[var(--color-danger)]">
+          <div v-if="formErrors.contactChannel" role="alert" class="text-sm font-semibold text-[var(--color-danger)]">
             {{ formErrors.contactChannel }}
           </div>
 
@@ -678,7 +689,7 @@ watch(
               <span>{{ lookup.contactChannel || 'Selecione a forma de atendimento' }}</span>
             </div>
 
-            <div v-if="formErrors.student" class="mt-3 text-sm font-semibold text-[var(--color-danger)]">
+            <div v-if="formErrors.student" role="alert" class="mt-3 text-sm font-semibold text-[var(--color-danger)]">
               {{ formErrors.student }}
             </div>
 
@@ -898,11 +909,18 @@ watch(
               ref="verifiedSummaryRef"
               v-model="verifiedSummary"
               rows="5"
+              :aria-invalid="formErrors.verifiedSummary ? 'true' : 'false'"
+              :aria-describedby="formErrors.verifiedSummary ? 'verified-summary-error' : undefined"
               class="mt-4 w-full rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
               placeholder="Ex.: documento conferido, regra validada, contato confirmado, orientacao explicada ao aluno."
             />
 
-            <p v-if="formErrors.verifiedSummary" class="mt-2 text-sm font-semibold text-[var(--color-danger)]">
+            <p
+              v-if="formErrors.verifiedSummary"
+              id="verified-summary-error"
+              role="alert"
+              class="mt-2 text-sm font-semibold text-[var(--color-danger)]"
+            >
               {{ formErrors.verifiedSummary }}
             </p>
           </div>
@@ -923,6 +941,7 @@ watch(
                 v-for="option in actionOptions"
                 :key="option.id"
                 type="button"
+                :aria-pressed="selectedAction === option.id ? 'true' : 'false'"
                 :class="['grid gap-1 rounded-[14px] border px-4 py-4 text-left transition', option.toneClass]"
                 @click="chooseAction(option.id)"
               >
@@ -933,6 +952,8 @@ watch(
 
             <div
               v-if="actionFeedback.message"
+              :role="actionFeedback.type === 'success' ? 'status' : 'alert'"
+              :aria-live="actionFeedback.type === 'success' ? 'polite' : 'assertive'"
               :class="[
                 'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
                 actionFeedback.type === 'success'
@@ -978,12 +999,16 @@ watch(
               </p>
             </div>
 
-            <p v-if="formErrors.action" class="mt-3 text-sm font-semibold text-[var(--color-danger)]">
+            <p v-if="formErrors.action" role="alert" class="mt-3 text-sm font-semibold text-[var(--color-danger)]">
               {{ formErrors.action }}
             </p>
 
             <div
               v-if="confirmationCopy"
+              ref="confirmationPanelRef"
+              tabindex="-1"
+              role="region"
+              aria-label="Confirmacao da abertura assistida"
               class="mt-4 rounded-[14px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
             >
               <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
