@@ -85,7 +85,7 @@ function buildDefaultFilters() {
   return {
     search: '',
     status: 'todos',
-    polo: isManagerView.value ? 'todos' : auth.mockContext.currentPolo,
+    polo: auth.mockContext.currentPolo,
     sla: 'todos',
     origin: 'todos',
     pending: 'todos',
@@ -455,6 +455,17 @@ watch(
     persistQueueState()
   },
   { deep: true },
+)
+
+watch(
+  () => auth.mockContext.currentPolo,
+  (currentPolo) => {
+    if (!isManagerView.value) {
+      return
+    }
+
+    filters.polo = currentPolo
+  },
 )
 
 onMounted(() => {

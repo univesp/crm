@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { buildStudentFaqHomeEntries, buildStudentFaqRuntime } from '@/services/faqRuntime'
@@ -13,101 +13,47 @@ const router = useRouter()
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 
-const isManagerView = computed(() => auth.mockContext.profileKey === 'gestor_polos')
-const studentDirectory = buildOperationalStudentDirectory()
 const selectedNodeId = ref(String(route.query.node || ''))
+const manualStudentEntry = ref(false)
+const selectedCandidate = ref(null)
+const confirmedStudent = ref(null)
+const selectedAction = ref('')
+const verifiedSummary = ref('')
+const verifiedSummaryRef = ref(null)
+const pendingConfirmationAction = ref('')
 const isSubmitting = ref(false)
-const feedback = ref({
+const actionFeedback = ref({
   type: '',
   message: '',
 })
-const showEscalationConfirm = ref(false)
-const manualStudentEntry = ref(String(route.query.manual || '') === '1')
-
-const studentForm = reactive({
-  nome: String(route.query.studentName || ''),
-  ra: String(route.query.studentRa || ''),
-  email: '',
-  curso: '',
-  polo: String(route.query.studentPolo || auth.mockContext.currentPolo || ''),
-  contactChannel: String(route.query.contactChannel || 'telefone'),
-  verifiedSummary: '',
-})
 
 const formErrors = reactive({
-  nome: '',
-  polo: '',
-  node: '',
+  student: '',
+  contactChannel: '',
   verifiedSummary: '',
+  action: '',
+})
+
+const lookup = reactive({
+  nome: '',
+  ra: '',
+  curso: '',
+  polo: auth.mockContext.currentPolo || '',
+  contactChannel: '',
 })
 
 function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase()
 }
 
-const availablePolos = computed(() =>
-  Array.from(
-    new Set([auth.mockContext.currentPolo, ...studentDirectory.map((student) => student.polo)].filter(Boolean)),
-  ).sort((left, right) => left.localeCompare(right, 'pt-BR')),
-)
+function withPeriod(value = '') {
+  const text = String(value || '').trim()
 
-const selectedStudentSummary = computed(() => {
-  const parts = []
-
-  if (studentForm.nome.trim()) {
-    parts.push(studentForm.nome.trim())
+  if (!text) {
+    return ''
   }
 
-  if (studentForm.ra.trim()) {
-    parts.push(`RA ${studentForm.ra.trim()}`)
-  }
-
-  if (studentForm.polo.trim()) {
-    parts.push(`Polo ${studentForm.polo.trim()}`)
-  }
-
-  return parts.join(' - ')
-})
-
-const studentSuggestions = computed(() =>
-  studentDirectory
-    .filter((student) =>
-      !studentForm.polo.trim() || normalizeText(student.polo) === normalizeText(studentForm.polo),
-    )
-    .map((student) => ({
-      ...student,
-      label: `${student.nome} - ${student.ra || 'Sem RA'} - ${student.polo}`,
-    })),
-)
-
-function syncStudentFromKnownData() {
-  if (manualStudentEntry.value) {
-    return
-  }
-
-  const match = studentDirectory.find((student) => {
-    const matchesPolo =
-      !studentForm.polo.trim() || normalizeText(student.polo) === normalizeText(studentForm.polo)
-
-    return (
-      matchesPolo &&
-      (
-        (student.ra && student.ra === studentForm.ra) ||
-        (student.email && student.email === studentForm.email) ||
-        (student.nome && normalizeText(student.nome) === normalizeText(studentForm.nome))
-      )
-    )
-  })
-
-  if (!match) {
-    return
-  }
-
-  studentForm.nome = match.nome
-  studentForm.ra = match.ra || studentForm.ra
-  studentForm.email = match.email || studentForm.email
-  studentForm.curso = match.curso || studentForm.curso
-  studentForm.polo = match.polo || studentForm.polo
+  return /[.!?]$/.test(text) ? text : `${text}.`
 }
 
 const faqRuntime = computed(() => buildStudentFaqRuntime())
@@ -137,6 +83,59 @@ const activeLineage = computed(() =>
 )
 const activeChildren = computed(() => activeNode.value?.children || [])
 const activeNodeIsLeaf = computed(() => Boolean(activeNode.value) && activeChildren.value.length === 0)
+
+const directory = computed(() => buildOperationalStudentDirectory())
+const courseOptions = computed(() =>
+  Array.from(
+    new Set(
+      directory.value
+        .filter((student) => (lookup.polo ? normalizeText(student.polo) === normalizeText(lookup.polo) : true))
+        .map((student) => student.curso)
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right, 'pt-BR')),
+)
+
+const filteredStudents = computed(() => {
+  const nameQuery = normalizeText(lookup.nome)
+  const raQuery = normalizeText(lookup.ra)
+  const courseQuery = normalizeText(lookup.curso)
+
+  return directory.value
+    .filter((student) => (lookup.polo ? normalizeText(student.polo) === normalizeText(lookup.polo) : true))
+    .filter((student) => (nameQuery ? normalizeText(student.nome).includes(nameQuery) : true))
+    .filter((student) => (raQuery ? normalizeText(student.ra).includes(raQuery) : true))
+    .filter((student) => (courseQuery ? normalizeText(student.curso).includes(courseQuery) : true))
+    .slice(0, 8)
+})
+
+const shouldShowSuggestions = computed(
+  () => !manualStudentEntry.value && Boolean(lookup.nome.trim() || lookup.ra.trim() || lookup.curso.trim()),
+)
+
+const activeContext = computed(() => {
+  if (!activeNode.value) {
+    return null
+  }
+
+  return {
+    theme: activeNode.value.tema,
+    subtheme: activeNode.value.subtema || activeNode.value.titulo_exibido,
+    breadcrumb: activeLineage.value.map((item) => item.titulo_exibido),
+    finalNode: {
+      id: activeNode.value.id,
+      title: activeNode.value.titulo_exibido,
+      nodeType: activeNode.value.node_type || 'leaf',
+    },
+    displayedAnswer: activeNode.value.resposta || '',
+    action: activeNode.value.acao || null,
+    queueDestination: activeNode.value.fila_destino || null,
+    criticality: activeNode.value.criticidade_padrao || null,
+    sla: activeNode.value.sla_padrao || null,
+    subject: activeNode.value.titulo_exibido,
+  }
+})
+
 const playbookGuide = computed(() =>
   activeNodeIsLeaf.value
     ? buildOperatorPlaybookGuide({
@@ -146,7 +145,7 @@ const playbookGuide = computed(() =>
     : null,
 )
 
-const operatorGuideSections = computed(() => {
+const guideSections = computed(() => {
   if (!playbookGuide.value) {
     return []
   }
@@ -167,41 +166,91 @@ const operatorGuideSections = computed(() => {
   ].filter((section) => section.items.length)
 })
 
-const canProceedToSubject = computed(() => Boolean(studentForm.polo.trim() && (studentForm.nome.trim() || studentForm.ra.trim())))
+const actionOptions = computed(() => [
+  {
+    id: 'open_case',
+    title: 'Abrir atendimento em nome do aluno',
+    description: 'A tratativa precisa continuar no portal com registro formal.',
+    buttonLabel: 'Confirmar abertura do atendimento',
+    toneClass:
+      selectedAction.value === 'open_case'
+        ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.06)] text-[var(--color-primary-dark)]'
+        : 'border-slate-200 bg-white text-slate-700',
+    confirmClass: 'bg-[var(--color-primary)] text-white',
+  },
+  {
+    id: 'request_info',
+    title: 'Registrar pedido de complementacao',
+    description: 'Ainda faltam informacoes, print, documento ou confirmacao do relato.',
+    buttonLabel: 'Confirmar pedido de complementacao',
+    toneClass:
+      selectedAction.value === 'request_info'
+        ? 'border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.16)] text-[#9a5b00]'
+        : 'border-slate-200 bg-white text-slate-700',
+    confirmClass: 'border border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.86)] text-[#8a5200]',
+  },
+  {
+    id: 'escalate',
+    title: 'Continuar para escalonamento',
+    description: 'A triagem foi feita, mas a regra do caso exige apoio da area interna.',
+    buttonLabel: 'Confirmar escalonamento',
+    toneClass:
+      selectedAction.value === 'escalate'
+        ? 'border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.16)] text-[#0b6e8c]'
+        : 'border-slate-200 bg-white text-slate-700',
+    confirmClass: 'bg-[#0f4c81] text-white',
+  },
+])
 
-const visibleOptions = computed(() => {
-  if (!activeNode.value) {
-    return rootEntries.value.map((entry) => ({
-      id: entry.id,
-      title: entry.title,
-      description: entry.description,
-      highlighted: entry.highlighted,
-      badgeLabel: entry.badgeLabel,
-    }))
-  }
+const activeAction = computed(
+  () => actionOptions.value.find((item) => item.id === selectedAction.value) || null,
+)
 
-  if (activeNodeIsLeaf.value) {
+const selectedStudentSummary = computed(() => {
+  if (!confirmedStudent.value) {
     return []
   }
 
-  return activeChildren.value.map((child) => ({
-    id: child.id,
-    title: child.titulo_exibido,
-    description: child.pergunta_exibida || child.descricao_interna || child.resposta || 'Continuar',
-    highlighted: child.runtime.isHighlighted,
-    badgeLabel: child.runtime.highlightLabel,
-  }))
+  return [
+    confirmedStudent.value.nome,
+    confirmedStudent.value.ra ? `RA ${confirmedStudent.value.ra}` : '',
+    confirmedStudent.value.curso || '',
+    confirmedStudent.value.contactChannelLabel,
+  ].filter(Boolean)
 })
 
-const scopeBadge = computed(() => {
-  if (isManagerView.value) {
-    return studentForm.polo.trim() ? `Polo ${studentForm.polo.trim()}` : 'Escopo: polos vinculados'
+const canChooseSubject = computed(() => Boolean(confirmedStudent.value))
+const canShowDetailFlow = computed(() => Boolean(confirmedStudent.value && activeNodeIsLeaf.value && activeContext.value))
+const confirmationCopy = computed(() => {
+  if (!pendingConfirmationAction.value || !activeAction.value) {
+    return null
   }
 
-  return `Polo ${auth.mockContext.currentPolo}`
-})
+  if (pendingConfirmationAction.value === 'open_case') {
+    return {
+      title: 'Confirmar abertura do atendimento',
+      consequence: 'Um novo atendimento sera registrado em nome do aluno com a triagem informada.',
+      buttonLabel: activeAction.value.buttonLabel,
+      buttonClass: activeAction.value.confirmClass,
+    }
+  }
 
-const queueFlashStorageKey = computed(() => `univesp-operator-queue-flash:${auth.mockContext.profileKey}`)
+  if (pendingConfirmationAction.value === 'request_info') {
+    return {
+      title: 'Confirmar pedido de complementacao',
+      consequence: 'O atendimento ja nascera com pedido de complementacao ao aluno e aguardando retorno.',
+      buttonLabel: activeAction.value.buttonLabel,
+      buttonClass: activeAction.value.confirmClass,
+    }
+  }
+
+  return {
+    title: 'Confirmar escalonamento',
+    consequence: 'O atendimento sera aberto e encaminhado para a area interna com os subsidios registrados.',
+    buttonLabel: activeAction.value.buttonLabel,
+    buttonClass: activeAction.value.confirmClass,
+  }
+})
 
 function findLeafByThemeSubtheme() {
   const queryTheme = String(route.query.theme || '').trim().toLowerCase()
@@ -222,199 +271,191 @@ function findLeafByThemeSubtheme() {
   )
 }
 
-function buildBaseQuery() {
-  const query = {}
-
-  if (studentForm.nome.trim()) {
-    query.studentName = studentForm.nome.trim()
-  }
-
-  if (studentForm.ra.trim()) {
-    query.studentRa = studentForm.ra.trim()
-  }
-
-  if (studentForm.polo.trim()) {
-    query.studentPolo = studentForm.polo.trim()
-  }
-
-  if (studentForm.contactChannel) {
-    query.contactChannel = studentForm.contactChannel
-  }
-
-  if (manualStudentEntry.value) {
-    query.manual = '1'
-  }
-
-  return query
-}
-
-function clearFeedback() {
-  feedback.value = {
-    type: '',
-    message: '',
-  }
-}
-
 function openNode(nodeId) {
-  clearFeedback()
   selectedNodeId.value = nodeId
-  router.replace({ path: route.path, query: { ...buildBaseQuery(), node: nodeId } })
+  router.replace({ path: route.path, query: { node: nodeId } })
 }
 
-function goBack() {
+function goBackFaqStep() {
   if (!activeLineage.value.length) {
     return
   }
 
   if (activeLineage.value.length === 1) {
     selectedNodeId.value = ''
-    router.replace({ path: route.path, query: buildBaseQuery() })
+    router.replace({ path: route.path, query: {} })
     return
   }
 
   openNode(activeLineage.value.at(-2).id)
 }
 
-function toggleManualStudentEntry() {
+function pickStudent(student) {
+  selectedCandidate.value = {
+    nome: student.nome,
+    ra: student.ra,
+    curso: student.curso,
+    email: student.email || '',
+    polo: student.polo,
+  }
+
+  lookup.nome = student.nome || ''
+  lookup.ra = student.ra || ''
+  lookup.curso = student.curso || ''
+  lookup.polo = student.polo || lookup.polo
+  formErrors.student = ''
+}
+
+function resetConfirmedStudent() {
+  confirmedStudent.value = null
+}
+
+function toggleManualEntry() {
   manualStudentEntry.value = !manualStudentEntry.value
-}
+  selectedCandidate.value = null
+  resetConfirmedStudent()
+  formErrors.student = ''
 
-function validateBeforeCreate() {
-  formErrors.nome = studentForm.nome.trim() ? '' : 'Informe o aluno para continuar.'
-  formErrors.polo = studentForm.polo.trim() ? '' : 'Informe o polo do atendimento.'
-  formErrors.node = activeNodeIsLeaf.value ? '' : 'Percorra a orientacao ate chegar a uma resposta final.'
-  formErrors.verifiedSummary = studentForm.verifiedSummary.trim()
-    ? ''
-    : 'Registre o que ja foi verificado antes de abrir, complementar ou escalar o atendimento.'
-
-  return !formErrors.nome && !formErrors.polo && !formErrors.node && !formErrors.verifiedSummary
-}
-
-function buildStudentPayload() {
-  return {
-    nome: studentForm.nome.trim(),
-    ra: studentForm.ra.trim(),
-    email: studentForm.email.trim(),
-    curso: studentForm.curso.trim(),
-    polo: studentForm.polo.trim(),
+  if (manualStudentEntry.value) {
+    lookup.nome = ''
+    lookup.ra = ''
   }
 }
 
-function buildContextPayload() {
-  return {
-    sessionId: `op-guidance-${Date.now()}`,
-    capturedAt: new Date().toISOString(),
-    capturedAtLabel: '',
-    theme: activeNode.value.tema,
-    subtheme: activeNode.value.subtema || null,
-    breadcrumb: activeLineage.value.map((step) => step.titulo_exibido),
-    breadcrumbPath: activeLineage.value.map((step) => ({
-      id: step.id,
-      title: step.titulo_exibido,
-      nodeType: step.node_type || step.node_kind || 'leaf',
-    })),
-    finalNode: {
-      id: activeNode.value.id,
-      title: activeNode.value.titulo_exibido,
-      nodeType: activeNode.value.node_type || activeNode.value.node_kind || 'leaf',
-    },
-    displayedAnswer: activeNode.value.resposta || '',
-    action: activeNode.value.acao,
-    queueDestination: activeNode.value.fila_destino,
-    criticality: activeNode.value.criticidade_padrao,
-    sla: activeNode.value.sla_padrao,
-    calendarHighlight: activeNode.value.runtime.highlightLabel
-      ? {
-          label: activeNode.value.runtime.highlightLabel,
-        }
-      : null,
-    studentPolo: studentForm.polo.trim(),
-    entryOrigin:
-      studentForm.contactChannel === 'presencial'
-        ? 'Atendimento presencial'
-        : studentForm.contactChannel === 'email'
-          ? 'Atendimento por e-mail'
-          : studentForm.contactChannel === 'outro'
-            ? 'Atendimento por outro canal'
-            : 'Atendimento por telefone',
-    routing: activeNode.value.runtime.routing || null,
-    opensTicket: Boolean(activeNode.value.abre_atendimento),
-    allowsAttachment: Boolean(activeNode.value.permite_anexo),
-    requiredFields: Array.isArray(activeNode.value.campos_exigidos) ? [...activeNode.value.campos_exigidos] : [],
-    subject: activeNode.value.titulo_exibido || [activeNode.value.tema, activeNode.value.subtema].filter(Boolean).join(' / '),
+function confirmStudent() {
+  formErrors.student = ''
+  formErrors.contactChannel = ''
+
+  if (!lookup.contactChannel) {
+    formErrors.contactChannel = 'Escolha a forma de atendimento antes de continuar.'
+  }
+
+  let payload = null
+
+  if (manualStudentEntry.value) {
+    if (!lookup.nome.trim()) {
+      formErrors.student = 'Informe pelo menos o nome do aluno para continuar.'
+    } else {
+      payload = {
+        nome: lookup.nome.trim(),
+        ra: lookup.ra.trim(),
+        curso: lookup.curso.trim(),
+        email: '',
+        polo: lookup.polo || auth.mockContext.currentPolo || '',
+      }
+    }
+  } else if (selectedCandidate.value) {
+    payload = {
+      ...selectedCandidate.value,
+      polo: selectedCandidate.value.polo || lookup.polo || auth.mockContext.currentPolo || '',
+    }
+  } else {
+    formErrors.student = 'Selecione um aluno da base ou use a entrada manual.'
+  }
+
+  if (formErrors.student || formErrors.contactChannel || !payload) {
+    return
+  }
+
+  confirmedStudent.value = {
+    ...payload,
+    contactChannel: lookup.contactChannel,
+    contactChannelLabel: lookup.contactChannel === 'presencial'
+      ? 'Presencial'
+      : lookup.contactChannel === 'email'
+        ? 'E-mail'
+        : lookup.contactChannel === 'outro'
+          ? 'Outro'
+          : 'Telefone',
   }
 }
 
-function submitAssistedCase(actionType) {
-  if (!validateBeforeCreate()) {
-    clearFeedback()
+function editConfirmedStudent() {
+  resetConfirmedStudent()
+}
+
+function resetActionState() {
+  selectedAction.value = ''
+  verifiedSummary.value = ''
+  pendingConfirmationAction.value = ''
+  actionFeedback.value = {
+    type: '',
+    message: '',
+  }
+  formErrors.verifiedSummary = ''
+  formErrors.action = ''
+}
+
+function chooseAction(actionId) {
+  selectedAction.value = actionId
+  pendingConfirmationAction.value = ''
+  formErrors.action = ''
+  actionFeedback.value = {
+    type: '',
+    message: '',
+  }
+}
+
+function requestActionConfirmation() {
+  formErrors.verifiedSummary = ''
+  formErrors.action = ''
+  actionFeedback.value = {
+    type: '',
+    message: '',
+  }
+
+  if (!selectedAction.value) {
+    formErrors.action = 'Escolha como o atendimento deve seguir antes de confirmar.'
+    return
+  }
+
+  if (!verifiedSummary.value.trim()) {
+    formErrors.verifiedSummary = 'Registre o que ja foi verificado antes de continuar.'
+    nextTick(() => {
+      verifiedSummaryRef.value?.focus()
+    })
+    return
+  }
+
+  pendingConfirmationAction.value = selectedAction.value
+}
+
+function submitAssistedAction() {
+  if (!confirmedStudent.value || !activeContext.value || !pendingConfirmationAction.value || isSubmitting.value) {
     return
   }
 
   isSubmitting.value = true
-  clearFeedback()
 
   const result = studentSupportStore.createOperatorAssistedCase({
-    studentData: buildStudentPayload(),
-    context: buildContextPayload(),
-    verifiedSummary: studentForm.verifiedSummary.trim(),
-    contactChannel: studentForm.contactChannel,
+    studentData: {
+      nome: confirmedStudent.value.nome,
+      email: confirmedStudent.value.email || '',
+      ra: confirmedStudent.value.ra || '',
+      curso: confirmedStudent.value.curso || '',
+      polo: confirmedStudent.value.polo || auth.mockContext.currentPolo || '',
+    },
+    context: activeContext.value,
+    verifiedSummary: verifiedSummary.value.trim(),
+    contactChannel: confirmedStudent.value.contactChannel,
     actorName: auth.mockContext.userName,
-    actionType,
+    actionType: pendingConfirmationAction.value,
     playbook: playbookGuide.value,
+    currentDate: new Date(),
   })
 
   isSubmitting.value = false
-  showEscalationConfirm.value = false
 
   if (!result?.caseItem) {
-    feedback.value = {
+    actionFeedback.value = {
       type: 'error',
       message: 'Nao foi possivel registrar o atendimento agora. Tente novamente.',
     }
     return
   }
 
-  feedback.value = {
-    type: 'success',
-    message:
-      actionType === 'open_case'
-        ? 'Atendimento aberto em nome do aluno com sucesso.'
-        : actionType === 'request_info'
-          ? 'Atendimento aberto e pedido de complementacao registrado.'
-          : 'Atendimento aberto e escalado para area interna.',
-  }
-
-  if (actionType === 'escalate' && auth.mockContext.profileKey === 'op') {
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem(
-        queueFlashStorageKey.value,
-        'Atendimento aberto pelo OP e escalado para a area interna com triagem registrada.',
-      )
-    }
-
-    router.push('/op/fila')
-    return
-  }
-
   router.push(`/op/fila/${result.caseItem.protocolNumber}`)
 }
-
-function handleEscalation() {
-  if (!validateBeforeCreate()) {
-    clearFeedback()
-    return
-  }
-
-  showEscalationConfirm.value = true
-}
-
-watch(
-  () => [studentForm.nome, studentForm.ra, studentForm.email, studentForm.polo, manualStudentEntry.value],
-  () => {
-    syncStudentFromKnownData()
-  },
-)
 
 watch(
   () => route.query.node,
@@ -433,171 +474,267 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  () => [lookup.nome, lookup.ra, lookup.curso, lookup.polo, lookup.contactChannel, manualStudentEntry.value],
+  () => {
+    resetConfirmedStudent()
+    formErrors.student = ''
+    formErrors.contactChannel = ''
+  },
+)
+
+watch(
+  () => [confirmedStudent.value?.nome, selectedNodeId.value],
+  () => {
+    resetActionState()
+  },
+)
+
+watch(
+  () => auth.mockContext.currentPolo,
+  (currentPolo) => {
+    lookup.polo = currentPolo || ''
+  },
+)
 </script>
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
-      <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">Abertura assistida</p>
-          <h2 class="mt-2 text-[1.45rem] font-semibold leading-tight text-slate-950">
-            Abrir atendimento em nome do aluno
-          </h2>
-          <p class="mt-2 max-w-[760px] text-sm leading-6 text-slate-600">
-            Identifique o aluno, confirme o assunto e registre o atendimento somente quando a tratativa realmente precisar continuar no portal.
-          </p>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <span
-            class="rounded-full border border-[rgba(209,50,57,0.12)] bg-[rgba(209,50,57,0.06)] px-3 py-1.5 text-xs font-semibold text-[var(--color-primary-dark)]"
-          >
-            {{ scopeBadge }}
-          </span>
-          <span
-            v-if="selectedStudentSummary"
-            class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700"
-          >
-            {{ selectedStudentSummary }}
-          </span>
-        </div>
-      </div>
-    </section>
-
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">1. Identificar o aluno</p>
-          <h3 class="mt-2 text-[1.1rem] font-semibold text-slate-950">Quem e o aluno?</h3>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            Para o OP, o polo ja vem no escopo atual. Se o aluno nao estiver na base, voce pode informar manualmente.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          @click="toggleManualStudentEntry"
-        >
-          {{ manualStudentEntry ? 'Usar base do polo' : 'Aluno nao encontrado?' }}
-        </button>
-      </div>
-
-      <div class="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
-        <label class="grid gap-2">
-          <span class="text-sm font-semibold text-slate-700">Aluno</span>
-          <input
-            v-model="studentForm.nome"
-            :list="manualStudentEntry ? undefined : 'operator-student-directory'"
-            type="text"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
-            placeholder="Nome do aluno"
-          />
-        </label>
-
-        <label class="grid gap-2">
-          <span class="text-sm font-semibold text-slate-700">RA</span>
-          <input
-            v-model="studentForm.ra"
-            type="text"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
-            placeholder="RA"
-          />
-        </label>
-
-        <label class="grid gap-2">
-          <span class="text-sm font-semibold text-slate-700">Polo</span>
-          <template v-if="isManagerView">
-            <select
-              v-model="studentForm.polo"
-              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
-            >
-              <option v-for="polo in availablePolos" :key="polo" :value="polo">
-                {{ polo }}
-              </option>
-            </select>
-          </template>
-          <div
-            v-else
-            class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm font-semibold text-slate-700"
-          >
-            {{ studentForm.polo }}
-          </div>
-        </label>
-
-        <label class="grid gap-2">
-          <span class="text-sm font-semibold text-slate-700">Canal</span>
-          <select
-            v-model="studentForm.contactChannel"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
-          >
-            <option value="telefone">Telefone</option>
-            <option value="presencial">Presencial</option>
-            <option value="email">E-mail</option>
-            <option value="outro">Outro</option>
-          </select>
-        </label>
-      </div>
-
-      <div v-if="manualStudentEntry" class="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <label class="grid gap-2">
-          <span class="text-sm font-semibold text-slate-700">E-mail</span>
-          <input
-            v-model="studentForm.email"
-            type="email"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
-            placeholder="E-mail do aluno"
-          />
-        </label>
-
-        <label class="grid gap-2">
-          <span class="text-sm font-semibold text-slate-700">Curso</span>
-          <input
-            v-model="studentForm.curso"
-            type="text"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
-            placeholder="Curso do aluno"
-          />
-        </label>
-      </div>
-
-      <p v-if="formErrors.nome || formErrors.polo" class="mt-3 text-sm font-semibold text-[var(--color-danger)]">
-        {{ formErrors.nome || formErrors.polo }}
+    <section class="rounded-[16px] border border-slate-200 bg-white px-4 py-4">
+      <p class="max-w-[860px] text-sm font-semibold leading-6 text-slate-900">
+        Identifique o aluno, confirme o assunto pela mesma FAQ do portal e registre o atendimento somente quando a tratativa realmente precisar continuar.
       </p>
     </section>
 
     <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
-      <div class="px-5 py-5">
-        <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">2. Escolher o assunto</p>
-        <h3 class="mt-2 text-[1.1rem] font-semibold text-slate-950">Sobre o que e o atendimento?</h3>
-        <p v-if="!canProceedToSubject" class="mt-2 text-sm leading-6 text-slate-600">
-          Identifique primeiro o aluno para seguir pela FAQ e abrir o atendimento com o contexto correto.
-        </p>
-        <template v-else>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            Siga o mesmo caminho da FAQ do aluno para registrar o atendimento com o assunto correto.
-          </p>
-
-          <div v-if="activeLineage.length" class="mt-4 flex flex-wrap gap-2">
-            <button
-              v-for="step in activeLineage"
-              :key="step.id"
-              type="button"
-              class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700"
-              @click="openNode(step.id)"
-            >
-              {{ step.titulo_exibido }}
-            </button>
-          </div>
-        </template>
+      <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
+        <p class="text-base font-semibold text-slate-950">1. Identificar o aluno</p>
       </div>
 
-      <template v-if="canProceedToSubject">
-        <div v-if="!activeNode" class="border-t border-slate-200 px-5 py-4">
+      <div class="grid gap-4 px-4 py-4">
+        <template v-if="!confirmedStudent">
+          <div class="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.95fr)]">
+            <label class="grid gap-2">
+              <span class="text-sm font-semibold text-slate-700">Aluno</span>
+              <input
+                v-model="lookup.nome"
+                type="text"
+                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+                placeholder="Buscar por nome"
+              />
+            </label>
+
+            <label class="grid gap-2">
+              <span class="text-sm font-semibold text-slate-700">RA</span>
+              <input
+                v-model="lookup.ra"
+                type="text"
+                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+                placeholder="Buscar por RA"
+              />
+            </label>
+
+            <label class="grid gap-2">
+              <span class="text-sm font-semibold text-slate-700">Curso</span>
+              <select
+                v-model="lookup.curso"
+                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+              >
+                <option value="">Todos os cursos</option>
+                <option v-for="course in courseOptions" :key="course" :value="course">
+                  {{ course }}
+                </option>
+              </select>
+            </label>
+
+            <label class="grid gap-2">
+              <span class="text-sm font-semibold text-slate-700">Forma de atendimento</span>
+              <select
+                v-model="lookup.contactChannel"
+                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+              >
+                <option value="">Selecione</option>
+                <option value="telefone">Telefone</option>
+                <option value="presencial">Presencial</option>
+                <option value="email">E-mail</option>
+                <option value="outro">Outro</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="toggleManualEntry"
+            >
+              {{ manualStudentEntry ? 'Voltar para busca na base' : 'Aluno nao encontrado?' }}
+            </button>
+          </div>
+
+          <div v-if="formErrors.contactChannel" class="text-sm font-semibold text-[var(--color-danger)]">
+            {{ formErrors.contactChannel }}
+          </div>
+
+          <template v-if="manualStudentEntry">
+            <div class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+              <p class="text-sm font-semibold text-slate-900">Entrada manual do aluno</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">
+                Use esta opcao somente quando o aluno nao aparecer na base do polo.
+              </p>
+
+              <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                <label class="grid gap-2">
+                  <span class="text-sm font-semibold text-slate-700">Nome do aluno</span>
+                  <input
+                    v-model="lookup.nome"
+                    type="text"
+                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                    placeholder="Nome completo"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-semibold text-slate-700">RA</span>
+                  <input
+                    v-model="lookup.ra"
+                    type="text"
+                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                    placeholder="RA, se houver"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-semibold text-slate-700">Curso</span>
+                  <select
+                    v-model="lookup.curso"
+                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                  >
+                    <option value="">Selecione</option>
+                    <option v-for="course in courseOptions" :key="course" :value="course">
+                      {{ course }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </template>
+
+          <template v-else>
+            <div v-if="shouldShowSuggestions" class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">Resultados encontrados</p>
+                  <p class="mt-1 text-sm leading-6 text-slate-600">
+                    Selecione o aluno e confirme antes de continuar para o assunto.
+                  </p>
+                </div>
+                <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                  {{ filteredStudents.length }} resultado(s)
+                </span>
+              </div>
+
+              <div v-if="filteredStudents.length" class="mt-4 grid gap-3">
+                <button
+                  v-for="student in filteredStudents"
+                  :key="`${student.ra}-${student.email}-${student.nome}`"
+                  type="button"
+                  :class="[
+                    'rounded-[14px] border px-4 py-3 text-left transition',
+                    selectedCandidate?.ra === student.ra && selectedCandidate?.nome === student.nome
+                      ? 'border-[rgba(209,50,57,0.2)] bg-[rgba(209,50,57,0.05)]'
+                      : 'border-slate-200 bg-white hover:bg-slate-50',
+                  ]"
+                  @click="pickStudent(student)"
+                >
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <p class="text-sm font-semibold text-slate-950">{{ student.nome }}</p>
+                    <p class="text-sm text-slate-600">RA {{ student.ra || 'Nao informado' }}</p>
+                    <p class="text-sm text-slate-600">{{ student.curso || 'Curso nao informado' }}</p>
+                  </div>
+                </button>
+              </div>
+
+              <p v-else class="mt-4 text-sm leading-6 text-slate-600">
+                Nenhum aluno encontrado com esse recorte. Se precisar continuar, use a entrada manual.
+              </p>
+            </div>
+          </template>
+
+          <div
+            v-if="selectedCandidate || manualStudentEntry"
+            class="rounded-[14px] border border-slate-200 bg-white px-4 py-4"
+          >
+            <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Aluno para continuar</p>
+            <p class="mt-2 text-base font-semibold text-slate-950">
+              {{ selectedCandidate?.nome || lookup.nome || 'Aluno manual' }}
+            </p>
+            <div class="mt-2 flex flex-wrap items-center gap-y-2 text-sm text-slate-600">
+              <span>RA {{ selectedCandidate?.ra || lookup.ra || 'Nao informado' }}</span>
+              <span class="px-2 text-slate-300" aria-hidden="true">|</span>
+              <span>{{ selectedCandidate?.curso || lookup.curso || 'Curso nao informado' }}</span>
+              <span class="px-2 text-slate-300" aria-hidden="true">|</span>
+              <span>{{ lookup.contactChannel || 'Selecione a forma de atendimento' }}</span>
+            </div>
+
+            <div v-if="formErrors.student" class="mt-3 text-sm font-semibold text-[var(--color-danger)]">
+              {{ formErrors.student }}
+            </div>
+
+            <div class="mt-4">
+              <button
+                type="button"
+                class="rounded-[14px] bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                @click="confirmStudent"
+              >
+                Confirmar que e este aluno
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <div
+          v-if="confirmedStudent"
+          class="rounded-[14px] border border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] px-4 py-4"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold tracking-[0.08em] text-[var(--color-success)]">Aluno confirmado</p>
+              <div class="mt-2 flex flex-wrap items-center gap-y-2 text-sm font-semibold text-slate-900">
+                <template v-for="(item, index) in selectedStudentSummary" :key="`${item}-${index}`">
+                  <span>{{ item }}</span>
+                  <span v-if="index < selectedStudentSummary.length - 1" class="px-2 text-slate-300" aria-hidden="true">|</span>
+                </template>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="editConfirmedStudent"
+            >
+              Trocar aluno
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
+      <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
+        <p class="text-base font-semibold text-slate-950">2. Escolher o assunto</p>
+      </div>
+
+      <div v-if="!canChooseSubject" class="px-4 py-4 text-sm leading-6 text-slate-600">
+        Confirme primeiro o aluno e a forma de atendimento para seguir pela FAQ e abrir o atendimento com o contexto correto.
+      </div>
+
+      <template v-else>
+        <div v-if="!activeNode" class="px-4 py-4">
           <div class="grid gap-3 md:grid-cols-2">
             <button
-              v-for="option in visibleOptions"
+              v-for="option in rootEntries"
               :key="option.id"
               type="button"
               :class="[
@@ -625,194 +762,264 @@ watch(
         </div>
 
         <div v-else-if="!activeNodeIsLeaf" class="border-t border-slate-200">
-          <button
-            v-for="option in visibleOptions"
-            :key="option.id"
-            type="button"
-            :class="[
-              'flex w-full items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 text-left transition last:border-b-0 hover:bg-slate-50',
-              option.highlighted ? 'bg-[rgba(209,50,57,0.04)]' : 'bg-white',
-            ]"
-            @click="openNode(option.id)"
-          >
-            <div>
-              <p class="text-base font-semibold text-slate-950">{{ option.title }}</p>
-              <p class="mt-2 text-sm leading-6 text-slate-600">{{ option.description }}</p>
-            </div>
-            <span aria-hidden="true" class="mt-1 text-lg font-semibold text-slate-400">&gt;</span>
-          </button>
-        </div>
-
-        <div v-else class="border-t border-slate-200 px-5 py-5">
-          <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">Assunto confirmado</p>
-              <h4 class="mt-2 text-[1.1rem] font-semibold text-slate-950">{{ activeNode.titulo_exibido }}</h4>
-              <p class="mt-2 max-w-[720px] text-sm leading-6 text-slate-600">
-                Confira a orientacao que o aluno encontraria e, em seguida, como o OP deve analisar antes de registrar o atendimento.
-              </p>
+          <div class="flex items-center justify-between px-4 py-3">
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="step in activeLineage"
+                :key="step.id"
+                type="button"
+                class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700"
+                @click="openNode(step.id)"
+              >
+                {{ step.titulo_exibido }}
+              </button>
             </div>
 
             <button
               type="button"
               class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              @click="goBack"
+              @click="goBackFaqStep"
             >
               Etapa anterior
             </button>
           </div>
 
-          <div class="mt-4 grid gap-4">
-            <div class="rounded-[16px] border border-slate-200 bg-slate-50/70 px-4 py-4">
-              <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">FAQ do aluno</p>
-              <p class="mt-3 text-sm leading-7 text-slate-700">{{ activeNode.resposta }}</p>
+          <button
+            v-for="option in activeChildren"
+            :key="option.id"
+            type="button"
+            :class="[
+              'flex w-full items-start justify-between gap-4 border-t border-slate-200 px-4 py-4 text-left transition hover:bg-slate-50',
+              option.runtime.isHighlighted ? 'bg-[rgba(209,50,57,0.04)]' : 'bg-white',
+            ]"
+            @click="openNode(option.id)"
+          >
+            <div>
+              <p class="text-base font-semibold text-slate-950">{{ option.titulo_exibido }}</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">
+                {{ option.pergunta_exibida || option.descricao_interna || option.resposta || 'Continuar' }}
+              </p>
             </div>
+            <span aria-hidden="true" class="mt-1 text-lg font-semibold text-slate-400">&gt;</span>
+          </button>
+        </div>
 
-            <div class="rounded-[16px] border border-slate-200 bg-white px-4 py-4">
-              <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">Como o OP deve analisar</p>
-
-              <div class="mt-4 grid gap-4">
-                <div
-                  v-for="section in operatorGuideSections"
-                  :key="section.title"
-                  class="grid gap-2"
+        <div v-else class="px-4 py-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <div>
+              <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Assunto confirmado</p>
+              <p class="mt-2 text-sm font-semibold text-slate-900">{{ activeContext.subject }}</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <span
+                  v-for="step in activeLineage"
+                  :key="step.id"
+                  class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
                 >
-                  <p class="text-sm font-semibold text-slate-900">{{ section.title }}</p>
-                  <ul class="grid gap-1.5 text-sm leading-6 text-slate-700">
-                    <li v-for="item in section.items" :key="item">
-                      {{ item }}
-                    </li>
-                  </ul>
-                </div>
-
-                <div class="grid gap-2 rounded-[14px] bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-                  <p><span class="font-semibold text-slate-900">Abrir atendimento:</span> quando a tratativa precisar continuar no portal.</p>
-                  <p><span class="font-semibold text-slate-900">Pedir complementacao:</span> quando ainda faltar documento, evidencia ou confirmacao.</p>
-                  <p><span class="font-semibold text-slate-900">Escalar:</span> apenas quando a regra do caso exigir decisao da area interna.</p>
-                </div>
+                  {{ step.titulo_exibido }}
+                </span>
               </div>
             </div>
+
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="goBackFaqStep"
+            >
+              Trocar assunto
+            </button>
           </div>
         </div>
       </template>
     </section>
 
-    <section v-if="activeNodeIsLeaf" class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
-      <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">3. Registrar a triagem</p>
-      <h3 class="mt-2 text-[1.1rem] font-semibold text-slate-950">O que ja foi verificado?</h3>
-      <p class="mt-2 text-sm leading-6 text-slate-600">
-        Registre a triagem feita antes de abrir, complementar ou escalar o atendimento.
-      </p>
+    <section v-if="canShowDetailFlow" class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
+      <div class="px-5 py-5">
+        <h2 class="text-[1.45rem] font-semibold leading-tight text-slate-950">
+          {{ activeContext.subject }}
+        </h2>
 
-      <textarea
-        v-model="studentForm.verifiedSummary"
-        rows="4"
-        class="mt-4 rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700"
-        placeholder="Ex.: documento conferido, regra validada, contato confirmado, orientacao explicada ao aluno."
-      />
-
-      <p v-if="formErrors.verifiedSummary" class="mt-2 text-sm font-semibold text-[var(--color-danger)]">
-        {{ formErrors.verifiedSummary }}
-      </p>
-    </section>
-
-    <section v-if="activeNodeIsLeaf" class="rounded-[16px] border border-slate-200 bg-[rgba(209,50,57,0.03)] px-5 py-5">
-      <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">4. Registrar o atendimento</p>
-      <h3 class="mt-2 text-[1.1rem] font-semibold text-slate-950">Como o atendimento deve seguir?</h3>
-      <p class="mt-2 text-sm leading-6 text-slate-600">
-        Use o assunto confirmado e a triagem registrada para abrir o atendimento correto no portal.
-      </p>
-
-      <div
-        v-if="feedback.message"
-        :class="[
-          'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
-          feedback.type === 'success'
-            ? 'border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] text-[var(--color-success)]'
-            : 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]',
-        ]"
-      >
-        {{ feedback.message }}
+        <div class="mt-4 rounded-[14px] border border-slate-300 bg-[rgba(248,250,252,0.95)] px-4 py-3 text-sm font-semibold leading-6 text-slate-800 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div class="flex flex-wrap items-center gap-y-2">
+            <template v-for="(item, index) in selectedStudentSummary" :key="`${item}-${index}`">
+              <span>{{ item }}</span>
+              <span v-if="index < selectedStudentSummary.length - 1" class="px-2 text-slate-300" aria-hidden="true">|</span>
+            </template>
+          </div>
+        </div>
       </div>
 
-      <div class="mt-4 flex flex-wrap gap-3">
-        <button
-          type="button"
-          :disabled="isSubmitting"
-          class="min-w-0 rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold leading-5 text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)] disabled:cursor-wait disabled:opacity-75"
-          @click="submitAssistedCase('open_case')"
-        >
-          {{ isSubmitting ? 'Registrando...' : 'Abrir atendimento em nome do aluno' }}
-        </button>
-
-        <button
-          type="button"
-          :disabled="isSubmitting"
-          class="min-w-0 rounded-[14px] border border-slate-200 bg-white px-5 py-3 text-sm font-semibold leading-5 text-slate-700 disabled:cursor-wait disabled:opacity-75"
-          @click="submitAssistedCase('request_info')"
-        >
-          Registrar pedido de complementacao
-        </button>
-
-        <button
-          type="button"
-          :disabled="isSubmitting"
-          class="min-w-0 rounded-[14px] border border-dashed border-[rgba(8,115,145,0.24)] bg-white px-5 py-3 text-sm font-semibold leading-5 text-[#0b4f75] disabled:cursor-wait disabled:opacity-75"
-          @click="handleEscalation"
-        >
-          Continuar para escalonamento
-        </button>
-      </div>
-
-      <div
-        v-if="showEscalationConfirm"
-        class="mt-4 rounded-[14px] border border-[rgba(8,115,145,0.16)] bg-white p-4"
-      >
-        <p class="text-sm font-semibold text-slate-900">Confirmar escalonamento</p>
-        <div class="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
-          <div>
-            <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Destino</p>
-            <p class="mt-1 font-semibold text-slate-900">{{ activeNode.runtime.queueLabel || activeNode.fila_destino }}</p>
+      <div class="grid gap-4 px-5 pb-5">
+        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
+            <h3 class="text-base font-semibold text-slate-950">FAQ do aluno</h3>
           </div>
-          <div>
-            <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">O que sera registrado</p>
-            <p class="mt-1">{{ studentForm.verifiedSummary.trim() }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Regra observada</p>
-            <p class="mt-1">{{ playbookGuide?.escalationCriteria || playbookGuide?.escalationReason || 'Sem regra adicional publicada.' }}</p>
+          <div class="px-4 py-4 text-sm leading-7 text-slate-700">
+            {{ activeContext.displayedAnswer }}
           </div>
         </div>
 
-        <div class="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            :disabled="isSubmitting"
-            class="rounded-[14px] bg-[#0b4f75] px-4 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
-            @click="submitAssistedCase('escalate')"
-          >
-            Confirmar escalonamento
-          </button>
-          <button
-            type="button"
-            :disabled="isSubmitting"
-            class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
-            @click="showEscalationConfirm = false"
-          >
-            Cancelar
-          </button>
+        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
+            <h3 class="text-base font-semibold text-slate-950">Como analisar este caso</h3>
+          </div>
+          <div class="grid gap-4 px-4 py-4">
+            <div
+              v-for="section in guideSections"
+              :key="section.title"
+              class="grid gap-2"
+            >
+              <p class="text-sm font-semibold text-slate-900">{{ section.title }}</p>
+              <ul class="grid gap-1.5 text-sm leading-6 text-slate-700">
+                <li v-for="item in section.items" :key="item" class="flex gap-2">
+                  <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                  <span>{{ withPeriod(item) }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="rounded-[14px] bg-white px-4 py-4 text-sm leading-6 text-slate-700">
+              <p><span class="font-semibold text-slate-900">Abrir atendimento:</span> quando a tratativa precisar continuar no portal.</p>
+              <p class="mt-2"><span class="font-semibold text-slate-900">Pedir complementacao:</span> quando ainda faltar documento, evidencia ou confirmacao.</p>
+              <p class="mt-2"><span class="font-semibold text-slate-900">Escalar:</span> quando a regra do caso exigir decisao da area interna.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
+            <h3 class="text-base font-semibold text-slate-950">O que ja foi verificado</h3>
+          </div>
+          <div class="px-4 py-4">
+            <p class="text-sm leading-6 text-slate-600">
+              Registre a triagem feita antes de abrir, complementar ou escalar o atendimento.
+            </p>
+
+            <textarea
+              ref="verifiedSummaryRef"
+              v-model="verifiedSummary"
+              rows="5"
+              class="mt-4 w-full rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+              placeholder="Ex.: documento conferido, regra validada, contato confirmado, orientacao explicada ao aluno."
+            />
+
+            <p v-if="formErrors.verifiedSummary" class="mt-2 text-sm font-semibold text-[var(--color-danger)]">
+              {{ formErrors.verifiedSummary }}
+            </p>
+          </div>
+        </div>
+
+        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
+            <h3 class="text-base font-semibold text-slate-950">Proxima acao</h3>
+          </div>
+
+          <div class="px-4 py-4">
+            <p class="text-sm leading-6 text-slate-600">
+              Escolha a acao somente depois de confirmar o aluno, percorrer a FAQ e registrar a triagem.
+            </p>
+
+            <div class="mt-4 grid gap-3 xl:grid-cols-3">
+              <button
+                v-for="option in actionOptions"
+                :key="option.id"
+                type="button"
+                :class="['grid gap-1 rounded-[14px] border px-4 py-4 text-left transition', option.toneClass]"
+                @click="chooseAction(option.id)"
+              >
+                <span class="text-sm font-semibold">{{ option.title }}</span>
+                <span class="text-sm leading-6">{{ option.description }}</span>
+              </button>
+            </div>
+
+            <div
+              v-if="actionFeedback.message"
+              :class="[
+                'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
+                actionFeedback.type === 'success'
+                  ? 'border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] text-[var(--color-success)]'
+                  : 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]',
+              ]"
+            >
+              {{ actionFeedback.message }}
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-3">
+              <button
+                v-if="selectedAction === 'open_case'"
+                type="button"
+                :disabled="isSubmitting"
+                class="rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)] disabled:cursor-wait disabled:opacity-75"
+                @click="requestActionConfirmation"
+              >
+                {{ isSubmitting ? 'Registrando...' : activeAction.buttonLabel }}
+              </button>
+
+              <button
+                v-if="selectedAction === 'request_info'"
+                type="button"
+                :disabled="isSubmitting"
+                class="rounded-[14px] border border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.86)] px-5 py-3 text-sm font-semibold text-[#8a5200] disabled:cursor-wait disabled:opacity-75"
+                @click="requestActionConfirmation"
+              >
+                {{ isSubmitting ? 'Registrando...' : activeAction.buttonLabel }}
+              </button>
+
+              <button
+                v-if="selectedAction === 'escalate'"
+                type="button"
+                :disabled="isSubmitting"
+                class="rounded-[14px] bg-[#0f4c81] px-5 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
+                @click="requestActionConfirmation"
+              >
+                {{ isSubmitting ? 'Registrando...' : activeAction.buttonLabel }}
+              </button>
+              <p v-else class="text-sm font-semibold text-slate-600">
+                Escolha como o atendimento deve seguir para liberar o registro final.
+              </p>
+            </div>
+
+            <p v-if="formErrors.action" class="mt-3 text-sm font-semibold text-[var(--color-danger)]">
+              {{ formErrors.action }}
+            </p>
+
+            <div
+              v-if="confirmationCopy"
+              class="mt-4 rounded-[14px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
+            >
+              <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
+              <div class="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
+                <div>
+                  <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Consequencia</p>
+                  <p class="mt-1">{{ confirmationCopy.consequence }}</p>
+                </div>
+                <div>
+                  <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Registro</p>
+                  <p class="mt-1">{{ verifiedSummary.trim() }}</p>
+                </div>
+              </div>
+
+              <div class="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  :disabled="isSubmitting"
+                  :class="['rounded-[14px] px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-75', confirmationCopy.buttonClass]"
+                  @click="submitAssistedAction"
+                >
+                  {{ confirmationCopy.buttonLabel }}
+                </button>
+                <button
+                  type="button"
+                  :disabled="isSubmitting"
+                  class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                  @click="pendingConfirmationAction = ''"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
-
-    <datalist id="operator-student-directory">
-      <option
-        v-for="student in studentSuggestions"
-        :key="student.label"
-        :value="student.nome"
-      >
-        {{ student.label }}
-      </option>
-    </datalist>
   </div>
 </template>

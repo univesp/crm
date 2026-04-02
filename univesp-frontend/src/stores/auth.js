@@ -24,6 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const errorMessage = ref('')
   const sessionLoaded = ref(false)
+  const selectedOperationalPolo = ref('')
 
   const isLoading = computed(() => status.value === 'loading' || status.value === 'redirecting')
   const isAuthenticated = computed(() => status.value === 'authenticated' && !!user.value)
@@ -33,7 +34,22 @@ export const useAuthStore = defineStore('auth', () => {
   const hasLocalBypass = computed(() => hasSsoDevBypass())
   const localBypassProfiles = computed(() => getDevBypassProfiles())
   const selectedLocalBypassProfile = computed(() => getSelectedDevBypassProfile())
-  const mockContext = computed(() => buildMockAccessContext(user.value))
+  const mockContext = computed(() => {
+    const baseContext = buildMockAccessContext(user.value)
+
+    if (
+      baseContext.isOperationalShell &&
+      selectedOperationalPolo.value &&
+      baseContext.linkedPolos.includes(selectedOperationalPolo.value)
+    ) {
+      return {
+        ...baseContext,
+        currentPolo: selectedOperationalPolo.value,
+      }
+    }
+
+    return baseContext
+  })
   const defaultAppRoute = computed(() => mockContext.value.defaultRoute || '/')
 
   async function loadSession({ force = false } = {}) {
@@ -132,6 +148,25 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     sessionLoaded.value = false
     status.value = 'anonymous'
+    selectedOperationalPolo.value = ''
+  }
+
+  function setSelectedOperationalPolo(polo = '') {
+    const baseContext = buildMockAccessContext(user.value)
+    const normalized = String(polo || '').trim()
+
+    if (!baseContext.isOperationalShell) {
+      return
+    }
+
+    if (!normalized) {
+      selectedOperationalPolo.value = ''
+      return
+    }
+
+    if (baseContext.linkedPolos.includes(normalized)) {
+      selectedOperationalPolo.value = normalized
+    }
   }
 
   async function logout(redirectTo = '/login') {
@@ -152,6 +187,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
       sessionLoaded.value = false
       status.value = 'anonymous'
+      selectedOperationalPolo.value = ''
     }
 
     window.location.assign(getPublicAppPath(targetRoute))
@@ -170,6 +206,7 @@ export const useAuthStore = defineStore('auth', () => {
     hasLocalBypass,
     localBypassProfiles,
     selectedLocalBypassProfile,
+    selectedOperationalPolo,
     mockContext,
     defaultAppRoute,
     loadSession,
@@ -179,6 +216,7 @@ export const useAuthStore = defineStore('auth', () => {
     redirectToLogin,
     activateLocalBypassProfile,
     clearLocalBypassProfile,
+    setSelectedOperationalPolo,
     logout,
   }
 })

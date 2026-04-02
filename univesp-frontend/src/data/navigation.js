@@ -57,16 +57,16 @@ export function buildNavigationSections(mockContext) {
             description: 'Fila de trabalho dentro do escopo atual.',
           },
           {
-            id: 'operator-playbook',
-            label: 'Consultar orientacao',
-            route: '/op/playbook',
-            description: 'Consultar a FAQ do aluno e a orientacao do OP antes de decidir.',
-          },
-          {
             id: 'operator-assisted-intake',
             label: 'Abrir atendimento',
             route: '/op/novo-atendimento',
             description: 'Registrar um atendimento em nome do aluno quando a tratativa precisar continuar.',
+          },
+          {
+            id: 'operator-playbook',
+            label: 'Consultar orientacao',
+            route: '/op/playbook',
+            description: 'Consultar a FAQ do aluno e a orientacao do OP antes de decidir.',
           },
         ],
       },

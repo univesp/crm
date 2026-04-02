@@ -9,7 +9,6 @@ const route = useRoute()
 const router = useRouter()
 
 const selectedNodeId = ref(String(route.query.node || ''))
-const resolutionFeedback = ref('')
 
 const faqRuntime = computed(() => buildStudentFaqRuntime())
 const faqNodeIndex = computed(() => {
@@ -50,24 +49,21 @@ const playbookGuide = computed(() =>
 const stageCopy = computed(() => {
   if (!activeNode.value) {
     return {
-      eyebrow: 'Consulta guiada',
-      title: 'Consultar orientacao',
-      description: 'Use esta trilha para seguir a mesma FAQ do aluno e ver rapidamente como o OP deve conduzir a tratativa.',
+      title: '',
+      description: 'Escolha o assunto para abrir a mesma orientacao do portal e ver o que o OP deve verificar antes de abrir atendimento.',
     }
   }
 
   if (!activeNodeIsLeaf.value) {
     return {
-      eyebrow: 'FAQ do aluno',
       title: activeNode.value.pergunta_exibida || 'Qual assunto descreve melhor a demanda?',
       description: 'Percorra o caminho do aluno ate chegar na orientacao final.',
     }
   }
 
   return {
-    eyebrow: 'Orientacao encontrada',
-    title: activeNode.value.titulo_exibido,
-    description: 'Veja primeiro o que o aluno encontraria no portal e, logo abaixo, como o OP deve conduzir a tratativa.',
+      title: activeNode.value.titulo_exibido,
+      description: 'Veja primeiro o que o aluno encontraria no portal e, logo abaixo, como o OP deve conduzir a tratativa.',
   }
 })
 
@@ -136,14 +132,11 @@ function findLeafByThemeSubtheme() {
 }
 
 function openNode(nodeId) {
-  resolutionFeedback.value = ''
   selectedNodeId.value = nodeId
   router.replace({ path: route.path, query: { node: nodeId } })
 }
 
 function goBack() {
-  resolutionFeedback.value = ''
-
   if (!activeLineage.value.length) {
     return
   }
@@ -178,10 +171,6 @@ const assistedIntakeRoute = computed(() => {
   }
 })
 
-function markResolvedInChannel() {
-  resolutionFeedback.value = 'Orientacao consultada. Nenhum atendimento foi aberto; a tratativa pode ser encerrada neste canal.'
-}
-
 watch(
   () => route.query.node,
   (nodeId) => {
@@ -203,14 +192,16 @@ watch(
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
+    <section class="rounded-[16px] border border-slate-200 bg-white px-4 py-4">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">{{ stageCopy.eyebrow }}</p>
-          <h2 class="mt-2 text-[1.45rem] font-semibold leading-tight text-slate-950">
+        <div class="max-w-[760px]">
+          <p class="text-sm font-semibold text-slate-900">
+            Use esta trilha para percorrer a mesma FAQ do aluno e ver rapidamente como a operacao deve conduzir a tratativa.
+          </p>
+          <p v-if="activeNode && stageCopy.title" class="mt-3 text-base font-semibold text-slate-950">
             {{ stageCopy.title }}
-          </h2>
-          <p class="mt-2 max-w-[760px] text-sm leading-6 text-slate-600">
+          </p>
+          <p :class="['text-sm leading-6 text-slate-600', activeNode && stageCopy.title ? 'mt-2' : '']">
             {{ stageCopy.description }}
           </p>
         </div>
@@ -291,6 +282,19 @@ watch(
       <template v-else>
         <div class="px-5 py-5">
           <div class="rounded-[16px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <p class="text-sm font-semibold text-slate-900">{{ activeNode.titulo_exibido }}</p>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <span
+                v-for="step in activeLineage"
+                :key="step.id"
+                class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                {{ step.titulo_exibido }}
+              </span>
+            </div>
+          </div>
+
+          <div class="rounded-[16px] border border-slate-200 bg-slate-50/70 px-4 py-4">
             <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">FAQ do aluno</p>
             <p class="mt-3 text-sm leading-7 text-slate-700">{{ activeNode.resposta }}</p>
           </div>
@@ -313,28 +317,13 @@ watch(
               </div>
 
               <div class="grid gap-2 rounded-[14px] bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-                <p><span class="font-semibold text-slate-900">Resolver neste canal:</span> quando a orientacao e a checagem sustentarem uma devolutiva segura.</p>
+                <p><span class="font-semibold text-slate-900">Resolver no contato atual:</span> quando a orientacao e a checagem sustentarem uma devolutiva segura.</p>
                 <p><span class="font-semibold text-slate-900">Abrir atendimento:</span> quando a tratativa precisar continuar no portal com registro formal.</p>
               </div>
             </div>
           </div>
 
-          <div
-            v-if="resolutionFeedback"
-            class="mt-4 rounded-[14px] border border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] px-4 py-3 text-sm leading-6 text-[var(--color-success)]"
-          >
-            {{ resolutionFeedback }}
-          </div>
-
           <div class="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              class="rounded-[14px] border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              @click="markResolvedInChannel"
-            >
-              Resolvi neste canal
-            </button>
-
             <RouterLink
               :to="assistedIntakeRoute"
               class="inline-flex items-center justify-center rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)]"

@@ -10,7 +10,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 
-const selectedDecision = ref('reply')
+const selectedDecision = ref('')
 const operatorNote = ref('')
 const operatorNoteRef = ref(null)
 const isSubmittingAction = ref(false)
@@ -142,38 +142,56 @@ const summaryBullets = computed(() => {
   ].filter(Boolean)
 })
 
-const analysisChecklist = computed(() => {
+const analysisSections = computed(() => {
   if (!detail.value) {
     return []
   }
 
-  const bullets = []
-
-  for (const item of detail.value.playbook.checklist || []) {
-    bullets.push(withPeriod(item))
-  }
-
-  for (const item of detail.value.playbook.systemsToCheck || []) {
-    bullets.push(withPeriod(`Consultar sistema: ${item}`))
-  }
-
-  for (const item of detail.value.playbook.documentsRequested || []) {
-    bullets.push(withPeriod(`Validar documento ou evidencia: ${item}`))
-  }
-
-  bullets.push('Se a checagem estiver completa, responder ao aluno pelo portal.')
+  const sections = []
+  const checklistItems = (detail.value.playbook.checklist || []).map((item) => withPeriod(item))
+  const systemItems = (detail.value.playbook.systemsToCheck || []).map((item) => `Consultar sistema: ${item}.`)
+  const documentItems = (detail.value.playbook.documentsRequested || []).map(
+    (item) => `Validar documento ou evidencia: ${item}.`,
+  )
+  const decisionItems = ['Se a checagem estiver completa, responder ao aluno pelo portal.']
 
   if ((detail.value.playbook.documentsRequested || []).length) {
-    bullets.push('Se faltar documento, print ou contexto, pedir complementacao ao aluno.')
+    decisionItems.push('Se faltar documento, print ou contexto, pedir complementacao ao aluno.')
   } else {
-    bullets.push('Se o relato do aluno ainda nao sustentar a analise, pedir complementacao.')
+    decisionItems.push('Se o relato do aluno ainda nao sustentar a analise, pedir complementacao.')
   }
 
   if (detail.value.playbook.escalationCriteria) {
-    bullets.push(withPeriod(`Escalar apenas quando ${detail.value.playbook.escalationCriteria}`))
+    decisionItems.push(withPeriod(`Escalar apenas quando ${detail.value.playbook.escalationCriteria}`))
   }
 
-  return Array.from(new Set(bullets.filter(Boolean)))
+  if (checklistItems.length) {
+    sections.push({
+      title: 'O que verificar',
+      items: checklistItems,
+    })
+  }
+
+  if (systemItems.length) {
+    sections.push({
+      title: 'Onde verificar',
+      items: systemItems,
+    })
+  }
+
+  if (documentItems.length) {
+    sections.push({
+      title: 'Documentos a observar',
+      items: documentItems,
+    })
+  }
+
+  sections.push({
+    title: 'Quando decidir',
+    items: Array.from(new Set(decisionItems.filter(Boolean))),
+  })
+
+  return sections
 })
 
 const decisionOptions = computed(() => {
@@ -225,11 +243,11 @@ const decisionOptions = computed(() => {
 })
 
 const activeDecision = computed(
-  () => decisionOptions.value.find((item) => item.id === selectedDecision.value) || decisionOptions.value[0] || null,
+  () => decisionOptions.value.find((item) => item.id === selectedDecision.value) || null,
 )
 
 function buildSuggestedNote(actionType) {
-  if (!detail.value) {
+  if (!detail.value || !actionType) {
     return ''
   }
 
@@ -268,13 +286,12 @@ function syncSuggestedNote(force = false) {
 watch(
   () => detail.value?.id,
   () => {
-    selectedDecision.value = 'reply'
+    selectedDecision.value = ''
     operatorNote.value = ''
     lastSuggestedNote.value = ''
     noteError.value = ''
     pendingConfirmationAction.value = ''
     clearActionFeedback()
-    syncSuggestedNote(true)
   },
   { immediate: true },
 )
@@ -283,8 +300,14 @@ watch(selectedDecision, () => {
   noteError.value = ''
   pendingConfirmationAction.value = ''
   clearActionFeedback()
-  syncSuggestedNote(false)
-  focusOperatorNote()
+  if (selectedDecision.value) {
+    syncSuggestedNote(false)
+    focusOperatorNote()
+    return
+  }
+
+  operatorNote.value = ''
+  lastSuggestedNote.value = ''
 })
 
 const historySummary = computed(() => {
@@ -292,15 +315,20 @@ const historySummary = computed(() => {
     return []
   }
 
-  const latestTimeline = detail.value.timeline.at(-1)
+  const latestTimeline = [...detail.value.timeline].slice(-2).reverse()
   const latestInteraction = detail.value.interactions.at(-1)
   const latestAttachment = detail.value.attachments.at(-1)
+  const items = latestTimeline.map((item) => `${item.atLabel}: ${withPeriod(item.title)}`)
 
-  return [
-    latestTimeline ? `${latestTimeline.atLabel}: ${withPeriod(latestTimeline.title)}` : '',
-    latestInteraction ? `${latestInteraction.atLabel}: ultima resposta registrada por ${latestInteraction.actor}.` : '',
-    latestAttachment ? `Ultimo documento registrado: ${withPeriod(latestAttachment.name)}` : '',
-  ].filter(Boolean)
+  if (latestInteraction) {
+    items.push(`${latestInteraction.atLabel}: ultima resposta registrada por ${latestInteraction.actor}.`)
+  }
+
+  if (latestAttachment) {
+    items.push(`Ultimo documento registrado: ${withPeriod(latestAttachment.name)}`)
+  }
+
+  return items.filter(Boolean).slice(0, 3)
 })
 
 const exchangeItems = computed(() => {
@@ -389,10 +417,6 @@ const actionAvailability = computed(() => {
     reason: '',
   }
 })
-
-function goBackToQueue() {
-  router.push('/op/fila')
-}
 
 function openStudentCases() {
   if (!detail.value) {
@@ -565,16 +589,6 @@ const confirmationCopy = computed(() => {
   </div>
 
   <div v-else class="grid gap-3">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <button
-        type="button"
-        class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        @click="goBackToQueue"
-      >
-        Voltar para fila
-      </button>
-    </div>
-
     <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
       <div class="px-5 py-5">
         <p class="text-lg font-semibold text-slate-950">Detalhe do atendimento</p>
@@ -644,9 +658,182 @@ const confirmationCopy = computed(() => {
           </div>
         </details>
 
+        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
+            Como analisar este caso
+          </summary>
+          <div class="border-t border-slate-200 px-4 py-4">
+            <div class="grid gap-4">
+              <div
+                v-for="section in analysisSections"
+                :key="section.title"
+                class="grid gap-2"
+              >
+                <p class="text-sm font-semibold text-slate-900">{{ section.title }}</p>
+                <ul class="grid gap-2 text-sm leading-6 text-slate-700">
+                  <li v-for="item in section.items" :key="item" class="flex gap-2">
+                    <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
+            <h3 class="text-base font-semibold text-slate-950">Proxima acao</h3>
+          </div>
+
+          <div v-if="!actionAvailability.canAct" class="px-4 py-4 text-sm leading-6 text-slate-700">
+            {{ actionAvailability.reason }}
+          </div>
+
+          <template v-else>
+            <div class="px-4 py-4">
+              <p class="text-sm leading-6 text-slate-600">
+                Escolha a acao somente depois de concluir a analise recomendada.
+              </p>
+
+              <div class="mt-4 grid gap-3 xl:grid-cols-3">
+                <button
+                  v-for="option in decisionOptions"
+                  :key="option.id"
+                  type="button"
+                  :class="[
+                    'grid gap-1 rounded-[14px] border px-4 py-4 text-left transition',
+                    option.toneClass,
+                  ]"
+                  @click="selectDecision(option.id)"
+                >
+                  <span class="text-sm font-semibold">{{ option.title }}</span>
+                  <span class="text-sm leading-6">{{ option.description }}</span>
+                </button>
+              </div>
+
+              <div
+                v-if="activeDecision"
+                class="mt-4 rounded-[14px] border border-slate-200 bg-white px-4 py-4"
+              >
+                <label class="grid gap-2">
+                  <span class="text-sm font-semibold text-slate-900">{{ activeDecision.fieldLabel }}</span>
+                  <textarea
+                    ref="operatorNoteRef"
+                    v-model="operatorNote"
+                    rows="5"
+                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+                    :placeholder="activeDecision.placeholder"
+                  />
+                </label>
+
+                <p v-if="noteError" class="mt-2 text-sm font-semibold text-[var(--color-danger)]">
+                  {{ noteError }}
+                </p>
+
+                <div class="mt-4 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ activeDecision.previewLabel }}</p>
+                  <p class="mt-2 text-sm leading-6 text-slate-700">{{ recordPreview }}</p>
+                </div>
+
+                <div
+                  v-if="actionFeedback.message"
+                  :class="[
+                    'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
+                    actionFeedback.type === 'success'
+                      ? 'border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] text-[var(--color-success)]'
+                      : 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]',
+                  ]"
+                >
+                  {{ actionFeedback.message }}
+                </div>
+
+                <div class="mt-4 flex flex-wrap gap-3">
+                  <button
+                    v-if="selectedDecision === 'reply'"
+                    type="button"
+                    :disabled="isSubmittingAction"
+                    class="rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)] disabled:cursor-wait disabled:opacity-75"
+                    @click="handleActionClick('reply')"
+                  >
+                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
+                  </button>
+
+                  <button
+                    v-else-if="selectedDecision === 'request_info'"
+                    type="button"
+                    :disabled="isSubmittingAction"
+                    class="rounded-[14px] border border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.86)] px-5 py-3 text-sm font-semibold text-[#8a5200] disabled:cursor-wait disabled:opacity-75"
+                    @click="handleActionClick('request_info')"
+                  >
+                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
+                  </button>
+
+                  <button
+                    v-else-if="selectedDecision === 'escalate'"
+                    type="button"
+                    :disabled="isSubmittingAction"
+                    class="rounded-[14px] bg-[#0f4c81] px-5 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
+                    @click="handleActionClick('escalate')"
+                  >
+                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
+                  </button>
+                  <p v-else class="text-sm font-semibold text-slate-600">
+                    Selecione como este atendimento deve seguir para registrar a proxima acao.
+                  </p>
+                </div>
+
+                <div
+                  v-if="confirmationCopy"
+                  class="mt-4 rounded-[14px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
+                >
+                  <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
+                  <div class="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
+                    <div>
+                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Consequencia</p>
+                      <p class="mt-1">{{ confirmationCopy.consequence }}</p>
+                    </div>
+                    <div>
+                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Registro</p>
+                      <p class="mt-1">{{ operatorNote.trim() }}</p>
+                    </div>
+                    <div v-if="pendingConfirmationAction === 'escalate'">
+                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Destino</p>
+                      <p class="mt-1 font-semibold text-slate-900">{{ escalationDestination }}</p>
+                    </div>
+                    <div v-if="pendingConfirmationAction === 'escalate'">
+                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Regra observada</p>
+                      <p class="mt-1">{{ escalationReason }}</p>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      :disabled="isSubmittingAction"
+                      :class="['rounded-[14px] px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-75', confirmationCopy.buttonClass]"
+                      @click="submitOperatorAction(pendingConfirmationAction)"
+                    >
+                      {{ confirmationCopy.buttonLabel }}
+                    </button>
+                    <button
+                      type="button"
+                      :disabled="isSubmittingAction"
+                      class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                      @click="pendingConfirmationAction = ''"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
         <details class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            Historico recente
+            Historico do caso
           </summary>
 
           <div class="border-t border-slate-200 px-4 py-4">
@@ -740,167 +927,6 @@ const confirmationCopy = computed(() => {
             </details>
           </div>
         </details>
-
-        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
-          <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            Como analisar este caso
-          </summary>
-          <div class="border-t border-slate-200 px-4 py-4">
-            <ul class="grid gap-2 text-sm leading-6 text-slate-700">
-              <li v-for="item in analysisChecklist" :key="item" class="flex gap-2">
-                <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
-                <span>{{ item }}</span>
-              </li>
-            </ul>
-          </div>
-        </details>
-
-        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
-          <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Proxima acao</h3>
-          </div>
-
-          <div v-if="!actionAvailability.canAct" class="px-4 py-4 text-sm leading-6 text-slate-700">
-            {{ actionAvailability.reason }}
-          </div>
-
-          <template v-else>
-            <div class="px-4 py-4">
-              <p class="text-sm leading-6 text-slate-600">
-                Escolha a acao somente depois de concluir a analise recomendada.
-              </p>
-
-              <div class="mt-4 grid gap-3 xl:grid-cols-3">
-                <button
-                  v-for="option in decisionOptions"
-                  :key="option.id"
-                  type="button"
-                  :class="[
-                    'grid gap-1 rounded-[14px] border px-4 py-4 text-left transition',
-                    option.toneClass,
-                  ]"
-                  @click="selectDecision(option.id)"
-                >
-                  <span class="text-sm font-semibold">{{ option.title }}</span>
-                  <span class="text-sm leading-6">{{ option.description }}</span>
-                </button>
-              </div>
-
-              <div
-                v-if="activeDecision"
-                class="mt-4 rounded-[14px] border border-slate-200 bg-white px-4 py-4"
-              >
-                <label class="grid gap-2">
-                  <span class="text-sm font-semibold text-slate-900">{{ activeDecision.fieldLabel }}</span>
-                  <textarea
-                    ref="operatorNoteRef"
-                    v-model="operatorNote"
-                    rows="5"
-                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
-                    :placeholder="activeDecision.placeholder"
-                  />
-                </label>
-
-                <p v-if="noteError" class="mt-2 text-sm font-semibold text-[var(--color-danger)]">
-                  {{ noteError }}
-                </p>
-
-                <div class="mt-4 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
-                  <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ activeDecision.previewLabel }}</p>
-                  <p class="mt-2 text-sm leading-6 text-slate-700">{{ recordPreview }}</p>
-                </div>
-
-                <div
-                  v-if="actionFeedback.message"
-                  :class="[
-                    'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
-                    actionFeedback.type === 'success'
-                      ? 'border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] text-[var(--color-success)]'
-                      : 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]',
-                  ]"
-                >
-                  {{ actionFeedback.message }}
-                </div>
-
-                <div class="mt-4 flex flex-wrap gap-3">
-                  <button
-                    v-if="selectedDecision === 'reply'"
-                    type="button"
-                    :disabled="isSubmittingAction"
-                    class="rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)] disabled:cursor-wait disabled:opacity-75"
-                    @click="handleActionClick('reply')"
-                  >
-                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
-                  </button>
-
-                  <button
-                    v-if="selectedDecision === 'request_info'"
-                    type="button"
-                    :disabled="isSubmittingAction"
-                    class="rounded-[14px] border border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.86)] px-5 py-3 text-sm font-semibold text-[#8a5200] disabled:cursor-wait disabled:opacity-75"
-                    @click="handleActionClick('request_info')"
-                  >
-                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
-                  </button>
-
-                  <button
-                    v-if="selectedDecision === 'escalate'"
-                    type="button"
-                    :disabled="isSubmittingAction"
-                    class="rounded-[14px] bg-[#0f4c81] px-5 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
-                    @click="handleActionClick('escalate')"
-                  >
-                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
-                  </button>
-                </div>
-
-                <div
-                  v-if="confirmationCopy"
-                  class="mt-4 rounded-[14px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
-                >
-                  <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
-                  <div class="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
-                    <div>
-                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Consequencia</p>
-                      <p class="mt-1">{{ confirmationCopy.consequence }}</p>
-                    </div>
-                    <div>
-                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Registro</p>
-                      <p class="mt-1">{{ operatorNote.trim() }}</p>
-                    </div>
-                    <div v-if="pendingConfirmationAction === 'escalate'">
-                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Destino</p>
-                      <p class="mt-1 font-semibold text-slate-900">{{ escalationDestination }}</p>
-                    </div>
-                    <div v-if="pendingConfirmationAction === 'escalate'">
-                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Regra observada</p>
-                      <p class="mt-1">{{ escalationReason }}</p>
-                    </div>
-                  </div>
-
-                  <div class="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      :disabled="isSubmittingAction"
-                      :class="['rounded-[14px] px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-75', confirmationCopy.buttonClass]"
-                      @click="submitOperatorAction(pendingConfirmationAction)"
-                    >
-                      {{ confirmationCopy.buttonLabel }}
-                    </button>
-                    <button
-                      type="button"
-                      :disabled="isSubmittingAction"
-                      class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
-                      @click="pendingConfirmationAction = ''"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-        </div>
       </div>
     </section>
   </div>

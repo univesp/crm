@@ -170,14 +170,6 @@ export function buildOperatorAssistedCase({
       },
       {
         id: `TL-${timestamp.compact}-2`,
-        title: 'Orientacao consultada antes da decisao',
-        description: `Caminho consultado: ${context.breadcrumb.join(' > ')}.`,
-        at: timestamp.iso,
-        atLabel: timestamp.label,
-        tone: 'info',
-      },
-      {
-        id: `TL-${timestamp.compact}-3`,
         title: 'Triagem inicial registrada',
         description: intakeSummary,
         at: timestamp.iso,

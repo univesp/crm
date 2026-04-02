@@ -49,6 +49,18 @@ const shellThemeClass = computed(() => {
 
   return 'shell-governance'
 })
+const isManagerOperationalShell = computed(
+  () => auth.mockContext.isOperationalShell && auth.mockContext.profileKey === 'gestor_polos',
+)
+const showOperationalBackAction = computed(() => route.name === 'operator-case-detail')
+const operationalPoloModel = computed({
+  get() {
+    return auth.mockContext.currentPolo
+  },
+  set(value) {
+    auth.setSelectedOperationalPolo(value)
+  },
+})
 
 watch(
   () => route.meta.stage,
@@ -103,33 +115,20 @@ watch(
           ]"
         >
           <div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div v-if="!isOperationalShell" class="flex flex-wrap items-center gap-2">
               <span
                 :class="[
                   'rounded-full px-3 py-1 text-xs font-semibold',
-                  isOperationalShell
-                    ? 'border border-slate-200 bg-white text-slate-700'
-                    : 'soft-chip',
+                  'soft-chip',
                 ]"
               >
-                {{ isOperationalShell ? (auth.mockContext.profileKey === 'gestor_polos' ? 'Gestao do polo' : 'Operacao do polo') : shellPresentation.label }}
-              </span>
-              <span
-                v-if="isOperationalShell"
-                class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"
-              >
-                {{ auth.mockContext.currentPolo }}
-              </span>
-              <span
-                v-else
-                class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
-              >
-                {{ auth.mockContext.profileLabel }}
+                {{ shellPresentation.label }}
               </span>
             </div>
             <h1
               :class="[
-                'mt-3 font-semibold text-slate-950',
+                'font-semibold text-slate-950',
+                !isOperationalShell ? 'mt-3' : '',
                 isOperationalShell ? 'text-[1.35rem] md:text-[1.5rem]' : 'text-[2rem] md:text-[2.3rem]',
               ]"
             >
@@ -144,17 +143,40 @@ watch(
           </div>
 
           <div class="flex flex-wrap items-center gap-3">
+            <template v-if="isOperationalShell">
+              <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700">
+                <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
+              </div>
+              <select
+                v-if="isManagerOperationalShell"
+                v-model="operationalPoloModel"
+                class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
+              >
+                <option v-for="polo in auth.mockContext.linkedPolos" :key="polo" :value="polo">
+                  {{ polo }}
+                </option>
+              </select>
+              <div
+                v-else
+                class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
+              >
+                {{ auth.mockContext.currentPolo }}
+              </div>
+              <RouterLink
+                v-if="showOperationalBackAction"
+                to="/op/fila"
+                class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Voltar para fila
+              </RouterLink>
+            </template>
             <div
-              :class="[
-                'border border-slate-200 text-sm text-slate-700',
-                isOperationalShell
-                  ? 'rounded-full bg-white px-3.5 py-2'
-                  : 'rounded-[20px] bg-slate-50/80 px-4 py-3',
-              ]"
+              v-else
+              class="rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
             >
               <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
-              <p v-if="!isOperationalShell" class="mt-1">{{ auth.mockContext.userEmail }}</p>
-              <p v-if="!isOperationalShell" class="mt-1">Polo atual: {{ auth.mockContext.currentPolo }}</p>
+              <p class="mt-1">{{ auth.mockContext.userEmail }}</p>
+              <p class="mt-1">Polo atual: {{ auth.mockContext.currentPolo }}</p>
             </div>
             <button
               type="button"
