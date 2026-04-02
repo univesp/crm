@@ -21,13 +21,6 @@ export const journeyStages = [
     output: 'Payload inicial, historico e fila responsavel.',
   },
   {
-    id: 'ai',
-    label: 'Atendimento assistido',
-    route: '/chat-ia',
-    description: 'IA com contexto do caso, playbooks e criterio de escalacao.',
-    output: 'Resposta guiada, orientacao e decisao de continuidade.',
-  },
-  {
     id: 'handoff',
     label: 'Escalacao humana',
     route: '/handoff',
@@ -38,7 +31,7 @@ export const journeyStages = [
     id: 'integrations',
     label: 'Integracoes e governanca',
     route: '/integracoes',
-    description: 'Contratos com Frappe, SAML, IA e organizacao da camada frontend.',
+    description: 'Contratos com Frappe, SAML e organizacao da camada frontend.',
     output: 'Dependencias, contratos e base tecnica para evolucao.',
   },
 ]
@@ -50,7 +43,7 @@ export const attendanceFlows = [
     summary: 'Fluxo para ingresso, rematricula, reabertura e confirmacao de vinculo.',
     queue: 'Secretaria Academica',
     expectedSla: 'Ate 4h uteis',
-    aiGoal: 'Confirmar regra academica, validar documentos e orientar proximo passo.',
+    operationalGoal: 'Confirmar regra academica, validar documentos e orientar o proximo passo.',
     keyFields: [
       'RA ou CPF',
       'Polo e curso',
@@ -107,7 +100,7 @@ export const attendanceFlows = [
     summary: 'Fluxo para boletos, comprovantes, parcelamentos e divergencias de cobranca.',
     queue: 'Financeiro',
     expectedSla: 'Ate 2h uteis',
-    aiGoal: 'Esclarecer a cobranca, reaproveitar comprovantes e preparar negociacao.',
+    operationalGoal: 'Esclarecer a cobranca, reaproveitar comprovantes e preparar negociacao.',
     keyFields: [
       'RA ou CPF',
       'Competencia da cobranca',
@@ -128,7 +121,7 @@ export const attendanceFlows = [
       {
         id: 'need',
         title: 'Qual o assunto?',
-        help: 'Define o playbook inicial do chatbot e do ticket.',
+        help: 'Define o playbook inicial do protocolo e da fila operacional.',
         options: [
           { label: 'Segunda via de boleto', value: 'duplicate_invoice', note: 'Reemissao de titulo.' },
           { label: 'Comprovante ou recibo', value: 'receipt', note: 'Declaracao de pagamento.' },
@@ -149,7 +142,7 @@ export const attendanceFlows = [
       {
         id: 'evidence',
         title: 'Ha comprovante ou numero do titulo?',
-        help: 'Ajuda a IA e o atendente a localizar a cobranca.',
+        help: 'Ajuda a operacao a localizar a cobranca.',
         options: [
           { label: 'Tenho comprovante', value: 'payment_receipt', note: 'Pix, TED ou boleto pago.' },
           { label: 'Tenho numero do boleto', value: 'invoice_number', note: 'Possui identificador da fatura.' },
@@ -164,7 +157,7 @@ export const attendanceFlows = [
     summary: 'Fluxo para declaracoes, historico, certificado e ajustes cadastrais.',
     queue: 'Secretaria e Documentos',
     expectedSla: 'Ate 8h uteis',
-    aiGoal: 'Conferir disponibilidade do documento e orientar emissao ou ajuste.',
+    operationalGoal: 'Conferir disponibilidade do documento e orientar emissao ou ajuste.',
     keyFields: [
       'RA',
       'Documento solicitado',
@@ -206,7 +199,7 @@ export const attendanceFlows = [
       {
         id: 'evidence',
         title: 'Existe algum bloqueio conhecido?',
-        help: 'A IA pode antecipar escalacao.',
+        help: 'Ajuda a antecipar escalacao quando houver bloqueio.',
         options: [
           { label: 'Pagamento pendente', value: 'financial_block', note: 'Pode impedir emissao.' },
           { label: 'Erro cadastral', value: 'data_mismatch', note: 'Documento sai incorreto.' },
@@ -221,7 +214,7 @@ export const attendanceFlows = [
     summary: 'Fluxo para login, disciplinas, provas, materiais e indisponibilidade do ambiente.',
     queue: 'Suporte Academico Digital',
     expectedSla: 'Ate 1h util',
-    aiGoal: 'Resolver rapido ou coletar diagnostico tecnico antes do handoff.',
+    operationalGoal: 'Resolver rapido ou coletar diagnostico tecnico antes do handoff.',
     keyFields: [
       'RA',
       'Disciplina ou recurso impactado',
@@ -232,7 +225,7 @@ export const attendanceFlows = [
       {
         id: 'persona',
         title: 'Onde o problema aparece?',
-        help: 'Ajuda a IA a identificar o subsistema correto.',
+        help: 'Ajuda a identificar o subsistema correto.',
         options: [
           { label: 'Login no portal', value: 'portal_login', note: 'Entrada na conta.' },
           { label: 'Disciplina especifica', value: 'course_access', note: 'Acesso a materia.' },
@@ -243,7 +236,7 @@ export const attendanceFlows = [
       {
         id: 'need',
         title: 'Qual o impacto agora?',
-        help: 'Define se a IA tenta contorno ou ja escala.',
+        help: 'Define se a fila operacional tenta contorno ou ja escala.',
         options: [
           { label: 'Nao consigo entrar', value: 'hard_block', note: 'Bloqueio total.' },
           { label: 'Erro intermitente', value: 'unstable', note: 'Falha ocorre as vezes.' },
@@ -292,14 +285,6 @@ export const integrationBlueprint = [
     deliverable: 'Endpoints REST e eventos de atualizacao',
   },
   {
-    id: 'ai-orchestrator',
-    name: 'Orquestrador IA',
-    status: 'Definir prompts',
-    owner: 'IA + Backend',
-    description: 'Recebe o contexto da triagem, conversa e decide o handoff.',
-    deliverable: 'Sessao de chat, guardrails e resumo final',
-  },
-  {
     id: 'saml-bridge',
     name: 'SSO SAML',
     status: 'Mapear IdP',
@@ -312,7 +297,7 @@ export const integrationBlueprint = [
     name: 'Bridge de handoff',
     status: 'Modelar fila',
     owner: 'Operacoes',
-    description: 'Transfere briefing, transcript e prioridade para um atendente.',
+    description: 'Transfere briefing, resumo da triagem e prioridade para um atendente.',
     deliverable: 'Webhook de transferencia e fila humana',
   },
 ]
@@ -340,7 +325,7 @@ export const folderBlueprint = [
   },
   {
     path: 'src/services',
-    purpose: 'Contratos placeholder com Frappe, SAML e chatbot.',
+    purpose: 'Contratos placeholder com Frappe, SAML e rotas de handoff.',
   },
   {
     path: 'src/stores',

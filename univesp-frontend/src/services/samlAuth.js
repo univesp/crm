@@ -59,14 +59,6 @@ export const environmentChecklist = [
     purpose: 'DocType alvo do ticket, como Issue ou HD Ticket.',
   },
   {
-    key: 'VITE_AI_GATEWAY_URL',
-    purpose: 'Servico que orquestra a conversa com IA.',
-  },
-  {
-    key: 'VITE_AI_NAMESPACE',
-    purpose: 'Namespace da base de conhecimento usada pelo bot.',
-  },
-  {
     key: 'VITE_SAML_ENTITY_ID',
     purpose: 'Entity ID do frontend ou gateway de autenticacao.',
   },

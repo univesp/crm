@@ -49,6 +49,8 @@ Scripts de apoio:
 - `npm run dev`
 - `npm run build`
 - `npm run preview`
+- `npm run preview:local`
+- `npm run review`
 - `npm run lint`
 - `npm run typecheck`
 - `npm run check`
@@ -144,16 +146,52 @@ Para subir apenas o frontend:
 ```bash
 cd /home/lukakas/dev/univesp/crm/univesp-frontend
 npm install
-cp .env.development .env.local
 npm run dev
+```
+
+Para homologacao visual mais estavel, prefira:
+
+```bash
+npm run review
+```
+
+No Windows, o atalho mais simples e:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-review.ps1 -LocalProfile aluno
+```
+
+Ou:
+
+```cmd
+scripts\start-review.cmd aluno
 ```
 
 URLs esperadas:
 
 - `http://localhost:8080/crm`
-- o backend/gateway de API deve responder em `http://localhost:8000` se `VITE_FRAPPE_PROXY_TARGET` estiver ativo
+- `http://localhost:8080/crm/acesso-local`
+- sem backend local: usar os perfis `.env.local.admin`, `.env.local.op` ou `.env.local.aluno`
+- com backend local: o gateway de API pode responder em `http://localhost:8000` se `VITE_FRAPPE_PROXY_TARGET` estiver ativo
 
-Observacao: a tela de login abre sozinha, mas o acesso completo depende de um gateway expondo `/api/me` e `/api/sso/*` no mesmo dominio ou em `VITE_SSO_BASE_URL`.
+Observacao: no modo mock/bypass local, nao ha senha. A forma mais simples e:
+
+- abrir `http://localhost:8080/crm/acesso-local`
+- escolher `Admin e gestao`, `OP e area` ou `Aluno`
+
+Alternativamente, troque o perfil por:
+
+- `./scripts/use-admin.ps1`
+- `./scripts/use-op.ps1`
+- `./scripts/use-aluno.ps1`
+
+Se o PowerShell bloquear a execucao direta, use:
+
+- `powershell -ExecutionPolicy Bypass -File ./scripts/use-admin.ps1`
+- `powershell -ExecutionPolicy Bypass -File ./scripts/use-op.ps1`
+- `powershell -ExecutionPolicy Bypass -File ./scripts/use-aluno.ps1`
+
+Depois de trocar o perfil, reinicie o `npm run dev`. Os scripts atualizam `.env.local`, `.env.development.local` e `.env.production.local`, para que `dev` e `review` usem o mesmo perfil local sem cair na base de homolog.
 
 ## Docker Compose local
 

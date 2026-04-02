@@ -10,6 +10,7 @@ const props = defineProps({
 
 const toneClass = computed(() => {
   const label = props.label.toLowerCase()
+  const shortHoursMatch = label.match(/(\d+)\s*h/)
 
   if (label.includes('venc')) {
     return 'badge-sla-overdue'
@@ -19,7 +20,8 @@ const toneClass = computed(() => {
     label.includes('min') ||
     label.includes('restante') ||
     label.includes('proximo') ||
-    label.includes('curto')
+    label.includes('curto') ||
+    (shortHoursMatch && Number.parseInt(shortHoursMatch[1], 10) <= 4)
   ) {
     return 'badge-sla-soon'
   }

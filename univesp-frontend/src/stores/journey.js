@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 
 import { attendanceFlows, summarizeAnswers } from '@/data/flowBlueprint'
-import { buildConversationPreview, buildBotContext, buildTransferBrief } from '@/services/aiOrchestrator'
 import { buildTicketDraft, getFrappeOperations } from '@/services/frappeClient'
+import { buildTransferPacket } from '@/services/handoffRuntime'
 import { describeSsoFlow } from '@/services/ssoClient'
 import { defaultAnswersByFlow, mockCustomer, mockSession } from '../../mocks/journey'
 
@@ -36,24 +36,8 @@ export const useJourneyStore = defineStore('journey', {
     frappeOperations() {
       return getFrappeOperations(this.activeFlow)
     },
-    botContext() {
-      return buildBotContext({
-        customer: this.customer,
-        flow: this.activeFlow,
-        ticketDraft: this.ticketDraft,
-        answerSummary: this.answerSummary,
-      })
-    },
-    conversationPreview() {
-      return buildConversationPreview({
-        customer: this.customer,
-        flow: this.activeFlow,
-        ticketDraft: this.ticketDraft,
-        answerSummary: this.answerSummary,
-      })
-    },
     transferBrief() {
-      return buildTransferBrief({
+      return buildTransferPacket({
         customer: this.customer,
         flow: this.activeFlow,
         ticketDraft: this.ticketDraft,

@@ -5,8 +5,10 @@ import SectionPanel from '@/components/SectionPanel.vue'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminParametersRuntime, cloneAdminParametersDraft, findApplicationRule, findParameterLevel } from '@/services/adminParametersRuntime'
+import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
+const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 const parameterDraft = reactive(cloneAdminParametersDraft())
 const ui = reactive({
@@ -15,7 +17,7 @@ const ui = reactive({
   selectedRuleId: null,
 })
 
-const dashboardData = computed(() => studentSupportStore.adminDashboardData)
+const dashboardData = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const runtime = computed(() =>
   buildAdminParametersRuntime({
     dashboardData: dashboardData.value,
@@ -80,31 +82,31 @@ function selectRule(ruleId) {
     <SectionPanel
       eyebrow="Admin"
       title="Parametros de SLA e criticidade"
-      description="Governanca mockada dos catalogos operacionais da Univesp. Esta tela usa os catalogos oficiais como base e projeta o impacto das regras sobre os casos ja normalizados."
+      description="Ajuste os niveis oficiais e veja como as regras mudam a leitura dos casos existentes."
     >
       <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
         <div class="grid gap-3 md:grid-cols-2">
           <div class="inner-panel p-5">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Catalogo de criticidade</p>
+            <p class="text-sm font-semibold text-slate-500">Criticidade</p>
             <p class="mt-3 text-lg font-semibold text-slate-950">{{ runtime.criticalityLevels.length }} niveis oficiais</p>
             <p class="mt-2 text-sm leading-6 text-slate-600">
-              A edicao mock preserva as chaves oficiais e permite ajustar label, badge, cor e prioridade operacional.
+              Ajuste nome, cor, badge e prioridade operacional de cada nivel.
             </p>
           </div>
           <div class="inner-panel p-5">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Catalogo de SLA</p>
+            <p class="text-sm font-semibold text-slate-500">Prazos</p>
             <p class="mt-3 text-lg font-semibold text-slate-950">{{ runtime.slaLevels.length }} janelas oficiais</p>
             <p class="mt-2 text-sm leading-6 text-slate-600">
-              O impacto sempre e calculado sobre os mesmos casos ativos que abastecem dashboard, fila do OP e auditoria.
+              A leitura reaproveita os mesmos casos do painel, da fila operacional e da auditoria.
             </p>
           </div>
         </div>
 
         <div class="inner-panel p-5">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Base de aplicacao</p>
-          <p class="mt-3 text-lg font-semibold text-slate-950">{{ dashboardData.activeCases.length }} casos ativos normalizados</p>
+          <p class="text-sm font-semibold text-slate-500">Base de impacto</p>
+          <p class="mt-3 text-lg font-semibold text-slate-950">{{ dashboardData.activeCases.length }} casos ativos em leitura</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            Regras por tema, subtema ou fila alteram a leitura projetada de criticidade e SLA sem mexer no backend real nesta fase.
+            Regras por tema, subtema ou fila mudam a leitura projetada sem alterar o backend nesta etapa.
           </p>
         </div>
       </div>
@@ -124,7 +126,7 @@ function selectRule(ruleId) {
       <SectionPanel
         eyebrow="Criticidade"
         title="Niveis oficiais"
-        description="O painel abaixo governa labels, badge, cor e prioridade operacional dos niveis de criticidade."
+        description="Revise os niveis de criticidade e ajuste como eles aparecem na operacao."
       >
         <div class="grid gap-4">
           <div class="grid gap-2">
@@ -138,7 +140,7 @@ function selectRule(ruleId) {
             >
               <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <p class="text-xs font-semibold text-slate-500">
                     {{ level.key }}
                   </p>
                   <p class="mt-2 text-base font-semibold text-slate-950">{{ level.label }}</p>
@@ -171,21 +173,21 @@ function selectRule(ruleId) {
 
             <div class="grid gap-4 md:grid-cols-2">
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Label</span>
+                <span class="text-sm font-semibold text-slate-600">Nome</span>
                 <input
                   v-model="selectedCriticalityLevel.label"
                   class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
                 />
               </label>
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Badge</span>
+                <span class="text-sm font-semibold text-slate-600">Texto do badge</span>
                 <input
                   v-model="selectedCriticalityLevel.badgeLabel"
                   class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
                 />
               </label>
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cor de fundo</span>
+                <span class="text-sm font-semibold text-slate-600">Cor de fundo</span>
                 <input
                   v-model="selectedCriticalityLevel.backgroundColor"
                   type="color"
@@ -193,7 +195,7 @@ function selectRule(ruleId) {
                 />
               </label>
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cor do texto</span>
+                <span class="text-sm font-semibold text-slate-600">Cor do texto</span>
                 <input
                   v-model="selectedCriticalityLevel.textColor"
                   type="color"
@@ -201,7 +203,7 @@ function selectRule(ruleId) {
                 />
               </label>
               <label class="grid gap-2 md:col-span-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Prioridade operacional</span>
+                <span class="text-sm font-semibold text-slate-600">Prioridade operacional</span>
                 <input
                   v-model.number="selectedCriticalityLevel.operationalPriority"
                   type="number"
@@ -217,7 +219,7 @@ function selectRule(ruleId) {
       <SectionPanel
         eyebrow="SLA"
         title="Janelas oficiais"
-        description="O draft abaixo ajusta badge, cor, horas e prioridade operacional dos niveis de SLA."
+        description="Revise os prazos oficiais e ajuste como eles aparecem na operacao."
       >
         <div class="grid gap-4">
           <div class="grid gap-2">
@@ -231,7 +233,7 @@ function selectRule(ruleId) {
             >
               <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <p class="text-xs font-semibold text-slate-500">
                     {{ level.key }}
                   </p>
                   <p class="mt-2 text-base font-semibold text-slate-950">{{ level.label }}</p>
@@ -264,21 +266,21 @@ function selectRule(ruleId) {
 
             <div class="grid gap-4 md:grid-cols-2">
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Label</span>
+                <span class="text-sm font-semibold text-slate-600">Nome</span>
                 <input
                   v-model="selectedSlaLevel.label"
                   class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
                 />
               </label>
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Badge</span>
+                <span class="text-sm font-semibold text-slate-600">Texto do badge</span>
                 <input
                   v-model="selectedSlaLevel.badgeLabel"
                   class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
                 />
               </label>
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cor de fundo</span>
+                <span class="text-sm font-semibold text-slate-600">Cor de fundo</span>
                 <input
                   v-model="selectedSlaLevel.backgroundColor"
                   type="color"
@@ -286,7 +288,7 @@ function selectRule(ruleId) {
                 />
               </label>
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cor do texto</span>
+                <span class="text-sm font-semibold text-slate-600">Cor do texto</span>
                 <input
                   v-model="selectedSlaLevel.textColor"
                   type="color"
@@ -294,7 +296,7 @@ function selectRule(ruleId) {
                 />
               </label>
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Horas</span>
+                <span class="text-sm font-semibold text-slate-600">Horas</span>
                 <input
                   v-model.number="selectedSlaLevel.hours"
                   type="number"
@@ -303,7 +305,7 @@ function selectRule(ruleId) {
                 />
               </label>
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Prioridade operacional</span>
+                <span class="text-sm font-semibold text-slate-600">Prioridade operacional</span>
                 <input
                   v-model.number="selectedSlaLevel.operationalPriority"
                   type="number"
@@ -321,7 +323,7 @@ function selectRule(ruleId) {
       <SectionPanel
         eyebrow="Regras"
         title="Aplicacao por tema, subtema e fila"
-        description="Estas regras mockadas projetam como os catalogos seriam aplicados aos casos existentes."
+        description="Defina onde cada regra deve valer e acompanhe o impacto dessa leitura."
       >
         <div class="grid gap-4">
           <div class="grid gap-2">
@@ -335,7 +337,7 @@ function selectRule(ruleId) {
             >
               <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <p class="text-xs font-semibold text-slate-500">
                     {{ rule.targetType }} - {{ rule.id }}
                   </p>
                   <p class="mt-2 text-base font-semibold text-slate-950">
@@ -356,7 +358,7 @@ function selectRule(ruleId) {
           <div v-if="selectedRule" class="grid gap-4 rounded-[24px] border border-slate-200 bg-slate-50/75 p-4">
             <div class="grid gap-4 md:grid-cols-2">
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Tipo de alvo</span>
+                <span class="text-sm font-semibold text-slate-600">Tipo de alvo</span>
                 <select
                   v-model="selectedRule.targetType"
                   class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -372,7 +374,7 @@ function selectRule(ruleId) {
               </label>
 
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Valor do alvo</span>
+                <span class="text-sm font-semibold text-slate-600">Valor do alvo</span>
                 <select
                   v-model="selectedRule.targetValue"
                   class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -388,7 +390,7 @@ function selectRule(ruleId) {
               </label>
 
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Criticidade aplicada</span>
+                <span class="text-sm font-semibold text-slate-600">Criticidade aplicada</span>
                 <select
                   v-model="selectedRule.criticalityKey"
                   class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -404,7 +406,7 @@ function selectRule(ruleId) {
               </label>
 
               <label class="grid gap-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">SLA aplicado</span>
+                <span class="text-sm font-semibold text-slate-600">Prazo aplicado</span>
                 <select
                   v-model="selectedRule.slaKey"
                   class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -420,7 +422,7 @@ function selectRule(ruleId) {
               </label>
 
               <label class="grid gap-2 md:col-span-2">
-                <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Nota operacional</span>
+                <span class="text-sm font-semibold text-slate-600">Observacao operacional</span>
                 <textarea
                   v-model="selectedRule.note"
                   rows="4"
@@ -443,7 +445,7 @@ function selectRule(ruleId) {
       <SectionPanel
         eyebrow="Impacto"
         title="Filas mais afetadas"
-        description="A leitura abaixo mostra onde os parametros mudariam criticidade e SLA sobre a base real de casos mockados."
+        description="Veja em quais filas a leitura de criticidade e prazo mudaria mais."
       >
         <div v-if="runtime.queueImpact.length" class="grid gap-3">
           <article
@@ -454,6 +456,7 @@ function selectRule(ruleId) {
             <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Fila</p>
+                
                 <h3 class="mt-3 text-xl font-semibold text-slate-950">{{ queue.queue }}</h3>
                 <p class="mt-2 text-sm leading-6 text-slate-600">
                   Tema dominante: {{ queue.dominantTheme }}
@@ -467,15 +470,15 @@ function selectRule(ruleId) {
 
             <div class="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
               <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Casos impactados</p>
+                <p class="text-sm font-semibold text-slate-500">Casos impactados</p>
                 <p class="mt-2 font-semibold text-slate-900">{{ queue.impactedCases }}</p>
               </div>
               <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Alta criticidade</p>
+                <p class="text-sm font-semibold text-slate-500">Alta criticidade</p>
                 <p class="mt-2 font-semibold text-slate-900">{{ queue.highCriticalityCases }}</p>
               </div>
               <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">SLA encurtado</p>
+                <p class="text-sm font-semibold text-slate-500">Prazo mais curto</p>
                 <p class="mt-2 font-semibold text-slate-900">{{ queue.shorterSlaCases }}</p>
               </div>
             </div>
@@ -488,7 +491,7 @@ function selectRule(ruleId) {
       <SectionPanel
         eyebrow="Impacto"
         title="Casos que ficariam com criticidade alta"
-        description="Lista projetada dos casos que terminariam em alta ou critica com a combinacao atual de catalogos e regras."
+        description="Casos que passariam a exigir leitura mais sensivel com a combinacao atual."
       >
         <div v-if="runtime.highCriticalityCases.length" class="grid gap-3">
           <article
@@ -499,6 +502,7 @@ function selectRule(ruleId) {
             <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{{ item.id }}</p>
+                
                 <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ item.subject }}</h3>
                 <p class="mt-2 text-sm leading-6 text-slate-600">
                   {{ item.student }} - {{ item.queue }} - {{ item.theme }} / {{ item.subsubject }}
@@ -515,7 +519,7 @@ function selectRule(ruleId) {
             </div>
 
             <p class="mt-4 text-sm leading-6 text-slate-600">
-              Regras aplicadas:
+              Regras consideradas:
               {{ item.matchedRules.map((rule) => `${rule.targetType}:${rule.targetLabel}`).join(', ') || 'nenhuma' }}
             </p>
           </article>
@@ -525,7 +529,7 @@ function selectRule(ruleId) {
       <SectionPanel
         eyebrow="Impacto"
         title="Casos com SLA mais curto"
-        description="Casos cujo SLA projetado ficaria mais agressivo do que o baseline atual."
+        description="Casos cujo prazo inicial ficaria mais curto do que a leitura atual."
       >
         <div v-if="runtime.shorterSlaCases.length" class="grid gap-3">
           <article
@@ -536,6 +540,7 @@ function selectRule(ruleId) {
             <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{{ item.id }}</p>
+                
                 <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ item.subject }}</h3>
                 <p class="mt-2 text-sm leading-6 text-slate-600">
                   {{ item.student }} - {{ item.queue }} - {{ item.theme }} / {{ item.subsubject }}
@@ -552,7 +557,7 @@ function selectRule(ruleId) {
             </div>
 
             <p class="mt-4 text-sm leading-6 text-slate-600">
-              Regras aplicadas:
+              Regras consideradas:
               {{ item.matchedRules.map((rule) => `${rule.targetType}:${rule.targetLabel}`).join(', ') || 'nenhuma' }}
             </p>
           </article>

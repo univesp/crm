@@ -1,162 +1,392 @@
 <script setup>
-import { computed } from 'vue'
-import ActionTile from '@/components/ActionTile.vue'
-import SectionPanel from '@/components/SectionPanel.vue'
+import { computed, nextTick, ref } from 'vue'
+
 import StatusBadge from '@/components/StatusBadge.vue'
+import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
+import { buildStudentRequestSections, buildStudentRequestSummary } from '@/services/studentPortalRuntime'
 import { useStudentSupportStore } from '@/stores/studentSupport'
-import { studentNotifications } from '../../../mocks/operations'
 
 const studentSupportStore = useStudentSupportStore()
+const searchQuery = ref('')
+const periodFilter = ref('all')
+const openSections = ref({
+  drafts: false,
+  actionRequired: false,
+  waiting: false,
+  completed: false,
+})
+const sectionElements = ref({})
 
-const requestGroups = computed(() => studentSupportStore.requestGroups)
-const latestProtocol = computed(() => studentSupportStore.latestProtocol)
+const requestSections = computed(() =>
+  buildStudentRequestSections({
+    protocolDraft: studentSupportStore.protocolDraft,
+    records: studentSupportStore.records,
+    protocols: studentSupportStore.protocols,
+    query: searchQuery.value,
+    period: periodFilter.value,
+  }),
+)
+const requestSummary = computed(() => buildStudentRequestSummary(requestSections.value))
+const completedSubsections = computed(() => ({
+  answered: requestSections.value.completed.filter((item) => item.studentState === 'answered_in_portal'),
+  concluded: requestSections.value.completed.filter((item) => item.studentState === 'completed'),
+}))
 
-const sections = [
+const sections = computed(() => [
   {
     key: 'drafts',
-    title: 'Rascunhos',
-    description: 'Protocolos iniciados a partir da FAQ e ainda nao enviados.',
-    empty: 'Nenhum rascunho ativo no momento.',
+    title: 'Em preenchimento',
+    empty: 'Nenhuma solicitacao em preenchimento no momento.',
+    tone: {
+      sectionClass: 'border-slate-200 bg-white',
+      countClass: 'bg-slate-100 text-slate-600',
+      markerClass: 'bg-slate-400',
+      accentClass: 'text-slate-700',
+    },
   },
   {
-    key: 'submitted',
-    title: 'Protocolos enviados',
-    description: 'Casos que ja foram enviados e aguardam acao da operacao.',
-    empty: 'Nenhum protocolo enviado ainda.',
+    key: 'actionRequired',
+    title: 'Precisa da minha acao',
+    empty: 'Nenhum registro aguardando acao sua no momento.',
+    tone: {
+      sectionClass: 'border-[rgba(209,50,57,0.18)] bg-[rgba(209,50,57,0.04)]',
+      countClass: 'bg-[rgba(209,50,57,0.12)] text-[var(--color-danger)]',
+      markerClass: 'bg-[var(--color-danger)]',
+      accentClass: 'text-[var(--color-danger)]',
+    },
   },
   {
-    key: 'resolvedByFaq',
-    title: 'Resolvidos pela FAQ',
-    description: 'Atendimentos encerrados no portal com registro interno.',
-    empty: 'Nenhum atendimento resolvido pela FAQ ainda.',
+    key: 'waiting',
+    title: 'Aguardando atendimento',
+    empty: 'Nenhum registro aguardando atendimento no momento.',
+    tone: {
+      sectionClass: 'border-[rgba(154,90,0,0.18)] bg-[rgba(154,90,0,0.04)]',
+      countClass: 'bg-[rgba(154,90,0,0.12)] text-[var(--color-warning)]',
+      markerClass: 'bg-[var(--color-warning)]',
+      accentClass: 'text-[var(--color-warning)]',
+    },
   },
   {
-    key: 'concluded',
-    title: 'Concluidos',
-    description: 'Protocolos finalizados e encerrados.',
-    empty: 'Nenhum protocolo concluido nesta base mockada.',
+    key: 'completed',
+    title: 'Atendido / Concluido',
+    empty: 'Nenhum registro finalizado no momento.',
+    tone: {
+      sectionClass: 'border-[rgba(26,111,67,0.18)] bg-[rgba(26,111,67,0.04)]',
+      countClass: 'bg-[rgba(26,111,67,0.12)] text-[var(--color-success)]',
+      markerClass: 'bg-[var(--color-success)]',
+      accentClass: 'text-[var(--color-success)]',
+    },
   },
-]
+])
+
+const latestVisibleEntry = computed(() =>
+  Object.values(requestSections.value)
+    .flat()
+    .sort((left, right) => (right.timestampMs || 0) - (left.timestampMs || 0))[0] || null,
+)
+
+const hasFilteredResults = computed(() => requestSummary.value.hasResults)
+const showNoResults = computed(() =>
+  Boolean(searchQuery.value.trim().length || periodFilter.value !== 'all') && !hasFilteredResults.value,
+)
+
+function toggleSection(sectionKey) {
+  openSections.value = {
+    ...openSections.value,
+    [sectionKey]: !openSections.value[sectionKey],
+  }
+}
+
+function setSectionElement(sectionKey, element) {
+  if (!element) {
+    delete sectionElements.value[sectionKey]
+    return
+  }
+
+  sectionElements.value[sectionKey] = element
+}
+
+function openActionRequiredSection() {
+  openSections.value = {
+    drafts: false,
+    actionRequired: true,
+    waiting: false,
+    completed: false,
+  }
+
+  nextTick(() => {
+    sectionElements.value.actionRequired?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+    document.getElementById('student-request-trigger-actionRequired')?.focus()
+  })
+}
 </script>
 
 <template>
-  <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-    <SectionPanel
-      eyebrow="Aluno"
-      title="Minhas solicitacoes"
-      description="A area agora separa rascunhos, protocolos enviados, resolvidos pela FAQ e concluidos em blocos distintos."
-    >
-      <div class="grid gap-5">
-        <section
-          v-for="section in sections"
-          :key="section.key"
-          class="rounded-[26px] border border-slate-200 bg-white/80 p-5"
+  <StudentStageLayout
+    eyebrow="Minhas solicitacoes"
+    title="Acompanhe seus registros no portal"
+    description="Aqui aparecem protocolos enviados e respostas registradas no portal."
+    mobile-label="Minhas solicitacoes"
+    aside-title="Apoio"
+    aside-description="No desktop, esta coluna continua apenas como apoio."
+  >
+    <div class="grid gap-4">
+      <button
+        v-if="requestSummary.actionRequiredCount > 0"
+        type="button"
+        class="student-focus-ring rounded-[24px] border border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.06)] p-5 text-left transition hover:bg-[rgba(209,50,57,0.09)]"
+        @click="openActionRequiredSection"
+      >
+        <p class="student-section-label text-[var(--color-primary-dark)]">Pendencia importante</p>
+        <p class="mt-3 text-base font-semibold text-slate-950">
+          {{
+            requestSummary.actionRequiredCount === 1
+              ? 'Voce tem 1 solicitacao que precisa da sua acao.'
+              : `Voce tem ${requestSummary.actionRequiredCount} solicitacoes que precisam da sua acao.`
+          }}
+        </p>
+        <p class="mt-2 text-sm leading-6 text-slate-700">
+          Abra o grupo correspondente para conferir o que ainda precisa ser enviado ou respondido.
+        </p>
+      </button>
+
+      <div class="grid gap-3 rounded-[24px] border border-slate-200 bg-white/88 p-5 md:grid-cols-[minmax(0,1fr)_180px]">
+        <label class="grid gap-2">
+          <span class="text-sm font-semibold text-slate-900">Buscar por assunto ou protocolo</span>
+          <input
+            v-model="searchQuery"
+            type="search"
+            class="student-focus-ring rounded-[18px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-700 focus:bg-white"
+            placeholder="Ex.: rematricula ou UVSP-20260326-173141"
+            aria-describedby="student-request-search-help"
+          />
+        </label>
+
+        <label class="grid gap-2">
+          <span class="text-sm font-semibold text-slate-900">Periodo</span>
+          <select
+            v-model="periodFilter"
+            class="student-focus-ring rounded-[18px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-700 focus:bg-white"
+            aria-describedby="student-request-search-help"
+          >
+            <option value="all">Todos</option>
+            <option value="7d">Ultimos 7 dias</option>
+            <option value="30d">Ultimos 30 dias</option>
+            <option value="semester">Este semestre</option>
+          </select>
+        </label>
+
+        <p id="student-request-search-help" class="text-sm leading-6 text-slate-600 md:col-span-2">
+          Busque pelo assunto da duvida ou pelo numero do protocolo. O filtro de periodo funciona como atalho simples.
+        </p>
+      </div>
+
+      <div
+        v-if="showNoResults"
+        class="rounded-[24px] border border-slate-200 bg-slate-50/85 px-5 py-4 text-sm leading-6 text-slate-700"
+        role="status"
+        aria-live="polite"
+      >
+        Nenhum registro encontrado para a busca ou periodo selecionado.
+      </div>
+
+      <section
+        v-for="section in sections"
+        :key="section.key"
+        :ref="(element) => setSectionElement(section.key, element)"
+        :class="['rounded-[24px] border transition', section.tone.sectionClass]"
+      >
+        <button
+          :id="`student-request-trigger-${section.key}`"
+          type="button"
+          class="student-focus-ring flex w-full items-center justify-between gap-4 px-5 py-5 text-left"
+          :aria-expanded="openSections[section.key] ? 'true' : 'false'"
+          :aria-controls="`student-request-panel-${section.key}`"
+          :aria-label="`${openSections[section.key] ? 'Recolher' : 'Expandir'} grupo ${section.title}`"
+          @click="toggleSection(section.key)"
         >
-          <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                {{ section.title }}
-              </p>
-              <p class="mt-2 text-sm leading-6 text-slate-600">{{ section.description }}</p>
-            </div>
-            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
-              {{ requestGroups[section.key].length }}
+          <div class="flex items-center gap-3">
+            <span :class="['h-2.5 w-2.5 rounded-full', section.tone.markerClass]"></span>
+            <h3 class="text-base font-semibold text-slate-950">{{ section.title }}</h3>
+          </div>
+          <div class="flex items-center gap-3">
+            <span :class="['rounded-full px-3 py-1 text-xs font-semibold', section.tone.countClass]">
+              {{ requestSections[section.key].length }}
+            </span>
+            <span
+              aria-hidden="true"
+              :class="['text-sm font-semibold', section.tone.accentClass]"
+            >
+              {{ openSections[section.key] ? '-' : '+' }}
             </span>
           </div>
+        </button>
 
-          <div v-if="requestGroups[section.key].length" class="mt-5 grid gap-3">
-            <article
-              v-for="protocol in requestGroups[section.key]"
-              :key="protocol.id"
-              class="rounded-[22px] border border-slate-200 bg-slate-50/80 p-5"
-            >
-              <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    {{ protocol.id }}
-                  </p>
-                  <h3 class="mt-2 text-lg font-semibold text-slate-950">{{ protocol.subject }}</h3>
-                  <p class="mt-3 text-sm leading-6 text-slate-600">
-                    Atualizado em {{ protocol.updatedAt }}. Pendencia atual: {{ protocol.pending }}.
-                  </p>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <StatusBadge :label="protocol.status" />
-                  <StatusBadge :label="protocol.priority" />
-                </div>
-              </div>
-
-              <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                <span class="rounded-full bg-white px-3 py-1 ring-1 ring-slate-200">
-                  SLA: {{ protocol.sla }}
-                </span>
-                <RouterLink
-                  v-if="protocol.route"
-                  :to="protocol.route"
-                  class="rounded-full bg-[var(--color-primary)] px-3 py-1 font-semibold uppercase tracking-[0.18em] text-white shadow-[0_10px_24px_rgba(209,50,57,0.16)]"
+        <div
+          v-if="openSections[section.key]"
+          :id="`student-request-panel-${section.key}`"
+          role="region"
+          :aria-labelledby="`student-request-trigger-${section.key}`"
+          class="border-t border-slate-200 px-5 py-4"
+        >
+          <div
+            v-if="requestSections[section.key].length"
+            class="grid gap-3"
+          >
+            <template v-if="section.key === 'completed'">
+              <div
+                v-if="completedSubsections.answered.length"
+                class="grid gap-3"
+              >
+                <p class="student-section-label">Respondidas no portal</p>
+                <article
+                  v-for="item in completedSubsections.answered"
+                  :key="item.id"
+                  class="rounded-[20px] border border-[rgba(0,95,153,0.14)] bg-[rgba(0,95,153,0.04)] p-4"
                 >
-                  Abrir detalhe
-                </RouterLink>
+                  <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div class="min-w-0">
+                      <h4 class="text-base font-semibold text-slate-950">
+                        {{ item.subject }}
+                      </h4>
+                      <p class="mt-2 text-sm leading-6 text-slate-600">
+                        {{ item.statusLabel }} - Atualizado em {{ item.updatedAtLabel }}.
+                      </p>
+                      <p class="mt-3 text-sm leading-6 text-slate-600">
+                        {{ item.id }}
+                      </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                      <StatusBadge :label="item.statusLabel" />
+                      <RouterLink
+                        v-if="item.route"
+                        :to="item.route"
+                        class="student-focus-ring inline-flex h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Ver detalhes
+                      </RouterLink>
+                    </div>
+                  </div>
+
+                  <p class="mt-3 text-sm leading-6 text-slate-600">
+                    {{ item.pending }}
+                  </p>
+                </article>
               </div>
-            </article>
+
+              <div
+                v-if="completedSubsections.concluded.length"
+                class="grid gap-3"
+              >
+                <p class="student-section-label">Concluidas</p>
+                <article
+                  v-for="item in completedSubsections.concluded"
+                  :key="item.id"
+                  class="rounded-[20px] border border-[rgba(26,111,67,0.14)] bg-[rgba(26,111,67,0.04)] p-4"
+                >
+                  <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div class="min-w-0">
+                      <h4 class="text-base font-semibold text-slate-950">
+                        {{ item.subject }}
+                      </h4>
+                      <p class="mt-2 text-sm leading-6 text-slate-600">
+                        {{ item.statusLabel }} - Atualizado em {{ item.updatedAtLabel }}.
+                      </p>
+                      <p class="mt-3 text-sm leading-6 text-slate-600">
+                        {{ item.id }}
+                      </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                      <StatusBadge :label="item.statusLabel" />
+                      <RouterLink
+                        v-if="item.route"
+                        :to="item.route"
+                        class="student-focus-ring inline-flex h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Ver detalhes
+                      </RouterLink>
+                    </div>
+                  </div>
+
+                  <p class="mt-3 text-sm leading-6 text-slate-600">
+                    {{ item.pending }}
+                  </p>
+                </article>
+              </div>
+            </template>
+
+            <template v-else>
+              <article
+                v-for="item in requestSections[section.key]"
+                :key="item.id"
+                class="rounded-[20px] border border-slate-200 bg-slate-50/80 p-4"
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div class="min-w-0">
+                    <h4 class="text-base font-semibold text-slate-950">
+                      {{ item.subject }}
+                    </h4>
+                    <p class="mt-2 text-sm leading-6 text-slate-600">
+                      {{ item.statusLabel }} - Atualizado em {{ item.updatedAtLabel }}.
+                    </p>
+                    <p class="mt-3 text-sm leading-6 text-slate-600">
+                      {{ item.id }}
+                    </p>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-3">
+                    <StatusBadge :label="item.statusLabel" />
+                    <RouterLink
+                      v-if="item.route"
+                      :to="item.route"
+                      class="student-focus-ring inline-flex h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Ver detalhes
+                    </RouterLink>
+                  </div>
+                </div>
+
+                <p class="mt-3 text-sm leading-6 text-slate-600">
+                  {{ item.pending }}
+                </p>
+              </article>
+            </template>
           </div>
 
-          <p v-else class="mt-5 text-sm leading-7 text-slate-600">
+          <p v-else class="text-sm leading-6 text-slate-600">
             {{ section.empty }}
           </p>
-        </section>
-      </div>
-    </SectionPanel>
-
-    <div class="grid gap-6">
-      <SectionPanel
-        eyebrow="Destaque"
-        title="Ultimo protocolo enviado"
-        description="Resumo rapido do atendimento mais recente iniciado pelo aluno em modo mock."
-      >
-        <div v-if="latestProtocol" class="inner-panel p-5">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-            {{ latestProtocol.protocolNumber }}
-          </p>
-          <h3 class="mt-2 text-lg font-semibold text-slate-950">{{ latestProtocol.subject }}</h3>
-          <p class="mt-3 text-sm leading-6 text-slate-600">
-            {{ latestProtocol.statusLabel }}. Fila: {{ latestProtocol.queueLabel }}. SLA:
-            {{ latestProtocol.slaLabel }}.
-          </p>
-          <div class="mt-4 flex flex-wrap gap-2">
-            <StatusBadge :label="latestProtocol.statusLabel" />
-            <StatusBadge :label="latestProtocol.priorityLabel" />
-            <RouterLink
-              :to="`/aluno/solicitacoes/${latestProtocol.protocolNumber}`"
-              class="rounded-full bg-[var(--color-primary)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-[0_10px_24px_rgba(209,50,57,0.16)]"
-            >
-              Abrir timeline
-            </RouterLink>
-          </div>
         </div>
-        <div v-else class="inner-panel p-5">
-          <p class="text-sm leading-7 text-slate-600">
-            Assim que um protocolo for enviado a partir da FAQ, ele aparece aqui com acesso direto
-            ao detalhe individual.
-          </p>
-        </div>
-      </SectionPanel>
-
-      <SectionPanel
-        eyebrow="Notificacoes"
-        title="Fila pessoal de alertas"
-        description="Resumo das mensagens que devem aparecer no portal do aluno."
-      >
-        <div class="grid gap-3">
-          <ActionTile
-            v-for="notification in studentNotifications"
-            :key="notification.id"
-            :title="notification.title"
-            :description="notification.message"
-            eyebrow="Portal oficial"
-          />
-        </div>
-      </SectionPanel>
+      </section>
     </div>
-  </div>
+
+    <template #aside>
+      <div class="grid gap-4">
+        <div
+          v-if="latestVisibleEntry"
+          class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4"
+        >
+          <p class="text-sm font-semibold text-slate-900">Registro mais recente</p>
+          <p class="mt-2 text-sm font-semibold text-slate-800">
+            {{ latestVisibleEntry.subject }}
+          </p>
+          <p class="mt-2 text-sm leading-6 text-slate-600">
+            {{ latestVisibleEntry.id }}
+          </p>
+        </div>
+
+        <div class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4">
+          <p class="text-sm font-semibold text-slate-900">Como ler esta lista</p>
+          <p class="mt-2 text-sm leading-6 text-slate-600">
+            O nome da sua duvida aparece primeiro. O status mostra se voce precisa agir, aguardar atendimento, consultar a resposta no portal ou considerar o caso concluido.
+          </p>
+        </div>
+      </div>
+    </template>
+  </StudentStageLayout>
 </template>

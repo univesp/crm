@@ -27,7 +27,7 @@ const journey = useJourneyStore()
           </h3>
           <p class="mt-4 max-w-2xl text-sm leading-7 text-white/75">
             O recorte atual comeca no frontend institucional: entrada autenticada, triagem guiada,
-            protocolo rastreavel, atendimento assistido e escalacao humana com briefing pronto.
+            protocolo rastreavel, fila operacional do polo e escalacao humana com briefing pronto.
           </p>
           <div class="mt-6 flex flex-wrap gap-3">
             <RouterLink

@@ -16,7 +16,7 @@ const transfer = computed(() => journey.transferBrief)
       <MetricCard label="Fila destino" :value="journey.activeFlow.queue" hint="Time humano que assume o caso." />
       <MetricCard label="Cliente" :value="journey.customer.name" hint="Caso autenticado, sem coleta repetida." />
       <MetricCard label="SLA de fila" :value="journey.activeFlow.expectedSla" hint="Pode virar prioridade operacional." />
-      <MetricCard label="Protocolo" :value="journey.session.protocol" hint="Conecta ticket, bot e atendente." />
+      <MetricCard label="Protocolo" :value="journey.session.protocol" hint="Conecta protocolo, fila e last mile." />
     </section>
 
     <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">

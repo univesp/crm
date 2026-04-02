@@ -9,13 +9,13 @@ export const experiencePillars = [
     id: 'smart-routing',
     name: 'Triagem que reduz retrabalho',
     description:
-      'Perguntas fechadas, urgencia e evidencias devem alimentar ticket, IA e fila humana.',
+      'Perguntas fechadas, urgencia e evidencias devem alimentar ticket, fila do polo e last mile.',
   },
   {
-    id: 'assistive-service',
-    name: 'IA com limite operacional',
+    id: 'guided-continuity',
+    name: 'Continuidade guiada',
     description:
-      'A assistencia automatica orienta, resume e escala, sem inventar regra academica ou financeira.',
+      'A jornada orienta, registra contexto e escala, sem inventar regra academica ou financeira.',
   },
   {
     id: 'ops-visibility',
@@ -40,11 +40,6 @@ export const routeBlueprint = [
     path: '/ticket',
     owner: 'Aluno + OP',
     purpose: 'Mostra o contrato do protocolo e o payload previsto para o Frappe.',
-  },
-  {
-    path: '/chat-ia',
-    owner: 'Aluno + IA',
-    purpose: 'Representa o atendimento assistido e os guardrails operacionais.',
   },
   {
     path: '/handoff',

@@ -107,7 +107,7 @@ function handleSelectFlow(flowId) {
           </p>
           <p class="mt-3 text-sm leading-6">
             Quando a triagem estiver pronta, o sistema abre ou atualiza um ticket e compartilha esse
-            contexto com a IA.
+            contexto com a fila responsavel e o handoff humano.
           </p>
         </div>
 

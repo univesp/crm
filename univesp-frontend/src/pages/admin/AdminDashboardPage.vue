@@ -7,8 +7,10 @@ import SectionPanel from '@/components/SectionPanel.vue'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminDashboardView } from '@/services/adminDashboardRuntime'
+import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
+const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 
 const filters = reactive({
@@ -18,7 +20,7 @@ const filters = reactive({
   theme: 'todos',
 })
 
-const dashboardBase = computed(() => studentSupportStore.adminDashboardData)
+const dashboardBase = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const dashboardView = computed(() => buildAdminDashboardView(dashboardBase.value, filters))
 const filterOptions = computed(() => dashboardBase.value.filterOptions)
 const metrics = computed(() => dashboardView.value.kpis)
@@ -43,19 +45,19 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
     <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
       <SectionPanel
         eyebrow="Gestao"
-        title="Leitura executiva por fila"
-        description="O dashboard administrativo consolida fila ativa do OP, protocolos do aluno, resolvidos pela FAQ e auditoria operacional na mesma base mockada."
+        title="Painel de gestao"
+        description="Acompanhe volume, criticidade, prazo e escalonamentos das filas em uma leitura unica."
       >
         <template #action>
-          <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 ring-1 ring-slate-200">
-            {{ dashboardView.activeCases.length }} casos ativos em tela
+          <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+            {{ dashboardView.activeCases.length }} casos em tela
           </span>
         </template>
 
         <div class="grid gap-4">
           <div class="grid gap-4 rounded-[24px] border border-slate-200 bg-slate-50/75 p-4 md:grid-cols-2 xl:grid-cols-4">
             <label class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Area / fila</span>
+              <span class="text-sm font-semibold text-slate-600">Area ou fila</span>
               <select
                 v-model="filters.queue"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -71,7 +73,7 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
             </label>
 
             <label class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status</span>
+              <span class="text-sm font-semibold text-slate-600">Status</span>
               <select
                 v-model="filters.status"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -87,7 +89,7 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
             </label>
 
             <label class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Criticidade</span>
+              <span class="text-sm font-semibold text-slate-600">Criticidade</span>
               <select
                 v-model="filters.criticality"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -103,7 +105,7 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
             </label>
 
             <label class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Tema</span>
+              <span class="text-sm font-semibold text-slate-600">Tema</span>
               <select
                 v-model="filters.theme"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -119,15 +121,6 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
             </label>
           </div>
 
-          <div class="flex flex-wrap gap-2 text-xs text-slate-600">
-            <span class="rounded-full bg-slate-100 px-3 py-1">
-              Fonte da auditoria: operatorActionLogs locais + seeds mockados
-            </span>
-            <span class="rounded-full bg-slate-100 px-3 py-1">
-              Base canonica compartilhada com a fila e o detalhe operacional
-            </span>
-          </div>
-
           <div v-if="queueSummary.length" class="grid gap-3">
             <article
               v-for="area in queueSummary"
@@ -136,11 +129,11 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
             >
               <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  <p class="text-xs font-semibold text-slate-500">
                     {{ area.queue }}
                   </p>
                   <h3 class="mt-3 text-xl font-semibold text-slate-950">
-                    {{ area.volume }} caso(s) na leitura atual
+                    {{ area.volume }} caso(s) na fila
                   </h3>
                   <p class="mt-2 text-sm leading-6 text-slate-600">
                     Tema dominante: {{ area.dominantTheme }}
@@ -156,19 +149,19 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
 
               <div class="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-4">
                 <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Volume</p>
+                  <p class="text-sm font-semibold text-slate-500">Volume</p>
                   <p class="mt-2 font-semibold text-slate-900">{{ area.volume }}</p>
                 </div>
                 <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Criticidade</p>
+                  <p class="text-sm font-semibold text-slate-500">Alta criticidade</p>
                   <p class="mt-2 font-semibold text-slate-900">{{ area.highCriticalityCount }}</p>
                 </div>
                 <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">SLA vencido</p>
+                  <p class="text-sm font-semibold text-slate-500">Prazo vencido</p>
                   <p class="mt-2 font-semibold text-slate-900">{{ area.slaOverdueCount }}</p>
                 </div>
                 <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Escalonados</p>
+                  <p class="text-sm font-semibold text-slate-500">Escalonados</p>
                   <p class="mt-2 font-semibold text-slate-900">{{ area.escalationsCount }}</p>
                 </div>
               </div>
@@ -191,11 +184,11 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
 
       <SectionPanel
         eyebrow="Auditoria"
-        title="Acoes do OP e escalonamentos"
-        description="Toda movimentacao relevante do OP fica auditavel com ator, caso, fila e transicao de status na mesma base mockada."
+        title="Movimentacoes auditaveis"
+        description="Veja quem agiu, em qual caso e como o atendimento mudou de status ou de fila."
       >
         <template #action>
-          <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 ring-1 ring-slate-200">
+          <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
             {{ auditEntries.length }} evento(s)
           </span>
         </template>
@@ -209,17 +202,17 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
             <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  <p class="text-xs font-semibold text-slate-500">
                     {{ entry.caseId }}
                   </p>
                   <StatusBadge :label="entry.actionLabel" />
                 </div>
                 <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ entry.subject }}</h3>
                 <p class="mt-2 text-sm leading-6 text-slate-600">
-                  {{ entry.actor }} Â· {{ entry.occurredAtLabel }}
+                  {{ entry.actor }} - {{ entry.occurredAtLabel }}
                 </p>
                 <p class="mt-2 text-sm leading-6 text-slate-600">
-                  {{ entry.student }} Â· Polo {{ entry.polo }} Â· {{ entry.theme }}
+                  {{ entry.student }} - Polo {{ entry.polo }} - {{ entry.theme }}
                 </p>
               </div>
 
@@ -231,12 +224,12 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
 
             <div class="mt-5 grid gap-3 md:grid-cols-2">
               <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Antes</p>
+                <p class="text-sm font-semibold text-slate-500">Antes</p>
                 <p class="mt-2 font-semibold text-slate-900">{{ entry.statusBefore }}</p>
                 <p class="mt-2 text-sm text-slate-600">{{ entry.queueBefore }}</p>
               </div>
               <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Depois</p>
+                <p class="text-sm font-semibold text-slate-500">Depois</p>
                 <p class="mt-2 font-semibold text-slate-900">{{ entry.statusAfter }}</p>
                 <p class="mt-2 text-sm text-slate-600">{{ entry.queueAfter }}</p>
               </div>
@@ -247,7 +240,7 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
             <div class="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
               <span
                 v-if="entry.escalationReason"
-                class="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 font-semibold uppercase tracking-[0.18em] text-[var(--color-primary-dark)]"
+                class="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--color-primary-dark)]"
               >
                 Motivo: {{ entry.escalationReason }}
               </span>
@@ -275,8 +268,8 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
     <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
       <SectionPanel
         eyebrow="Observacao"
-        title="Casos que merecem leitura de gestao"
-        description="Amostra dos casos ativos mais sensiveis na leitura atual, herdando prioridade, criticidade e sinais de recorrencia."
+        title="Casos que pedem atencao"
+        description="Amostra dos atendimentos mais sensiveis na leitura atual."
       >
         <div v-if="activeCases.length" class="grid gap-3">
           <article
@@ -286,15 +279,15 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
           >
             <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                <p class="text-xs font-semibold text-slate-500">
                   {{ item.id }}
                 </p>
                 <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ item.subject }}</h3>
                 <p class="mt-2 text-sm leading-6 text-slate-600">
-                  {{ item.student }} Â· Polo {{ item.polo }}
+                  {{ item.student }} - Polo {{ item.polo }}
                 </p>
                 <p class="mt-2 text-sm leading-6 text-slate-600">
-                  {{ item.theme }} Â· {{ item.subsubject }}
+                  {{ item.theme }} - {{ item.subsubject }}
                 </p>
               </div>
 
@@ -347,8 +340,8 @@ const governanceCards = computed(() => dashboardView.value.governanceCards)
 
       <SectionPanel
         eyebrow="Governanca"
-        title="Leituras imediatas para a gestao"
-        description="Cards executivos para a proxima camada de governanca sobre FAQ, SLA, criticidade e auditoria."
+        title="Frentes de governanca"
+        description="Entradas diretas para FAQ, parametros, permissoes e publicacao."
       >
         <div class="grid gap-3 md:grid-cols-2">
           <ActionTile

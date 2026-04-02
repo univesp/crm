@@ -1,14 +1,14 @@
 export const faqAdminSettings = {
   studentResolvedState: {
-    title: 'Sua duvida foi encerrada no portal do atendimento',
+    title: 'Sua duvida foi respondida no portal',
     message:
-      'Registramos seu atendimento como resolvido pela FAQ oficial da UNIVESP. Se voce precisar retomar o tema depois, o portal continua sendo a referencia da resposta.',
+      'Registramos que a orientacao oficial respondeu sua duvida. Se precisar retomar o assunto, voce pode iniciar um novo atendimento pelo portal.',
     helper:
-      'Esta mensagem fica centralizada em configuracao local para futura parametrizacao pela tela de admin.',
+      'Se quiser, voce pode voltar ao inicio ou acompanhar seus registros em Minhas solicitacoes.',
   },
   protocolDraft: {
-    title: 'Continuar com atendimento',
+    title: 'Continuar com a solicitacao',
     description:
-      'Use o contexto da FAQ para iniciar o protocolo com menos friccao e sem repetir o que o aluno ja navegou.',
+      'O resumo da sua navegacao ja foi aproveitado. Agora falta apenas complementar o que ainda precisa de atendimento.',
   },
 }

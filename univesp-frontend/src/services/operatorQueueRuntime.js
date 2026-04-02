@@ -1,6 +1,7 @@
 import loggedStudent from '../../mocks/usuario-logado.json'
 import studentFaq from '../../mocks/faq-aluno.json'
 import operatorFaq from '../../mocks/faq-op.json'
+import { buildCaseRoutingContext, filterCasesForMockContext } from '@/services/caseRoutingRuntime'
 import {
   operatorQueue as seededOperatorQueue,
   operatorCaseSeeds,
@@ -68,21 +69,37 @@ const ACTION_METADATA = {
     channel: 'Encaminhamento interno',
     defaultText: ({ playbook, caseEntry }) => {
       const escalationReason = playbook.escalationReason || playbook.escalationCriteria
+      const targetArea = caseEntry.lastMileAreaLabel || caseEntry.queue
 
       if (escalationReason) {
-        return `Escalonamento solicitado para ${caseEntry.queue}. Motivo: ${escalationReason}.`
+        return `Escalonamento solicitado para ${targetArea}. Motivo: ${escalationReason}.`
       }
 
-      return `Escalonamento solicitado para ${caseEntry.queue} com briefing operacional registrado.`
+      return `Escalonamento solicitado para ${targetArea} com briefing operacional registrado.`
     },
     buildDescription: ({ note, playbook }) =>
       `O OP escalou o atendimento para area interna. ${note || playbook.escalationReason || playbook.escalationCriteria}`.trim(),
-    queueResolver: (caseEntry) => `Area interna · ${caseEntry.queue}`,
+    queueResolver: (caseEntry) => caseEntry.lastMileAreaLabel || `Area interna - ${caseEntry.queue}`,
+    assigneeResolver: (caseEntry) => caseEntry.lastMileAreaLabel || 'Area interna',
   },
 }
 
+const OPERATOR_BY_POLO = Object.freeze({
+  guarulhos: 'Juliana Prado',
+  campinas: 'Aline Costa',
+  'sao jose dos campos': 'Diego Lopes',
+})
+
 function normalizeText(value = '') {
   return String(value).trim().toLowerCase()
+}
+
+function tokenize(value = '') {
+  return normalizeText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean)
 }
 
 function titleCase(value = '') {
@@ -206,18 +223,6 @@ function buildContextFromFaqLeaf(index, node) {
   }
 }
 
-function formatQueueLabel(queue) {
-  const labels = {
-    sra: 'Secretaria Academica',
-    financeiro: 'Financeiro',
-    op: 'Operacao do Polo',
-    suporte_academico_digital: 'Suporte Academico Digital',
-    nao_aplicavel: 'Nao aplicavel',
-  }
-
-  return labels[normalizeText(queue)] || titleCase(queue)
-}
-
 function formatCriticalityLabel(criticality) {
   const normalized = normalizeText(criticality)
 
@@ -252,13 +257,45 @@ function buildPriorityLabel(criticality, fallback = '') {
   return 'Media'
 }
 
-function buildSortTokens({ priority, criticality, status, activityAt, source }) {
+function parseSlaMinutes(sla = '') {
+  const normalized = normalizeText(sla)
+
+  if (!normalized || normalized.includes('nao informado') || normalized.includes('encerrad')) {
+    return Number.MAX_SAFE_INTEGER
+  }
+
+  if (normalized.includes('vencid') || normalized.includes('atrasad')) {
+    return -1
+  }
+
+  if (normalized.includes('hoje')) {
+    return 8 * 60
+  }
+
+  const daysMatch = normalized.match(/(\d+)\s*d/)
+  const hoursMatch = normalized.match(/(\d+)\s*h/)
+  const minutesMatch = normalized.match(/(\d+)\s*min/)
+
+  if (daysMatch || hoursMatch || minutesMatch) {
+    return (
+      Number.parseInt(daysMatch?.[1] || '0', 10) * 24 * 60 +
+      Number.parseInt(hoursMatch?.[1] || '0', 10) * 60 +
+      Number.parseInt(minutesMatch?.[1] || '0', 10)
+    )
+  }
+
+  return Number.MAX_SAFE_INTEGER - 1
+}
+
+function buildSortTokens({ priority, criticality, status, activityAt, source, sla }) {
+  const slaMinutes = parseSlaMinutes(sla)
   return {
     priorityScore: PRIORITY_SCORE[normalizeText(priority)] || 0,
     criticalityScore: CRITICALITY_SCORE[normalizeText(criticality)] || 0,
     statusScore: STATUS_SCORE[normalizeText(status)] || 0,
     sourceScore: source === 'portal_aluno' ? 2 : 1,
     activityAtScore: activityAt ? new Date(activityAt).getTime() : 0,
+    slaMinutes,
   }
 }
 
@@ -276,6 +313,18 @@ function matchesFilter(filterValue, currentValue) {
   return normalizeText(filterValue) === normalizeText(currentValue)
 }
 
+function matchesQuery(query = '', ...values) {
+  const terms = tokenize(query)
+
+  if (!terms.length) {
+    return true
+  }
+
+  const haystack = tokenize(values.filter(Boolean).join(' '))
+
+  return terms.every((term) => haystack.some((part) => part.includes(term)))
+}
+
 function buildFilterOptions(entries, field) {
   return [
     { value: 'todos', label: 'Todos' },
@@ -284,6 +333,148 @@ function buildFilterOptions(entries, field) {
       label: value,
     })),
   ]
+}
+
+function resolveSourceLabel(source = '') {
+  const normalized = normalizeText(source)
+
+  if (normalized === 'portal_aluno') {
+    return 'Portal do aluno'
+  }
+
+  if (normalized === 'operador_polo') {
+    return 'Atendimento pelo OP'
+  }
+
+  return 'Base operacional'
+}
+
+function resolveAssignedOperatorName({
+  assignedOperator = '',
+  polo = '',
+  queue = '',
+  routing = null,
+} = {}) {
+  if (assignedOperator) {
+    return assignedOperator
+  }
+
+  const currentQueue = normalizeText(queue || routing?.currentQueueLabel)
+  if (currentQueue === normalizeText('Triagem Central')) {
+    return 'Triagem Central'
+  }
+
+  return OPERATOR_BY_POLO[normalizeText(polo)] || 'Operacao do polo'
+}
+
+function buildPriorityReasonLabel({
+  status = '',
+  pendingLabel = '',
+  sla = '',
+  criticality = '',
+} = {}) {
+  const normalizedStatus = normalizeText(status)
+  const normalizedPending = normalizeText(pendingLabel)
+  const normalizedCriticality = normalizeText(criticality)
+
+  if (isSlaAtRisk(sla)) {
+    return 'SLA em risco'
+  }
+
+  if (normalizedStatus.includes('acao do op')) {
+    return 'Aguardando acao do OP'
+  }
+
+  if (normalizedStatus.includes('complementacao') || normalizedPending.includes('complement')) {
+    return 'Complementacao pendente'
+  }
+
+  if (normalizedStatus.includes('escalado') || normalizedPending.includes('area')) {
+    return 'Handoff para area interna'
+  }
+
+  if (normalizedCriticality === 'critica' || normalizedCriticality === 'alta') {
+    return 'Criticidade alta'
+  }
+
+  return 'Fila ativa'
+}
+
+function buildSlaStateLabel(sla = '') {
+  const normalized = normalizeText(sla)
+
+  if (!normalized || normalized.includes('encerrad')) {
+    return 'Encerrado'
+  }
+
+  return isSlaAtRisk(sla) ? 'Em risco' : 'No prazo'
+}
+
+function buildPendingFacetLabel({ status = '', pendingLabel = '' } = {}) {
+  const normalizedStatus = normalizeText(status)
+  const normalizedPending = normalizeText(pendingLabel)
+
+  if (normalizedStatus.includes('faq') || normalizedStatus.includes('conclu') || normalizedStatus.includes('respondido')) {
+    return 'Concluidos'
+  }
+
+  if (normalizedStatus.includes('acao do op')) {
+    return 'Aguardando acao do OP'
+  }
+
+  if (normalizedStatus.includes('complementacao') || normalizedPending.includes('complement')) {
+    return 'Complementacao pendente'
+  }
+
+  if (normalizedStatus.includes('respondido')) {
+    return 'Resposta registrada'
+  }
+
+  if (normalizedStatus.includes('escalado') || normalizedPending.includes('area')) {
+    return 'Aguardando area interna'
+  }
+
+  return 'Em leitura operacional'
+}
+
+function buildEscalationStateLabel({ status = '', queue = '', routing = null } = {}) {
+  const normalizedStatus = normalizeText(status)
+  const normalizedQueue = normalizeText(queue)
+  const normalizedCurrentQueue = normalizeText(routing?.currentQueueLabel)
+
+  if (normalizedStatus.includes('escalado') || (normalizedCurrentQueue && normalizedQueue !== normalizedCurrentQueue)) {
+    return 'Escalado'
+  }
+
+  if (normalizedStatus.includes('retorno da area') || normalizedStatus.includes('area interna')) {
+    return 'Aguardando area'
+  }
+
+  return 'No OP'
+}
+
+function buildNextStepLabel({ status = '', pendingLabel = '', sla = '', criticality = '' } = {}) {
+  const normalizedStatus = normalizeText(status)
+  const normalizedPending = normalizeText(pendingLabel)
+  const normalizedCriticality = normalizeText(criticality)
+
+  if (normalizedStatus.includes('complementacao') || normalizedPending.includes('complement')) {
+    return 'Conferir se o aluno ja trouxe o que falta antes de seguir.'
+  }
+
+  if (normalizedStatus.includes('retorno da area') || normalizedPending.includes('area')) {
+    return 'Validar o retorno da area e devolver a orientacao ao aluno.'
+  }
+
+  if (normalizedStatus.includes('escalado')) {
+    return 'Acompanhar o handoff e aguardar a devolutiva da area interna.'
+  }
+
+  if (isSlaAtRisk(sla) || normalizedCriticality === 'critica') {
+    return 'Priorizar a leitura e registrar a decisao agora.'
+  }
+
+  return 'Validar a tratativa e registrar a proxima decisao.'
 }
 
 function getCaseActionLogs(actionLogs = [], caseId) {
@@ -302,27 +493,89 @@ function applyActionLogsToQueueEntry(entry, actionLogs = []) {
   const activityAtLabel = latestLog?.occurredAtLabel || entry.createdAtLabel
   const priority = latestLog?.priorityLabel || entry.priority
   const criticality = latestLog?.criticalityLabel || entry.criticality
+  const assignedOperator = entry.assignedOperator
+  const normalizedStatus = normalizeText(status)
+  const currentSla =
+    normalizedStatus.includes('respondido') ||
+    normalizedStatus.includes('faq') ||
+    normalizedStatus.includes('conclu')
+      ? 'Encerrado'
+      : entry.sla
+  const routing = latestLog?.queueLabel
+    ? {
+        ...entry.routing,
+        targetAreaLabel: latestLog.destinationLabel || entry.routing?.targetAreaLabel,
+      }
+    : entry.routing
+  const originLabel = entry.originLabel || resolveSourceLabel(entry.source)
 
   return {
     ...entry,
     status,
     queue,
+    routing,
     pendingLabel: pending,
     activityAt,
     activityAtLabel,
+    assignedOperator,
+    ownerLabel: latestLog?.assigneeLabel || entry.ownerLabel || assignedOperator,
+    originLabel,
+    sla: currentSla,
+    slaState: buildSlaStateLabel(currentSla),
+    pendingFacetLabel: buildPendingFacetLabel({
+      status,
+      pendingLabel: pending,
+    }),
+    escalationState: buildEscalationStateLabel({
+      status,
+      queue,
+      routing,
+    }),
+    nextStepLabel: buildNextStepLabel({
+      status,
+      pendingLabel: pending,
+      sla: currentSla,
+      criticality,
+    }),
+    priorityReasonLabel: buildPriorityReasonLabel({
+      status,
+      pendingLabel: pending,
+      sla: currentSla,
+      criticality,
+    }),
+    searchText: [
+      entry.id,
+      entry.subject,
+      entry.student,
+      entry.studentRa,
+      entry.polo,
+      assignedOperator,
+      latestLog?.assigneeLabel,
+      pending,
+    ].join(' '),
     sortTokens: buildSortTokens({
       priority,
       criticality,
       status,
       activityAt,
       source: entry.source,
+      sla: currentSla,
     }),
   }
 }
 
 function buildSeedQueueEntry(item, actionLogs = []) {
+  const seedCase = findSeedCaseById(item.id)
   const priority = buildPriorityLabel(item.criticality, item.priority)
   const criticality = formatCriticalityLabel(item.criticality)
+  const routing = buildCaseRoutingContext({
+    studentPolo: item.polo,
+    theme: item.theme,
+    subtheme: item.subtheme,
+    targetAreaLabel: item.queue,
+    criticality: item.criticality,
+    entryOrigin: 'Portal do atendimento',
+  })
 
   return applyActionLogsToQueueEntry(
     {
@@ -333,26 +586,47 @@ function buildSeedQueueEntry(item, actionLogs = []) {
       subsubject: titleCase(item.subtheme),
       subsubjectKey: normalizeText(item.subtheme),
       student: item.student,
+      studentRa: item.ra || seedCase?.studentData?.ra || '',
       polo: item.polo || 'Nao informado',
       status: item.status,
       priority,
       criticality,
       sla: item.sla,
-      queue: item.queue,
+      queue: routing.currentQueueLabel,
+      lastMileAreaLabel: routing.targetAreaLabel,
       createdAt: item.createdAt || null,
       createdAtLabel: item.createdAtLabel || 'Nao informado',
       source: item.source || 'mock_operacional',
-      sourceLabel: item.source === 'portal_aluno' ? 'Portal do aluno' : 'Base operacional mock',
-      pendingLabel: 'Leitura inicial pelo OP',
+      originLabel: item.originLabel || resolveSourceLabel(item.source),
+      assignedOperator: resolveAssignedOperatorName({
+        assignedOperator: item.assignedOperator,
+        polo: item.polo,
+        queue: routing.currentQueueLabel,
+        routing,
+      }),
+      pendingLabel: item.pendingLabel || 'Leitura inicial pelo OP',
+      routing,
     },
     actionLogs,
   )
 }
 
 function buildLocalQueueEntry(protocol, studentProfile = loggedStudent, actionLogs = []) {
+  const protocolStudent = protocol.studentData || studentProfile
   const priority = buildPriorityLabel(protocol.context?.criticality, protocol.priorityLabel)
   const criticality = formatCriticalityLabel(protocol.context?.criticality)
   const status = protocol.statusLabel || 'Aguardando acao do OP'
+  const routing =
+    protocol.routing ||
+    protocol.context?.routing ||
+    buildCaseRoutingContext({
+      studentPolo: protocolStudent.polo,
+      theme: protocol.context?.theme,
+      subtheme: protocol.context?.subtheme,
+      queueDestination: protocol.context?.queueDestination,
+      criticality: protocol.context?.criticality,
+      entryOrigin: protocol.context?.entryOrigin || 'Acesso Unificado',
+    })
 
   return applyActionLogsToQueueEntry(
     {
@@ -362,18 +636,27 @@ function buildLocalQueueEntry(protocol, studentProfile = loggedStudent, actionLo
       themeKey: normalizeText(protocol.context?.theme),
       subsubject: titleCase(protocol.context?.subtheme || protocol.context?.finalNode?.title),
       subsubjectKey: normalizeText(protocol.context?.subtheme || protocol.context?.finalNode?.title),
-      student: studentProfile.nome || 'Aluno logado',
-      polo: studentProfile.polo || 'Nao informado',
+      student: protocolStudent.nome || 'Aluno logado',
+      studentRa: protocolStudent.ra || '',
+      polo: protocolStudent.polo || 'Nao informado',
       status,
       priority,
       criticality,
       sla: protocol.slaLabel || protocol.context?.sla || 'Nao informado',
-      queue: formatQueueLabel(protocol.queueLabel || protocol.context?.queueDestination),
+      queue: routing.currentQueueLabel,
+      lastMileAreaLabel: routing.targetAreaLabel,
       createdAt: protocol.createdAt,
       createdAtLabel: protocol.createdAtLabel || 'Nao informado',
-      source: 'portal_aluno',
-      sourceLabel: 'Portal do aluno',
+      source: protocol.source || 'portal_aluno',
+      originLabel: protocol.sourceLabel || resolveSourceLabel(protocol.source),
+      assignedOperator: resolveAssignedOperatorName({
+        assignedOperator: protocol.assignedOperator,
+        polo: protocolStudent.polo,
+        queue: routing.currentQueueLabel,
+        routing,
+      }),
       pendingLabel: protocol.pendingLabel || 'Aguardando triagem operacional',
+      routing,
     },
     actionLogs,
   )
@@ -381,6 +664,7 @@ function buildLocalQueueEntry(protocol, studentProfile = loggedStudent, actionLo
 
 function compareQueueEntries(left, right) {
   return (
+    left.sortTokens.slaMinutes - right.sortTokens.slaMinutes ||
     right.sortTokens.priorityScore - left.sortTokens.priorityScore ||
     right.sortTokens.criticalityScore - left.sortTokens.criticalityScore ||
     right.sortTokens.statusScore - left.sortTokens.statusScore ||
@@ -394,7 +678,7 @@ function buildPlaybookPayload(entry) {
 
   if (!playbookNode) {
     return {
-      title: 'Playbook operacional indisponivel',
+      title: 'Orientacao operacional indisponivel',
       checklist: [],
       systemsToCheck: [],
       documentsRequested: [],
@@ -417,6 +701,13 @@ function buildPlaybookPayload(entry) {
   }
 }
 
+export function buildOperatorPlaybookGuide({ theme = '', subsubject = '' } = {}) {
+  return buildPlaybookPayload({
+    themeKey: normalizeText(theme),
+    subsubjectKey: normalizeText(subsubject),
+  })
+}
+
 function findSeedCaseById(caseId) {
   return operatorCaseSeeds.find((item) => item.id === caseId) || null
 }
@@ -424,12 +715,16 @@ function findSeedCaseById(caseId) {
 function buildSeedCaseDetail(entry) {
   const seedCase = findSeedCaseById(entry.id)
   const faqLeaf = findBestFaqLeaf(studentFaqIndex, entry.themeKey, entry.subsubjectKey)
-  const context = buildContextFromFaqLeaf(studentFaqIndex, faqLeaf)
+  const context = {
+    ...buildContextFromFaqLeaf(studentFaqIndex, faqLeaf),
+    routing: entry.routing,
+  }
 
   return {
     studentData: seedCase?.studentData || {
       nome: entry.student,
       polo: entry.polo,
+      ra: entry.studentRa || '',
     },
     faqContext: context,
     faqAnswer: context.displayedAnswer,
@@ -440,19 +735,25 @@ function buildSeedCaseDetail(entry) {
 }
 
 function buildLocalCaseDetail(protocol, entry, studentProfile = loggedStudent) {
+  const protocolStudent = protocol.studentData || studentProfile
+
   return {
     studentData: {
-      nome: studentProfile.nome,
-      email: studentProfile.email,
-      ra: studentProfile.ra,
-      curso: studentProfile.curso,
-      polo: studentProfile.polo,
+      nome: protocolStudent.nome,
+      email: protocolStudent.email,
+      ra: protocolStudent.ra,
+      curso: protocolStudent.curso,
+      polo: protocolStudent.polo,
     },
-    faqContext: protocol.context,
+    faqContext: {
+      ...protocol.context,
+      routing: protocol.context?.routing || entry.routing,
+    },
     faqAnswer: protocol.context?.displayedAnswer || '',
     timeline: protocol.timeline || [],
     attachments: protocol.attachments || [],
     interactions: protocol.interactions || [],
+    operatorIntake: protocol.operatorIntake || null,
   }
 }
 
@@ -482,10 +783,12 @@ function normalizeRecordHistory(record, studentProfile = loggedStudent) {
 }
 
 function normalizeProtocolHistory(protocol, studentProfile = loggedStudent) {
+  const protocolStudent = protocol.studentData || studentProfile
+
   return buildHistoryItemBase({
     id: protocol.protocolNumber,
-    student: studentProfile.nome,
-    polo: studentProfile.polo,
+    student: protocolStudent.nome,
+    polo: protocolStudent.polo,
     subject: protocol.subject,
     theme: protocol.context?.theme,
     subtheme: protocol.context?.subtheme || protocol.context?.finalNode?.title,
@@ -575,6 +878,7 @@ export function buildOperatorQueueEntries({
   actionLogs = [],
   studentProfile = loggedStudent,
   seededQueue = seededOperatorQueue,
+  viewerContext = null,
 } = {}) {
   const localEntries = protocols
     .filter((protocol) => normalizeText(protocol.statusGroup) !== 'completed')
@@ -582,15 +886,20 @@ export function buildOperatorQueueEntries({
 
   const seedEntries = seededQueue.map((item) => buildSeedQueueEntry(item, actionLogs))
 
-  return [...localEntries, ...seedEntries].sort(compareQueueEntries)
+  return filterCasesForMockContext([...localEntries, ...seedEntries], viewerContext).sort(compareQueueEntries)
 }
 
 export function filterOperatorQueueEntries(entries = [], filters = {}) {
   return entries.filter((entry) => {
     return (
+      matchesQuery(filters.search, entry.searchText, entry.subject, entry.student, entry.studentRa, entry.id) &&
       matchesFilter(filters.status, entry.status) &&
-      matchesFilter(filters.theme, entry.theme) &&
-      matchesFilter(filters.criticality, entry.criticality)
+      matchesFilter(filters.polo, entry.polo) &&
+      matchesFilter(filters.sla, entry.slaState) &&
+      matchesFilter(filters.origin, entry.originLabel) &&
+      matchesFilter(filters.pending, entry.pendingFacetLabel) &&
+      matchesFilter(filters.escalation, entry.escalationState) &&
+      matchesFilter(filters.operator, entry.assignedOperator)
     )
   })
 }
@@ -598,8 +907,12 @@ export function filterOperatorQueueEntries(entries = [], filters = {}) {
 export function buildOperatorQueueFilterOptions(entries = []) {
   return {
     status: buildFilterOptions(entries, 'status'),
-    theme: buildFilterOptions(entries, 'theme'),
-    criticality: buildFilterOptions(entries, 'criticality'),
+    polo: buildFilterOptions(entries, 'polo'),
+    sla: buildFilterOptions(entries, 'slaState'),
+    origin: buildFilterOptions(entries, 'originLabel'),
+    pending: buildFilterOptions(entries, 'pendingFacetLabel'),
+    escalation: buildFilterOptions(entries, 'escalationState'),
+    operator: buildFilterOptions(entries, 'assignedOperator'),
   }
 }
 
@@ -610,17 +923,18 @@ export function buildOperatorQueueMetrics(entries = []) {
   }).length
   const atRiskCases = entries.filter((entry) => isSlaAtRisk(entry.sla)).length
   const portalCases = entries.filter((entry) => entry.source === 'portal_aluno').length
+  const actionRequiredCases = entries.filter((entry) => normalizeText(entry.status).includes('acao do op')).length
 
   return [
     {
-      label: 'Fila ativa',
+      label: 'Casos ativos',
       value: entries.length,
-      hint: 'Casos ordenados por prioridade, criticidade e hora de entrada.',
+      hint: 'Itens no escopo atual da leitura operacional.',
     },
     {
-      label: 'Alta criticidade',
-      value: criticalCases,
-      hint: 'Itens com criticidade alta ou critica para o OP.',
+      label: 'Aguardando OP',
+      value: actionRequiredCases,
+      hint: 'Casos que dependem de acao direta da operacao agora.',
     },
     {
       label: 'SLA em atencao',
@@ -628,7 +942,12 @@ export function buildOperatorQueueMetrics(entries = []) {
       hint: 'Casos com janela curta ou tempo restante visivel.',
     },
     {
-      label: 'Vindos do aluno',
+      label: 'Alta criticidade',
+      value: criticalCases,
+      hint: 'Itens com criticidade alta ou critica no escopo atual.',
+    },
+    {
+      label: 'Vindos do portal',
       value: portalCases,
       hint: 'Protocolos gerados pelo portal do atendimento.',
     },
@@ -640,6 +959,7 @@ export function buildOperatorActionLog({
   actionType,
   note = '',
   playbook,
+  actorName = '',
   currentDate = new Date(),
 }) {
   const timestamp = buildTimestampParts(currentDate)
@@ -655,7 +975,10 @@ export function buildOperatorActionLog({
   return {
     id: `op-action-${caseEntry.id}-${timestamp.compact}`,
     caseId: caseEntry.id,
-    actor: 'Operador de Polo',
+    actor: actorName || 'Operador de Polo',
+    assigneeLabel: metadata.assigneeResolver
+      ? metadata.assigneeResolver(caseEntry, playbook)
+      : caseEntry.assignedOperator || actorName || 'Operacao do polo',
     actionType,
     actionLabel: metadata.title,
     occurredAt: timestamp.iso,
@@ -666,6 +989,7 @@ export function buildOperatorActionLog({
     queueBefore: caseEntry.queue,
     queueLabel,
     queueAfter: queueLabel,
+    destinationLabel: queueLabel,
     pendingLabel: metadata.pendingLabel,
     escalationReason: actionType === 'escalate' ? playbook.escalationReason || null : null,
     note: normalizedNote,
@@ -694,11 +1018,13 @@ export function buildOperatorCaseDetail({
   records = [],
   actionLogs = [],
   studentProfile = loggedStudent,
+  viewerContext = null,
 } = {}) {
   const queueEntries = buildOperatorQueueEntries({
     protocols,
     actionLogs,
     studentProfile,
+    viewerContext,
   })
   const caseEntry = queueEntries.find((entry) => entry.id === caseId) || null
 
@@ -718,6 +1044,9 @@ export function buildOperatorCaseDetail({
     studentData: baseDetail.studentData,
     faqContext: baseDetail.faqContext,
     faqAnswer: baseDetail.faqAnswer,
+    routing: caseEntry.routing || baseDetail.faqContext?.routing || null,
+    lastMileAreaLabel:
+      caseEntry.lastMileAreaLabel || caseEntry.routing?.targetAreaLabel || 'Nao informado',
     timeline: [
       ...(baseDetail.timeline || []),
       ...caseActionLogs.map((log) => log.timelineItem),
@@ -727,6 +1056,8 @@ export function buildOperatorCaseDetail({
       ...(baseDetail.interactions || []),
       ...caseActionLogs.map((log) => log.interactionItem),
     ],
+    actionLogs: caseActionLogs,
+    operatorIntake: baseDetail.operatorIntake || null,
     playbook,
     correlatedHistory: buildCorrelatedHistory({
       caseEntry,

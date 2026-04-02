@@ -1,497 +1,907 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import PriorityBadge from '@/components/PriorityBadge.vue'
-import SectionPanel from '@/components/SectionPanel.vue'
-import SlaBadge from '@/components/SlaBadge.vue'
-import StatusBadge from '@/components/StatusBadge.vue'
+
+import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
-const operatorNote = ref('')
 
-const detail = computed(() => studentSupportStore.operatorCaseById(route.params.caseId))
+const selectedDecision = ref('reply')
+const operatorNote = ref('')
+const operatorNoteRef = ref(null)
+const isSubmittingAction = ref(false)
+const actionFeedback = ref({
+  type: '',
+  message: '',
+})
+const noteError = ref('')
+const pendingConfirmationAction = ref('')
+const lastActionFingerprint = ref('')
+const lastActionAt = ref(0)
+const lastSuggestedNote = ref('')
+const queueFlashStorageKey = computed(() => `univesp-operator-queue-flash:${auth.mockContext.profileKey}`)
+
+const detail = computed(() => studentSupportStore.operatorCaseById(route.params.caseId, auth.mockContext))
+const escalationDestination = computed(() => detail.value?.lastMileAreaLabel || 'Area interna')
+const escalationReason = computed(() =>
+  detail.value?.playbook.escalationReason ||
+  detail.value?.playbook.escalationCriteria ||
+  'Escalonamento operacional necessario para continuidade segura.',
+)
+
+function normalizeText(value = '') {
+  return String(value || '').trim().toLowerCase()
+}
+
+function withPeriod(value = '') {
+  const text = String(value || '').trim()
+
+  if (!text) {
+    return ''
+  }
+
+  return /[.!?]$/.test(text) ? text : `${text}.`
+}
+
+function buildInteractionTitle(interaction = {}) {
+  const actor = normalizeText(interaction.actor)
+
+  if (actor.includes('op') || actor.includes('operador')) {
+    return 'Registro do OP'
+  }
+
+  if (actor.includes('aluno')) {
+    return 'Mensagem do aluno'
+  }
+
+  if (actor.includes('sistema')) {
+    return 'Registro do sistema'
+  }
+
+  return interaction.actor || 'Interacao registrada'
+}
+
+function clearActionFeedback() {
+  actionFeedback.value = {
+    type: '',
+    message: '',
+  }
+}
+
+function focusOperatorNote() {
+  nextTick(() => {
+    operatorNoteRef.value?.focus()
+  })
+}
+
+const headerMeta = computed(() => {
+  if (!detail.value) {
+    return []
+  }
+
+  const status = normalizeText(detail.value.status)
+  const pending = normalizeText(detail.value.pendingLabel)
+  const hideDeadline =
+    status.includes('complementacao') ||
+    pending.includes('aluno precisa') ||
+    pending.includes('leitura do aluno')
+
+  const items = [
+    {
+      key: 'student',
+      label: detail.value.studentData.nome,
+      clickable: true,
+    },
+    {
+      key: 'ra',
+      label: detail.value.studentData.ra ? `RA ${detail.value.studentData.ra}` : 'RA nao informado',
+    },
+    {
+      key: 'protocol',
+      label: `Protocolo ${detail.value.id}`,
+    },
+    {
+      key: 'status',
+      label: detail.value.status,
+    },
+  ]
+
+  if (!hideDeadline) {
+    items.splice(3, 0, {
+      key: 'deadline',
+      label: `Prazo: ${detail.value.sla}`,
+    })
+  }
+
+  return items
+})
+
+const summaryBullets = computed(() => {
+  if (!detail.value) {
+    return []
+  }
+
+  const breadcrumb = detail.value.faqContext?.breadcrumb?.length
+    ? detail.value.faqContext.breadcrumb.join(' > ')
+    : ''
+  const latestTimeline = detail.value.timeline.at(-1)
+  const verifiedSummary =
+    detail.value.operatorIntake?.verifiedSummary ||
+    latestTimeline?.description ||
+    ''
+
+  return [
+    `O aluno abriu este atendimento sobre ${withPeriod(detail.value.subject.toLowerCase())}`,
+    breadcrumb ? `O caso chegou ate aqui pelo caminho ${withPeriod(breadcrumb)}` : '',
+    verifiedSummary ? `Ja foi verificado: ${withPeriod(verifiedSummary)}` : '',
+    `Agora falta ${withPeriod(detail.value.pendingLabel.toLowerCase())}`,
+  ].filter(Boolean)
+})
+
+const analysisChecklist = computed(() => {
+  if (!detail.value) {
+    return []
+  }
+
+  const bullets = []
+
+  for (const item of detail.value.playbook.checklist || []) {
+    bullets.push(withPeriod(item))
+  }
+
+  for (const item of detail.value.playbook.systemsToCheck || []) {
+    bullets.push(withPeriod(`Consultar sistema: ${item}`))
+  }
+
+  for (const item of detail.value.playbook.documentsRequested || []) {
+    bullets.push(withPeriod(`Validar documento ou evidencia: ${item}`))
+  }
+
+  bullets.push('Se a checagem estiver completa, responder ao aluno pelo portal.')
+
+  if ((detail.value.playbook.documentsRequested || []).length) {
+    bullets.push('Se faltar documento, print ou contexto, pedir complementacao ao aluno.')
+  } else {
+    bullets.push('Se o relato do aluno ainda nao sustentar a analise, pedir complementacao.')
+  }
+
+  if (detail.value.playbook.escalationCriteria) {
+    bullets.push(withPeriod(`Escalar apenas quando ${detail.value.playbook.escalationCriteria}`))
+  }
+
+  return Array.from(new Set(bullets.filter(Boolean)))
+})
+
+const decisionOptions = computed(() => {
+  if (!detail.value) {
+    return []
+  }
+
+  return [
+    {
+      id: 'reply',
+      title: 'Responder ao aluno',
+      description: 'Fiz a analise recomendada e tenho informacoes suficientes.',
+      submitLabel: 'Registrar resposta ao aluno',
+      fieldLabel: 'Resposta ao aluno',
+      previewLabel: 'Resposta que sera registrada',
+      placeholder: 'Escreva a resposta que sera enviada ao aluno pelo portal.',
+      toneClass:
+        selectedDecision.value === 'reply'
+          ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.06)] text-[var(--color-primary-dark)]'
+          : 'border-slate-200 bg-white text-slate-700',
+    },
+    {
+      id: 'request_info',
+      title: 'Pedir complementacao',
+      description: 'Fiz a analise recomendada, mas ainda faltam informacoes ou evidencias.',
+      submitLabel: 'Registrar pedido de complementacao',
+      fieldLabel: 'Pedido de complementacao',
+      previewLabel: 'Complementacao que sera solicitada',
+      placeholder: 'Explique ao aluno o que falta: informacao, print, documento ou confirmacao.',
+      toneClass:
+        selectedDecision.value === 'request_info'
+          ? 'border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.18)] text-[#9a5b00]'
+          : 'border-slate-200 bg-white text-slate-700',
+    },
+    {
+      id: 'escalate',
+      title: 'Escalar para area interna',
+      description: 'Fiz toda a analise, mas preciso de apoio superior ou identifico possivel erro.',
+      submitLabel: 'Continuar para escalonamento',
+      fieldLabel: 'Subsidios para a area interna',
+      previewLabel: 'Subsidios que serao registrados',
+      placeholder: 'Descreva o que foi verificado, o que ainda falta e por que a area interna precisa atuar.',
+      toneClass:
+        selectedDecision.value === 'escalate'
+          ? 'border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.18)] text-[#0b6e8c]'
+          : 'border-slate-200 bg-white text-slate-700',
+    },
+  ]
+})
+
+const activeDecision = computed(
+  () => decisionOptions.value.find((item) => item.id === selectedDecision.value) || decisionOptions.value[0] || null,
+)
+
+function buildSuggestedNote(actionType) {
+  if (!detail.value) {
+    return ''
+  }
+
+  if (actionType === 'reply') {
+    return (
+      detail.value.playbook.responseTemplate ||
+      `Orientacao registrada ao aluno sobre ${detail.value.subject.toLowerCase()}.`
+    )
+  }
+
+  if (actionType === 'request_info') {
+    if ((detail.value.playbook.documentsRequested || []).length) {
+      return `Para continuar a analise, envie ${detail.value.playbook.documentsRequested.join(', ')} e, se necessario, mais detalhes sobre o ocorrido.`
+    }
+
+    return 'Para continuar a analise, preciso de mais informacoes, evidencias ou confirmacao do relato.'
+  }
+
+  return `Encaminho o caso para ${escalationDestination.value}. Ja foi verificado: ${detail.value.playbook.checklist?.slice(0, 2).join('; ') || detail.value.pendingLabel}. Motivo do escalonamento: ${detail.value.playbook.escalationReason || detail.value.playbook.escalationCriteria || 'necessidade de validacao interna adicional'}.`
+}
+
+function syncSuggestedNote(force = false) {
+  const suggestion = buildSuggestedNote(selectedDecision.value)
+
+  if (!suggestion) {
+    return
+  }
+
+  if (force || !operatorNote.value.trim() || operatorNote.value === lastSuggestedNote.value) {
+    operatorNote.value = suggestion
+  }
+
+  lastSuggestedNote.value = suggestion
+}
+
+watch(
+  () => detail.value?.id,
+  () => {
+    selectedDecision.value = 'reply'
+    operatorNote.value = ''
+    lastSuggestedNote.value = ''
+    noteError.value = ''
+    pendingConfirmationAction.value = ''
+    clearActionFeedback()
+    syncSuggestedNote(true)
+  },
+  { immediate: true },
+)
+
+watch(selectedDecision, () => {
+  noteError.value = ''
+  pendingConfirmationAction.value = ''
+  clearActionFeedback()
+  syncSuggestedNote(false)
+  focusOperatorNote()
+})
+
+const historySummary = computed(() => {
+  if (!detail.value) {
+    return []
+  }
+
+  const latestTimeline = detail.value.timeline.at(-1)
+  const latestInteraction = detail.value.interactions.at(-1)
+  const latestAttachment = detail.value.attachments.at(-1)
+
+  return [
+    latestTimeline ? `${latestTimeline.atLabel}: ${withPeriod(latestTimeline.title)}` : '',
+    latestInteraction ? `${latestInteraction.atLabel}: ultima resposta registrada por ${latestInteraction.actor}.` : '',
+    latestAttachment ? `Ultimo documento registrado: ${withPeriod(latestAttachment.name)}` : '',
+  ].filter(Boolean)
+})
+
+const exchangeItems = computed(() => {
+  if (!detail.value) {
+    return []
+  }
+
+  const items = []
+  const normalizedStatus = normalizeText(detail.value.status)
+
+  if (normalizedStatus.includes('faq') && detail.value.faqAnswer) {
+    items.push({
+      id: `${detail.value.id}-faq`,
+      title: 'Resposta oficial da FAQ',
+      description: withPeriod(detail.value.faqAnswer),
+      atLabel: detail.value.timeline.at(-1)?.atLabel || 'Registro oficial',
+    })
+  }
+
+  for (const interaction of [...detail.value.interactions].slice(-4).reverse()) {
+    items.push({
+      id: interaction.id,
+      title: buildInteractionTitle(interaction),
+      description: withPeriod(interaction.text),
+      atLabel: interaction.atLabel,
+    })
+  }
+
+  if (!items.length) {
+    for (const item of [...detail.value.timeline].slice(-4).reverse()) {
+      items.push({
+        id: item.id,
+        title: item.title,
+        description: withPeriod(item.description),
+        atLabel: item.atLabel,
+      })
+    }
+  }
+
+  return items
+})
+
+const actionAvailability = computed(() => {
+  if (!detail.value) {
+    return {
+      canAct: false,
+      reason: 'Atendimento indisponivel.',
+    }
+  }
+
+  const status = normalizeText(detail.value.status)
+  const pending = normalizeText(detail.value.pendingLabel)
+
+  if (status.includes('respondido') || status.includes('faq') || status.includes('conclu')) {
+    return {
+      canAct: false,
+      reason: 'Este atendimento ja foi encerrado. Nao ha nova acao do OP neste momento.',
+    }
+  }
+
+  if (
+    status.includes('complementacao') ||
+    pending.includes('aluno precisa') ||
+    pending.includes('leitura do aluno')
+  ) {
+    return {
+      canAct: false,
+      reason: 'Este atendimento esta aguardando retorno do aluno. O OP nao precisa agir agora.',
+    }
+  }
+
+  if (
+    status.includes('retorno da area') ||
+    status.includes('escalado') ||
+    pending.includes('area') ||
+    pending.includes('secretaria')
+  ) {
+    return {
+      canAct: false,
+      reason: 'Este atendimento esta aguardando retorno da area interna. O OP nao precisa agir agora.',
+    }
+  }
+
+  return {
+    canAct: true,
+    reason: '',
+  }
+})
 
 function goBackToQueue() {
   router.push('/op/fila')
 }
 
-function goToPlaybook() {
-  router.push('/op/playbook')
-}
-
-function runOperatorAction(actionType) {
+function openStudentCases() {
   if (!detail.value) {
     return
   }
 
-  studentSupportStore.registerOperatorAction({
+  router.push({
+    path: '/op/fila',
+    query: {
+      search: detail.value.studentData.ra || detail.value.studentData.nome,
+    },
+  })
+}
+
+function ensureEscalationReason() {
+  if (operatorNote.value.trim()) {
+    noteError.value = ''
+    return true
+  }
+
+  noteError.value = 'Preencha os subsidios para a area interna antes de escalar.'
+  focusOperatorNote()
+  return false
+}
+
+function submitOperatorAction(actionType) {
+  if (!detail.value || isSubmittingAction.value || !actionAvailability.value.canAct) {
+    return
+  }
+
+  if (actionType === 'escalate' && !ensureEscalationReason()) {
+    return
+  }
+
+  const actionFingerprint = `${detail.value.id}:${actionType}:${operatorNote.value.trim()}`
+  const now = Date.now()
+
+  if (lastActionFingerprint.value === actionFingerprint && now - lastActionAt.value < 2500) {
+    actionFeedback.value = {
+      type: 'error',
+      message: 'Esta acao acabou de ser registrada. Aguarde a atualizacao antes de repetir.',
+    }
+    pendingConfirmationAction.value = ''
+    return
+  }
+
+  isSubmittingAction.value = true
+  clearActionFeedback()
+
+  const actionLog = studentSupportStore.registerOperatorAction({
     caseId: detail.value.id,
     actionType,
     note: operatorNote.value,
     playbook: detail.value.playbook,
+    actorName: auth.mockContext.userName,
   })
 
+  isSubmittingAction.value = false
+
+  if (!actionLog) {
+    actionFeedback.value = {
+      type: 'error',
+      message: 'Nao foi possivel registrar a acao agora. Tente novamente.',
+    }
+    return
+  }
+
+  noteError.value = ''
+  pendingConfirmationAction.value = ''
+  lastActionFingerprint.value = actionFingerprint
+  lastActionAt.value = now
+
+  actionFeedback.value = {
+    type: 'success',
+    message:
+      actionType === 'reply'
+        ? 'Resposta registrada no portal com sucesso.'
+        : actionType === 'request_info'
+          ? 'Pedido de complementacao registrado com sucesso.'
+          : `Escalonamento registrado para ${actionLog.destinationLabel}.`,
+  }
+
+  if (actionType === 'escalate' && auth.mockContext.profileKey === 'op' && typeof window !== 'undefined') {
+    window.sessionStorage.setItem(
+      queueFlashStorageKey.value,
+      `Escalonamento registrado para ${actionLog.destinationLabel}. O caso saiu de Meus atendimentos.`,
+    )
+    router.push('/op/fila')
+    return
+  }
+
   operatorNote.value = ''
+  lastSuggestedNote.value = ''
+  syncSuggestedNote(true)
 }
+
+function handleActionClick(actionType) {
+  if (!actionAvailability.value.canAct) {
+    return
+  }
+
+  noteError.value = ''
+
+  if (actionType === 'escalate') {
+    if (!ensureEscalationReason()) {
+      return
+    }
+  }
+  pendingConfirmationAction.value = actionType
+  clearActionFeedback()
+}
+
+function selectDecision(actionType) {
+  selectedDecision.value = actionType
+}
+
+const recordPreview = computed(() => {
+  const note = operatorNote.value.trim()
+
+  if (note) {
+    return note
+  }
+
+  return buildSuggestedNote(selectedDecision.value)
+})
+
+const confirmationCopy = computed(() => {
+  if (!detail.value || !pendingConfirmationAction.value) {
+    return null
+  }
+
+  if (pendingConfirmationAction.value === 'reply') {
+    return {
+      title: 'Confirmar resposta ao aluno',
+      consequence: 'A resposta sera registrada no portal como devolutiva do OP.',
+      buttonClass: 'bg-[var(--color-primary)] text-white',
+      buttonLabel: 'Confirmar resposta ao aluno',
+    }
+  }
+
+  if (pendingConfirmationAction.value === 'request_info') {
+    return {
+      title: 'Confirmar pedido de complementacao',
+      consequence: 'O aluno sera orientado a complementar o protocolo para continuidade da analise.',
+      buttonClass: 'border border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.82)] text-[#8a5200]',
+      buttonLabel: 'Confirmar pedido de complementacao',
+    }
+  }
+
+  return {
+    title: 'Confirmar escalonamento',
+    consequence: `O caso sai da fila atual e segue para ${escalationDestination.value} com os subsidios registrados.`,
+    buttonClass: 'bg-[#0f4c81] text-white',
+    buttonLabel: 'Confirmar escalonamento',
+  }
+})
 </script>
 
 <template>
-  <div class="grid gap-6">
-    <SectionPanel
-      eyebrow="OP"
-      title="Detalhe operacional do atendimento"
-      description="Leitura rapida do caso, apoio do playbook operacional e registro local das acoes do OP."
-    >
-      <template #action>
-        <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            class="rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50"
-            @click="goBackToQueue"
-          >
-            Voltar para fila
-          </button>
-          <button
-            type="button"
-            class="rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50"
-            @click="goToPlaybook"
-          >
-            Ver FAQ operacional
-          </button>
-        </div>
-      </template>
+  <div v-if="!detail" class="rounded-[16px] border border-slate-200 bg-white px-6 py-6">
+    <p class="text-xs font-semibold text-slate-500">
+      Atendimento indisponivel
+    </p>
+    <h3 class="mt-3 text-2xl font-semibold text-slate-950">
+      O caso informado nao foi encontrado na base operacional.
+    </h3>
+    <p class="mt-3 text-sm leading-7 text-slate-600">
+      Volte para a fila do OP e abra um atendimento existente para visualizar o detalhe.
+    </p>
+  </div>
 
-      <div v-if="!detail" class="inner-panel p-6">
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-          Atendimento indisponivel
-        </p>
-        <h3 class="mt-3 text-2xl font-semibold text-slate-950">
-          O caso informado nao foi encontrado na base operacional mockada.
-        </h3>
-        <p class="mt-3 text-sm leading-7 text-slate-600">
-          Volte para a fila do OP e abra um atendimento existente para visualizar o detalhe.
-        </p>
+  <div v-else class="grid gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <button
+        type="button"
+        class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        @click="goBackToQueue"
+      >
+        Voltar para fila
+      </button>
+    </div>
+
+    <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
+      <div class="px-5 py-5">
+        <p class="text-lg font-semibold text-slate-950">Detalhe do atendimento</p>
+        <h2 class="mt-3 text-[1.45rem] font-semibold leading-tight text-slate-950">
+          {{ detail.subject }}
+        </h2>
+        <div class="mt-4 rounded-[14px] border border-slate-300 bg-[rgba(248,250,252,0.95)] px-4 py-3 text-sm font-semibold leading-6 text-slate-800 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div class="flex flex-wrap items-center gap-y-2">
+            <template v-for="(item, index) in headerMeta" :key="item.key">
+              <button
+                v-if="item.clickable"
+                type="button"
+                class="font-semibold text-slate-950 transition hover:text-[var(--color-primary)]"
+                @click="openStudentCases"
+              >
+                {{ item.label }}
+              </button>
+              <span v-else>{{ item.label }}</span>
+              <span v-if="index < headerMeta.length - 1" class="px-2 text-slate-300" aria-hidden="true">|</span>
+            </template>
+          </div>
+        </div>
+        <div class="mt-3 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Pendencia atual</p>
+          <p class="mt-1 text-sm font-medium leading-6 text-slate-800">
+            {{ detail.pendingLabel }}
+          </p>
+        </div>
       </div>
 
-      <div v-else class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div class="grid gap-4">
-          <div class="inner-panel p-6">
-            <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    {{ detail.id }}
-                  </p>
-                  <span class="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-primary-dark)]">
-                    {{ detail.sourceLabel }}
-                  </span>
-                </div>
-                <h3 class="mt-3 text-2xl font-semibold text-slate-950">{{ detail.subject }}</h3>
-                <p class="mt-3 text-sm leading-7 text-slate-600">
-                  {{ detail.theme }} · {{ detail.subsubject }} · Polo {{ detail.polo }}
-                </p>
-              </div>
-
-              <div class="flex flex-wrap gap-2">
-                <PriorityBadge :priority="detail.priority" />
-                <StatusBadge :label="detail.criticality" />
-                <StatusBadge :label="detail.status" />
-                <SlaBadge :label="detail.sla" />
-              </div>
-            </div>
-
-            <div class="mt-5 grid gap-3 md:grid-cols-4">
-              <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Fila</p>
-                <p class="mt-2 font-semibold text-slate-900">{{ detail.queue }}</p>
-              </div>
-              <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Aluno</p>
-                <p class="mt-2 font-semibold text-slate-900">{{ detail.studentData.nome }}</p>
-              </div>
-              <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">RA</p>
-                <p class="mt-2 font-semibold text-slate-900">{{ detail.studentData.ra || 'Nao informado' }}</p>
-              </div>
-              <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Data/hora</p>
-                <p class="mt-2 font-semibold text-slate-900">{{ detail.activityAtLabel }}</p>
-              </div>
-            </div>
+      <div class="grid gap-4 px-5 pb-5">
+        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
+            Resumo do caso
+          </summary>
+          <div class="border-t border-slate-200 px-4 py-4">
+            <ul class="grid gap-2 text-sm leading-6 text-slate-700">
+              <li v-for="item in summaryBullets" :key="item" class="flex gap-2">
+                <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                <span>{{ item }}</span>
+              </li>
+            </ul>
           </div>
+        </details>
 
-          <div class="inner-panel p-6">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Contexto herdado da FAQ do aluno
-            </p>
-            <div class="mt-5 grid gap-4 md:grid-cols-2">
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Tema</p>
-                <p class="mt-2 text-sm font-semibold text-slate-900">{{ detail.faqContext.theme }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Subtema</p>
-                <p class="mt-2 text-sm font-semibold text-slate-900">{{ detail.faqContext.subtheme || 'Nao informado' }}</p>
-              </div>
-              <div class="md:col-span-2">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Breadcrumb</p>
-                <p class="mt-2 text-sm leading-6 text-slate-700">{{ detail.faqContext.breadcrumb.join(' > ') }}</p>
-              </div>
-              <div class="md:col-span-2">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">No final</p>
-                <p class="mt-2 text-sm font-semibold text-slate-900">{{ detail.faqContext.finalNode.title }}</p>
-              </div>
-              <div class="md:col-span-2">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Resposta final que levou ao protocolo</p>
-                <p class="mt-2 text-sm leading-7 text-slate-700">{{ detail.faqAnswer }}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="inner-panel p-6">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Timeline do atendimento
-            </p>
-            <div class="mt-5 grid gap-4">
-              <article
-                v-for="item in detail.timeline"
-                :key="item.id"
-                class="rounded-[22px] border border-slate-200 bg-slate-50/80 p-5"
-              >
-                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <h4 class="text-lg font-semibold text-slate-950">{{ item.title }}</h4>
-                    <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.description }}</p>
-                  </div>
-                  <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 ring-1 ring-slate-200">
-                    {{ item.atLabel }}
-                  </span>
-                </div>
-              </article>
-            </div>
-          </div>
-
-          <div class="inner-panel p-6">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Historico de interacoes
-            </p>
-            <div class="mt-5 grid gap-3">
-              <article
-                v-for="interaction in detail.interactions"
-                :key="interaction.id"
-                class="rounded-[22px] border border-slate-200 bg-white p-5"
-              >
-                <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p class="text-sm font-semibold text-slate-950">{{ interaction.actor }}</p>
-                    <p class="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      {{ interaction.channel }}
-                    </p>
-                  </div>
-                  <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {{ interaction.atLabel }}
-                  </span>
-                </div>
-                <p class="mt-3 text-sm leading-7 text-slate-700">{{ interaction.text }}</p>
-              </article>
-            </div>
-          </div>
-
-          <div class="inner-panel p-6">
-            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Historico correlato do aluno
-                </p>
-                <h3 class="mt-3 text-xl font-semibold text-slate-950">
-                  Reincidencia e contexto recente
-                </h3>
-                <p class="mt-3 text-sm leading-7 text-slate-600">
-                  {{ detail.correlatedHistory.summary.recurrenceLabel }}
-                </p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <span
-                  v-if="detail.correlatedHistory.signals.repeatedTheme"
-                  class="rounded-full bg-[rgba(252,233,235,0.92)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary-dark)]"
-                >
-                  Tema reincidente
-                </span>
-                <span
-                  v-if="detail.correlatedHistory.signals.repeatedSubsubject"
-                  class="rounded-full bg-[rgba(255,244,218,0.92)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-warning)]"
-                >
-                  Subtema reincidente
-                </span>
-                <span
-                  v-if="detail.correlatedHistory.signals.priorSelfServiceRelated"
-                  class="rounded-full bg-[rgba(228,247,236,0.92)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-success)]"
-                >
-                  FAQ relacionada ja resolveu caso anterior
-                </span>
-              </div>
-            </div>
-
-            <div class="mt-5 grid gap-3 md:grid-cols-3">
-              <div class="rounded-[20px] bg-slate-50 px-4 py-4">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Atendimentos anteriores</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ detail.correlatedHistory.summary.total }}</p>
-              </div>
-              <div class="rounded-[20px] bg-slate-50 px-4 py-4">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Autoatendimentos FAQ</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ detail.correlatedHistory.summary.previousFaqResolvedCount }}</p>
-              </div>
-              <div class="rounded-[20px] bg-slate-50 px-4 py-4">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Protocolos enviados</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ detail.correlatedHistory.summary.previousProtocolsCount }}</p>
-              </div>
-              <div class="rounded-[20px] bg-slate-50 px-4 py-4">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Mesmo tema</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ detail.correlatedHistory.summary.sameThemeCount }}</p>
-              </div>
-              <div class="rounded-[20px] bg-slate-50 px-4 py-4">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Mesmo subtema</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ detail.correlatedHistory.summary.sameSubsubjectCount }}</p>
-              </div>
-              <div class="rounded-[20px] bg-slate-50 px-4 py-4">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Janela recente</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ detail.correlatedHistory.summary.recentWindowCount }}</p>
-              </div>
-            </div>
-
-            <div v-if="detail.correlatedHistory.items.length" class="mt-5 grid gap-3">
-              <article
-                v-for="item in detail.correlatedHistory.items"
-                :key="item.id"
-                class="rounded-[22px] border border-slate-200 bg-slate-50/80 p-5"
-              >
-                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      {{ item.createdAtLabel }}
-                    </p>
-                    <h4 class="mt-2 text-lg font-semibold text-slate-950">{{ item.subject }}</h4>
-                    <p class="mt-2 text-sm leading-6 text-slate-600">
-                      {{ item.theme }} · {{ item.subsubject }}
-                    </p>
-                  </div>
-                  <div class="flex flex-wrap gap-2">
-                    <StatusBadge :label="item.status" />
-                    <span
-                      v-if="item.sameTheme"
-                      class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700"
-                    >
-                      Mesmo tema
-                    </span>
-                    <span
-                      v-if="item.sameSubsubject"
-                      class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700"
-                    >
-                      Mesmo subtema
-                    </span>
-                    <span
-                      v-if="item.previousSelfService"
-                      class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700"
-                    >
-                      Autoatendimento
-                    </span>
-                    <span
-                      v-if="item.recent"
-                      class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700"
-                    >
-                      Janela recente
-                    </span>
-                  </div>
-                </div>
-              </article>
-            </div>
-
-            <p v-else class="mt-5 text-sm leading-7 text-slate-600">
-              Nao ha historico correlato adicional para este aluno na base mockada.
-            </p>
-          </div>
-        </div>
-
-        <div class="grid gap-4">
-          <div class="inner-panel p-6">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Dados do aluno
-            </p>
-            <div class="mt-5 grid gap-4">
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Nome</p>
-                <p class="mt-2 text-sm font-semibold text-slate-900">{{ detail.studentData.nome }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">RA</p>
-                <p class="mt-2 text-sm font-semibold text-slate-900">{{ detail.studentData.ra || 'Nao informado' }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Curso</p>
-                <p class="mt-2 text-sm font-semibold text-slate-900">{{ detail.studentData.curso || 'Nao informado' }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">E-mail</p>
-                <p class="mt-2 text-sm font-semibold text-slate-900">{{ detail.studentData.email || 'Nao informado' }}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="inner-panel p-6">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              FAQ operacional / playbook
-            </p>
-            <h3 class="mt-3 text-xl font-semibold text-slate-950">
-              {{ detail.playbook.title }}
-            </h3>
-
-            <div class="mt-5 grid gap-4">
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Checklist OP</p>
-                <div class="mt-3 grid gap-2">
-                  <div
-                    v-for="item in detail.playbook.checklist"
-                    :key="item"
-                    class="rounded-[18px] bg-slate-50 px-4 py-3 text-sm text-slate-700"
-                  >
-                    {{ item }}
-                  </div>
-                  <p v-if="!detail.playbook.checklist.length" class="text-sm leading-6 text-slate-600">
-                    Nenhum checklist especifico para este caso na base mockada.
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sistemas a consultar</p>
-                <div class="mt-3 flex flex-wrap gap-2">
-                  <span
-                    v-for="item in detail.playbook.systemsToCheck"
-                    :key="item"
-                    class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700"
-                  >
-                    {{ item }}
-                  </span>
-                  <span
-                    v-if="!detail.playbook.systemsToCheck.length"
-                    class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700"
-                  >
-                    Nenhum sistema listado
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Documentos a solicitar</p>
-                <div class="mt-3 flex flex-wrap gap-2">
-                  <span
-                    v-for="item in detail.playbook.documentsRequested"
-                    :key="item"
-                    class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700"
-                  >
-                    {{ item }}
-                  </span>
-                  <span
-                    v-if="!detail.playbook.documentsRequested.length"
-                    class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700"
-                  >
-                    Nenhum documento adicional
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Resposta padrao sugerida</p>
-                <p class="mt-2 text-sm leading-7 text-slate-700">
-                  {{ detail.playbook.responseTemplate || 'Sem resposta padrao definida para este playbook.' }}
-                </p>
-              </div>
-
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Criterio de escalonamento</p>
-                <p class="mt-2 text-sm leading-7 text-slate-700">
-                  {{ detail.playbook.escalationCriteria || 'Aplicar triagem operacional antes de escalar.' }}
-                </p>
-              </div>
-
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Motivo de escalonamento sugerido</p>
-                <p class="mt-2 text-sm leading-7 text-slate-700">
-                  {{ detail.playbook.escalationReason || 'Sem motivo sugerido na base mockada.' }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="inner-panel p-6">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Acoes do OP
-            </p>
-            <h3 class="mt-3 text-xl font-semibold text-slate-950">
-              Registrar a proxima acao operacional
-            </h3>
-            <p class="mt-3 text-sm leading-7 text-slate-600">
-              Se voce nao preencher observacao, o sistema usa a resposta ou a regra sugerida pelo playbook.
-            </p>
-
-            <label class="mt-5 grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Observacao operacional</span>
-              <textarea
-                v-model="operatorNote"
-                rows="5"
-                class="rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
-                placeholder="Registre a orientacao, a complementacao solicitada ou o motivo do escalonamento."
-              />
-            </label>
-
-            <div class="mt-5 grid gap-3">
-              <button
-                type="button"
-                class="rounded-[20px] bg-[var(--color-primary)] px-5 py-4 text-sm font-semibold text-white shadow-[0_16px_36px_rgba(209,50,57,0.18)]"
-                @click="runOperatorAction('reply')"
-              >
-                Responder ao aluno
-              </button>
-              <button
-                type="button"
-                class="rounded-[20px] border border-[var(--color-warning)] bg-[rgba(255,244,218,0.7)] px-5 py-4 text-sm font-semibold text-[var(--color-warning)]"
-                @click="runOperatorAction('request_info')"
-              >
-                Solicitar complementacao
-              </button>
-              <button
-                type="button"
-                class="rounded-[20px] border border-[var(--color-danger)] bg-[rgba(253,236,237,0.75)] px-5 py-4 text-sm font-semibold text-[var(--color-danger)]"
-                @click="runOperatorAction('escalate')"
-              >
-                Escalar para area interna
-              </button>
-            </div>
-          </div>
-
-          <div class="inner-panel p-6">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Anexos
-            </p>
-            <div v-if="detail.attachments.length" class="mt-5 grid gap-3">
+        <details
+          v-if="exchangeItems.length"
+          class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70"
+        >
+          <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
+            Troca do atendimento
+          </summary>
+          <div class="border-t border-slate-200 px-4 py-4">
+            <div class="grid gap-3">
               <div
-                v-for="attachment in detail.attachments"
-                :key="attachment.id"
-                class="rounded-[20px] border border-slate-200 bg-slate-50/80 p-4"
+                v-for="item in exchangeItems"
+                :key="item.id"
+                class="rounded-[12px] border border-slate-200 bg-white px-4 py-3"
               >
-                <p class="text-sm font-semibold text-slate-900">{{ attachment.name }}</p>
-                <p class="mt-2 text-sm text-slate-600">{{ attachment.status }}</p>
+                <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                  <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
+                  <span class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ item.atLabel }}</span>
+                </div>
+                <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.description }}</p>
               </div>
             </div>
-            <p v-else class="mt-4 text-sm leading-7 text-slate-600">
-              Nenhum anexo registrado neste atendimento mockado.
-            </p>
           </div>
+        </details>
+
+        <details class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
+            Historico recente
+          </summary>
+
+          <div class="border-t border-slate-200 px-4 py-4">
+            <ul class="grid gap-2 text-sm leading-6 text-slate-700">
+              <li v-for="item in historySummary" :key="item" class="flex gap-2">
+                <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                <span>{{ item }}</span>
+              </li>
+            </ul>
+
+            <details class="mt-4 rounded-[14px] border border-slate-200 bg-white px-4 py-4">
+              <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
+                Ver historico completo
+              </summary>
+
+              <div class="mt-4 grid gap-4">
+                <div v-if="detail.timeline.length" class="grid gap-2">
+                  <p class="text-sm font-semibold text-slate-900">Movimentacoes</p>
+                  <div class="divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-white">
+                    <div
+                      v-for="item in detail.timeline"
+                      :key="item.id"
+                      class="grid gap-1 px-4 py-3"
+                    >
+                      <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                        <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
+                        <span class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ item.atLabel }}</span>
+                      </div>
+                      <p class="text-sm leading-6 text-slate-600">{{ item.description }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="detail.interactions.length" class="grid gap-2">
+                  <p class="text-sm font-semibold text-slate-900">Interacoes registradas</p>
+                  <div class="divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-white">
+                    <div
+                      v-for="interaction in detail.interactions"
+                      :key="interaction.id"
+                      class="grid gap-1 px-4 py-3"
+                    >
+                      <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p class="text-sm font-semibold text-slate-950">{{ interaction.actor }}</p>
+                          <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">
+                            {{ interaction.channel }}
+                          </p>
+                        </div>
+                        <span class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ interaction.atLabel }}</span>
+                      </div>
+                      <p class="text-sm leading-6 text-slate-600">{{ interaction.text }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="detail.attachments.length" class="grid gap-2">
+                  <p class="text-sm font-semibold text-slate-900">Documentos registrados</p>
+                  <div class="divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-white">
+                    <div
+                      v-for="attachment in detail.attachments"
+                      :key="attachment.id"
+                      class="grid gap-1 px-4 py-3"
+                    >
+                      <p class="text-sm font-semibold text-slate-950">{{ attachment.name }}</p>
+                      <p class="text-sm leading-6 text-slate-600">{{ attachment.status }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="detail.correlatedHistory.items.length" class="grid gap-2">
+                  <p class="text-sm font-semibold text-slate-900">Atendimentos relacionados</p>
+                  <div class="divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-white">
+                    <RouterLink
+                      v-for="item in detail.correlatedHistory.items"
+                      :key="item.id"
+                      :to="`/op/fila/${item.id}`"
+                      class="grid gap-1 px-4 py-3 transition hover:bg-slate-50"
+                    >
+                      <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p class="text-xs font-semibold text-slate-500">{{ item.createdAtLabel }}</p>
+                          <p class="mt-1 text-sm font-semibold text-slate-950">{{ item.subject }}</p>
+                          <p class="mt-1 text-sm leading-6 text-slate-600">{{ item.theme }} - {{ item.subsubject }}</p>
+                        </div>
+                        <span class="text-sm font-semibold text-slate-700">{{ item.status }}</span>
+                      </div>
+                    </RouterLink>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </details>
+
+        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
+            Como analisar este caso
+          </summary>
+          <div class="border-t border-slate-200 px-4 py-4">
+            <ul class="grid gap-2 text-sm leading-6 text-slate-700">
+              <li v-for="item in analysisChecklist" :key="item" class="flex gap-2">
+                <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                <span>{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+        </details>
+
+        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
+            <h3 class="text-base font-semibold text-slate-950">Proxima acao</h3>
+          </div>
+
+          <div v-if="!actionAvailability.canAct" class="px-4 py-4 text-sm leading-6 text-slate-700">
+            {{ actionAvailability.reason }}
+          </div>
+
+          <template v-else>
+            <div class="px-4 py-4">
+              <p class="text-sm leading-6 text-slate-600">
+                Escolha a acao somente depois de concluir a analise recomendada.
+              </p>
+
+              <div class="mt-4 grid gap-3 xl:grid-cols-3">
+                <button
+                  v-for="option in decisionOptions"
+                  :key="option.id"
+                  type="button"
+                  :class="[
+                    'grid gap-1 rounded-[14px] border px-4 py-4 text-left transition',
+                    option.toneClass,
+                  ]"
+                  @click="selectDecision(option.id)"
+                >
+                  <span class="text-sm font-semibold">{{ option.title }}</span>
+                  <span class="text-sm leading-6">{{ option.description }}</span>
+                </button>
+              </div>
+
+              <div
+                v-if="activeDecision"
+                class="mt-4 rounded-[14px] border border-slate-200 bg-white px-4 py-4"
+              >
+                <label class="grid gap-2">
+                  <span class="text-sm font-semibold text-slate-900">{{ activeDecision.fieldLabel }}</span>
+                  <textarea
+                    ref="operatorNoteRef"
+                    v-model="operatorNote"
+                    rows="5"
+                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+                    :placeholder="activeDecision.placeholder"
+                  />
+                </label>
+
+                <p v-if="noteError" class="mt-2 text-sm font-semibold text-[var(--color-danger)]">
+                  {{ noteError }}
+                </p>
+
+                <div class="mt-4 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ activeDecision.previewLabel }}</p>
+                  <p class="mt-2 text-sm leading-6 text-slate-700">{{ recordPreview }}</p>
+                </div>
+
+                <div
+                  v-if="actionFeedback.message"
+                  :class="[
+                    'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
+                    actionFeedback.type === 'success'
+                      ? 'border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] text-[var(--color-success)]'
+                      : 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]',
+                  ]"
+                >
+                  {{ actionFeedback.message }}
+                </div>
+
+                <div class="mt-4 flex flex-wrap gap-3">
+                  <button
+                    v-if="selectedDecision === 'reply'"
+                    type="button"
+                    :disabled="isSubmittingAction"
+                    class="rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)] disabled:cursor-wait disabled:opacity-75"
+                    @click="handleActionClick('reply')"
+                  >
+                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
+                  </button>
+
+                  <button
+                    v-if="selectedDecision === 'request_info'"
+                    type="button"
+                    :disabled="isSubmittingAction"
+                    class="rounded-[14px] border border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.86)] px-5 py-3 text-sm font-semibold text-[#8a5200] disabled:cursor-wait disabled:opacity-75"
+                    @click="handleActionClick('request_info')"
+                  >
+                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
+                  </button>
+
+                  <button
+                    v-if="selectedDecision === 'escalate'"
+                    type="button"
+                    :disabled="isSubmittingAction"
+                    class="rounded-[14px] bg-[#0f4c81] px-5 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
+                    @click="handleActionClick('escalate')"
+                  >
+                    {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
+                  </button>
+                </div>
+
+                <div
+                  v-if="confirmationCopy"
+                  class="mt-4 rounded-[14px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
+                >
+                  <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
+                  <div class="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
+                    <div>
+                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Consequencia</p>
+                      <p class="mt-1">{{ confirmationCopy.consequence }}</p>
+                    </div>
+                    <div>
+                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Registro</p>
+                      <p class="mt-1">{{ operatorNote.trim() }}</p>
+                    </div>
+                    <div v-if="pendingConfirmationAction === 'escalate'">
+                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Destino</p>
+                      <p class="mt-1 font-semibold text-slate-900">{{ escalationDestination }}</p>
+                    </div>
+                    <div v-if="pendingConfirmationAction === 'escalate'">
+                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Regra observada</p>
+                      <p class="mt-1">{{ escalationReason }}</p>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      :disabled="isSubmittingAction"
+                      :class="['rounded-[14px] px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-75', confirmationCopy.buttonClass]"
+                      @click="submitOperatorAction(pendingConfirmationAction)"
+                    >
+                      {{ confirmationCopy.buttonLabel }}
+                    </button>
+                    <button
+                      type="button"
+                      :disabled="isSubmittingAction"
+                      class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                      @click="pendingConfirmationAction = ''"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
-    </SectionPanel>
+    </section>
   </div>
 </template>

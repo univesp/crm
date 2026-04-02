@@ -1,12 +1,30 @@
 const routes = [
   {
-    path: '/sso',
+    path: '/acesso-local/:profileKey?',
+    name: 'local-access',
+    component: () => import('@/pages/LocalAccessPage.vue'),
+    meta: {
+      title: 'Acesso local por perfil',
+      layout: 'auth',
+    },
+  },
+  {
+    path: '/login',
     name: 'login',
     component: () => import('@/pages/LoginPage.vue'),
     meta: {
       title: 'Login UNIVESP',
       layout: 'auth',
       publicOnly: true,
+    },
+  },
+  {
+    path: '/wireframes/aluno/:screenId?',
+    name: 'student-wireframe',
+    component: () => import('@/pages/wireframes/StudentWireframePage.vue'),
+    meta: {
+      title: 'Wireframe navegavel do aluno',
+      layout: 'wireframe',
     },
   },
   {
@@ -17,6 +35,8 @@ const routes = [
       title: 'Visao institucional',
       stage: 'overview',
       requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
     },
   },
   {
@@ -27,6 +47,8 @@ const routes = [
       title: 'Entrada e triagem',
       stage: 'triage',
       requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
     },
   },
   {
@@ -37,16 +59,8 @@ const routes = [
       title: 'Registro do protocolo',
       stage: 'ticket',
       requiresAuth: true,
-    },
-  },
-  {
-    path: '/chat-ia',
-    name: 'ai-chat',
-    component: () => import('@/pages/AIPage.vue'),
-    meta: {
-      title: 'Atendimento assistido',
-      stage: 'ai',
-      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
     },
   },
   {
@@ -57,6 +71,8 @@ const routes = [
       title: 'Escalacao humana',
       stage: 'handoff',
       requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
     },
   },
   {
@@ -67,6 +83,8 @@ const routes = [
       title: 'Integracoes e governanca',
       stage: 'integrations',
       requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
     },
   },
   {
@@ -74,9 +92,23 @@ const routes = [
     name: 'student-home',
     component: () => import('@/pages/student/StudentHomePage.vue'),
     meta: {
-      title: 'Home do atendimento',
+      title: 'Como podemos ajudar?',
       stage: 'student-home',
       requiresAuth: true,
+      shellKey: 'student',
+      allowedProfiles: ['aluno'],
+    },
+  },
+  {
+    path: '/aluno/duvida',
+    name: 'student-journey',
+    component: () => import('@/pages/student/StudentJourneyPage.vue'),
+    meta: {
+      title: 'Tenho uma duvida',
+      stage: 'student-journey',
+      requiresAuth: true,
+      shellKey: 'student',
+      allowedProfiles: ['aluno'],
     },
   },
   {
@@ -87,6 +119,8 @@ const routes = [
       title: 'Minhas solicitacoes',
       stage: 'student-requests',
       requiresAuth: true,
+      shellKey: 'student',
+      allowedProfiles: ['aluno'],
     },
   },
   {
@@ -94,9 +128,23 @@ const routes = [
     name: 'student-protocol',
     component: () => import('@/pages/student/StudentProtocolPage.vue'),
     meta: {
-      title: 'Protocolo mockado',
+      title: 'Continuar com a solicitacao',
       stage: 'student-protocol',
       requiresAuth: true,
+      shellKey: 'student',
+      allowedProfiles: ['aluno'],
+    },
+  },
+  {
+    path: '/aluno/confirmacao/:protocolId',
+    name: 'student-confirmation',
+    component: () => import('@/pages/student/StudentConfirmationPage.vue'),
+    meta: {
+      title: 'Confirmacao',
+      stage: 'student-confirmation',
+      requiresAuth: true,
+      shellKey: 'student',
+      allowedProfiles: ['aluno'],
     },
   },
   {
@@ -104,9 +152,11 @@ const routes = [
     name: 'student-request-detail',
     component: () => import('@/pages/student/StudentRequestDetailPage.vue'),
     meta: {
-      title: 'Detalhe do protocolo',
+      title: 'Detalhe da solicitacao',
       stage: 'student-request-detail',
       requiresAuth: true,
+      shellKey: 'student',
+      allowedProfiles: ['aluno'],
     },
   },
   {
@@ -114,8 +164,12 @@ const routes = [
     name: 'operator-queue',
     component: () => import('@/pages/operator/OperatorQueuePage.vue'),
     meta: {
-      title: 'Fila operacional',
+      title: 'Atendimentos',
       stage: 'operator-queue',
+      requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['op', 'gestor_polos'],
+      requiredActions: ['view_case'],
     },
   },
   {
@@ -123,18 +177,38 @@ const routes = [
     name: 'operator-case-detail',
     component: () => import('@/pages/operator/OperatorCaseDetailPage.vue'),
     meta: {
-      title: 'Detalhe operacional',
+      title: 'Analise do caso',
       stage: 'operator-case-detail',
+      requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['op', 'gestor_polos'],
+      requiredActions: ['view_case'],
     },
   },
   {
     path: '/op/playbook',
     name: 'operator-playbook',
-    component: () => import('@/pages/operator/OperatorPlaybookPage.vue'),
+    component: () => import('@/pages/operator/OperatorGuidancePage.vue'),
     meta: {
-      title: 'FAQ operacional',
+      title: 'Consultar orientacao',
       stage: 'operator-playbook',
       requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['op', 'gestor_polos'],
+      requiredActions: ['view_case'],
+    },
+  },
+  {
+    path: '/op/novo-atendimento',
+    name: 'operator-assisted-intake',
+    component: () => import('@/pages/operator/OperatorPlaybookPage.vue'),
+    meta: {
+      title: 'Abrir atendimento em nome do aluno',
+      stage: 'operator-assisted-intake',
+      requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['op', 'gestor_polos'],
+      requiredActions: ['view_case'],
     },
   },
   {
@@ -145,6 +219,9 @@ const routes = [
       title: 'Dashboard geral',
       stage: 'admin-dashboard',
       requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['analista_area', 'gestor_area', 'admin_central'],
+      requiredActions: ['view_case'],
     },
   },
   {
@@ -155,6 +232,9 @@ const routes = [
       title: 'Gestao da FAQ',
       stage: 'admin-faq',
       requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['edit_faq'],
     },
   },
   {
@@ -164,6 +244,10 @@ const routes = [
     meta: {
       title: 'Parametros de SLA e criticidade',
       stage: 'admin-parameters',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['edit_parameters'],
     },
   },
   {
@@ -173,6 +257,23 @@ const routes = [
     meta: {
       title: 'Permissoes e visibilidade',
       stage: 'admin-permissions',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['view_audit'],
+    },
+  },
+  {
+    path: '/admin/publicacao',
+    name: 'admin-versioning',
+    component: () => import('@/pages/admin/AdminVersioningPage.vue'),
+    meta: {
+      title: 'Publicacao e historico de versoes',
+      stage: 'admin-versioning',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['publish_version'],
     },
   },
 ]

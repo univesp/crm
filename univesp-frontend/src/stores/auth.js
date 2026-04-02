@@ -1,13 +1,21 @@
 import { computed, ref } from 'vue'
 import { defineStore, getActivePinia } from 'pinia'
 
+import { buildMockAccessContext } from '@/services/mockContextRuntime'
 import {
-  buildAzureLoginUrl,
+  buildAzureStartUrl,
+  buildSamlStartUrl,
+  buildSsoStartUrl,
+  clearSelectedDevBypassProfile,
   fetchCurrentSsoUser,
+  getDevBypassProfiles,
   getPublicAppPath,
+  getSelectedDevBypassProfile,
+  hasSsoDevBypass,
   isAzureConfigured,
   logoutFromSso,
   normalizeInternalRouteTarget,
+  setSelectedDevBypassProfile,
 } from '@/services/ssoClient'
 import { useJourneyStore } from '@/stores/journey'
 
@@ -22,6 +30,11 @@ export const useAuthStore = defineStore('auth', () => {
   const isAnonymous = computed(() => status.value === 'anonymous')
   const displayName = computed(() => user.value?.displayName || user.value?.email || '')
   const azureReady = computed(() => isAzureConfigured())
+  const hasLocalBypass = computed(() => hasSsoDevBypass())
+  const localBypassProfiles = computed(() => getDevBypassProfiles())
+  const selectedLocalBypassProfile = computed(() => getSelectedDevBypassProfile())
+  const mockContext = computed(() => buildMockAccessContext(user.value))
+  const defaultAppRoute = computed(() => mockContext.value.defaultRoute || '/')
 
   async function loadSession({ force = false } = {}) {
     if (sessionLoaded.value && !force) {
@@ -43,16 +56,18 @@ export const useAuthStore = defineStore('auth', () => {
 
       user.value = currentUser
       status.value = 'authenticated'
+
       const activePinia = getActivePinia()
       if (activePinia) {
         useJourneyStore(activePinia).applyAuthenticatedUser(currentUser)
       }
+
       return currentUser
-    } catch {
+    } catch (error) {
       sessionLoaded.value = true
       user.value = null
       status.value = 'anonymous'
-      errorMessage.value = ''
+      errorMessage.value = error?.message || ''
       return null
     }
   }
@@ -61,50 +76,84 @@ export const useAuthStore = defineStore('auth', () => {
     errorMessage.value = ''
   }
 
-  function getLoginUrl(flow, redirectTo) {
+  function getLoginUrl(flow = '', redirectTo = '', email = '') {
+    const targetRoute = normalizeInternalRouteTarget(redirectTo, defaultAppRoute.value)
+
     try {
-      return buildAzureLoginUrl({ next: normalizeInternalRouteTarget(redirectTo), flow })
+      if (flow === 'aluno') {
+        return buildSamlStartUrl({ next: targetRoute })
+      }
+
+      if (flow === 'admin' || flow === 'academico') {
+        return buildAzureStartUrl({ flow, next: targetRoute })
+      }
+
+      return buildSsoStartUrl({
+        email,
+        flow,
+        next: targetRoute,
+      })
     } catch {
-      return `${window.location.origin}/sso`
+      return getPublicAppPath('/login')
     }
   }
 
-  function getDirectAccessUrl(flow, redirectTo) {
-    return getLoginUrl(flow, redirectTo)
+  function getDirectAccessUrl(flow = '', redirectTo = '', email = '') {
+    return getLoginUrl(flow, redirectTo, email)
   }
 
-  async function redirectToLogin(redirectTo, flow = 'admin') {
+  async function redirectToLogin(redirectTo = '', flow = '', email = '') {
     status.value = 'redirecting'
     errorMessage.value = ''
 
     try {
-      const url = buildAzureLoginUrl({
-        next: normalizeInternalRouteTarget(redirectTo),
-        flow,
-      })
+      const url = getLoginUrl(flow, redirectTo, email)
       window.location.assign(url)
-    } catch (err) {
+    } catch (error) {
       status.value = 'anonymous'
-      errorMessage.value = err.message || 'Falha ao iniciar login SSO.'
+      errorMessage.value = error?.message || 'Falha ao iniciar o acesso institucional.'
     }
   }
 
-  async function logout(redirectTo = '/sso') {
-    const targetRoute = normalizeInternalRouteTarget(redirectTo, '/sso')
+  async function activateLocalBypassProfile(profileKey, redirectTo = '') {
+    const profile = setSelectedDevBypassProfile(profileKey)
+    if (!profile) {
+      return null
+    }
+
+    await loadSession({ force: true })
+    const targetRoute = normalizeInternalRouteTarget(redirectTo, profile.route || '/')
+    window.location.assign(getPublicAppPath(targetRoute))
+    return user.value
+  }
+
+  function clearLocalBypassProfile() {
+    clearSelectedDevBypassProfile()
+    user.value = null
+    sessionLoaded.value = false
+    status.value = 'anonymous'
+  }
+
+  async function logout(redirectTo = '/login') {
+    const bypassRedirect = hasSsoDevBypass() ? '/acesso-local' : '/login'
+    const targetRoute = normalizeInternalRouteTarget(redirectTo, bypassRedirect)
+
     status.value = 'loading'
+
     try {
       const result = logoutFromSso()
-      // Se o logout ja redirecionou para o Azure, nao precisamos fazer nada
       if (result?.redirected) {
         return
       }
     } catch {
-      // Continua para limpar estado local
+      // Continue to local cleanup.
     } finally {
+      clearSelectedDevBypassProfile()
       user.value = null
       sessionLoaded.value = false
       status.value = 'anonymous'
     }
+
     window.location.assign(getPublicAppPath(targetRoute))
   }
 
@@ -118,11 +167,18 @@ export const useAuthStore = defineStore('auth', () => {
     isAnonymous,
     displayName,
     azureReady,
+    hasLocalBypass,
+    localBypassProfiles,
+    selectedLocalBypassProfile,
+    mockContext,
+    defaultAppRoute,
     loadSession,
     clearError,
     getLoginUrl,
     getDirectAccessUrl,
     redirectToLogin,
+    activateLocalBypassProfile,
+    clearLocalBypassProfile,
     logout,
   }
 })

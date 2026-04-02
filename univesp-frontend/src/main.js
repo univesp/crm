@@ -5,6 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import App from '@/App.vue'
 import '@/index.css'
 import routes from '@/router'
+import { canAccessRouteWithMockContext } from '@/services/mockContextRuntime'
 import { getDefaultAuthenticatedRoute, normalizeInternalRouteTarget } from '@/services/ssoClient'
 import { useAuthStore } from '@/stores/auth'
 
@@ -20,13 +21,23 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore(pinia)
   const requiresAuth = to.meta.requiresAuth === true
   const publicOnly = to.meta.publicOnly === true
-  const fallbackRoute = getDefaultAuthenticatedRoute()
+  const fallbackRoute = auth.defaultAppRoute || getDefaultAuthenticatedRoute()
+  const localAccessRedirect = {
+    name: 'local-access',
+    query: {
+      redirect: normalizeInternalRouteTarget(to.fullPath),
+    },
+  }
 
   if (publicOnly) {
+    if (to.name === 'login' && auth.hasLocalBypass) {
+      return localAccessRedirect
+    }
+
     await auth.loadSession()
     if (auth.isAuthenticated) {
       const redirectTo = normalizeInternalRouteTarget(String(to.query.redirect || fallbackRoute))
-      return redirectTo === '/sso' ? fallbackRoute : redirectTo
+      return redirectTo === '/login' ? fallbackRoute : redirectTo
     }
     return true
   }
@@ -37,7 +48,19 @@ router.beforeEach(async (to) => {
 
   await auth.loadSession()
   if (auth.isAuthenticated) {
+    if (to.path === '/') {
+      return auth.defaultAppRoute
+    }
+
+    if (!canAccessRouteWithMockContext(to.meta || {}, auth.mockContext)) {
+      return auth.defaultAppRoute
+    }
+
     return true
+  }
+
+  if (auth.hasLocalBypass) {
+    return localAccessRedirect
   }
 
   return {

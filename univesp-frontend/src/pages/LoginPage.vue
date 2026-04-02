@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import { normalizeInternalRouteTarget } from '@/services/ssoClient'
+import { getPublicAppPath, normalizeInternalRouteTarget } from '@/services/ssoClient'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -26,6 +26,7 @@ const pageError = computed(() => {
 const adminLoginUrl = computed(() => auth.getDirectAccessUrl('admin', redirectPath.value))
 const academicLoginUrl = computed(() => auth.getDirectAccessUrl('academico', redirectPath.value))
 const studentLoginUrl = computed(() => auth.getDirectAccessUrl('aluno', redirectPath.value))
+const localAccessUrl = computed(() => getPublicAppPath('/acesso-local'))
 
 function clearLoginError() {
   dismissedRouteError.value = true
@@ -37,7 +38,7 @@ function clearLoginError() {
 async function handleSubmit() {
   clearLoginError()
   redirecting.value = true
-  await auth.redirectToLogin(redirectPath.value)
+  await auth.redirectToLogin(redirectPath.value, '', email.value)
 }
 
 watch(
@@ -76,9 +77,9 @@ watch(
             </div>
 
             <div>
-              <p class="crm-sso-kicker">CRM — Atendimento UNIVESP</p>
+              <p class="crm-sso-kicker">Sistema de Atendimento UNIVESP</p>
               <h1>Entrar com a conta institucional</h1>
-              <p class="crm-sso-copy">Informe seu email UNIVESP para iniciar o fluxo SSO.</p>
+              <p class="crm-sso-copy">Informe seu email institucional para seguir ao acesso correto.</p>
             </div>
           </div>
 
@@ -112,7 +113,7 @@ watch(
 
           <div class="crm-sso-divider" aria-hidden="true">
             <span></span>
-            <p>Acesso direto</p>
+            <p>Entradas por perfil</p>
             <span></span>
           </div>
 
@@ -135,6 +136,14 @@ watch(
               <small>@aluno.univesp.br</small>
             </a>
           </div>
+
+          <a
+            v-if="auth.hasLocalBypass"
+            class="crm-sso-dev-link"
+            :href="localAccessUrl"
+          >
+            Entrar pelo acesso local de desenvolvimento
+          </a>
 
           <p v-if="pageError" class="crm-sso-error" role="alert" aria-live="polite">
             {{ pageError }}
@@ -498,6 +507,21 @@ watch(
   color: var(--danger);
   font-size: 0.95rem;
   line-height: 1.5;
+}
+
+.crm-sso-dev-link {
+  display: inline-flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 18px;
+  color: var(--accent);
+  font-size: 0.94rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.crm-sso-dev-link:hover {
+  text-decoration: underline;
 }
 
 @media (prefers-color-scheme: dark) {

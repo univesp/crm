@@ -1,5 +1,6 @@
 import loggedStudent from '../../mocks/usuario-logado.json'
 import { operatorAuditSeeds, operatorCorrelationHistory } from '../../mocks/operations'
+import { buildCaseRoutingContext, filterCasesForMockContext } from '@/services/caseRoutingRuntime'
 import { buildOperatorCaseDetail, buildOperatorQueueEntries } from '@/services/operatorQueueRuntime'
 
 const FILTER_ALL = 'todos'
@@ -22,11 +23,11 @@ const THEME_QUEUE_MAP = {
 }
 
 function normalizeText(value = '') {
-  return String(value).replaceAll('Â·', '·').trim().toLowerCase()
+  return String(value).replaceAll('Â·', '-').trim().toLowerCase()
 }
 
 function sanitizeLabel(value = '') {
-  return String(value).replaceAll('Â·', '·').trim()
+  return String(value).replaceAll('Â·', '-').trim()
 }
 
 function titleCase(value = '') {
@@ -102,8 +103,34 @@ function buildFilterOptions(values = []) {
   ]
 }
 
+function buildHistoricalRouting({
+  polo = '',
+  theme = '',
+  subtheme = '',
+  queueLabel = '',
+  queueDestination = '',
+  criticality = '',
+  entryOrigin = 'Portal do atendimento',
+}) {
+  return buildCaseRoutingContext({
+    studentPolo: polo,
+    theme,
+    subtheme,
+    queueDestination,
+    targetAreaLabel: queueLabel,
+    criticality,
+    entryOrigin,
+  })
+}
+
 function normalizeHistoricalItem(item) {
   const queue = formatQueueLabel(item.queue, item.theme)
+  const routing = buildHistoricalRouting({
+    polo: item.polo,
+    theme: item.theme,
+    subtheme: item.subtheme,
+    queueLabel: queue,
+  })
 
   return {
     id: item.id,
@@ -113,6 +140,8 @@ function normalizeHistoricalItem(item) {
     subsubject: titleCase(item.subtheme),
     subsubjectKey: normalizeText(item.subtheme),
     queue,
+    lastMileAreaLabel: routing.targetAreaLabel,
+    routing,
     status: sanitizeLabel(item.status || 'Nao informado'),
     criticality: 'Media',
     sla: 'Historico',
@@ -128,6 +157,17 @@ function normalizeHistoricalItem(item) {
 }
 
 function normalizeResolvedRecord(record, studentProfile = loggedStudent) {
+  const queue = formatQueueLabel(record.queueDestination || record.context?.queueDestination, record.context?.theme)
+  const routing = buildHistoricalRouting({
+    polo: studentProfile.polo,
+    theme: record.context?.theme,
+    subtheme: record.context?.subtheme || record.context?.finalNode?.title,
+    queueLabel: queue,
+    queueDestination: record.queueDestination || record.context?.queueDestination,
+    criticality: record.criticality || record.context?.criticality,
+    entryOrigin: record.context?.entryOrigin || 'Acesso Unificado',
+  })
+
   return {
     id: record.id,
     subject: record.subject,
@@ -135,7 +175,9 @@ function normalizeResolvedRecord(record, studentProfile = loggedStudent) {
     themeKey: normalizeText(record.context?.theme),
     subsubject: titleCase(record.context?.subtheme || record.context?.finalNode?.title),
     subsubjectKey: normalizeText(record.context?.subtheme || record.context?.finalNode?.title),
-    queue: formatQueueLabel(record.queueDestination || record.context?.queueDestination, record.context?.theme),
+    queue,
+    lastMileAreaLabel: routing.targetAreaLabel,
+    routing,
     status: sanitizeLabel(record.statusLabel),
     criticality: titleCase(record.criticality || record.context?.criticality),
     sla: sanitizeLabel(record.sla || record.context?.sla || 'Historico'),
@@ -151,6 +193,20 @@ function normalizeResolvedRecord(record, studentProfile = loggedStudent) {
 }
 
 function normalizeProtocolHistory(protocol, studentProfile = loggedStudent) {
+  const queue = sanitizeLabel(protocol.queueLabel || protocol.context?.routing?.currentQueueLabel || protocol.context?.queueDestination)
+  const routing =
+    protocol.routing ||
+    protocol.context?.routing ||
+    buildHistoricalRouting({
+      polo: studentProfile.polo,
+      theme: protocol.context?.theme,
+      subtheme: protocol.context?.subtheme || protocol.context?.finalNode?.title,
+      queueLabel: queue,
+      queueDestination: protocol.context?.queueDestination,
+      criticality: protocol.context?.criticality,
+      entryOrigin: protocol.context?.entryOrigin || 'Acesso Unificado',
+    })
+
   return {
     id: protocol.protocolNumber,
     subject: protocol.subject,
@@ -158,7 +214,9 @@ function normalizeProtocolHistory(protocol, studentProfile = loggedStudent) {
     themeKey: normalizeText(protocol.context?.theme),
     subsubject: titleCase(protocol.context?.subtheme || protocol.context?.finalNode?.title),
     subsubjectKey: normalizeText(protocol.context?.subtheme || protocol.context?.finalNode?.title),
-    queue: formatQueueLabel(protocol.queueLabel || protocol.context?.queueDestination, protocol.context?.theme),
+    queue,
+    lastMileAreaLabel: protocol.lastMileAreaLabel || routing.targetAreaLabel,
+    routing,
     status: sanitizeLabel(protocol.statusLabel),
     criticality: titleCase(protocol.context?.criticality),
     sla: sanitizeLabel(protocol.slaLabel || protocol.context?.sla || 'Nao informado'),
@@ -173,21 +231,35 @@ function normalizeProtocolHistory(protocol, studentProfile = loggedStudent) {
   }
 }
 
-function buildHistoricalAttendances({ records = [], protocols = [], studentProfile = loggedStudent }) {
-  return [
+function buildHistoricalAttendances({
+  records = [],
+  protocols = [],
+  studentProfile = loggedStudent,
+  viewerContext = null,
+}) {
+  const entries = [
     ...operatorCorrelationHistory.map((item) => normalizeHistoricalItem(item)),
     ...records
       .filter((record) => record.outcome === 'resolved_by_faq')
       .map((record) => normalizeResolvedRecord(record, studentProfile)),
     ...protocols.map((protocol) => normalizeProtocolHistory(protocol, studentProfile)),
   ]
+
+  return filterCasesForMockContext(entries, viewerContext)
 }
 
-function buildActiveCases({ protocols = [], records = [], actionLogs = [], studentProfile = loggedStudent }) {
+function buildActiveCases({
+  protocols = [],
+  records = [],
+  actionLogs = [],
+  studentProfile = loggedStudent,
+  viewerContext = null,
+}) {
   const queueEntries = buildOperatorQueueEntries({
     protocols,
     actionLogs,
     studentProfile,
+    viewerContext,
   })
 
   return queueEntries.map((entry) => {
@@ -197,11 +269,13 @@ function buildActiveCases({ protocols = [], records = [], actionLogs = [], stude
       records,
       actionLogs,
       studentProfile,
+      viewerContext,
     })
 
     return {
       ...entry,
       queue: sanitizeLabel(entry.queue),
+      lastMileAreaLabel: sanitizeLabel(entry.lastMileAreaLabel),
       sourceType: 'active_queue',
       faqContext: detail?.faqContext || null,
       faqAnswer: detail?.faqAnswer || '',
@@ -216,11 +290,16 @@ function buildActiveCases({ protocols = [], records = [], actionLogs = [], stude
   })
 }
 
-function buildAuditEntries({ activeCases = [], historicalAttendances = [], actionLogs = [] }) {
+function buildAuditEntries({
+  activeCases = [],
+  historicalAttendances = [],
+  actionLogs = [],
+  viewerContext = null,
+}) {
   const caseIndex = Object.fromEntries(activeCases.map((entry) => [entry.id, entry]))
   const historyIndex = Object.fromEntries(historicalAttendances.map((entry) => [entry.id, entry]))
 
-  return [...operatorAuditSeeds, ...actionLogs]
+  const entries = [...operatorAuditSeeds, ...actionLogs]
     .map((log) => {
       const caseEntry = caseIndex[log.caseId] || historyIndex[log.caseId] || null
 
@@ -243,11 +322,18 @@ function buildAuditEntries({ activeCases = [], historicalAttendances = [], actio
         criticality: caseEntry?.criticality || 'Media',
         status: caseEntry?.status || sanitizeLabel(log.statusAfter || 'Nao informado'),
         queue: caseEntry?.queue || sanitizeLabel(log.queueAfter || log.queueLabel || 'Nao informado'),
+        lastMileAreaLabel:
+          caseEntry?.lastMileAreaLabel ||
+          caseEntry?.routing?.targetAreaLabel ||
+          sanitizeLabel(log.queueAfter || log.queueLabel || 'Nao informado'),
         student: caseEntry?.student || 'Nao informado',
         polo: caseEntry?.polo || 'Nao informado',
+        routing: caseEntry?.routing || null,
       }
     })
     .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
+
+  return filterCasesForMockContext(entries, viewerContext)
 }
 
 function filterAttendanceEntries(entries = [], filters = {}) {
@@ -469,33 +555,38 @@ export function buildAdminDashboardData({
   records = [],
   actionLogs = [],
   studentProfile = loggedStudent,
+  viewerContext = null,
 } = {}) {
   const activeCases = buildActiveCases({
     protocols,
     records,
     actionLogs,
     studentProfile,
+    viewerContext,
   })
   const historicalAttendances = buildHistoricalAttendances({
     records,
     protocols,
     studentProfile,
+    viewerContext,
   })
   const auditEntries = buildAuditEntries({
     activeCases,
     historicalAttendances,
     actionLogs,
+    viewerContext,
   })
+  const filterSource = [...activeCases, ...historicalAttendances]
 
   return {
     activeCases,
     historicalAttendances,
     auditEntries,
     filterOptions: {
-      queue: buildFilterOptions(activeCases.map((entry) => entry.queue)),
-      status: buildFilterOptions(activeCases.map((entry) => entry.status)),
-      criticality: buildFilterOptions(activeCases.map((entry) => entry.criticality)),
-      theme: buildFilterOptions(activeCases.map((entry) => entry.theme)),
+      queue: buildFilterOptions(filterSource.map((entry) => entry.queue)),
+      status: buildFilterOptions(filterSource.map((entry) => entry.status)),
+      criticality: buildFilterOptions(filterSource.map((entry) => entry.criticality)),
+      theme: buildFilterOptions(filterSource.map((entry) => entry.theme)),
     },
   }
 }

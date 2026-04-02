@@ -38,14 +38,14 @@ const runtime = computed(() =>
 )
 const summaryMetrics = computed(() => [
   {
-    label: 'Nodes',
+    label: 'Itens da arvore',
     value: runtime.value.summary.nodes,
-    hint: 'Nos editaveis no builder mock.',
+    hint: 'Itens editaveis na arvore atual.',
   },
   {
-    label: 'Links',
+    label: 'Relacoes',
     value: runtime.value.summary.links,
-    hint: 'Relacoes pai-filho da arvore canonica.',
+    hint: 'Conexoes entre temas e subtapas.',
   },
   {
     label: 'Destaques ativos',
@@ -53,12 +53,12 @@ const summaryMetrics = computed(() => [
     hint: 'Highlights vigentes em 25/03/2026 nesta simulacao.',
   },
   {
-    label: 'Validacao',
+    label: 'Revisao',
     value: runtime.value.summary.validationErrors === 0 ? 'OK' : runtime.value.summary.validationErrors,
     hint:
       runtime.value.summary.validationErrors === 0
-        ? 'Schema consistente para esta base mockada.'
-        : 'Existem erros de validacao no pacote atual.',
+        ? 'Estrutura consistente para esta base.'
+        : 'Existem inconsistencias na base atual.',
   },
 ])
 const selectedNode = computed(() => findFaqNodeById(currentPackage.value, ui.selectedNodeId))
@@ -125,7 +125,7 @@ function readNodeListField(field) {
     <SectionPanel
       eyebrow="Admin"
       title="Gestao visual da FAQ e dos playbooks"
-      description="Base inicial do builder visual/no-code da Univesp. Esta tela opera diretamente sobre o modelo canonico nodes + links + calendar_highlights, ainda em modo mock."
+      description="Base inicial da edicao visual da FAQ do aluno e dos playbooks operacionais."
     >
       <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
         <div class="grid gap-4">
@@ -149,15 +149,15 @@ function readNodeListField(field) {
 
           <div class="grid gap-3 md:grid-cols-3">
             <div class="inner-panel p-5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Owner</p>
+              <p class="text-sm font-semibold text-slate-500">Responsavel</p>
               <p class="mt-3 text-lg font-semibold text-slate-950">{{ metadata.owner }}</p>
             </div>
             <div class="inner-panel p-5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Versao draft</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Edicao atual</p>
               <p class="mt-3 text-lg font-semibold text-slate-950">{{ versioning.draft_version }}</p>
             </div>
             <div class="inner-panel p-5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Publicacao</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Situacao</p>
               <p class="mt-3 text-lg font-semibold text-slate-950">{{ versioning.publication_status }}</p>
             </div>
           </div>
@@ -165,13 +165,13 @@ function readNodeListField(field) {
 
         <div class="grid gap-3 md:grid-cols-2">
           <ActionTile
-            title="Builder visual futuro"
-            description="Esta leitura ja separa arvore, links e highlights para evoluir depois para drag-and-drop, importacao por planilha e publicacao controlada."
-            eyebrow="No-code"
+            title="Edicao visual futura"
+            description="A base ja separa arvore, relacoes e destaques para evoluir depois para drag-and-drop, importacao por planilha e publicacao controlada."
+            eyebrow="Futuro"
           />
           <ActionTile
             :title="isOperatorFaq ? 'Playbook operacional' : 'FAQ do aluno'"
-            :description="isOperatorFaq ? 'Campos operacionais extras ficam editaveis no mesmo no terminal.' : 'A FAQ publica segue o mesmo schema, com menos campos operacionais.'"
+            :description="isOperatorFaq ? 'Campos operacionais extras ficam editaveis no mesmo item terminal.' : 'A FAQ publica segue a mesma estrutura, com menos campos operacionais.'"
             eyebrow="Diferenciacao"
           />
         </div>
@@ -191,22 +191,22 @@ function readNodeListField(field) {
     <div class="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
       <SectionPanel
         eyebrow="Arvore"
-        title="Nodes e navegacao"
-        description="A arvore abaixo usa o runtime canonico, suporta multiplos niveis e serve como base da navegacao publica e operacional."
+        title="Arvore e navegacao"
+        description="A arvore abaixo suporta multiplos niveis e serve como base da navegacao publica e operacional."
       >
         <template #action>
           <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 ring-1 ring-slate-200">
-            {{ runtime.flatNodes.length }} nodes em tela
+            {{ runtime.flatNodes.length }} itens em tela
           </span>
         </template>
 
         <div class="grid gap-4">
           <div class="flex flex-wrap gap-2 text-xs text-slate-600">
             <span class="rounded-full bg-slate-100 px-3 py-1">
-              roots destacados: {{ runtime.summary.highlightedRoots }}
+              temas principais: {{ runtime.summary.highlightedRoots }}
             </span>
             <span class="rounded-full bg-slate-100 px-3 py-1">
-              folhas: {{ runtime.summary.leafs }}
+              etapas finais: {{ runtime.summary.leafs }}
             </span>
             <span class="rounded-full bg-slate-100 px-3 py-1">
               ramos: {{ runtime.summary.branches }}
@@ -249,8 +249,8 @@ function readNodeListField(field) {
 
       <SectionPanel
         eyebrow="Editor"
-        title="Edicao mock do no selecionado"
-        description="O painel abaixo altera o pacote canonicamente, em memoria local, sem backend real. A validacao do schema e refeita automaticamente."
+        title="Edicao do item selecionado"
+        description="O painel abaixo altera a estrutura em memoria local e revalida a base automaticamente."
       >
         <div v-if="selectedNode" class="grid gap-5">
           <div class="flex flex-wrap gap-2">
@@ -310,7 +310,7 @@ function readNodeListField(field) {
             </label>
 
             <label class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Action</span>
+              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Acao final</span>
               <select
                 :value="selectedNode.acao"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -380,7 +380,7 @@ function readNodeListField(field) {
 
           <div class="grid gap-3 md:grid-cols-3">
             <label class="inner-panel flex items-center justify-between gap-3 p-4">
-              <span class="text-sm font-semibold text-slate-900">No ativo</span>
+              <span class="text-sm font-semibold text-slate-900">Item ativo</span>
               <input
                 :checked="selectedNode.ativo"
                 type="checkbox"
@@ -500,7 +500,7 @@ function readNodeListField(field) {
           </div>
 
           <div class="grid gap-3">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Links correlatos do no</p>
+            <p class="text-sm font-semibold text-slate-500">Relacoes do item</p>
             <div
               v-for="link in selectedNodeLinks"
               :key="link.link_id"
@@ -521,7 +521,7 @@ function readNodeListField(field) {
             Nenhum no selecionado
           </p>
           <h3 class="mt-3 text-2xl font-semibold text-slate-950">
-            Selecione um node da arvore para editar.
+            Selecione um item da arvore para editar.
           </h3>
         </div>
       </SectionPanel>
@@ -530,8 +530,8 @@ function readNodeListField(field) {
     <div class="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
       <SectionPanel
         eyebrow="Calendario"
-        title="Calendar highlights"
-        description="Os destaques abaixo definem janela academica, prioridade dinamica e destaque na home para cada FAQ."
+        title="Destaques por calendario"
+        description="Os destaques abaixo definem janela academica, prioridade dinamica e evidencias na home."
       >
         <div class="grid gap-4">
           <div class="grid gap-3">
@@ -642,18 +642,18 @@ function readNodeListField(field) {
 
       <SectionPanel
         eyebrow="Governanca"
-        title="Links, validacao e publicacao"
-        description="Esta base mockada mostra como o admin pode controlar nodes, links e highlights antes da integracao real com builder visual e publicacao em backend."
+        title="Relacoes, revisao e publicacao"
+        description="Esta base mostra como a gestao pode controlar a arvore, revisar consistencia e preparar a publicacao."
       >
         <div class="grid gap-5">
           <div class="grid gap-3 md:grid-cols-2">
             <div class="inner-panel p-5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Ultima publicacao</p>
+              <p class="text-sm font-semibold text-slate-500">Ultima publicacao</p>
               <p class="mt-3 text-lg font-semibold text-slate-950">{{ publication.last_published_at }}</p>
               <p class="mt-2 text-sm text-slate-600">por {{ publication.last_published_by }}</p>
             </div>
             <div class="inner-panel p-5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Proxima revisao</p>
+              <p class="text-sm font-semibold text-slate-500">Proxima revisao</p>
               <p class="mt-3 text-lg font-semibold text-slate-950">{{ publication.next_review_at }}</p>
               <p class="mt-2 text-sm text-slate-600">{{ versioning.change_summary }}</p>
             </div>
@@ -681,15 +681,15 @@ function readNodeListField(field) {
 
           <div class="grid gap-3 md:grid-cols-2">
             <div class="inner-panel p-5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Erros de schema</p>
+              <p class="text-sm font-semibold text-slate-500">Inconsistencias</p>
               <p class="mt-3 text-3xl font-semibold text-slate-950">{{ validation.errors.length }}</p>
               <p class="mt-2 text-sm text-slate-600">
-                {{ validation.errors[0] || 'Nenhum erro encontrado neste draft.' }}
+                {{ validation.errors[0] || 'Nenhuma inconsistencia encontrada nesta edicao.' }}
               </p>
             </div>
 
             <div class="inner-panel p-5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Warnings</p>
+              <p class="text-sm font-semibold text-slate-500">Alertas</p>
               <p class="mt-3 text-3xl font-semibold text-slate-950">{{ validation.warnings.length }}</p>
               <p class="mt-2 text-sm text-slate-600">
                 {{ validation.warnings[0] || 'Sem warnings relevantes nesta leitura.' }}

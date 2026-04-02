@@ -3,6 +3,7 @@ import { computed, reactive, watch, watchEffect } from 'vue'
 import MetricCard from '@/components/MetricCard.vue'
 import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   applyPermissionEntryUpdate,
   buildAdminPermissionsRuntime,
@@ -12,12 +13,13 @@ import {
 } from '@/services/adminPermissionsRuntime'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
+const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 const permissionsDraft = reactive(cloneAdminPermissionsDraft())
 const form = reactive({
   id: '',
   profileKey: '',
-  scopeType: 'queue',
+  scopeType: 'fila',
   scopeValues: [],
   allowedActions: {},
   note: '',
@@ -27,7 +29,7 @@ const ui = reactive({
   lastAuditMessage: '',
 })
 
-const dashboardData = computed(() => studentSupportStore.adminDashboardData)
+const dashboardData = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const runtime = computed(() =>
   buildAdminPermissionsRuntime({
     dashboardData: dashboardData.value,
@@ -66,12 +68,12 @@ watch(
 watch(
   () => form.scopeType,
   (scopeType) => {
-    if (scopeType === 'all_areas') {
+    if (scopeType === 'global') {
       form.scopeValues = []
       return
     }
 
-    if (scopeType === 'queue' || scopeType === 'area') {
+    if (scopeType === 'polo' || scopeType === 'fila' || scopeType === 'area') {
       form.scopeValues = form.scopeValues[0] ? [form.scopeValues[0]] : []
     }
   },
@@ -86,13 +88,13 @@ function updateSingleScopeValue(value) {
   form.scopeValues = value ? [value] : []
 }
 
-function toggleAreaScopeValue(areaId, checked) {
+function toggleScopeValue(scopeValue, checked) {
   const current = new Set(form.scopeValues)
 
   if (checked) {
-    current.add(areaId)
+    current.add(scopeValue)
   } else {
-    current.delete(areaId)
+    current.delete(scopeValue)
   }
 
   form.scopeValues = [...current]
@@ -122,27 +124,27 @@ function savePermissionChanges() {
     <SectionPanel
       eyebrow="Admin"
       title="Permissoes e visibilidade por fila e area"
-      description="Primeira camada de governanca de acesso do atendimento. Esta matriz mockada mantem coerencia com dashboard, fila operacional, FAQ builder e parametros de SLA/criticidade."
+      description="Defina quem enxerga cada fila, quem administra cada area e quais acoes ficam disponiveis."
     >
       <div class="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
         <div class="grid gap-3 md:grid-cols-2">
           <div class="inner-panel p-5">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Ator atual</p>
+            <p class="text-sm font-semibold text-slate-500">Ator atual</p>
             <p class="mt-3 text-lg font-semibold text-slate-950">{{ permissionsDraft.currentActor.name }}</p>
             <p class="mt-2 text-sm text-slate-600">{{ permissionsDraft.currentActor.role }}</p>
           </div>
           <div class="inner-panel p-5">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Base de impacto</p>
+            <p class="text-sm font-semibold text-slate-500">Base de impacto</p>
             <p class="mt-3 text-lg font-semibold text-slate-950">{{ dashboardData.activeCases.length }} casos ativos</p>
             <p class="mt-2 text-sm text-slate-600">Leitura compartilhada com dashboard e fila do OP.</p>
           </div>
         </div>
 
         <div class="inner-panel p-5">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Coerencia estrutural</p>
-          <p class="mt-3 text-lg font-semibold text-slate-950">Perfis, filas e areas no mesmo eixo</p>
+          <p class="text-sm font-semibold text-slate-500">Coerencia de acesso</p>
+          <p class="mt-3 text-lg font-semibold text-slate-950">Perfis, polos, filas e areas no mesmo eixo</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            A visibilidade e derivada da mesma base de filas ja normalizadas. Isso evita criar uma camada paralela de acesso desconectada do produto.
+            A visibilidade acompanha a mesma base de casos e o mesmo roteamento por polo e fila.
           </p>
         </div>
       </div>
@@ -161,7 +163,7 @@ function savePermissionChanges() {
     <SectionPanel
       eyebrow="Impacto por perfil"
       title="Quem enxerga e quem administra"
-      description="Cada card resume as filas visiveis, areas administradas e acoes disponiveis por perfil."
+      description="Cada perfil mostra alcance de visibilidade e alcance de governanca."
     >
       <div class="grid gap-3 xl:grid-cols-2">
         <article
@@ -171,31 +173,38 @@ function savePermissionChanges() {
         >
           <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{{ profile.key }}</p>
+              <p class="text-xs font-semibold text-slate-500">{{ profile.key }}</p>
               <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ profile.label }}</h3>
               <p class="mt-2 text-sm leading-6 text-slate-600">{{ profile.description }}</p>
             </div>
             <div class="flex flex-wrap gap-2">
+              <StatusBadge :label="`${profile.visiblePolos.length} polos`" />
               <StatusBadge :label="`${profile.visibleQueues.length} filas`" />
               <StatusBadge :label="`${profile.administeredAreas.length} areas`" />
             </div>
           </div>
 
-          <div class="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
+          <div class="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-4">
             <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Filas visiveis</p>
+              <p class="text-sm font-semibold text-slate-500">Polos</p>
+              <p class="mt-2 font-semibold text-slate-900">
+                {{ profile.visiblePolos.join(', ') || 'Nao se aplica' }}
+              </p>
+            </div>
+            <div class="rounded-[18px] bg-slate-50 px-4 py-3">
+              <p class="text-sm font-semibold text-slate-500">Filas visiveis</p>
               <p class="mt-2 font-semibold text-slate-900">
                 {{ profile.visibleQueues.join(', ') || 'Nenhuma' }}
               </p>
             </div>
             <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Areas administradas</p>
+              <p class="text-sm font-semibold text-slate-500">Areas administradas</p>
               <p class="mt-2 font-semibold text-slate-900">
                 {{ profile.administeredAreas.join(', ') || 'Sem governanca direta' }}
               </p>
             </div>
             <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Acoes</p>
+              <p class="text-sm font-semibold text-slate-500">Acoes</p>
               <p class="mt-2 font-semibold text-slate-900">
                 {{ profile.allowedActions.join(', ') || 'Nenhuma' }}
               </p>
@@ -209,7 +218,7 @@ function savePermissionChanges() {
       <SectionPanel
         eyebrow="Matriz"
         title="Politicas por perfil e escopo"
-        description="Cada entrada da matriz combina perfil, escopo e acoes permitidas. O editor abaixo grava mudancas mockadas com auditoria administrativa."
+        description="Cada entrada combina perfil, alcance e acoes permitidas."
       >
         <div class="grid gap-4">
           <div class="grid gap-2">
@@ -223,7 +232,7 @@ function savePermissionChanges() {
             >
               <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <p class="text-xs font-semibold text-slate-500">
                     {{ entry.profileLabel }} - {{ entry.scopeLabel }}
                   </p>
                   <p class="mt-2 text-base font-semibold text-slate-950">
@@ -235,8 +244,8 @@ function savePermissionChanges() {
                 </div>
 
                 <div class="flex flex-wrap gap-2">
+                  <StatusBadge :label="`${entry.visiblePolos.length} polos`" />
                   <StatusBadge :label="`${entry.allowedActionList.length} acoes`" />
-                  <StatusBadge :label="entry.scopeLabel" />
                 </div>
               </div>
             </button>
@@ -246,8 +255,8 @@ function savePermissionChanges() {
 
       <SectionPanel
         eyebrow="Editor"
-        title="Edicao mock da politica selecionada"
-        description="Perfil, escopo e acoes sao editados em draft local. A aplicacao gera um registro de auditoria administrativa antes/depois."
+        title="Edicao da politica selecionada"
+        description="Ajuste perfil, alcance e acoes permitidas. Cada mudanca gera um registro administrativo."
       >
         <div v-if="selectedEntry && selectedRuntimeEntry" class="grid gap-5">
           <div class="flex flex-wrap gap-2">
@@ -257,7 +266,7 @@ function savePermissionChanges() {
 
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Perfil</span>
+              <span class="text-sm font-semibold text-slate-600">Perfil</span>
               <select
                 v-model="form.profileKey"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -273,7 +282,7 @@ function savePermissionChanges() {
             </label>
 
             <label class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Escopo</span>
+              <span class="text-sm font-semibold text-slate-600">Escopo</span>
               <select
                 v-model="form.scopeType"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -290,8 +299,42 @@ function savePermissionChanges() {
           </div>
 
           <div class="grid gap-4 rounded-[24px] border border-slate-200 bg-slate-50/75 p-4">
-            <div v-if="form.scopeType === 'queue'" class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fila</span>
+            <div v-if="form.scopeType === 'polo'" class="grid gap-2">
+              <span class="text-sm font-semibold text-slate-600">Polo</span>
+              <select
+                :value="form.scopeValues[0] || ''"
+                class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                @change="updateSingleScopeValue($event.target.value)"
+              >
+                <option value="">Selecione</option>
+                <option
+                  v-for="polo in runtime.catalogs.polos"
+                  :key="polo.value"
+                  :value="polo.value"
+                >
+                  {{ polo.label }}
+                </option>
+              </select>
+            </div>
+
+            <div v-else-if="form.scopeType === 'multi_polo'" class="grid gap-3">
+              <span class="text-sm font-semibold text-slate-600">Multiplos polos</span>
+              <label
+                v-for="polo in runtime.catalogs.polos"
+                :key="polo.value"
+                class="inner-panel flex items-center justify-between gap-3 p-4"
+              >
+                <span class="text-sm font-semibold text-slate-900">{{ polo.label }}</span>
+                <input
+                  :checked="form.scopeValues.includes(polo.value)"
+                  type="checkbox"
+                  @change="toggleScopeValue(polo.value, $event.target.checked)"
+                />
+              </label>
+            </div>
+
+            <div v-else-if="form.scopeType === 'fila'" class="grid gap-2">
+              <span class="text-sm font-semibold text-slate-600">Fila</span>
               <select
                 :value="form.scopeValues[0] || ''"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -308,8 +351,24 @@ function savePermissionChanges() {
               </select>
             </div>
 
+            <div v-else-if="form.scopeType === 'multi_fila'" class="grid gap-3">
+              <span class="text-sm font-semibold text-slate-600">Multiplas filas</span>
+              <label
+                v-for="queue in runtime.catalogs.queues"
+                :key="queue.value"
+                class="inner-panel flex items-center justify-between gap-3 p-4"
+              >
+                <span class="text-sm font-semibold text-slate-900">{{ queue.label }}</span>
+                <input
+                  :checked="form.scopeValues.includes(queue.value)"
+                  type="checkbox"
+                  @change="toggleScopeValue(queue.value, $event.target.checked)"
+                />
+              </label>
+            </div>
+
             <div v-else-if="form.scopeType === 'area'" class="grid gap-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Area</span>
+              <span class="text-sm font-semibold text-slate-600">Area</span>
               <select
                 :value="form.scopeValues[0] || ''"
                 class="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
@@ -326,8 +385,8 @@ function savePermissionChanges() {
               </select>
             </div>
 
-            <div v-else-if="form.scopeType === 'areas'" class="grid gap-3">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Multiplas areas</span>
+            <div v-else-if="form.scopeType === 'multi_area'" class="grid gap-3">
+              <span class="text-sm font-semibold text-slate-600">Multiplas areas</span>
               <label
                 v-for="area in runtime.catalogs.areas"
                 :key="area.value"
@@ -337,21 +396,21 @@ function savePermissionChanges() {
                 <input
                   :checked="form.scopeValues.includes(area.value)"
                   type="checkbox"
-                  @change="toggleAreaScopeValue(area.value, $event.target.checked)"
+                  @change="toggleScopeValue(area.value, $event.target.checked)"
                 />
               </label>
             </div>
 
             <div v-else class="inner-panel p-4">
-              <p class="text-sm font-semibold text-slate-900">Todas as areas</p>
+              <p class="text-sm font-semibold text-slate-900">Escopo global</p>
               <p class="mt-2 text-sm leading-6 text-slate-600">
-                Este escopo expande a visibilidade para todas as areas e filas mapeadas no sistema.
+                Este escopo expande a visibilidade para todas as areas, filas e polos mapeados no sistema.
               </p>
             </div>
           </div>
 
           <div class="grid gap-3">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Acoes permitidas</p>
+            <p class="text-sm font-semibold text-slate-600">Acoes permitidas</p>
             <label
               v-for="action in runtime.catalogs.actions"
               :key="action.value"
@@ -371,7 +430,7 @@ function savePermissionChanges() {
           </div>
 
           <label class="grid gap-2">
-            <span class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Nota operacional</span>
+            <span class="text-sm font-semibold text-slate-600">Observacao</span>
             <textarea
               v-model="form.note"
               rows="4"
@@ -382,10 +441,10 @@ function savePermissionChanges() {
           <div class="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              class="rounded-[18px] bg-[var(--color-primary)] px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-[0_12px_28px_rgba(209,50,57,0.18)]"
+              class="rounded-[18px] bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.18)]"
               @click="savePermissionChanges"
             >
-              Aplicar alteracao mock
+              Salvar alteracao
             </button>
             <span
               v-if="ui.lastAuditMessage"
@@ -397,7 +456,7 @@ function savePermissionChanges() {
         </div>
 
         <div v-else class="inner-panel p-6">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Nenhuma politica selecionada</p>
+          <p class="text-xs font-semibold text-slate-500">Nenhuma politica selecionada</p>
           <h3 class="mt-3 text-2xl font-semibold text-slate-950">Selecione uma entrada da matriz.</h3>
         </div>
       </SectionPanel>
@@ -407,7 +466,7 @@ function savePermissionChanges() {
       <SectionPanel
         eyebrow="Visibilidade"
         title="Filas visiveis por perfil"
-        description="A tabela abaixo deixa explicito quais perfis enxergam cada fila e quais perfis exercem governanca sobre ela."
+        description="Veja quais perfis acompanham cada fila e quais assumem governanca sobre ela."
       >
         <div class="grid gap-3">
           <article
@@ -417,7 +476,7 @@ function savePermissionChanges() {
           >
             <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Fila</p>
+                <p class="text-sm font-semibold text-slate-500">Fila</p>
                 <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ queue.queue }}</h3>
                 <p class="mt-2 text-sm leading-6 text-slate-600">
                   Perfis com acesso: {{ queue.profiles.join(', ') || 'Nenhum' }}
@@ -435,7 +494,7 @@ function savePermissionChanges() {
       <SectionPanel
         eyebrow="Auditoria admin"
         title="Mudancas de permissao"
-        description="Cada alteracao de politica gera um log administrativo com ator, data/hora e snapshot antes/depois."
+        description="Cada alteracao registra ator, data e comparacao entre antes e depois."
       >
         <div class="grid gap-3">
           <article
@@ -445,7 +504,7 @@ function savePermissionChanges() {
           >
             <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <p class="text-xs font-semibold text-slate-500">
                   {{ log.targetEntryId }}
                 </p>
                 <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ log.summary }}</h3>
@@ -458,18 +517,18 @@ function savePermissionChanges() {
 
             <div class="mt-5 grid gap-3 md:grid-cols-2">
               <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Antes</p>
+                <p class="text-sm font-semibold text-slate-500">Antes</p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">
-                  {{ log.before.scopeType }} - {{ (log.before.scopeValues || []).join(', ') || 'todas as areas' }}
+                  {{ log.before.scopeType }} - {{ (log.before.scopeValues || []).join(', ') || 'global' }}
                 </p>
                 <p class="mt-2 text-sm text-slate-600">
                   {{ Object.keys(log.before.allowedActions || {}).filter((key) => log.before.allowedActions[key]).join(', ') }}
                 </p>
               </div>
               <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Depois</p>
+                <p class="text-sm font-semibold text-slate-500">Depois</p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">
-                  {{ log.after.scopeType }} - {{ (log.after.scopeValues || []).join(', ') || 'todas as areas' }}
+                  {{ log.after.scopeType }} - {{ (log.after.scopeValues || []).join(', ') || 'global' }}
                 </p>
                 <p class="mt-2 text-sm text-slate-600">
                   {{ Object.keys(log.after.allowedActions || {}).filter((key) => log.after.allowedActions[key]).join(', ') }}

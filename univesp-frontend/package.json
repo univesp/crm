@@ -9,8 +9,11 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:local": "vite --host 0.0.0.0 --port 8080",
     "build": "vite build",
     "preview": "vite preview",
+    "preview:local": "vite preview --host 0.0.0.0 --port 8080",
+    "review": "vite build --mode development && npm run preview:local",
     "lint": "eslint . --ext .js,.vue --max-warnings=0",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "check": "npm run lint && npm run typecheck && npm run build"

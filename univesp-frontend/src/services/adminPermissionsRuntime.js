@@ -1,4 +1,6 @@
 import { adminPermissionsDraft } from '../../mocks/adminPermissions'
+import { mockAccessProfiles } from '../../mocks/mockAccessProfiles'
+import { buildPoloQueueLabel } from '@/services/caseRoutingRuntime'
 
 export const PERMISSION_ACTION_CATALOG = Object.freeze({
   view_case: Object.freeze({
@@ -40,18 +42,17 @@ export const PERMISSION_ACTION_CATALOG = Object.freeze({
 })
 
 export const PERMISSION_SCOPE_CATALOG = Object.freeze({
-  queue: Object.freeze({ label: 'Uma fila' }),
+  polo: Object.freeze({ label: 'Um polo' }),
+  multi_polo: Object.freeze({ label: 'Multi-polo' }),
+  fila: Object.freeze({ label: 'Uma fila' }),
+  multi_fila: Object.freeze({ label: 'Multi-fila' }),
   area: Object.freeze({ label: 'Uma area' }),
-  areas: Object.freeze({ label: 'Multiplas areas' }),
-  all_areas: Object.freeze({ label: 'Todas as areas' }),
+  multi_area: Object.freeze({ label: 'Multi-area' }),
+  global: Object.freeze({ label: 'Global' }),
 })
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value))
-}
-
-function normalizeText(value = '') {
-  return String(value).trim().toLowerCase()
 }
 
 function formatTimestamp(currentDate = new Date()) {
@@ -81,26 +82,25 @@ function buildQueueCatalog(dashboardData, areas = []) {
   }))
 }
 
+function buildPoloCatalog(dashboardData) {
+  const polos = uniqueBy([
+    ...(dashboardData?.activeCases || []).map((entry) => entry.polo),
+    ...mockAccessProfiles.flatMap((profile) => profile.linkedPolos || []),
+  ])
+
+  return polos.map((polo) => ({
+    id: polo,
+    label: polo,
+  }))
+}
+
 function buildAreaCatalog(areas = [], queues = []) {
   const queueSet = new Set(queues.map((queue) => queue.id))
-  const catalog = [...areas].map((area) => ({
+
+  return [...areas].map((area) => ({
     ...area,
     queues: (area.queues || []).filter((queue) => queueSet.has(queue)),
   }))
-
-  for (const queue of queues) {
-    const alreadyMapped = catalog.some((area) => area.queues.includes(queue.id))
-
-    if (!alreadyMapped) {
-      catalog.push({
-        id: `dynamic-${normalizeText(queue.id).replaceAll(' ', '-')}`,
-        label: queue.label,
-        queues: [queue.id],
-      })
-    }
-  }
-
-  return catalog
 }
 
 function buildAreaMap(areas = []) {
@@ -111,19 +111,85 @@ function buildProfileMap(profiles = []) {
   return Object.fromEntries(profiles.map((profile) => [profile.key, profile]))
 }
 
-function resolveScope(entry, areaMap, allAreas = []) {
+function buildPoloQueueMap(activeCases = []) {
+  const map = new Map()
+
+  for (const entry of activeCases) {
+    if (!entry.polo) {
+      continue
+    }
+
+    if (!map.has(entry.polo)) {
+      map.set(entry.polo, new Set())
+    }
+
+    map.get(entry.polo).add(entry.queue)
+  }
+
+  return map
+}
+
+function resolveAreaLabelsFromQueues(queues = [], allAreas = []) {
+  return uniqueBy(
+    allAreas
+      .filter((area) => area.queues.some((queue) => queues.includes(queue)))
+      .map((area) => area.label),
+  )
+}
+
+function resolveQueuesForPolos(scopeValues = [], poloQueueMap = new Map()) {
+  return uniqueBy(
+    scopeValues.flatMap((polo) => {
+      const mappedQueues = [...(poloQueueMap.get(polo) || [])]
+      return mappedQueues.length ? mappedQueues : [buildPoloQueueLabel(polo)]
+    }),
+  )
+}
+
+function resolveScope(entry, { areaMap, allAreas, poloQueueMap }) {
   const scopeType = entry.scopeType
   const scopeValues = entry.scopeValues || []
 
-  if (scopeType === 'queue') {
+  if (scopeType === 'polo') {
+    const visiblePolos = scopeValues.slice(0, 1)
+    const visibleQueues = resolveQueuesForPolos(visiblePolos, poloQueueMap)
+
     return {
-      scopeLabel: 'Uma fila',
+      scopeLabel: PERMISSION_SCOPE_CATALOG.polo.label,
+      visiblePolos,
+      visibleQueues,
+      areaLabels: resolveAreaLabelsFromQueues(visibleQueues, allAreas),
+    }
+  }
+
+  if (scopeType === 'multi_polo') {
+    const visibleQueues = resolveQueuesForPolos(scopeValues, poloQueueMap)
+
+    return {
+      scopeLabel: PERMISSION_SCOPE_CATALOG.multi_polo.label,
+      visiblePolos: scopeValues,
+      visibleQueues,
+      areaLabels: resolveAreaLabelsFromQueues(visibleQueues, allAreas),
+    }
+  }
+
+  if (scopeType === 'fila') {
+    const visibleQueues = scopeValues.slice(0, 1)
+
+    return {
+      scopeLabel: PERMISSION_SCOPE_CATALOG.fila.label,
+      visiblePolos: [],
+      visibleQueues,
+      areaLabels: resolveAreaLabelsFromQueues(visibleQueues, allAreas),
+    }
+  }
+
+  if (scopeType === 'multi_fila') {
+    return {
+      scopeLabel: PERMISSION_SCOPE_CATALOG.multi_fila.label,
+      visiblePolos: [],
       visibleQueues: scopeValues,
-      areaLabels: uniqueBy(
-        allAreas
-          .filter((area) => area.queues.some((queue) => scopeValues.includes(queue)))
-          .map((area) => area.label),
-      ),
+      areaLabels: resolveAreaLabelsFromQueues(scopeValues, allAreas),
     }
   }
 
@@ -131,24 +197,27 @@ function resolveScope(entry, areaMap, allAreas = []) {
     const area = areaMap[scopeValues[0]]
 
     return {
-      scopeLabel: 'Uma area',
+      scopeLabel: PERMISSION_SCOPE_CATALOG.area.label,
+      visiblePolos: [],
       visibleQueues: area?.queues || [],
       areaLabels: area ? [area.label] : [],
     }
   }
 
-  if (scopeType === 'areas') {
-    const areas = scopeValues.map((areaId) => areaMap[areaId]).filter(Boolean)
+  if (scopeType === 'multi_area') {
+    const selectedAreas = scopeValues.map((areaId) => areaMap[areaId]).filter(Boolean)
 
     return {
-      scopeLabel: 'Multiplas areas',
-      visibleQueues: uniqueBy(areas.flatMap((area) => area.queues || [])),
-      areaLabels: areas.map((area) => area.label),
+      scopeLabel: PERMISSION_SCOPE_CATALOG.multi_area.label,
+      visiblePolos: [],
+      visibleQueues: uniqueBy(selectedAreas.flatMap((area) => area.queues || [])),
+      areaLabels: selectedAreas.map((area) => area.label),
     }
   }
 
   return {
-    scopeLabel: 'Todas as areas',
+    scopeLabel: PERMISSION_SCOPE_CATALOG.global.label,
+    visiblePolos: uniqueBy([...poloQueueMap.keys()]),
     visibleQueues: uniqueBy(allAreas.flatMap((area) => area.queues || [])),
     areaLabels: allAreas.map((area) => area.label),
   }
@@ -169,8 +238,8 @@ function buildGovernedAreas(areaLabels = [], allowedActions = []) {
   return hasGovernanceAction ? areaLabels : []
 }
 
-function buildMatrixEntry(entry, profileMap, areaMap, allAreas) {
-  const scope = resolveScope(entry, areaMap, allAreas)
+function buildMatrixEntry(entry, profileMap, scopeContext) {
+  const scope = resolveScope(entry, scopeContext)
   const allowedActions = buildAllowedActions(entry.allowedActions)
   const profile = profileMap[entry.profileKey]
 
@@ -178,6 +247,7 @@ function buildMatrixEntry(entry, profileMap, areaMap, allAreas) {
     ...entry,
     profileLabel: profile?.label || entry.profileKey,
     scopeLabel: scope.scopeLabel,
+    visiblePolos: scope.visiblePolos,
     visibleQueues: scope.visibleQueues,
     visibleQueueCount: scope.visibleQueues.length,
     areaLabels: scope.areaLabels,
@@ -189,6 +259,7 @@ function buildMatrixEntry(entry, profileMap, areaMap, allAreas) {
 
 function buildProfileImpact(profile, matrixEntries = []) {
   const entries = matrixEntries.filter((entry) => entry.profileKey === profile.key)
+  const visiblePolos = uniqueBy(entries.flatMap((entry) => entry.visiblePolos))
   const visibleQueues = uniqueBy(entries.flatMap((entry) => entry.visibleQueues))
   const administeredAreas = uniqueBy(entries.flatMap((entry) => entry.administeredAreas))
   const allowedActions = uniqueBy(entries.flatMap((entry) => entry.allowedActionLabels))
@@ -196,6 +267,7 @@ function buildProfileImpact(profile, matrixEntries = []) {
   return {
     ...profile,
     totalPolicies: entries.length,
+    visiblePolos,
     visibleQueues,
     administeredAreas,
     allowedActions,
@@ -232,7 +304,7 @@ function summarizeDiff(before, after) {
   }
 
   if (JSON.stringify(before.scopeValues) !== JSON.stringify(after.scopeValues)) {
-    changes.push('fila/area')
+    changes.push('alcance')
   }
 
   if (JSON.stringify(before.allowedActions) !== JSON.stringify(after.allowedActions)) {
@@ -301,11 +373,18 @@ export function applyPermissionEntryUpdate({
 export function buildAdminPermissionsRuntime({ dashboardData, draft }) {
   const profiles = draft?.profiles || []
   const queues = buildQueueCatalog(dashboardData, draft?.areas || [])
+  const polos = buildPoloCatalog(dashboardData)
   const areas = buildAreaCatalog(draft?.areas || [], queues)
   const areaMap = buildAreaMap(areas)
   const profileMap = buildProfileMap(profiles)
+  const poloQueueMap = buildPoloQueueMap(dashboardData?.activeCases || [])
+  const scopeContext = {
+    areaMap,
+    allAreas: areas,
+    poloQueueMap,
+  }
   const matrixEntries = (draft?.matrix || []).map((entry) =>
-    buildMatrixEntry(entry, profileMap, areaMap, areas),
+    buildMatrixEntry(entry, profileMap, scopeContext),
   )
   const profileImpacts = profiles.map((profile) => buildProfileImpact(profile, matrixEntries))
   const queueVisibility = buildQueueVisibility(matrixEntries, queues)
@@ -314,6 +393,7 @@ export function buildAdminPermissionsRuntime({ dashboardData, draft }) {
   return {
     profiles,
     areas,
+    polos,
     queues,
     matrixEntries,
     profileImpacts,
@@ -354,6 +434,10 @@ export function buildAdminPermissionsRuntime({ dashboardData, draft }) {
       profiles: profiles.map((profile) => ({
         value: profile.key,
         label: profile.label,
+      })),
+      polos: polos.map((polo) => ({
+        value: polo.id,
+        label: polo.label,
       })),
       areas: areas.map((area) => ({
         value: area.id,

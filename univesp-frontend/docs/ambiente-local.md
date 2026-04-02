@@ -56,23 +56,63 @@ npm install
 
 ## Variaveis de ambiente
 
-1. copiar `.env.example` para `.env.local`
+1. para primeira configuracao, usar um dos perfis locais prontos:
+   - `.env.local.admin`
+   - `.env.local.op`
+   - `.env.local.aluno`
 2. manter `VITE_ENABLE_MOCKS=true` nesta fase
-3. nao usar endpoints reais enquanto o backend nao estiver habilitado
+3. manter `VITE_SSO_DEV_BYPASS=true` para testes locais sem gateway
+4. manter `VITE_FRAPPE_PROXY_TARGET=` e `VITE_FRAPPE_SOCKETIO_TARGET=` vazios quando nao houver backend local
+5. nao usar endpoints reais enquanto o backend nao estiver habilitado
 
 Exemplo:
-
-```bash
-cp .env.example .env.local
-```
 
 No PowerShell:
 
 ```powershell
-Copy-Item .env.example .env.local
+.\scripts\use-admin.ps1
 ```
 
 Se o PowerShell bloquear `npm.ps1`, usar `npm.cmd` ou ajustar a politica de execucao local conforme a TI definir.
+
+## Alternancia de perfis locais
+
+Atalhos disponiveis:
+
+- `.\scripts\use-admin.ps1`
+- `.\scripts\use-op.ps1`
+- `.\scripts\use-aluno.ps1`
+
+Se a politica de execucao do PowerShell bloquear a chamada direta, use:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\use-admin.ps1`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\use-op.ps1`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\use-aluno.ps1`
+
+Cada script copia o respectivo arquivo de perfil para `.env.local`, `.env.development.local` e `.env.production.local`:
+
+- `use-admin.ps1` -> `.env.local.admin`
+- `use-op.ps1` -> `.env.local.op`
+- `use-aluno.ps1` -> `.env.local.aluno`
+
+Perfis configurados:
+
+- admin/gestao: `admin@univesp.br`
+- OP/area: `op@polo.univesp.br`
+- aluno: `teste@aluno.univesp.br`
+
+Entrada local mais simples:
+
+- abra `http://localhost:8080/crm/acesso-local`
+- escolha `Admin e gestao`, `OP e area` ou `Aluno`
+- o frontend grava o perfil local no navegador e redireciona para a area correspondente
+
+Importante:
+
+- depois de trocar o perfil, pare e suba o Vite novamente
+- o bypass de SSO e lido no startup do `npm run dev`
+- em `development`, o arquivo local com maior precedencia e `.env.development.local`
+- esses perfis nao usam senha; o frontend local entra em modo bypass/mock
 
 ## Comandos de desenvolvimento
 
@@ -80,14 +120,65 @@ Se o PowerShell bloquear `npm.ps1`, usar `npm.cmd` ou ajustar a politica de exec
 npm run dev
 ```
 
-Padrao atual:
+Padrao dos perfis locais prontos:
 
 - host dev: `0.0.0.0`
-- porta dev: `4176`
+- porta dev: `8080`
 - host preview: `0.0.0.0`
-- porta preview: `4177`
+- porta preview: `8080`
 
-Esses valores podem ser ajustados por `.env.local` via `VITE_DEV_HOST`, `VITE_DEV_PORT`, `VITE_PREVIEW_HOST`, `VITE_PREVIEW_PORT` e `VITE_APP_BASE`.
+Esses valores podem ser ajustados por `.env.local` ou `.env.development.local` via `VITE_DEV_HOST`, `VITE_DEV_PORT`, `VITE_PREVIEW_HOST`, `VITE_PREVIEW_PORT` e `VITE_APP_BASE`.
+
+Fluxo recomendado:
+
+```powershell
+Set-Location C:\Users\bruno\Documents\crm\univesp-frontend
+npm run dev
+```
+
+Depois de subir o Vite:
+
+- abra `http://localhost:8080/crm/acesso-local`
+- selecione o perfil desejado
+
+Alternativa quando o PowerShell bloquear a execucao direta do script:
+
+```powershell
+Set-Location C:\Users\bruno\Documents\crm\univesp-frontend
+powershell -ExecutionPolicy Bypass -File .\scripts\use-admin.ps1
+npm run dev
+```
+
+Se trocar para outro perfil enquanto o Vite estiver aberto:
+
+1. interrompa o processo atual
+2. rode o script do novo perfil
+3. suba `npm run dev` novamente
+
+## Rotas para teste local por perfil
+
+Base local:
+
+- `http://localhost:8080/crm/`
+- `http://localhost:8080/crm/acesso-local`
+
+Admin / Gestao:
+
+- `http://localhost:8080/crm/admin/dashboard`
+- `http://localhost:8080/crm/admin/faq`
+- `http://localhost:8080/crm/admin/parametros`
+- `http://localhost:8080/crm/admin/permissoes`
+- `http://localhost:8080/crm/admin/publicacao`
+
+OP / Area:
+
+- `http://localhost:8080/crm/op/fila`
+- `http://localhost:8080/crm/op/playbook`
+
+Aluno:
+
+- `http://localhost:8080/crm/aluno`
+- `http://localhost:8080/crm/aluno/solicitacoes`
 
 ## Comandos de validacao
 
@@ -96,6 +187,7 @@ npm run lint
 npm run typecheck
 npm run build
 npm run preview
+npm run review
 ```
 
 Comando agregado:
@@ -110,6 +202,8 @@ Scripts propostos:
 
 - `scripts/setup-local.ps1`
 - `scripts/setup-local.sh`
+- `scripts/start-review.ps1`
+- `scripts/start-review.cmd`
 
 Eles fazem apenas:
 
@@ -142,6 +236,40 @@ No ambiente atual, o Codex encontrou estes bloqueios:
 - `npm.ps1` ficou sujeito a politica de execucao do PowerShell
 - `npm install` e `npm run build` precisaram de permissao ampliada para sair do sandbox
 - o `preview` nao foi mantido aberto nesta automacao porque ele exige um processo interativo em execucao continua
+
+## Fluxo recomendado para homologacao visual estavel
+
+Quando a prioridade for revisar interface e navegacao, prefira `build + preview` em vez de `npm run dev`.
+
+Opcao mais simples no Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-review.ps1 -LocalProfile aluno
+```
+
+Ou pelo atalho `.cmd`:
+
+```cmd
+scripts\start-review.cmd aluno
+```
+
+Perfis aceitos:
+
+- `aluno`
+- `op`
+- `admin`
+
+Esse fluxo faz:
+
+1. ativa o perfil local escolhido
+2. roda `vite build --mode development`
+3. sobe `npm run preview:local`
+4. mantem o terminal servindo `http://localhost:8080/crm/`
+
+Importante:
+
+- mantenha o terminal aberto durante a homologacao
+- use `Ctrl + C` para encerrar o preview
 
 ## Observacao para o futuro modulo do Sistema de Polos
 

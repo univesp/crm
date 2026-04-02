@@ -8,6 +8,7 @@ import {
   buildFaqAttendanceRecord,
   buildProtocolDraft,
   buildResolvedState,
+  buildStudentFollowUpSubmission,
   validateProtocolDraft,
 } from '@/services/studentSupportFlow'
 import {
@@ -15,6 +16,7 @@ import {
   buildOperatorCaseDetail,
   buildOperatorQueueEntries as buildOperatorQueueRuntime,
 } from '@/services/operatorQueueRuntime'
+import { buildOperatorAssistedCase } from '@/services/operatorIntakeRuntime'
 import { buildAdminDashboardData } from '@/services/adminDashboardRuntime'
 import { studentProtocols } from '../../mocks/operations'
 
@@ -28,6 +30,7 @@ function defaultState() {
     protocolDraft: null,
     records: [],
     protocols: [],
+    operatorProtocols: [],
     analyticsEvents: [],
     operatorActionLogs: [],
   }
@@ -68,6 +71,9 @@ export const useStudentSupportStore = defineStore('studentSupport', {
     latestProtocol(state) {
       return state.protocols[0] || null
     },
+    latestOperatorProtocol(state) {
+      return state.operatorProtocols[0] || null
+    },
     latestOperatorAction(state) {
       return state.operatorActionLogs[state.operatorActionLogs.length - 1] || null
     },
@@ -83,26 +89,31 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       })
     },
     operatorQueueEntries(state) {
-      return buildOperatorQueueRuntime({
-        protocols: state.protocols,
-        actionLogs: state.operatorActionLogs,
-      })
+      return (viewerContext = null) =>
+        buildOperatorQueueRuntime({
+          protocols: [...state.protocols, ...state.operatorProtocols],
+          actionLogs: state.operatorActionLogs,
+          viewerContext,
+        })
     },
     operatorCaseById(state) {
-      return (caseId) =>
+      return (caseId, viewerContext = null) =>
         buildOperatorCaseDetail({
           caseId,
-          protocols: state.protocols,
+          protocols: [...state.protocols, ...state.operatorProtocols],
           records: state.records,
           actionLogs: state.operatorActionLogs,
+          viewerContext,
         })
     },
     adminDashboardData(state) {
-      return buildAdminDashboardData({
-        protocols: state.protocols,
-        records: state.records,
-        actionLogs: state.operatorActionLogs,
-      })
+      return (viewerContext = null) =>
+        buildAdminDashboardData({
+          protocols: [...state.protocols, ...state.operatorProtocols],
+          records: state.records,
+          actionLogs: state.operatorActionLogs,
+          viewerContext,
+        })
     },
   },
   actions: {
@@ -120,6 +131,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
           protocolDraft: this.protocolDraft,
           records: this.records,
           protocols: this.protocols,
+          operatorProtocols: this.operatorProtocols,
           analyticsEvents: this.analyticsEvents,
           operatorActionLogs: this.operatorActionLogs,
         }),
@@ -271,8 +283,49 @@ export const useStudentSupportStore = defineStore('studentSupport', {
     findLocalProtocolById(protocolId) {
       return this.protocols.find((protocol) => protocol.protocolNumber === protocolId) || null
     },
-    registerOperatorAction({ caseId, actionType, note = '', playbook, currentDate = new Date() }) {
-      const caseEntry = this.operatorQueueEntries.find((entry) => entry.id === caseId) || null
+    createOperatorAssistedCase({
+      studentData,
+      context,
+      verifiedSummary = '',
+      contactChannel = 'telefone',
+      actorName = '',
+      actionType = 'open_case',
+      playbook = null,
+      currentDate = new Date(),
+    }) {
+      const createdCase = buildOperatorAssistedCase({
+        studentData,
+        context,
+        verifiedSummary,
+        contactChannel,
+        actorName,
+        currentDate,
+      })
+
+      this.operatorProtocols = [createdCase, ...this.operatorProtocols]
+
+      let actionLog = null
+
+      if (actionType === 'request_info' || actionType === 'escalate') {
+        actionLog = this.registerOperatorAction({
+          caseId: createdCase.protocolNumber,
+          actionType,
+          note: verifiedSummary,
+          playbook,
+          actorName,
+          currentDate,
+        })
+      } else {
+        this.persistState()
+      }
+
+      return {
+        caseItem: createdCase,
+        actionLog,
+      }
+    },
+    registerOperatorAction({ caseId, actionType, note = '', playbook, actorName = '', currentDate = new Date() }) {
+      const caseEntry = this.operatorQueueEntries().find((entry) => entry.id === caseId) || null
 
       if (!caseEntry) {
         return null
@@ -283,6 +336,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         actionType,
         note,
         playbook,
+        actorName,
         currentDate,
       })
 
@@ -290,6 +344,43 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       this.persistState()
 
       return actionLog
+    },
+    submitRequestFollowUp({
+      requestId,
+      note = '',
+      attachments = [],
+      currentDate = new Date(),
+    }) {
+      const normalizedId = String(requestId || '').trim()
+      if (!normalizedId) {
+        return null
+      }
+
+      const existingProtocol = this.protocols.find((protocol) => protocol.protocolNumber === normalizedId) || null
+      const seedEntry = studentProtocols.find((protocol) => protocol.id === normalizedId) || null
+
+      if (!existingProtocol && !seedEntry) {
+        return null
+      }
+
+      const updatedProtocol = buildStudentFollowUpSubmission({
+        existingProtocol,
+        seedEntry,
+        note,
+        attachmentNames: attachments,
+        currentDate,
+      })
+
+      if (existingProtocol) {
+        this.protocols = this.protocols.map((protocol) =>
+          protocol.protocolNumber === normalizedId ? updatedProtocol : protocol,
+        )
+      } else {
+        this.protocols = [updatedProtocol, ...this.protocols]
+      }
+
+      this.persistState()
+      return updatedProtocol
     },
   },
 })

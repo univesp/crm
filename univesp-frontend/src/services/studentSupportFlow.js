@@ -1,4 +1,7 @@
+import loggedStudent from '../../mocks/usuario-logado.json'
+import { buildCaseRoutingContext } from '@/services/caseRoutingRuntime'
 import { faqAdminSettings } from '../../mocks/faqAdminSettings'
+import { STUDENT_REQUEST_STATES } from '@/services/studentPortalRuntime'
 
 function pad(value) {
   return String(value).padStart(2, '0')
@@ -57,6 +60,40 @@ function buildContextSubject(node) {
   return node.titulo_exibido || [node.tema, node.subtema].filter(Boolean).join(' / ')
 }
 
+export function formatStudentFacingStatusLabel(status = '') {
+  const normalized = String(status || '').trim().toLowerCase()
+
+  if (!normalized) {
+    return 'Em andamento'
+  }
+
+  if (normalized.includes('resolvido pela faq') || normalized.includes('respondido pelo op')) {
+    return 'Respondida no portal'
+  }
+
+  if (normalized.includes('aguardando complementacao')) {
+    return 'Aguardando sua resposta'
+  }
+
+  if (
+    normalized.includes('aguardando acao do op') ||
+    normalized.includes('aguardando ação do op') ||
+    normalized.includes('aguardando triagem')
+  ) {
+    return 'Em analise inicial'
+  }
+
+  if (normalized.includes('escalado para area interna')) {
+    return 'Em analise'
+  }
+
+  if (normalized.includes('conclu')) {
+    return 'Concluida'
+  }
+
+  return status
+}
+
 export function formatProtocolFieldLabel(field) {
   const labels = {
     descricao: 'Descricao complementar',
@@ -70,6 +107,14 @@ export function formatProtocolFieldLabel(field) {
 export function buildFaqAttendanceContext({ node, lineage, sessionId, currentDate = new Date() }) {
   const timestamp = buildTimestampParts(currentDate)
   const highlight = resolveCalendarHighlight(lineage, node)
+  const routing = buildCaseRoutingContext({
+    studentPolo: loggedStudent.polo,
+    theme: node.tema,
+    subtheme: node.subtema,
+    queueDestination: node.fila_destino,
+    criticality: node.criticidade_padrao,
+    entryOrigin: loggedStudent.origem_autenticacao || 'Acesso Unificado',
+  })
 
   return {
     sessionId,
@@ -90,6 +135,9 @@ export function buildFaqAttendanceContext({ node, lineage, sessionId, currentDat
     criticality: node.criticidade_padrao,
     sla: node.sla_padrao,
     calendarHighlight: highlight,
+    studentPolo: loggedStudent.polo,
+    entryOrigin: routing.entryOrigin,
+    routing,
     opensTicket: Boolean(node.abre_atendimento),
     allowsAttachment: Boolean(node.permite_anexo),
     requiredFields: Array.isArray(node.campos_exigidos) ? [...node.campos_exigidos] : [],
@@ -101,13 +149,17 @@ export function buildFaqAttendanceRecord({ context, outcome, currentDate = new D
   const timestamp = buildTimestampParts(currentDate)
   const recordId = `ATD-${timestamp.compact}`
   const statusLabel =
-    outcome === 'resolved_by_faq' ? 'Resolvido pela FAQ com registro' : 'Aguardando continuidade do protocolo'
+    outcome === 'resolved_by_faq' ? 'Respondida no portal' : 'Aguardando continuidade da solicitacao'
 
   return {
     id: recordId,
     createdAt: timestamp.iso,
     createdAtLabel: timestamp.label,
     outcome,
+    studentState:
+      outcome === 'resolved_by_faq'
+        ? STUDENT_REQUEST_STATES.ANSWERED_IN_PORTAL
+        : STUDENT_REQUEST_STATES.WAITING,
     statusLabel,
     source: 'faq_aluno',
     subject: context.subject,
@@ -117,7 +169,7 @@ export function buildFaqAttendanceRecord({ context, outcome, currentDate = new D
     pendingLabel:
       outcome === 'resolved_by_faq'
         ? 'Nenhuma pendencia'
-        : 'Preencher o protocolo com descricao complementar',
+        : 'Completar a solicitacao, se necessario',
     context,
   }
 }
@@ -130,6 +182,7 @@ export function buildProtocolDraft({ context, sourceRecordId, currentDate = new 
     sourceRecordId,
     createdAt: timestamp.iso,
     createdAtLabel: timestamp.label,
+    studentState: STUDENT_REQUEST_STATES.DRAFT,
     title: faqAdminSettings.protocolDraft.title,
     description: faqAdminSettings.protocolDraft.description,
     context,
@@ -144,6 +197,8 @@ export function buildProtocolDraft({ context, sourceRecordId, currentDate = new 
       displayedAnswer: context.displayedAnswer,
       action: context.action,
       queueDestination: context.queueDestination,
+      routingQueue: context.routing.currentQueueLabel,
+      routingArea: context.routing.targetAreaLabel,
       criticality: context.criticality,
       sla: context.sla,
       description: '',
@@ -213,7 +268,7 @@ export function buildSubmittedProtocol({ draft, currentDate = new Date() }) {
   }))
   const description =
     draft.form.description?.trim() ||
-    'O aluno iniciou o protocolo com o contexto herdado da FAQ e sem descricao complementar.'
+    'A solicitacao foi iniciada com o contexto da orientacao exibida no portal.'
 
   return {
     id: protocolNumber,
@@ -224,34 +279,43 @@ export function buildSubmittedProtocol({ draft, currentDate = new Date() }) {
     updatedAt: timestamp.iso,
     updatedAtLabel: timestamp.label,
     statusCode: 'aguardando_acao_op',
-    statusLabel: 'Aguardando acao do OP',
+    studentState: STUDENT_REQUEST_STATES.WAITING,
+    statusLabel: draft.context.routing.exceptionToCentral
+      ? 'Aguardando triagem central'
+      : 'Aguardando acao do OP',
     statusGroup: 'submitted',
     subject: draft.form.subject,
     priorityLabel,
-    queueLabel: draft.context.queueDestination,
+    queueLabel: draft.context.routing.currentQueueLabel,
+    lastMileAreaLabel: draft.context.routing.targetAreaLabel,
     slaLabel: draft.context.sla,
-    pendingLabel: 'Aguardando triagem inicial da operacao',
+    pendingLabel: draft.context.routing.exceptionToCentral
+      ? 'Aguardando triagem inicial da central'
+      : 'Aguardando triagem inicial da operacao',
     context: draft.context,
     attachments,
     timeline: [
       {
         id: `TL-${timestamp.compact}-1`,
-        title: 'FAQ finalizada com continuidade',
-        description: 'O aluno chegou ao no folha da FAQ e optou por continuar com atendimento.',
+        title: 'Orientacao concluida no portal',
+        description:
+          'Voce recebeu a orientacao oficial e escolheu continuar com a solicitacao.',
         atLabel: timestamp.label,
         tone: 'info',
       },
       {
         id: `TL-${timestamp.compact}-2`,
-        title: 'Protocolo mockado enviado',
-        description: `O portal gerou o protocolo ${protocolNumber} para a fila ${draft.context.queueDestination}.`,
+        title: 'Solicitacao enviada',
+        description: `O portal registrou sua solicitacao com o numero ${protocolNumber}.`,
         atLabel: timestamp.label,
         tone: 'primary',
       },
       {
         id: `TL-${timestamp.compact}-3`,
-        title: 'Aguardando acao do OP',
-        description: `Status inicial definido com SLA ${draft.context.sla} e criticidade ${draft.context.criticality}.`,
+        title: draft.context.routing.exceptionToCentral
+          ? 'Em analise inicial'
+          : 'Recebida pela equipe responsavel',
+        description: `${draft.context.routing.assignmentRuleLabel} Prazo inicial estimado: ${draft.context.sla}.`,
         atLabel: timestamp.label,
         tone: 'warning',
       },
@@ -267,8 +331,79 @@ export function buildSubmittedProtocol({ draft, currentDate = new Date() }) {
       {
         id: `INT-${timestamp.compact}-2`,
         actor: 'Sistema',
-        channel: 'FAQ oficial',
-        text: `Contexto herdado: ${draft.context.breadcrumb.join(' > ')}.`,
+        channel: 'Orientacao oficial',
+        text: `Resumo do caminho: ${draft.context.breadcrumb.join(' > ')}.`,
+        atLabel: timestamp.label,
+      },
+    ],
+  }
+}
+
+export function buildStudentFollowUpSubmission({
+  existingProtocol = null,
+  seedEntry = null,
+  note = '',
+  attachmentNames = [],
+  currentDate = new Date(),
+}) {
+  const timestamp = buildTimestampParts(currentDate)
+  const protocolNumber = existingProtocol?.protocolNumber || seedEntry?.id || `UVSP-${timestamp.compact}`
+  const subject = existingProtocol?.subject || seedEntry?.subject || 'Solicitacao em acompanhamento'
+  const existingAttachments = Array.isArray(existingProtocol?.attachments) ? existingProtocol.attachments : []
+  const newAttachments = attachmentNames.map((name, index) => ({
+    id: `ATT-${timestamp.compact}-${index + 1}`,
+    name,
+    status: 'Enviado pelo aluno no portal',
+  }))
+  const interactionText =
+    note?.trim() || (attachmentNames.length ? 'Documento complementar enviado pelo aluno no portal.' : 'Atualizacao enviada pelo aluno no portal.')
+  const timelineTitle = attachmentNames.length ? 'Complementacao enviada pelo aluno' : 'Resposta enviada pelo aluno'
+  const timelineDescription = attachmentNames.length
+    ? 'O aluno enviou novos documentos para continuar a analise.'
+    : 'O aluno enviou novas informacoes pelo portal para continuar o atendimento.'
+
+  return {
+    id: protocolNumber,
+    protocolNumber,
+    sourceRecordId: existingProtocol?.sourceRecordId || '',
+    createdAt: existingProtocol?.createdAt || timestamp.iso,
+    createdAtLabel: existingProtocol?.createdAtLabel || timestamp.label,
+    updatedAt: timestamp.iso,
+    updatedAtLabel: timestamp.label,
+    statusCode: 'aguardando_reanalise',
+    studentState: STUDENT_REQUEST_STATES.WAITING,
+    statusLabel: 'Aguardando nova analise',
+    statusGroup: 'submitted',
+    subject,
+    priorityLabel: existingProtocol?.priorityLabel || seedEntry?.priority || 'Media',
+    queueLabel: existingProtocol?.queueLabel || 'Equipe responsavel',
+    lastMileAreaLabel: existingProtocol?.lastMileAreaLabel || 'Atendimento institucional',
+    slaLabel: existingProtocol?.slaLabel || seedEntry?.sla || 'Em acompanhamento',
+    pendingLabel: 'Aguardando nova analise da equipe',
+    context:
+      existingProtocol?.context || {
+        breadcrumb: [],
+        finalNode: { title: subject },
+        displayedAnswer: '',
+      },
+    attachments: [...existingAttachments, ...newAttachments],
+    timeline: [
+      ...(Array.isArray(existingProtocol?.timeline) ? existingProtocol.timeline : []),
+      {
+        id: `TL-${timestamp.compact}-follow-up`,
+        title: timelineTitle,
+        description: timelineDescription,
+        atLabel: timestamp.label,
+        tone: 'primary',
+      },
+    ],
+    interactions: [
+      ...(Array.isArray(existingProtocol?.interactions) ? existingProtocol.interactions : []),
+      {
+        id: `INT-${timestamp.compact}-follow-up`,
+        actor: 'Aluno',
+        channel: 'Portal do atendimento',
+        text: interactionText,
         atLabel: timestamp.label,
       },
     ],
@@ -292,6 +427,8 @@ export function buildAnalyticsEvent({ name, context, currentDate = new Date() })
       queueDestination: context?.queueDestination || null,
       criticality: context?.criticality || null,
       sla: context?.sla || null,
+      routingQueue: context?.routing?.currentQueueLabel || null,
+      routingArea: context?.routing?.targetAreaLabel || null,
       calendarHighlight: context?.calendarHighlight?.label || null,
     },
   }
@@ -314,7 +451,7 @@ export function mapRecordToStudentProtocolCard(record) {
   return {
     id: record.id,
     subject: record.subject,
-    status: record.statusLabel,
+    status: formatStudentFacingStatusLabel(record.statusLabel),
     priority: priorityLabel,
     sla: record.context.sla,
     updatedAt: record.createdAtLabel,
@@ -330,7 +467,7 @@ export function mapDraftToStudentRequestCard(draft) {
   return {
     id: draft.id,
     subject: draft.form.subject,
-    status: 'Rascunho do protocolo',
+    status: 'Em preenchimento',
     priority: priorityLabel,
     sla: draft.context.sla,
     updatedAt: draft.createdAtLabel,
@@ -343,7 +480,7 @@ export function mapProtocolToStudentRequestCard(protocol) {
   return {
     id: protocol.protocolNumber,
     subject: protocol.subject,
-    status: protocol.statusLabel,
+    status: formatStudentFacingStatusLabel(protocol.statusLabel),
     priority: protocol.priorityLabel,
     sla: protocol.slaLabel,
     updatedAt: protocol.updatedAtLabel,
@@ -375,7 +512,7 @@ export function buildStudentRequestGroups({
     const normalizedCard = {
       id: protocol.id,
       subject: protocol.subject,
-      status: protocol.status,
+      status: formatStudentFacingStatusLabel(protocol.status),
       priority: protocol.priority,
       sla: protocol.sla,
       updatedAt: protocol.updatedAt,

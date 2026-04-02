@@ -51,7 +51,7 @@ async function handleSubmitTicket() {
       <MetricCard label="Doctype alvo" :value="draft.doctype" hint="Placeholder configuravel por ambiente." />
       <MetricCard label="Fila sugerida" :value="draft.queue" hint="Resultado direto da triagem guiada." />
       <MetricCard label="SLA alvo" :value="draft.sla" hint="Usado para priorizar o atendimento." />
-      <MetricCard label="Protocolo" :value="draft.protocol" hint="Referencia unica para chatbot e handoff." />
+      <MetricCard label="Protocolo" :value="draft.protocol" hint="Referencia unica para ticket, fila e last mile." />
     </section>
 
     <div class="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
@@ -103,7 +103,7 @@ JSON.stringify(draft.payload, null, 2)
         <SectionPanel
           eyebrow="Operacoes"
           title="Chamadas previstas"
-          description="Sequencia sugerida para abrir o ticket, gravar contexto e preparar o handoff."
+          description="Sequencia sugerida para abrir o ticket, gravar contexto e preparar a continuidade humana."
         >
           <div class="grid gap-3">
             <div
@@ -126,7 +126,7 @@ JSON.stringify(draft.payload, null, 2)
         <SectionPanel
           eyebrow="Modelagem"
           title="Notas para o backend"
-          description="Decisoes que valem ser fechadas cedo para evitar retrabalho entre CRM, IA e operacao."
+          description="Decisoes que valem ser fechadas cedo para evitar retrabalho entre CRM, filas e operacao."
         >
           <div class="grid gap-3">
             <div
@@ -145,13 +145,6 @@ JSON.stringify(draft.payload, null, 2)
             Integracao ativa: o frontend ja criou um documento real no Frappe CRM e guardou o
             retorno mais recente desta sessao.
           </div>
-
-          <RouterLink
-            to="/chat-ia"
-            class="mt-5 inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
-          >
-            Ver a etapa do chatbot
-          </RouterLink>
         </SectionPanel>
       </div>
     </div>

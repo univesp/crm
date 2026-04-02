@@ -53,9 +53,9 @@
   --radius-sm: 12px;
   --radius-md: 18px;
   --radius-lg: 28px;
-  --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 18px 48px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 26px 70px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 20px 56px rgba(0, 0, 0, 0.08);
   --border-default: rgba(16, 18, 20, 0.08);
 }
 
@@ -67,9 +67,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 10% 10%, rgba(209, 50, 57, 0.12), transparent 24%),
-    radial-gradient(circle at 88% 18%, rgba(128, 130, 133, 0.14), transparent 24%),
-    linear-gradient(180deg, #fbfbfc 0%, #ffffff 48%, #f4f5f7 100%);
+    radial-gradient(circle at 10% 10%, rgba(209, 50, 57, 0.08), transparent 24%),
+    radial-gradient(circle at 88% 18%, rgba(128, 130, 133, 0.08), transparent 24%),
+    linear-gradient(180deg, #fafafb 0%, #ffffff 56%, #f6f7f8 100%);
   color: var(--color-text);
   font-family: var(--font-body);
 }
@@ -128,15 +128,15 @@ select {
   .surface-panel {
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.96);
     box-shadow: var(--shadow-md);
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(10px);
   }
 
   .inner-panel {
     border: 1px solid var(--border-default);
     border-radius: calc(var(--radius-md) + 2px);
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 255, 255, 0.98);
     box-shadow: var(--shadow-sm);
   }
 
@@ -147,12 +147,11 @@ select {
     border: 1px solid rgba(209, 50, 57, 0.14);
     border-radius: 999px;
     background: var(--color-primary-soft);
-    padding: 0.375rem 0.75rem;
+    padding: 0.4rem 0.8rem;
     color: var(--color-primary-dark);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
+    letter-spacing: 0.12em;
   }
 
   .nav-link {
@@ -160,8 +159,8 @@ select {
     align-items: flex-start;
     gap: var(--space-3);
     border: 1px solid transparent;
-    border-radius: 22px;
-    padding: 0.875rem 1rem;
+    border-radius: 20px;
+    padding: 0.8rem 0.95rem;
     transition:
       transform 0.2s ease,
       background-color 0.2s ease,
@@ -176,7 +175,7 @@ select {
   }
 
   .nav-link:not(.is-active) {
-    background: rgba(255, 255, 255, 0.64);
+    background: rgba(255, 255, 255, 0.8);
     color: var(--color-text);
   }
 
@@ -190,8 +189,8 @@ select {
     width: 100%;
     border: 1px solid var(--border-default);
     border-radius: 22px;
-    background: rgba(255, 255, 255, 0.78);
-    padding: 1rem;
+    background: rgba(255, 255, 255, 0.94);
+    padding: 0.95rem;
     text-align: left;
     transition:
       transform 0.2s ease,
@@ -201,7 +200,7 @@ select {
   }
 
   .option-button:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     border-color: rgba(209, 50, 57, 0.18);
     background: var(--color-neutral-0);
     box-shadow: var(--shadow-sm);
@@ -210,7 +209,7 @@ select {
   .option-button.is-active {
     border-color: rgba(209, 50, 57, 0.4);
     background: var(--color-primary-soft);
-    box-shadow: 0 14px 28px rgba(209, 50, 57, 0.12);
+    box-shadow: 0 10px 22px rgba(209, 50, 57, 0.08);
   }
 
   .login-primary-button {
@@ -305,10 +304,50 @@ select {
     display: inline-flex;
     align-items: center;
     border-radius: 999px;
-    padding: 0.375rem 0.75rem;
-    font-size: var(--font-size-xs);
+    padding: 0.45rem 0.8rem;
+    font-size: 0.8125rem;
     font-weight: 700;
     line-height: 1;
+  }
+
+  .student-focus-ring {
+    transition:
+      transform 0.2s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .student-focus-ring:focus-visible {
+    outline: none;
+    border-color: rgba(209, 50, 57, 0.28);
+    box-shadow:
+      0 0 0 2px var(--color-neutral-0),
+      0 0 0 5px rgba(209, 50, 57, 0.34);
+  }
+
+  .student-section-label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #45515c;
+  }
+
+  .shell-student .soft-chip {
+    background: #fbecef;
+    color: #a61f28;
+  }
+
+  .shell-operational .soft-chip {
+    background: #eef5fb;
+    color: #005f99;
+    border-color: rgba(0, 95, 153, 0.14);
+  }
+
+  .shell-governance .soft-chip {
+    background: #eff5f2;
+    color: #1a6f43;
+    border-color: rgba(26, 111, 67, 0.14);
   }
 
   .badge-neutral {

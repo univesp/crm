@@ -82,7 +82,7 @@ import { personaJourneys } from '../../mocks/personas'
     <SectionPanel
       eyebrow="Arquitetura"
       title="Blocos de integracao do prototipo"
-      description="Aqui fica a vista de alto nivel para plugar frontend, backend Frappe, IA e autenticacao institucional sem misturar responsabilidades."
+      description="Aqui fica a vista de alto nivel para plugar frontend, backend Frappe e autenticacao institucional sem misturar responsabilidades."
     >
       <div class="grid gap-4 xl:grid-cols-2">
         <div

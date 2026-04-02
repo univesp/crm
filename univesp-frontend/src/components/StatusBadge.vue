@@ -15,7 +15,39 @@ const toneClass = computed(() => {
     return 'badge-criticality-high'
   }
 
-  if (label.includes('alta') || label.includes('acao') || label.includes('aguardando')) {
+  if (label.includes('urgente') || label.includes('atrasad')) {
+    return 'badge-danger'
+  }
+
+  if (label.includes('faq')) {
+    return 'badge-success'
+  }
+
+  if (label.includes('respondido op') || label.includes('respondido pelo op')) {
+    return 'badge-info'
+  }
+
+  if (label.includes('acao') || label.includes('sua acao')) {
+    return 'badge-danger'
+  }
+
+  if (label.includes('respondid')) {
+    return 'badge-info'
+  }
+
+  if (label.includes('respondida no portal')) {
+    return 'badge-info'
+  }
+
+  if (label.includes('conclu')) {
+    return 'badge-success'
+  }
+
+  if (label.includes('alta') || label.includes('aguardando')) {
+    return 'badge-warning'
+  }
+
+  if (label.includes('pendente')) {
     return 'badge-warning'
   }
 
@@ -36,7 +68,7 @@ const toneClass = computed(() => {
 </script>
 
 <template>
-  <span :class="['badge-base', toneClass]">
+  <span :class="['badge-base', toneClass]" :aria-label="`Status: ${label}`">
     {{ label }}
   </span>
 </template>

@@ -69,10 +69,10 @@ export function getFrappeOperations(flow) {
       detail: 'Persiste respostas, canal, SSO e dados do aluno.',
     },
     {
-      name: 'Atualizar timeline do bot',
+      name: 'Registrar contexto de atendimento',
       method: 'POST',
-      endpoint: '/api/method/univesp.api.ticket.append_chat_summary',
-      detail: 'Guarda o resumo do chatbot antes do handoff.',
+      endpoint: '/api/method/univesp.api.ticket.append_attendance_context',
+      detail: 'Guarda o resumo da triagem e do handoff operacional.',
     },
     {
       name: 'Transferir para fila humana',
@@ -86,7 +86,7 @@ export function getFrappeOperations(flow) {
 export const frappeModelNotes = [
   'Preferir sessao/cookie do Frappe para navegacao web; nao embutir api_secret em VITE_.',
   'Definir se o ticket sera Issue, HD Ticket ou DocType customizado.',
-  'Persistir transcript resumido e nao a conversa completa por default.',
+  'Persistir resumo de triagem e handoff, sem depender de conversa automatica.',
   'Guardar o estado da triagem em campo JSON para reuso posterior.',
   'Planejar eventos para atualizacao em tempo real da fila do atendente.',
 ]
@@ -134,20 +134,20 @@ export async function attachTriageContext({
   })
 }
 
-export async function appendChatSummary({
+export async function appendAttendanceContext({
   documentName,
   protocol,
   flow,
-  conversationPreview,
-  transferBrief,
+  triageSummary,
+  handoffSummary,
 }) {
-  return callFrappeMethod('univesp.api.ticket.append_chat_summary', {
+  return callFrappeMethod('univesp.api.ticket.append_attendance_context', {
     document_name: documentName,
     custom_protocol: protocol,
     custom_flow_id: flow.id,
     custom_queue: flow.queue,
-    summary: conversationPreview,
-    handoff_context: transferBrief,
+    triage_context: triageSummary,
+    handoff_context: handoffSummary,
   })
 }
 
