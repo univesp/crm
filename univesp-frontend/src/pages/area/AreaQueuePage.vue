@@ -17,11 +17,14 @@ const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 const route = useRoute()
 const isAreaManager = computed(() => auth.mockContext.profileKey === 'gestor_area')
+const isMultiAreaAnalyst = computed(
+  () => !isAreaManager.value && (auth.mockContext.linkedAreas || []).length > 1,
+)
 const showAssigneeColumn = computed(() => isAreaManager.value)
 const tableGridClass = computed(() =>
   showAssigneeColumn.value
-    ? 'lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.75fr)_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.95fr)_auto]'
-    : 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.8fr)_minmax(0,1.7fr)_minmax(0,2.4fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]'
+    ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_minmax(0,0.95fr)_minmax(0,1.35fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.95fr)_auto]'
+    : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_minmax(0,0.95fr)_minmax(0,1.45fr)_minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,0.95fr)_auto]'
 )
 
 const PAGE_INCREMENT = 20
@@ -46,7 +49,7 @@ const groupOpenState = reactive({
 const bucketDefinitions = [
   {
     id: 'needs_review',
-    label: 'Precisa da minha analise',
+    label: 'Para resolver',
     activeClass: 'border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.88)] text-[var(--color-danger)]',
     inactiveClass: 'border-[rgba(166,31,40,0.16)] bg-white text-[var(--color-danger)]',
     rowClass: 'bg-[rgba(166,31,40,0.78)]',
@@ -64,7 +67,7 @@ const bucketDefinitions = [
   },
   {
     id: 'rerouted',
-    label: 'Reencaminhados',
+    label: 'Excecoes e reencaminhados',
     activeClass: 'border-[rgba(8,115,145,0.2)] bg-[rgba(224,242,254,0.92)] text-[#0b6e8c]',
     inactiveClass: 'border-[rgba(8,115,145,0.16)] bg-white text-[#0b6e8c]',
     rowClass: 'bg-[rgba(8,115,145,0.78)]',
@@ -91,6 +94,7 @@ const bucketDefinitions = [
 function buildDefaultFilters() {
   return {
     search: '',
+    area: 'todos',
     status: 'todos',
     owner: 'todos',
     scopeState: 'todos',
@@ -183,15 +187,29 @@ function applyRouteFilters(query = {}) {
     filters.owner = owner
   }
 
+  const area = String(query.areaFilter || '').trim()
+  if (area && filterOptions.value.area.some((option) => option.value === area)) {
+    filters.area = area
+  }
+
   const status = String(query.status || '').trim()
   if (status && filterOptions.value.status.some((option) => option.value === status)) {
     filters.status = status
   }
 }
 
+const areaViewerContext = computed(() =>
+  isAreaManager.value
+    ? auth.mockContext
+    : {
+        ...auth.mockContext,
+        currentArea: '',
+      },
+)
+
 const queueEntries = computed(() => {
   refreshTick.value
-  return studentSupportStore.areaQueueEntries(auth.mockContext)
+  return studentSupportStore.areaQueueEntries(areaViewerContext.value)
 })
 const filterOptions = computed(() => buildAreaQueueFilterOptions(queueEntries.value))
 const utilityFilteredEntries = computed(() =>
@@ -218,10 +236,12 @@ function compareEntries(left, right, field) {
       return compareText(left.student, right.student)
     case 'ra':
       return compareText(left.studentRa, right.studentRa)
+    case 'polo':
+      return compareText(left.polo, right.polo)
     case 'subject':
       return compareText(left.subject, right.subject)
-    case 'handoff':
-      return compareText(left.contextFromOp, right.contextFromOp)
+    case 'next_step':
+      return compareText(left.nextStepLabel, right.nextStepLabel)
     case 'status':
       return compareText(left.areaStatusLabel, right.areaStatusLabel)
     case 'owner':
@@ -276,12 +296,22 @@ const scopeBadges = computed(() => {
 
   if (auth.mockContext.profileKey === 'gestor_area') {
     badges.push(`Escopo: ${auth.mockContext.currentArea}`)
+  } else if (isMultiAreaAnalyst.value) {
+    badges.push('Escopo: todas as minhas areas')
   } else {
     badges.push(auth.mockContext.currentArea)
   }
 
   return badges
 })
+
+const queueIntro = computed(() =>
+  isAreaManager.value
+    ? 'Use a fila para abrir casos da area e intervir quando necessario.'
+    : isMultiAreaAnalyst.value
+      ? 'Use esta fila unica para resolver seus casos em todas as areas do seu escopo. Reencaminhamentos ficam como excecao operacional.'
+      : 'Use a fila para resolver seus casos primeiro. Reencaminhamentos ficam como excecao operacional, nao como saida normal.',
+)
 
 const quickBuckets = computed(() =>
   bucketDefinitions.map((bucket) => ({
@@ -295,11 +325,11 @@ const quickBuckets = computed(() =>
 )
 
 const analystScopeShortcuts = computed(() => [
-  { id: 'todos', label: 'Todos do meu escopo' },
   { id: 'mine', label: 'Meus casos' },
   { id: 'unassigned', label: 'Sem responsavel' },
-  { id: 'returned_to_me', label: 'Devolvidos para mim' },
   { id: 'waiting_complement', label: 'Aguardando complemento' },
+  { id: 'returned_to_me', label: 'Voltaram para mim' },
+  { id: 'todos', label: 'Todos do meu escopo' },
 ])
 
 const activeFilterChips = computed(() => {
@@ -316,6 +346,13 @@ const activeFilterChips = computed(() => {
     chips.push({
       key: 'status',
       label: `Status: ${filters.status}`,
+    })
+  }
+
+  if (filters.area !== 'todos') {
+    chips.push({
+      key: 'area',
+      label: `Area: ${filters.area}`,
     })
   }
 
@@ -503,6 +540,10 @@ onUnmounted(() => {
           </span>
         </div>
 
+        <p class="text-sm leading-6 text-slate-600">
+          {{ queueIntro }}
+        </p>
+
         <div v-if="!isAreaManager" class="flex flex-wrap gap-2">
           <button
             v-for="scope in analystScopeShortcuts"
@@ -546,8 +587,20 @@ onUnmounted(() => {
               v-model="filters.search"
               type="search"
               class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
-              placeholder="Protocolo, RA, aluno, assunto ou contexto do OP"
+              placeholder="Protocolo, RA, aluno, polo ou assunto"
             />
+          </label>
+
+          <label v-if="isMultiAreaAnalyst" class="grid min-w-[220px] gap-2">
+            <span class="text-sm font-semibold text-slate-700">Area</span>
+            <select
+              v-model="filters.area"
+              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+            >
+              <option v-for="option in filterOptions.area" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
           </label>
 
           <label class="grid min-w-[220px] gap-2">
@@ -626,14 +679,19 @@ onUnmounted(() => {
               RA <span aria-hidden="true">{{ sortMarker('ra') }}</span>
             </button>
           </div>
+          <div :id="headerId('polo')" role="columnheader" :aria-sort="ariaSort('polo')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('polo')">
+              Polo <span aria-hidden="true">{{ sortMarker('polo') }}</span>
+            </button>
+          </div>
           <div :id="headerId('subject')" role="columnheader" :aria-sort="ariaSort('subject')">
             <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('subject')">
               Assunto <span aria-hidden="true">{{ sortMarker('subject') }}</span>
             </button>
           </div>
-          <div :id="headerId('handoff')" role="columnheader" :aria-sort="ariaSort('handoff')">
-            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('handoff')">
-              Contexto recebido do OP <span aria-hidden="true">{{ sortMarker('handoff') }}</span>
+          <div :id="headerId('next_step')" role="columnheader" :aria-sort="ariaSort('next_step')">
+            <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('next_step')">
+              O que falta <span aria-hidden="true">{{ sortMarker('next_step') }}</span>
             </button>
           </div>
           <div v-if="showAssigneeColumn" :id="headerId('owner')" role="columnheader" :aria-sort="ariaSort('owner')">
@@ -687,13 +745,20 @@ onUnmounted(() => {
                       <div :aria-labelledby="headerId('ra')" class="text-sm text-slate-700">
                         {{ entry.studentRa || 'Nao informado' }}
                       </div>
+                      <div :aria-labelledby="headerId('polo')" class="text-sm text-slate-700">
+                        {{ entry.polo || 'Nao informado' }}
+                      </div>
                       <div :aria-labelledby="headerId('subject')">
                         <p class="text-sm font-semibold leading-6 text-slate-900">{{ entry.subject }}</p>
                         <p class="mt-1 text-xs text-slate-500">{{ entry.id }}</p>
+                        <p v-if="isMultiAreaAnalyst" class="mt-1 text-xs font-semibold text-[#0b6e8c]">
+                          Area: {{ entry.currentAreaLabel }}
+                        </p>
                       </div>
-                      <div :aria-labelledby="headerId('handoff')">
-                        <p class="text-sm leading-6 text-slate-700">{{ entry.contextFromOp }}</p>
-                        <p class="mt-1 text-xs text-slate-500">
+                      <div :aria-labelledby="headerId('next_step')">
+                        <p class="text-sm leading-6 text-slate-700">{{ entry.nextStepLabel }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ entry.pendingLabel }}</p>
+                        <p class="hidden mt-1 text-xs text-slate-500">
                           {{ entry.handoffByLabel }} · {{ entry.handoffAtLabel }}
                         </p>
                       </div>
@@ -751,13 +816,20 @@ onUnmounted(() => {
                   <div :aria-labelledby="headerId('ra')" class="text-sm text-slate-700">
                     {{ entry.studentRa || 'Nao informado' }}
                   </div>
+                  <div :aria-labelledby="headerId('polo')" class="text-sm text-slate-700">
+                    {{ entry.polo || 'Nao informado' }}
+                  </div>
                   <div :aria-labelledby="headerId('subject')">
                     <p class="text-sm font-semibold leading-6 text-slate-900">{{ entry.subject }}</p>
                     <p class="mt-1 text-xs text-slate-500">{{ entry.id }}</p>
+                    <p v-if="isMultiAreaAnalyst" class="mt-1 text-xs font-semibold text-[#0b6e8c]">
+                      Area: {{ entry.currentAreaLabel }}
+                    </p>
                   </div>
-                  <div :aria-labelledby="headerId('handoff')">
-                    <p class="text-sm leading-6 text-slate-700">{{ entry.contextFromOp }}</p>
-                    <p class="mt-1 text-xs text-slate-500">
+                  <div :aria-labelledby="headerId('next_step')">
+                    <p class="text-sm leading-6 text-slate-700">{{ entry.nextStepLabel }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ entry.pendingLabel }}</p>
+                    <p class="hidden mt-1 text-xs text-slate-500">
                       {{ entry.handoffByLabel }} · {{ entry.handoffAtLabel }}
                     </p>
                   </div>

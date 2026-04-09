@@ -18,6 +18,8 @@ const actionNoteRef = ref(null)
 const actionFeedback = ref({ type: '', message: '' })
 const noteError = ref('')
 const destinationError = ref('')
+const reassignReasonError = ref('')
+const reassignVerifiedError = ref('')
 const isSubmitting = ref(false)
 const pendingConfirmationAction = ref('')
 const confirmationPanelRef = ref(null)
@@ -26,8 +28,37 @@ const selectedAssignee = ref('')
 const assignmentReason = ref('')
 const assignmentFeedback = ref({ type: '', message: '' })
 const assignmentError = ref('')
+const selectedReassignReason = ref('')
+const reassignVerifiedContext = ref('')
 
-const detail = computed(() => studentSupportStore.areaCaseById(route.params.caseId, auth.mockContext))
+const REASSIGN_REASON_OPTIONS = [
+  {
+    value: 'assunto_de_outra_area',
+    label: 'O assunto pertence a outra area',
+  },
+  {
+    value: 'dependencia_exclusiva',
+    label: 'Depende de validacao exclusiva de outra area',
+  },
+  {
+    value: 'entrada_incorreta',
+    label: 'O caso entrou na area errada',
+  },
+  {
+    value: 'excecao_operacional',
+    label: 'Excecao operacional validada',
+  },
+]
+
+const areaViewerContext = computed(() =>
+  isAreaManager.value
+    ? auth.mockContext
+    : {
+        ...auth.mockContext,
+        currentArea: '',
+      },
+)
+const detail = computed(() => studentSupportStore.areaCaseById(route.params.caseId, areaViewerContext.value))
 const queueFlashStorageKey = computed(() => `univesp-area-queue-flash:${auth.mockContext.profileKey}`)
 const teamMembers = computed(() =>
   detail.value ? studentSupportStore.areaTeamMembers(detail.value.currentAreaLabel || auth.mockContext.currentArea) : [],
@@ -46,21 +77,6 @@ const guidanceRoute = computed(() => {
     },
   }
 })
-const knowledgeRoute = computed(() => {
-  if (!detail.value) {
-    return '/area/orientacao'
-  }
-
-  return {
-    path: '/area/orientacao',
-    query: {
-      theme: detail.value.themeKey,
-      subsubject: detail.value.subsubjectKey,
-      caseId: detail.value.id,
-      mode: 'suggest',
-    },
-  }
-})
 const isManagerExceptionSelected = computed(
   () =>
     isAreaManager.value &&
@@ -68,28 +84,73 @@ const isManagerExceptionSelected = computed(
     selectedDestinationArea.value &&
     !detail.value?.standardAreas?.includes(selectedDestinationArea.value),
 )
+
+function buildActionAvailabilityState(detailValue) {
+  if (!detailValue) {
+    return { canAct: false, reason: 'Caso indisponivel.' }
+  }
+
+  if (
+    !isAreaManager.value &&
+    detailValue.currentAssigneeLabel &&
+    detailValue.currentAssigneeLabel !== 'Sem responsavel' &&
+    normalizeText(detailValue.currentAssigneeLabel) !== normalizeText(auth.mockContext.userName)
+  ) {
+    return {
+      canAct: false,
+      reason: `Este caso esta atribuido para ${detailValue.currentAssigneeLabel}. Redistribua pelo gestor antes de atuar.`,
+    }
+  }
+
+  const status = normalizeText(detailValue.status)
+
+  if (status.includes('respondido pela area') || status.includes('concluido pela area') || status.includes('reencaminhado')) {
+    return {
+      canAct: false,
+      reason: 'A area ja concluiu a atuacao principal neste caso. Ele fica disponivel apenas para consulta.',
+    }
+  }
+
+  if (status.includes('complementacao solicitada pela area')) {
+    return {
+      canAct: false,
+      reason: 'O caso esta aguardando o polo complementar subsidios antes de nova analise da area.',
+    }
+  }
+
+  return {
+    canAct: true,
+    reason: '',
+  }
+}
+
 const ownershipSummary = computed(() => {
   if (!detail.value) {
     return []
   }
 
-  return [
-    {
-      label: 'Responsavel atual',
-      value: detail.value.currentAssigneeLabel || 'Sem responsavel',
-    },
-    {
-      label: 'Escopo do assunto',
-      value:
-        detail.value.subjectScopeRule?.accessMode === 'restricted'
-          ? 'Restrito a analistas selecionados'
-          : 'Aberto para o time da area',
-    },
-    {
-      label: 'Dono do caso',
-      value: detail.value.currentAssigneeLabel ? 'Caso atribuido' : 'Caso sem dono',
-    },
-  ]
+  if (isAreaManager.value) {
+    const assignee = detail.value.currentAssigneeLabel || 'Sem responsavel'
+    return [
+      {
+        label: 'Responsavel atual',
+        value: assignee,
+      },
+      {
+        label: 'Escopo do assunto',
+        value:
+          detail.value.subjectScopeRule?.accessMode === 'restricted'
+            ? 'Restrito a analistas selecionados'
+            : 'Aberto para o time da area',
+      },
+      {
+        label: 'Dono do caso',
+        value: detail.value.currentAssigneeLabel ? 'Caso atribuido' : 'Caso sem dono',
+      },
+    ]
+  }
+
+  return []
 })
 
 const latestRoutingDecision = computed(() =>
@@ -176,6 +237,14 @@ const headerMeta = computed(() => {
       key: 'ra',
       label: studentData.ra ? `RA ${studentData.ra}` : 'RA nao informado',
     },
+    {
+      key: 'polo',
+      label: `Polo ${studentData.polo || 'Nao informado'}`,
+    },
+    {
+      key: 'area',
+      label: `Area ${detail.value.currentAreaLabel || 'Nao informada'}`,
+    },
     { key: 'protocol', label: `Protocolo ${detail.value.id}` },
     { key: 'status', label: detail.value.areaStatusLabel },
   ]
@@ -211,6 +280,84 @@ const exchangeItems = computed(() => {
     }))
 })
 
+const decisionSuggestion = computed(() => {
+  if (!detail.value) {
+    return null
+  }
+
+  const attachments = Array.isArray(detail.value.attachments) ? detail.value.attachments.length : 0
+  const requiredDocuments = detail.value.playbook?.documentsRequested || []
+  const systemsToCheck = detail.value.playbook?.systemsToCheck || []
+  const needsComplement = requiredDocuments.length > 0 && attachments === 0
+
+  if (needsComplement) {
+    return {
+      actionId: 'request_complement',
+      title: 'Saida sugerida: solicitar complementacao',
+      description: 'Ainda faltam evidencias basicas. O caminho normal aqui e pedir complemento ao aluno e ao polo.',
+      toneClass: 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.4)] text-[#8a5200]',
+    }
+  }
+
+  if (systemsToCheck.length > 0) {
+    return {
+      actionId: 'technical_reply',
+      title: 'Saida sugerida: validar e enviar resposta',
+      description: 'O caso ja tem base inicial. Confira os sistemas indicados e, se nao surgir impeditivo, responda.',
+      toneClass: 'border-[rgba(209,50,57,0.18)] bg-[rgba(253,236,237,0.35)] text-[var(--color-primary-dark)]',
+    }
+  }
+
+  return {
+    actionId: 'technical_reply',
+    title: 'Saida sugerida: enviar resposta',
+    description: 'Nao ha sinal forte de dependencia de outra area. Se a checagem estiver coerente, resolva aqui.',
+    toneClass: 'border-[rgba(209,50,57,0.18)] bg-[rgba(253,236,237,0.35)] text-[var(--color-primary-dark)]',
+  }
+})
+
+const preDecisionChecks = computed(() => {
+  if (!detail.value) {
+    return []
+  }
+
+  const attachments = Array.isArray(detail.value.attachments) ? detail.value.attachments : []
+  const requiredDocuments = detail.value.playbook?.documentsRequested || []
+  const systemsToCheck = detail.value.playbook?.systemsToCheck || []
+  const evidenceMissing = requiredDocuments.length > 0 && attachments.length === 0
+
+  return [
+    {
+      title: 'Ha base para responder?',
+      toneClass: evidenceMissing
+        ? 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.36)]'
+        : 'border-[rgba(26,111,67,0.16)] bg-[rgba(220,252,231,0.25)]',
+      statusLabel: evidenceMissing ? 'Ainda nao' : 'Sim, ha base inicial',
+      helperText: requiredDocuments.length > 0
+        ? evidenceMissing
+          ? `Faltam ${requiredDocuments.join(', ')}.`
+          : `Documentos obrigatorios recebidos.`
+        : 'Nao ha documento obrigatorio pendente.',
+    },
+    {
+      title: 'Ainda falta alguma checagem?',
+      toneClass: systemsToCheck.length
+        ? 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.32)]'
+        : 'border-slate-200 bg-white',
+      statusLabel: systemsToCheck.length ? 'Sim, ha checagem pendente' : 'Nao ha checagem obrigatoria aberta',
+      helperText: systemsToCheck.length
+        ? `Consulte ${systemsToCheck.join(', ')} antes de responder.`
+        : 'Nada bloqueia a resposta por sistema.',
+    },
+    {
+      title: 'Depende mesmo de outra area?',
+      toneClass: 'border-slate-200 bg-white',
+      statusLabel: 'Use isso so como excecao',
+      helperText: 'Se sua area consegue resolver, responda ou peca complemento.',
+    },
+  ]
+})
+
 const actionOptions = computed(() => {
   if (!detail.value) {
     return []
@@ -219,25 +366,27 @@ const actionOptions = computed(() => {
   return [
     {
       id: 'technical_reply',
-      title: 'Responder tecnicamente',
-      description: 'A area ja tem base suficiente para devolver uma analise tecnica ao polo.',
-      submitLabel: 'Registrar resposta tecnica',
-      fieldLabel: 'Resposta tecnica',
-      previewLabel: 'Resposta que sera registrada',
-      placeholder: 'Registre a devolutiva tecnica que o OP devera usar na orientacao ao aluno.',
+      kind: 'primary',
+      title: 'Enviar resposta ao aluno',
+      description: 'Saida normal quando a area ja tiver base suficiente para resolver o caso.',
+      submitLabel: 'Enviar resposta ao aluno',
+      fieldLabel: 'Resposta final para aluno e OP',
+      previewLabel: 'Resposta final que sera enviada ao aluno e ao OP',
+      placeholder: 'Escreva a resposta final que o aluno vai receber. O OP recebera o mesmo texto para finalizar o caso.',
       toneClass:
         selectedAction.value === 'technical_reply'
-          ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.06)] text-[var(--color-primary-dark)]'
-          : 'border-slate-200 bg-white text-slate-700',
+          ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.08)] text-[var(--color-primary-dark)] shadow-[0_10px_24px_rgba(166,31,40,0.08)]'
+          : 'border-[rgba(209,50,57,0.16)] bg-white text-slate-700',
     },
     {
       id: 'request_complement',
-      title: 'Devolver para complementacao',
-      description: 'A area ainda precisa de subsidios, evidencias ou nova validacao antes da resposta final.',
-      submitLabel: 'Registrar pedido de complementacao',
-      fieldLabel: 'Complementacao solicitada',
-      previewLabel: 'Complementacao que sera cobrada do polo',
-      placeholder: 'Explique o que o OP ainda precisa complementar para a area retomar a analise.',
+      kind: 'secondary',
+      title: 'Solicitar complementacao',
+      description: 'Use quando ainda faltarem subsidios, evidencias ou nova validacao antes da resposta final.',
+      submitLabel: 'Solicitar complementacao',
+      fieldLabel: 'Solicitacao para aluno e OP',
+      previewLabel: 'Complementacao que sera enviada ao aluno e ao OP',
+      placeholder: 'Explique o que ainda falta para a area retomar a analise do caso.',
       toneClass:
         selectedAction.value === 'request_complement'
           ? 'border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.18)] text-[#9a5b00]'
@@ -245,35 +394,30 @@ const actionOptions = computed(() => {
     },
     {
       id: 'reassign',
-      title: 'Reencaminhar',
-      description: 'Outra area especializada precisa assumir a tratativa a partir deste ponto.',
-      submitLabel: 'Continuar para reencaminhamento',
-      fieldLabel: 'Briefing para a area de destino',
-      previewLabel: 'Contexto que sera enviado para a nova area',
-      placeholder: 'Explique o que ja foi validado e por que outra area deve assumir o caso.',
+      kind: 'exception',
+      title: 'Tratar como excecao',
+      description: 'Use so quando esta area realmente nao puder resolver e o caso precisar sair do fluxo normal.',
+      submitLabel: 'Registrar excecao',
+      fieldLabel: 'Motivo da excecao',
+      previewLabel: 'Registro excepcional que sera enviado para a nova area',
+      placeholder: '',
       toneClass:
         selectedAction.value === 'reassign'
-          ? 'border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.18)] text-[#0b6e8c]'
-          : 'border-slate-200 bg-white text-slate-700',
-    },
-    {
-      id: 'conclude',
-      title: 'Encerrar',
-      description: 'A area concluiu a analise e nao existe nova acao interna pendente.',
-      submitLabel: 'Registrar conclusao da area',
-      fieldLabel: 'Resumo da conclusao',
-      previewLabel: 'Conclusao que sera registrada',
-      placeholder: 'Resuma a conclusao interna da area e o fechamento da tratativa.',
-      toneClass:
-        selectedAction.value === 'conclude'
-          ? 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.18)] text-[var(--color-success)]'
-          : 'border-slate-200 bg-white text-slate-700',
+          ? 'border-[rgba(8,115,145,0.18)] bg-[rgba(224,242,254,0.16)] text-[#0b6e8c]'
+          : 'border-[rgba(8,115,145,0.14)] bg-white text-slate-700',
     },
   ]
 })
 
 const activeAction = computed(
   () => actionOptions.value.find((option) => option.id === selectedAction.value) || null,
+)
+
+const primaryActionOption = computed(() => actionOptions.value.find((option) => option.kind === 'primary') || null)
+const secondaryActionOption = computed(() => actionOptions.value.find((option) => option.kind === 'secondary') || null)
+const exceptionActionOption = computed(() => actionOptions.value.find((option) => option.kind === 'exception') || null)
+const normalDecisionActions = computed(() =>
+  [primaryActionOption.value, secondaryActionOption.value].filter(Boolean),
 )
 
 function buildSuggestedNote(actionType) {
@@ -287,19 +431,39 @@ function buildSuggestedNote(actionType) {
   if (actionType === 'technical_reply') {
     return (
       playbook.responseTemplate ||
-      `Analise tecnica registrada pela area sobre ${subjectLabel}.`
+      `Resposta final da area sobre ${subjectLabel}.`
     )
   }
 
   if (actionType === 'request_complement') {
-    return 'Para retomar a analise, a area precisa de mais subsidios, evidencias ou validacoes do polo.'
+    return 'Para retomar a analise, ainda faltam subsidios, evidencias ou validacoes do aluno e do polo.'
   }
 
   if (actionType === 'reassign') {
-    return `Reencaminhamento solicitado pela area. Ja foi verificado: ${detail.value.handoffItems?.[3]?.value || detail.value.pendingLabel}.`
+    return detail.value.handoffItems?.[1]?.value || detail.value.pendingLabel || ''
   }
 
-  return `Analise interna concluida pela area sobre ${subjectLabel}.`
+  return `Resposta final da area sobre ${subjectLabel}.`
+}
+
+function getReassignReasonLabel(reasonCode = '') {
+  return REASSIGN_REASON_OPTIONS.find((option) => option.value === reasonCode)?.label || ''
+}
+
+function buildStructuredReassignNote() {
+  const reasonLabel = getReassignReasonLabel(selectedReassignReason.value)
+  const verifiedText = String(reassignVerifiedContext.value || '').trim()
+
+  if (!reasonLabel && !verifiedText) {
+    return ''
+  }
+
+  return [
+    reasonLabel ? `Motivo do encaminhamento excepcional: ${reasonLabel}.` : '',
+    verifiedText ? `O que ja foi verificado nesta area: ${withPeriod(verifiedText)}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 }
 
 function clearFeedback() {
@@ -316,6 +480,15 @@ function syncSuggestedNote(force = false) {
   const suggestion = buildSuggestedNote(selectedAction.value)
 
   if (!suggestion) {
+    return
+  }
+
+  if (selectedAction.value === 'reassign') {
+    if (force || !reassignVerifiedContext.value.trim() || reassignVerifiedContext.value === lastSuggestedNote.value) {
+      reassignVerifiedContext.value = suggestion
+    }
+
+    lastSuggestedNote.value = suggestion
     return
   }
 
@@ -349,10 +522,14 @@ watch(
   () => {
     selectedAction.value = ''
     selectedDestinationArea.value = ''
+    selectedReassignReason.value = ''
+    reassignVerifiedContext.value = ''
     actionNote.value = ''
     lastSuggestedNote.value = ''
     noteError.value = ''
     destinationError.value = ''
+    reassignReasonError.value = ''
+    reassignVerifiedError.value = ''
     pendingConfirmationAction.value = ''
     selectedAssignee.value = detail.value?.currentAssigneeLabel && detail.value.currentAssigneeLabel !== 'Sem responsavel'
       ? detail.value.currentAssigneeLabel
@@ -388,11 +565,15 @@ watch(
 watch(selectedAction, () => {
   noteError.value = ''
   destinationError.value = ''
+  reassignReasonError.value = ''
+  reassignVerifiedError.value = ''
   pendingConfirmationAction.value = ''
   clearFeedback()
 
   if (selectedAction.value !== 'reassign') {
     selectedDestinationArea.value = ''
+    selectedReassignReason.value = ''
+    reassignVerifiedContext.value = ''
   }
 
   if (selectedAction.value) {
@@ -403,6 +584,8 @@ watch(selectedAction, () => {
 
   actionNote.value = ''
   selectedDestinationArea.value = ''
+  selectedReassignReason.value = ''
+  reassignVerifiedContext.value = ''
   lastSuggestedNote.value = ''
 })
 
@@ -429,47 +612,22 @@ watch(pendingConfirmationAction, (actionType) => {
 })
 
 const actionAvailability = computed(() => {
-  if (!detail.value) {
-    return { canAct: false, reason: 'Caso indisponivel.' }
-  }
-
-  if (
-    !isAreaManager.value &&
-    detail.value.currentAssigneeLabel &&
-    detail.value.currentAssigneeLabel !== 'Sem responsavel' &&
-    normalizeText(detail.value.currentAssigneeLabel) !== normalizeText(auth.mockContext.userName)
-  ) {
-    return {
-      canAct: false,
-      reason: `Este caso esta atribuido para ${detail.value.currentAssigneeLabel}. Redistribua pelo gestor antes de atuar.`,
-    }
-  }
-
-  const status = normalizeText(detail.value.status)
-
-  if (
-    status.includes('respondido pela area') ||
-    status.includes('concluido pela area') ||
-    status.includes('reencaminhado')
-  ) {
-    return {
-      canAct: false,
-      reason: 'A area ja concluiu a atuacao principal neste caso. Ele fica disponivel apenas para consulta.',
-    }
-  }
-
-  if (status.includes('complementacao solicitada pela area')) {
-    return {
-      canAct: false,
-      reason: 'O caso esta aguardando o polo complementar subsidios antes de nova analise da area.',
-    }
-  }
-
-  return {
-    canAct: true,
-    reason: '',
-  }
+  return buildActionAvailabilityState(detail.value)
 })
+
+watch(
+  [() => detail.value?.id, () => decisionSuggestion.value?.actionId, () => actionAvailability.value.canAct],
+  ([caseId, suggestedAction, canAct]) => {
+    if (!caseId || !canAct || !suggestedAction) {
+      return
+    }
+
+    if (!selectedAction.value) {
+      selectedAction.value = suggestedAction
+    }
+  },
+  { immediate: true },
+)
 
 function openStudentCases() {
   if (!detail.value) {
@@ -485,6 +643,32 @@ function openStudentCases() {
 }
 
 function ensureActionReady(actionType) {
+  if (actionType === 'reassign') {
+    if (!selectedReassignReason.value) {
+      reassignReasonError.value = 'Escolha por que este caso precisa sair da area antes de encaminhar.'
+      return false
+    }
+
+    reassignReasonError.value = ''
+
+    if (!reassignVerifiedContext.value.trim()) {
+      reassignVerifiedError.value = 'Explique o que ja foi verificado nesta area antes de encaminhar.'
+      focusNoteField()
+      return false
+    }
+
+    reassignVerifiedError.value = ''
+
+    if (!selectedDestinationArea.value) {
+      destinationError.value = 'Selecione a area de destino antes de encaminhar.'
+      return false
+    }
+
+    destinationError.value = ''
+    noteError.value = ''
+    return true
+  }
+
   if (!actionNote.value.trim()) {
     noteError.value = 'Preencha o registro da area antes de continuar.'
     focusNoteField()
@@ -519,7 +703,13 @@ function selectAction(actionType) {
   selectedAction.value = actionType
 }
 
-const recordPreview = computed(() => actionNote.value.trim() || buildSuggestedNote(selectedAction.value))
+const recordPreview = computed(() => {
+  if (selectedAction.value === 'reassign') {
+    return buildStructuredReassignNote() || 'O encaminhamento excepcional so deve ser usado quando a area realmente nao puder resolver o caso.'
+  }
+
+  return actionNote.value.trim() || buildSuggestedNote(selectedAction.value)
+})
 
 const confirmationCopy = computed(() => {
   if (!pendingConfirmationAction.value) {
@@ -528,39 +718,34 @@ const confirmationCopy = computed(() => {
 
   if (pendingConfirmationAction.value === 'technical_reply') {
     return {
-      title: 'Confirmar resposta tecnica',
-      consequence: 'A devolutiva tecnica sera registrada para retorno do polo ao aluno.',
+      title: 'Confirmar envio da resposta',
+      consequence: 'A resposta final ficara disponivel para o aluno e tambem para o OP encerrar o caso.',
       buttonClass: 'bg-[var(--color-primary)] text-white',
-      buttonLabel: 'Confirmar resposta tecnica',
+      buttonLabel: 'Confirmar envio da resposta',
     }
   }
 
   if (pendingConfirmationAction.value === 'request_complement') {
     return {
-      title: 'Confirmar complementacao',
-      consequence: 'O caso voltara para o polo com o pedido de subsidios adicionais.',
+      title: 'Confirmar solicitacao de complementacao',
+      consequence: 'A solicitacao sera enviada ao aluno e ao OP para que a tratativa continue.',
       buttonClass: 'border border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.82)] text-[#8a5200]',
-      buttonLabel: 'Confirmar pedido de complementacao',
+      buttonLabel: 'Confirmar solicitacao de complementacao',
     }
   }
 
   if (pendingConfirmationAction.value === 'reassign') {
     return {
-      title: isManagerExceptionSelected.value ? 'Confirmar excecao gerencial' : 'Confirmar reencaminhamento',
+      title: isManagerExceptionSelected.value ? 'Confirmar encaminhamento excepcional' : 'Confirmar encaminhamento excepcional',
       consequence: isManagerExceptionSelected.value
-        ? `O caso saira do caminho padrao da FAQ e seguira para ${selectedDestinationArea.value} com excecao gerencial justificada.`
-        : `O caso saira desta area e seguira para ${selectedDestinationArea.value}.`,
+        ? `O caso saira do caminho preferencial da area e seguira para ${selectedDestinationArea.value} com excecao gerencial justificada.`
+        : `O caso saira do fluxo preferencial desta area e seguira para ${selectedDestinationArea.value}.`,
       buttonClass: 'bg-[#0f4c81] text-white',
-      buttonLabel: isManagerExceptionSelected.value ? 'Confirmar excecao gerencial' : 'Confirmar reencaminhamento',
+      buttonLabel: 'Confirmar encaminhamento excepcional',
     }
   }
 
-  return {
-    title: 'Confirmar conclusao da area',
-    consequence: 'A analise interna sera encerrada e o caso ficara disponivel apenas para consulta.',
-    buttonClass: 'bg-[var(--color-success)] text-white',
-    buttonLabel: 'Confirmar conclusao',
-  }
+  return null
 })
 
 function submitAreaAction(actionType) {
@@ -578,7 +763,7 @@ function submitAreaAction(actionType) {
   const actionLog = studentSupportStore.registerAreaAction({
     caseId: detail.value.id,
     actionType,
-    note: actionNote.value,
+    note: actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value,
     actorName: auth.mockContext.userName,
     nextArea: selectedDestinationArea.value,
     isManagerException: isManagerExceptionSelected.value,
@@ -599,28 +784,28 @@ function submitAreaAction(actionType) {
     type: 'success',
     message:
       actionType === 'technical_reply'
-        ? 'Resposta tecnica registrada com sucesso.'
+        ? 'Resposta final enviada com sucesso para aluno e OP.'
         : actionType === 'request_complement'
-          ? 'Complementacao devolvida ao polo com sucesso.'
+          ? 'Solicitacao de complementacao enviada com sucesso para aluno e OP.'
           : actionType === 'reassign'
             ? isManagerExceptionSelected.value
               ? `Caso reencaminhado para ${actionLog.destinationLabel} por excecao gerencial.`
               : `Caso reencaminhado para ${actionLog.destinationLabel}.`
-            : 'Conclusao da area registrada com sucesso.',
+            : 'Acao da area registrada com sucesso.',
   }
 
-  if ((actionType === 'reassign' || actionType === 'conclude') && typeof window !== 'undefined') {
+  if (actionType === 'reassign' && typeof window !== 'undefined') {
     window.sessionStorage.setItem(
       queueFlashStorageKey.value,
-      actionType === 'reassign'
-        ? `Caso reencaminhado para ${actionLog.destinationLabel}.`
-        : 'Analise da area concluida com sucesso.',
+      `Caso reencaminhado para ${actionLog.destinationLabel}.`,
     )
     router.push('/area/fila')
     return
   }
 
   actionNote.value = ''
+  selectedReassignReason.value = ''
+  reassignVerifiedContext.value = ''
   lastSuggestedNote.value = ''
   syncSuggestedNote(true)
 }
@@ -688,12 +873,12 @@ function assignCase() {
           </div>
         </div>
         <div class="mt-3 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Pendencia atual</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">O que falta agora</p>
           <p class="mt-1 text-sm font-medium leading-6 text-slate-800">
             {{ detail.pendingLabel }}
           </p>
         </div>
-        <div class="mt-3 grid gap-3 md:grid-cols-3">
+        <div v-if="ownershipSummary.length" class="mt-3 grid gap-3 md:grid-cols-3">
           <div
             v-for="item in ownershipSummary"
             :key="item.label"
@@ -708,7 +893,7 @@ function assignCase() {
       <div class="grid gap-4 px-5 pb-5">
         <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            Resumo do caso
+            O caso em 3 pontos
           </summary>
           <div class="border-t border-slate-200 px-4 py-4">
             <ul class="grid gap-2 text-sm leading-6 text-slate-700">
@@ -722,7 +907,7 @@ function assignCase() {
 
         <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            Contexto recebido do OP
+            O que ja foi feito
           </summary>
           <div class="grid gap-3 border-t border-slate-200 px-4 py-4 md:grid-cols-2">
             <div
@@ -736,7 +921,7 @@ function assignCase() {
           </div>
         </details>
 
-        <section class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <section v-if="isAreaManager" class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
           <div class="bg-slate-100/90 px-4 py-3">
             <h3 class="text-base font-semibold text-slate-950">Distribuicao e ownership</h3>
           </div>
@@ -882,7 +1067,13 @@ function assignCase() {
           </div>
         </section>
 
-        <details v-if="exchangeItems.length" class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <details
+          v-if="exchangeItems.length"
+          :class="[
+            'overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70',
+            !isAreaManager ? 'order-last' : '',
+          ]"
+        >
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
             Troca do atendimento
           </summary>
@@ -901,25 +1092,47 @@ function assignCase() {
           </div>
         </details>
 
+        <section class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+          <div class="bg-slate-100/90 px-4 py-3">
+            <h3 class="text-base font-semibold text-slate-950">Confirme antes de responder</h3>
+          </div>
+          <div class="grid gap-4 border-t border-slate-200 px-4 py-4">
+            <div
+              v-if="decisionSuggestion"
+              :class="['rounded-[12px] border px-4 py-3', decisionSuggestion.toneClass]"
+            >
+              <p class="text-sm font-semibold">{{ decisionSuggestion.title }}</p>
+              <p class="mt-2 text-sm leading-6">{{ decisionSuggestion.description }}</p>
+            </div>
+
+            <div class="grid gap-3">
+              <div
+                v-for="item in preDecisionChecks"
+                :key="item.title"
+                :class="['rounded-[12px] border px-4 py-3', item.toneClass]"
+              >
+                <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.title }}</p>
+                    <p class="mt-1 text-sm leading-6 text-slate-700">{{ item.helperText }}</p>
+                  </div>
+                  <span class="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700">
+                    {{ item.statusLabel }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            Como analisar este caso
+            Orientacao rapida da area
           </summary>
           <div class="grid gap-4 border-t border-slate-200 px-4 py-4">
-            <div class="flex flex-wrap gap-2">
-              <RouterLink
-                :to="guidanceRoute"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Abrir orientacao da area
-              </RouterLink>
-              <RouterLink
-                :to="knowledgeRoute"
-                class="rounded-[14px] border border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.48)] px-4 py-2.5 text-sm font-semibold text-[#0b6e8c] transition hover:bg-[rgba(224,242,254,0.62)]"
-              >
-                Sugerir melhoria da orientacao
-              </RouterLink>
-            </div>
+            <p class="text-sm leading-6 text-slate-600">
+              Use estes pontos para confirmar se ja da para responder, se ainda falta complemento ou se existe uma excecao real.
+            </p>
 
             <div
               v-for="section in detail.analysisSections"
@@ -934,12 +1147,19 @@ function assignCase() {
                 </li>
               </ul>
             </div>
+
+            <RouterLink
+              :to="guidanceRoute"
+              class="inline-flex w-fit items-center text-sm font-semibold text-[#0b6e8c] transition hover:text-[#09566d]"
+            >
+              Ver orientacao completa
+            </RouterLink>
           </div>
         </details>
 
         <section class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
           <div class="bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Proxima acao</h3>
+            <h3 class="text-base font-semibold text-slate-950">Resposta da area</h3>
           </div>
           <div class="grid gap-4 border-t border-slate-200 px-4 py-4">
             <p
@@ -950,20 +1170,47 @@ function assignCase() {
             </p>
 
             <template v-else>
-              <div class="grid gap-3">
-                <button
-                  v-for="option in actionOptions"
-                  :key="option.id"
-                  type="button"
-                  :class="[
-                    'rounded-[14px] border px-4 py-3 text-left transition',
-                    option.toneClass,
-                  ]"
-                  @click="selectAction(option.id)"
-                >
-                  <p class="text-sm font-semibold">{{ option.title }}</p>
-                  <p class="mt-1 text-sm leading-6">{{ option.description }}</p>
-                </button>
+              <div class="grid gap-4">
+                <div class="grid gap-3">
+                  <p class="text-sm font-semibold text-slate-950">Saida normal do caso</p>
+                  <div class="grid gap-3">
+                    <button
+                      v-for="option in normalDecisionActions"
+                      :key="option.id"
+                      type="button"
+                      :class="[
+                        'rounded-[14px] border px-4 py-3 text-left transition',
+                        option.toneClass,
+                      ]"
+                      @click="selectAction(option.id)"
+                    >
+                      <p class="text-sm font-semibold">{{ option.title }}</p>
+                      <p class="mt-1 text-sm leading-6">{{ option.description }}</p>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="rounded-[14px] border border-[rgba(8,115,145,0.14)] bg-[rgba(241,245,249,0.78)] px-4 py-4">
+                  <p class="text-sm font-semibold text-slate-950">Nao consigo resolver nesta area</p>
+                  <p class="mt-2 text-sm leading-6 text-slate-600">
+                    Encaminhar para outra area nao e a saida normal. Use isso apenas quando sua area realmente nao puder resolver o caso. Se a duvida for de criterio, fale com o gestor antes de encaminhar.
+                  </p>
+                  <button
+                    v-if="exceptionActionOption && detail.availableAreas.length"
+                    type="button"
+                    :class="[
+                      'mt-4 rounded-[14px] border border-dashed px-4 py-3 text-left transition',
+                      exceptionActionOption.toneClass,
+                    ]"
+                    @click="selectAction(exceptionActionOption.id)"
+                  >
+                    <p class="text-sm font-semibold">{{ exceptionActionOption.title }}</p>
+                    <p class="mt-1 text-sm leading-6">{{ exceptionActionOption.description }}</p>
+                  </button>
+                  <p v-else class="mt-4 text-sm leading-6 text-slate-600">
+                    Nao ha outra area sugerida para este caso no escopo atual.
+                  </p>
+                </div>
               </div>
 
               <div
@@ -971,29 +1218,65 @@ function assignCase() {
                 class="rounded-[14px] border border-slate-200 bg-white px-4 py-4"
               >
                 <div class="grid gap-4">
-                  <label class="grid gap-2">
-                    <span class="text-sm font-semibold text-slate-700">{{ activeAction.fieldLabel }}</span>
-                    <textarea
-                      ref="actionNoteRef"
-                      v-model="actionNote"
-                      rows="5"
-                      class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700"
-                      :placeholder="activeAction.placeholder"
-                    ></textarea>
-                  </label>
+                  <div
+                    v-if="activeAction.id !== 'reassign'"
+                    class="grid gap-4"
+                  >
+                    <label class="grid gap-2">
+                      <span class="text-sm font-semibold text-slate-700">{{ activeAction.fieldLabel }}</span>
+                      <textarea
+                        ref="actionNoteRef"
+                        v-model="actionNote"
+                        rows="5"
+                        class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700"
+                        :placeholder="activeAction.placeholder"
+                      ></textarea>
+                    </label>
+                  </div>
 
-                  <label v-if="activeAction.id === 'reassign'" class="grid gap-2">
-                    <span class="text-sm font-semibold text-slate-700">Area de destino</span>
-                    <select
-                      v-model="selectedDestinationArea"
-                      class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
-                    >
-                      <option value="">Selecione</option>
-                      <option v-for="area in detail.availableAreas" :key="area" :value="area">
-                        {{ area }}
-                      </option>
-                    </select>
-                  </label>
+                  <div v-else class="grid gap-4 rounded-[14px] border border-[rgba(8,115,145,0.14)] bg-[rgba(241,245,249,0.6)] px-4 py-4">
+                    <p class="text-sm font-semibold text-slate-950">Registrar excecao operacional</p>
+                    <p class="text-sm leading-6 text-slate-600">
+                      Use este caminho apenas quando sua area realmente nao puder resolver nem com complemento do polo.
+                    </p>
+
+                    <label class="grid gap-2">
+                      <span class="text-sm font-semibold text-slate-700">Motivo do encaminhamento excepcional</span>
+                      <select
+                        v-model="selectedReassignReason"
+                        class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                      >
+                        <option value="">Selecione</option>
+                        <option v-for="option in REASSIGN_REASON_OPTIONS" :key="option.value" :value="option.value">
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+
+                    <label class="grid gap-2">
+                      <span class="text-sm font-semibold text-slate-700">O que ja foi verificado nesta area</span>
+                      <textarea
+                        ref="actionNoteRef"
+                        v-model="reassignVerifiedContext"
+                        rows="5"
+                        class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+                        placeholder="Explique o que a area ja validou e por que este caso realmente precisa sair daqui."
+                      ></textarea>
+                    </label>
+
+                    <label class="grid gap-2">
+                      <span class="text-sm font-semibold text-slate-700">Area de destino</span>
+                      <select
+                        v-model="selectedDestinationArea"
+                        class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                      >
+                        <option value="">Selecione</option>
+                        <option v-for="area in detail.availableAreas" :key="area" :value="area">
+                          {{ area }}
+                        </option>
+                      </select>
+                    </label>
+                  </div>
 
                   <p
                     v-if="activeAction.id === 'reassign' && isManagerExceptionSelected"
@@ -1003,6 +1286,8 @@ function assignCase() {
                   </p>
 
                   <p v-if="noteError" class="text-sm font-medium text-[var(--color-danger)]">{{ noteError }}</p>
+                  <p v-if="reassignReasonError" class="text-sm font-medium text-[var(--color-danger)]">{{ reassignReasonError }}</p>
+                  <p v-if="reassignVerifiedError" class="text-sm font-medium text-[var(--color-danger)]">{{ reassignVerifiedError }}</p>
                   <p v-if="destinationError" class="text-sm font-medium text-[var(--color-danger)]">{{ destinationError }}</p>
 
                   <div class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-4 py-3">
@@ -1044,7 +1329,14 @@ function assignCase() {
                   <div class="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      class="rounded-[14px] bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-dark)] disabled:cursor-not-allowed disabled:opacity-60"
+                      :class="[
+                        'rounded-[14px] px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60',
+                        activeAction.id === 'technical_reply'
+                          ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)]'
+                          : activeAction.id === 'request_complement'
+                            ? 'bg-[#b7791f] hover:bg-[#8f5d18]'
+                            : 'bg-[#0f4c81] hover:bg-[#0c3f6a]',
+                      ]"
                       :disabled="isSubmitting"
                       @click="handleActionClick(activeAction.id)"
                     >

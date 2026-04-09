@@ -83,7 +83,10 @@ const isAreaManagerOperationalShell = computed(
   () => auth.mockContext.isOperationalShell && auth.mockContext.profileKey === 'gestor_area',
 )
 const showAreaSelector = computed(
-  () => isAreaOperationalShell.value && (auth.mockContext.linkedAreas || []).length > 1,
+  () =>
+    (auth.mockContext.linkedAreas || []).length > 1 &&
+    (isAreaManagerOperationalShell.value ||
+      (auth.mockContext.profileKey === 'analista_area' && route.name === 'area-guidance')),
 )
 const showOperationalBackAction = computed(() =>
   ['operator-case-detail', 'area-case-detail'].includes(String(route.name || '')),
@@ -211,6 +214,18 @@ watch(
                     {{ area }}
                   </option>
                 </select>
+                <div
+                  v-else-if="isAreaManagerOperationalShell"
+                  class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
+                >
+                  {{ auth.mockContext.currentArea }}
+                </div>
+                <div
+                  v-else-if="(auth.mockContext.linkedAreas || []).length > 1"
+                  class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
+                >
+                  Todas as suas areas
+                </div>
                 <div
                   v-else
                   class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"

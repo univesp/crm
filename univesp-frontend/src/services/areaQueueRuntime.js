@@ -251,22 +251,22 @@ function buildAreaNextStepLabel(entry) {
   const status = normalizeText(entry.status)
 
   if (status.includes('respondido pela area')) {
-    return 'O OP precisa devolver a resposta tecnica ao aluno.'
+    return 'Resposta final pronta para aluno e OP.'
   }
 
   if (status.includes('complementacao solicitada pela area')) {
-    return 'Aguardar o OP complementar o contexto para nova analise.'
+    return 'Aguardar complemento do aluno e do polo.'
   }
 
   if (status.includes('reencaminhado')) {
-    return 'Aguardar a tratativa da area de destino.'
+    return 'Excecao aberta em outra area.'
   }
 
   if (status.includes('concluido pela area')) {
-    return 'Analise concluida. O caso fica disponivel apenas para consulta.'
+    return 'Tratativa interna encerrada.'
   }
 
-  return 'Validar documentos, sistemas e subsidios antes de devolver a decisao.'
+  return 'Validar base e devolver resposta ou complemento.'
 }
 
 function buildAreaQueueEntry(
@@ -353,7 +353,7 @@ function buildAreaQueueEntry(
     ),
     subjectScopeRule: subjectRule,
     areaBucket,
-    searchText: [entry.id, entry.student, entry.studentRa, entry.subject, contextFromOp, queue, status].join(' '),
+    searchText: [entry.id, entry.student, entry.studentRa, entry.polo, entry.subject, contextFromOp, queue, status].join(' '),
   }
 }
 
@@ -449,6 +449,7 @@ export function filterAreaQueueEntries(entries = [], filters = {}) {
   return entries.filter((entry) => {
     return (
       matchesQuery(filters.search, entry.searchText, entry.subject, entry.student, entry.studentRa, entry.id) &&
+      matchesFilter(filters.area, entry.currentAreaLabel) &&
       matchesFilter(filters.status, entry.areaStatusLabel) &&
       matchesFilter(filters.owner, entry.currentAssigneeLabel) &&
       (!filters.scopeState || filters.scopeState === 'todos' || normalizeText(filters.scopeState) === normalizeText(entry.ownershipState))
@@ -458,22 +459,21 @@ export function filterAreaQueueEntries(entries = [], filters = {}) {
 
 export function buildAreaQueueFilterOptions(entries = []) {
   return {
+    area: buildFilterOptions(entries, 'currentAreaLabel'),
     status: buildFilterOptions(entries, 'areaStatusLabel'),
     owner: buildFilterOptions(entries, 'currentAssigneeLabel'),
   }
 }
 
 function buildSummaryBullets(detail, latestEscalation) {
-  const subjectLabel = String(detail.subject || 'atendimento').trim().toLowerCase()
-  const breadcrumb = detail.faqContext?.breadcrumb?.length ? detail.faqContext.breadcrumb.join(' > ') : ''
+  const subjectLabel = String(detail.subject || 'atendimento').trim()
   const verifiedSummary = detail.operatorIntake?.verifiedSummary || latestEscalation?.note || ''
-  const pendingLabel = String(detail.pendingLabel || 'retomar a analise deste caso').trim().toLowerCase()
+  const pendingLabel = String(detail.pendingLabel || 'retomar a analise deste caso').trim()
 
   return [
-    `O aluno abriu este atendimento sobre ${withPeriod(subjectLabel)}`,
-    breadcrumb ? `O caso chegou ate a area pelo caminho ${withPeriod(breadcrumb)}` : '',
-    verifiedSummary ? `Ja foi verificado pelo OP: ${withPeriod(verifiedSummary)}` : '',
-    `Agora a area precisa ${withPeriod(pendingLabel)}`,
+    `Assunto principal: ${withPeriod(subjectLabel)}`,
+    verifiedSummary ? `Ja foi validado antes da area: ${withPeriod(verifiedSummary)}` : '',
+    `O que falta agora: ${withPeriod(pendingLabel)}`,
   ].filter(Boolean)
 }
 
@@ -482,15 +482,7 @@ function buildHandoffItems(detail, latestEscalation) {
 
   return [
     {
-      label: 'Encaminhado por',
-      value: latestEscalation?.actor || detail.assignedOperator || 'Operacao do polo',
-    },
-    {
-      label: 'Destino atual',
-      value: detail.currentAreaLabel || detail.lastMileAreaLabel || detail.queue,
-    },
-    {
-      label: 'Motivo do escalonamento',
+      label: 'Motivo do envio para a area',
       value:
         latestEscalation?.escalationReason ||
         playbook.escalationReason ||
@@ -498,52 +490,47 @@ function buildHandoffItems(detail, latestEscalation) {
         'Escalonamento tecnico sem motivo estruturado na base atual.',
     },
     {
-      label: 'Subsidios recebidos do OP',
+      label: 'O que ja foi validado',
       value:
         latestEscalation?.note ||
         detail.operatorIntake?.verifiedSummary ||
-        detail.pendingLabel ||
         'Sem subsidios detalhados no registro atual.',
+    },
+    {
+      label: 'O que a area precisa decidir',
+      value: detail.pendingLabel || 'Retomar a analise deste caso.',
     },
   ]
 }
 
 function buildAnalysisSections(detail) {
   const playbook = detail.playbook || {}
-  const checklistItems = (playbook.checklist || []).map((item) => withPeriod(item))
-  const systemItems = (playbook.systemsToCheck || []).map((item) => `Consultar sistema: ${item}.`)
-  const documentItems = (playbook.documentsRequested || []).map(
-    (item) => `Validar documento ou evidencia: ${item}.`,
+  const checklistItems = (playbook.checklist || []).slice(0, 3).map((item) => withPeriod(item))
+  const systemItems = (playbook.systemsToCheck || []).slice(0, 2).map((item) => `Consultar ${item}.`)
+  const documentItems = (playbook.documentsRequested || []).slice(0, 3).map(
+    (item) => `Sem ${item}, o caminho normal e pedir complemento.`,
   )
-  const decisionItems = [
-    'Responder tecnicamente quando a area tiver base suficiente para devolver a analise.',
-    'Devolver para complementacao quando o OP ainda precisar reunir subsidios ou novos documentos.',
-    'Reencaminhar apenas quando outra area precisar assumir a tratativa especializada.',
-    'Concluir quando a analise interna estiver encerrada sem nova acao da area.',
-  ]
 
   return [
-    checklistItems.length
+    (checklistItems.length || systemItems.length)
       ? {
-          title: 'O que verificar',
-          items: checklistItems,
-        }
-      : null,
-    systemItems.length
-      ? {
-          title: 'Onde verificar',
-          items: systemItems,
+          title: 'Confirme antes de responder',
+          items: [...checklistItems, ...systemItems].slice(0, 4),
         }
       : null,
     documentItems.length
       ? {
-          title: 'Documentos a observar',
+          title: 'Se faltar base, peca complemento',
           items: documentItems,
         }
       : null,
     {
-      title: 'Quando decidir',
-      items: decisionItems,
+      title: 'Saida normal',
+      items: ['Se houver base suficiente, envie a resposta final para aluno e OP.'],
+    },
+    {
+      title: 'Excecao operacional',
+      items: ['Encaminhe para outra area apenas quando sua area realmente nao puder resolver.'],
     },
   ].filter(Boolean)
 }
