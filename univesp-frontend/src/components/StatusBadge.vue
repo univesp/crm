@@ -31,7 +31,15 @@ const toneClass = computed(() => {
     return 'badge-danger'
   }
 
+  if (label.includes('analise')) {
+    return 'badge-danger'
+  }
+
   if (label.includes('respondid')) {
+    return 'badge-info'
+  }
+
+  if (label.includes('reencaminh')) {
     return 'badge-info'
   }
 

@@ -25,6 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
   const errorMessage = ref('')
   const sessionLoaded = ref(false)
   const selectedOperationalPolo = ref('')
+  const selectedOperationalArea = ref('')
 
   const isLoading = computed(() => status.value === 'loading' || status.value === 'redirecting')
   const isAuthenticated = computed(() => status.value === 'authenticated' && !!user.value)
@@ -45,6 +46,17 @@ export const useAuthStore = defineStore('auth', () => {
       return {
         ...baseContext,
         currentPolo: selectedOperationalPolo.value,
+      }
+    }
+
+    if (
+      baseContext.isOperationalShell &&
+      selectedOperationalArea.value &&
+      baseContext.linkedAreas.includes(selectedOperationalArea.value)
+    ) {
+      return {
+        ...baseContext,
+        currentArea: selectedOperationalArea.value,
       }
     }
 
@@ -149,6 +161,7 @@ export const useAuthStore = defineStore('auth', () => {
     sessionLoaded.value = false
     status.value = 'anonymous'
     selectedOperationalPolo.value = ''
+    selectedOperationalArea.value = ''
   }
 
   function setSelectedOperationalPolo(polo = '') {
@@ -166,6 +179,24 @@ export const useAuthStore = defineStore('auth', () => {
 
     if (baseContext.linkedPolos.includes(normalized)) {
       selectedOperationalPolo.value = normalized
+    }
+  }
+
+  function setSelectedOperationalArea(area = '') {
+    const baseContext = buildMockAccessContext(user.value)
+    const normalized = String(area || '').trim()
+
+    if (!baseContext.isOperationalShell) {
+      return
+    }
+
+    if (!normalized) {
+      selectedOperationalArea.value = ''
+      return
+    }
+
+    if (baseContext.linkedAreas.includes(normalized)) {
+      selectedOperationalArea.value = normalized
     }
   }
 
@@ -188,6 +219,7 @@ export const useAuthStore = defineStore('auth', () => {
       sessionLoaded.value = false
       status.value = 'anonymous'
       selectedOperationalPolo.value = ''
+      selectedOperationalArea.value = ''
     }
 
     window.location.assign(getPublicAppPath(targetRoute))
@@ -207,6 +239,7 @@ export const useAuthStore = defineStore('auth', () => {
     localBypassProfiles,
     selectedLocalBypassProfile,
     selectedOperationalPolo,
+    selectedOperationalArea,
     mockContext,
     defaultAppRoute,
     loadSession,
@@ -217,6 +250,7 @@ export const useAuthStore = defineStore('auth', () => {
     activateLocalBypassProfile,
     clearLocalBypassProfile,
     setSelectedOperationalPolo,
+    setSelectedOperationalArea,
     logout,
   }
 })

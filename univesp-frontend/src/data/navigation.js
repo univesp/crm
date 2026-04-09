@@ -42,13 +42,69 @@ export function buildNavigationSections(mockContext) {
   }
 
   if (mockContext.isOperationalShell) {
-    const queueLabel = mockContext.profileKey === 'gestor_polos' ? 'Atendimentos do polo' : 'Meus atendimentos'
+    const isAreaProfile = ['analista_area', 'gestor_area'].includes(mockContext.profileKey)
+    const queueLabel = isAreaProfile
+      ? mockContext.profileKey === 'gestor_area'
+        ? 'Casos da area'
+        : 'Minha fila da area'
+      : mockContext.profileKey === 'gestor_polos'
+        ? 'Atendimentos do polo'
+        : 'Meus atendimentos'
+    const sectionLabel = isAreaProfile
+      ? mockContext.profileKey === 'gestor_area'
+        ? 'Gestao de areas'
+        : 'Area especializada'
+      : mockContext.profileKey === 'gestor_polos'
+        ? 'Gestao de polos'
+        : 'Operacao do polo'
 
     return [
       {
         id: 'operational',
-        label: mockContext.profileKey === 'gestor_polos' ? 'Gestao de polos' : 'Operacao do polo',
-        items: [
+        label: sectionLabel,
+        items: isAreaProfile
+          ? [
+              ...(mockContext.profileKey === 'gestor_area'
+                ? [
+                    {
+                      id: 'area-manager-home',
+                      label: 'Operacao da area',
+                      route: '/area/operacao',
+                      description: 'Backlog, gargalos, redistribuicao e excecoes no escopo atual.',
+                    },
+                  ]
+                : []),
+              {
+                id: 'area-queue',
+                label: queueLabel,
+                route: '/area/fila',
+                prefixMatches: ['/area/fila/'],
+                description: 'Fila especializada com handoff do OP e analise tecnica da area.',
+              },
+              {
+                id: 'area-guidance',
+                label: 'Conteudo vigente',
+                route: '/area/orientacao',
+                description: 'Consulta da FAQ, da orientacao operacional e do playbook vigente da area.',
+              },
+              ...(mockContext.profileKey === 'gestor_area'
+                ? [
+                    {
+                      id: 'area-knowledge-review',
+                      label: 'Mudancas pendentes',
+                      route: '/area/mudancas',
+                      description: 'Sugestoes aguardando decisao e leitura da trilha vigente de publicacao.',
+                    },
+                    {
+                      id: 'area-governance',
+                      label: 'Regras operacionais',
+                      route: '/area/governanca',
+                      description: 'Escopo por assunto, disponibilidade do time e regras de distribuicao.',
+                    },
+                  ]
+                : []),
+            ]
+          : [
           {
             id: 'operator-queue',
             label: queueLabel,

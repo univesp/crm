@@ -252,12 +252,14 @@ function buildActiveCases({
   protocols = [],
   records = [],
   actionLogs = [],
+  areaActionLogs = [],
   studentProfile = loggedStudent,
   viewerContext = null,
 }) {
   const queueEntries = buildOperatorQueueEntries({
     protocols,
     actionLogs,
+    areaActionLogs,
     studentProfile,
     viewerContext,
   })
@@ -268,6 +270,7 @@ function buildActiveCases({
       protocols,
       records,
       actionLogs,
+      areaActionLogs,
       studentProfile,
       viewerContext,
     })
@@ -554,6 +557,7 @@ export function buildAdminDashboardData({
   protocols = [],
   records = [],
   actionLogs = [],
+  areaActionLogs = [],
   studentProfile = loggedStudent,
   viewerContext = null,
 } = {}) {
@@ -561,6 +565,7 @@ export function buildAdminDashboardData({
     protocols,
     records,
     actionLogs,
+    areaActionLogs,
     studentProfile,
     viewerContext,
   })

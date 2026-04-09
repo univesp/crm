@@ -1,6 +1,7 @@
 import loggedStudent from '../../mocks/usuario-logado.json'
 import { operatorCaseSeeds } from '../../mocks/operations'
 import { buildCaseRoutingContext } from '@/services/caseRoutingRuntime'
+import { buildSubsubjectCode, buildSubjectCode } from '@/services/canonicalFoundationRuntime'
 
 function pad(value) {
   return String(value).padStart(2, '0')
@@ -131,14 +132,23 @@ export function buildOperatorAssistedCase({
     updatedAt: timestamp.iso,
     updatedAtLabel: timestamp.label,
     statusCode: 'em_validacao_operacional',
+    canonicalStatusCode: 'in_progress_op',
     statusGroup: 'submitted',
     statusLabel: 'Em validacao operacional',
     studentState: 'waiting',
     subject: context.subject,
+    subjectCode: context.subjectCode || buildSubjectCode(context.theme),
+    subsubjectCode:
+      context.subsubjectCode || buildSubsubjectCode(context.theme, context.subtheme || context.finalNode?.title),
+    currentNodeId: context.finalNode?.id || null,
     priorityLabel: buildPriorityLabel(context.criticality),
     queueLabel: routing.currentQueueLabel,
+    currentAreaLabel: routing.currentQueueLabel,
     lastMileAreaLabel: routing.targetAreaLabel,
     slaLabel: context.sla || 'Nao informado',
+    pendingParty: 'op',
+    routingMode: 'standard',
+    currentResponseSnapshot: context.displayedAnswer || '',
     pendingLabel: 'Triagem inicial registrada pelo OP',
     source: 'operador_polo',
     sourceLabel: 'Atendimento pelo OP',

@@ -4,163 +4,114 @@ import { computed, reactive, watchEffect } from 'vue'
 import MetricCard from '@/components/MetricCard.vue'
 import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import {
-  applyDomainApproval,
-  applyDomainPublication,
-  buildAdminVersioningRuntime,
-  cloneAdminVersioningState,
-  findDiffItem,
-  findVersioningDomain,
-} from '@/services/adminVersioningRuntime'
+import { findKnowledgeBundleRuntime } from '@/services/adminVersioningRuntime'
+import { createRuntimeRepositories } from '@/repositories/runtimeRepositories'
+import { useAuthStore } from '@/stores/auth'
+import { useStudentSupportStore } from '@/stores/studentSupport'
 
-const versioningState = reactive(cloneAdminVersioningState())
+const authStore = useAuthStore()
+const studentSupportStore = useStudentSupportStore()
+const repositories = computed(() => createRuntimeRepositories(studentSupportStore))
 const ui = reactive({
-  domainKey: 'faq',
-  selectedDiffId: null,
+  bundleType: '',
+  versionId: '',
   lastEventSummary: '',
 })
 
-const runtime = computed(() =>
-  buildAdminVersioningRuntime({
-    state: versioningState,
-  }),
-)
+const runtime = computed(() => ({
+  bundles: repositories.value.knowledge.listBundles(),
+  metrics: [
+    {
+      label: 'Bundles canônicos',
+      value: repositories.value.knowledge.listBundles().length,
+      hint: 'Bases publicadas ou em edicao controlada pelo workflow canonico.',
+    },
+    {
+      label: 'Versoes publicadas',
+      value: repositories.value.knowledge
+        .listFoundation()
+        .bundleVersions.filter((item) => item.statusCode === 'Published').length,
+      hint: 'Versoes ativas que podem ser usadas pelos protocolos.',
+    },
+    {
+      label: 'Versoes em edicao',
+      value: repositories.value.knowledge
+        .listFoundation()
+        .bundleVersions.filter((item) => ['Draft', 'In Review', 'Approved'].includes(item.statusCode)).length,
+      hint: 'Rascunhos, revisoes e versoes aprovadas aguardando publicacao.',
+    },
+    {
+      label: 'Sugestoes pendentes',
+      value: repositories.value.knowledge
+        .listSuggestions()
+        .filter((item) => item.statusCode === 'Pending Review').length,
+      hint: 'Sugestoes da operacao aguardando revisao ou decisao gerencial.',
+    },
+  ],
+}))
 
-const currentDomain = computed(() => findVersioningDomain(runtime.value.domains, ui.domainKey))
-const selectedDiffItem = computed(() =>
-  findDiffItem(currentDomain.value?.diffItems || [], ui.selectedDiffId),
-)
-const selectedDomainEvents = computed(() =>
-  runtime.value.publicationEvents.filter((event) => event.domainKey === ui.domainKey),
-)
+const currentBundle = computed(() => findKnowledgeBundleRuntime(runtime.value.bundles, ui.bundleType))
+const selectedVersion = computed(() => currentBundle.value?.versions.find((item) => item.id === ui.versionId) || null)
 
 watchEffect(() => {
-  if (!currentDomain.value && runtime.value.domains[0]) {
-    ui.domainKey = runtime.value.domains[0].key
+  if (!ui.bundleType && runtime.value.bundles[0]) {
+    ui.bundleType = runtime.value.bundles[0].bundleType
   }
 
-  if (!selectedDiffItem.value && currentDomain.value?.diffItems?.[0]) {
-    ui.selectedDiffId = currentDomain.value.diffItems[0].id
-  }
-
-  if (!currentDomain.value?.diffItems?.length) {
-    ui.selectedDiffId = null
+  if (!selectedVersion.value && currentBundle.value?.versions?.[0]) {
+    ui.versionId = currentBundle.value.versions[0].id
   }
 })
 
-function selectDomain(domainKey) {
-  ui.domainKey = domainKey
-  ui.selectedDiffId = null
+function selectBundle(bundleType) {
+  ui.bundleType = bundleType
+  ui.versionId = ''
   ui.lastEventSummary = ''
 }
 
-function selectDiff(diffId) {
-  ui.selectedDiffId = diffId
+function selectVersion(versionId) {
+  ui.versionId = versionId
+  ui.lastEventSummary = ''
 }
 
-function buildActionTypeLabel(actionType) {
-  return actionType === 'approve' ? 'Aprovacao' : 'Publicacao'
-}
-
-function buildChangeTypeLabel(changeType) {
-  if (changeType === 'new') {
-    return 'Novo'
+function approveSelectedVersion() {
+  if (!selectedVersion.value) {
+    return
   }
 
-  if (changeType === 'removed') {
-    return 'Removido'
-  }
-
-  return 'Alterado'
-}
-
-function approveDraft() {
-  const event = applyDomainApproval({
-    state: versioningState,
-    domainKey: ui.domainKey,
-    actor: versioningState.currentActor,
+  const updated = repositories.value.knowledge.approveVersion({
+    bundleVersionId: selectedVersion.value.id,
+    actorName: authStore.displayName || 'Admin central',
     currentDate: new Date(),
   })
 
-  ui.lastEventSummary = event?.summary || ''
+  if (updated) {
+    ui.lastEventSummary = `Versao ${updated.versionNumber} aprovada para ${currentBundle.value?.bundleLabel || 'o bundle selecionado'}.`
+  }
 }
 
-function publishDraft() {
-  const event = applyDomainPublication({
-    state: versioningState,
-    domainKey: ui.domainKey,
-    actor: versioningState.currentActor,
+function publishSelectedVersion() {
+  if (!selectedVersion.value) {
+    return
+  }
+
+  const updated = repositories.value.knowledge.publishVersion({
+    bundleVersionId: selectedVersion.value.id,
+    actorName: authStore.displayName || 'Admin central',
     currentDate: new Date(),
   })
 
-  ui.lastEventSummary = event?.summary || ''
+  if (updated) {
+    ui.lastEventSummary = `Versao ${updated.versionNumber} publicada como referencia canonica de ${currentBundle.value?.bundleLabel || 'conhecimento'}.`
+  }
 }
 </script>
 
 <template>
   <div class="grid gap-6">
-    <SectionPanel
-      eyebrow="Admin"
-      title="Publicacao e versionamento"
-      description="Compare a edicao atual com a versao publicada antes de aprovar ou publicar mudancas."
-    >
-      <div class="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
-        <div class="grid gap-3 md:grid-cols-2">
-          <div class="inner-panel p-5">
-            <p class="text-sm font-semibold text-slate-500">Ator atual</p>
-            <p class="mt-3 text-lg font-semibold text-slate-950">{{ runtime.currentActor?.name }}</p>
-            <p class="mt-2 text-sm text-slate-600">{{ runtime.currentActor?.role }}</p>
-          </div>
-          <div class="inner-panel p-5">
-            <p class="text-sm font-semibold text-slate-500">Dominios governados</p>
-            <p class="mt-3 text-lg font-semibold text-slate-950">{{ runtime.domains.length }} dominios</p>
-            <p class="mt-2 text-sm text-slate-600">
-              FAQ, parametros e permissoes seguem o mesmo fluxo de aprovacao e publicacao.
-            </p>
-          </div>
-        </div>
-
-        <div class="inner-panel p-5">
-          <p class="text-sm font-semibold text-slate-500">Leitura comparativa</p>
-          <p class="mt-3 text-lg font-semibold text-slate-950">Mudancas reunidas por dominio</p>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            O painel destaca o que foi alterado antes da versao nova seguir para aprovacao e
-            publicacao.
-          </p>
-        </div>
-      </div>
-    </SectionPanel>
-
-    <SectionPanel
-      eyebrow="Dominios"
-      title="Selecione o dominio"
-      description="Cada dominio mostra a edicao atual, a versao publicada e o volume de mudancas pendentes."
-    >
-      <div class="grid gap-3 xl:grid-cols-3">
-        <button
-          v-for="domain in runtime.domains"
-          :key="domain.key"
-          type="button"
-          class="option-button text-left"
-          :class="{ 'is-active': ui.domainKey === domain.key }"
-          @click="selectDomain(domain.key)"
-        >
-          <p class="text-xs font-semibold text-slate-500">{{ domain.key }}</p>
-          <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ domain.label }}</h3>
-          <p class="mt-2 text-sm leading-6 text-slate-600">{{ domain.description }}</p>
-
-          <div class="mt-4 flex flex-wrap gap-2">
-            <StatusBadge :label="`edicao ${domain.draft.version}`" />
-            <StatusBadge :label="`publicada ${domain.published.version}`" />
-            <StatusBadge :label="`${domain.diffSummary.total} mudanca(s)`" />
-          </div>
-        </button>
-      </div>
-    </SectionPanel>
-
-    <section v-if="currentDomain" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <MetricCard
-        v-for="metric in currentDomain.metrics"
+        v-for="metric in runtime.metrics"
         :key="metric.label"
         :label="metric.label"
         :value="metric.value"
@@ -168,51 +119,108 @@ function publishDraft() {
       />
     </section>
 
-    <div v-if="currentDomain" class="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+    <SectionPanel
+      eyebrow="Bundles"
+      title="Versionamento canônico"
+      description="Cada bundle publicado referencia seus proprios snapshots de nos e links. Publicacao e historico usam a mesma trilha canonica da operacao."
+    >
+      <div class="grid gap-3 xl:grid-cols-2">
+        <button
+          v-for="bundle in runtime.bundles"
+          :key="bundle.bundleType"
+          type="button"
+          class="option-button text-left"
+          :class="{ 'is-active': bundle.bundleType === ui.bundleType }"
+          @click="selectBundle(bundle.bundleType)"
+        >
+          <p class="text-xs font-semibold text-slate-500">{{ bundle.bundleType }}</p>
+          <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ bundle.bundleLabel }}</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">
+            {{ bundle.versions.length }} versao(oes) registradas na trilha canonica.
+          </p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <StatusBadge :label="bundle.publishedVersion ? `publicada ${bundle.publishedVersion.versionNumber}` : 'sem publicacao'" />
+            <StatusBadge :label="`${bundle.publicationHistory.length} publicacao(oes)`" />
+          </div>
+        </button>
+      </div>
+    </SectionPanel>
+
+    <div v-if="currentBundle" class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
       <SectionPanel
         eyebrow="Versoes"
-        title="Edicao atual e versao publicada"
-        description="Compare o estado atual com a versao em vigor e siga para aprovacao ou publicacao."
+        :title="currentBundle.bundleLabel"
+        description="A publicacao agora age sobre a mesma estrutura canônica usada por snapshots, auditoria e futuros recursos de backend."
       >
-        <div class="grid gap-5">
+        <div class="grid gap-3">
+          <button
+            v-for="version in currentBundle.versions"
+            :key="version.id"
+            type="button"
+            class="option-button text-left"
+            :class="{ 'is-active': version.id === ui.versionId }"
+            @click="selectVersion(version.id)"
+          >
+            <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <p class="text-xs font-semibold text-slate-500">{{ version.bundleType }}</p>
+                <h3 class="mt-2 text-lg font-semibold text-slate-950">{{ version.versionNumber }}</h3>
+                <p class="mt-2 text-sm leading-6 text-slate-600">{{ version.changeSummary }}</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <StatusBadge :label="version.statusCode" />
+                <StatusBadge :label="`${version.nodeCount} no(s)`" />
+                <StatusBadge :label="`${version.linkCount} link(s)`" />
+              </div>
+            </div>
+          </button>
+        </div>
+      </SectionPanel>
+
+      <SectionPanel
+        eyebrow="Publicacao"
+        title="Versao selecionada"
+        description="Aprovacao e publicacao mudam a referencia ativa do bundle sem depender do runtime legado de versoes."
+      >
+        <div v-if="selectedVersion" class="grid gap-5">
+          <div class="inner-panel p-5">
+            <p class="text-sm font-semibold text-slate-500">Versao</p>
+            <p class="mt-3 text-lg font-semibold text-slate-950">{{ selectedVersion.versionNumber }}</p>
+            <p class="mt-2 text-sm text-slate-600">{{ selectedVersion.changeSummary }}</p>
+          </div>
+
           <div class="grid gap-3 md:grid-cols-2">
             <div class="inner-panel p-5">
-              <p class="text-sm font-semibold text-slate-500">Edicao atual</p>
-              <p class="mt-3 text-lg font-semibold text-slate-950">{{ currentDomain.draft.version }}</p>
-              <p class="mt-2 text-sm text-slate-600">
-                {{ currentDomain.draft.updatedAt }} - {{ currentDomain.draft.updatedBy }}
-              </p>
-              <p class="mt-3 text-sm leading-6 text-slate-600">{{ currentDomain.draft.summary }}</p>
+              <p class="text-sm font-semibold text-slate-500">Estado</p>
+              <p class="mt-3 text-lg font-semibold text-slate-950">{{ selectedVersion.statusCode }}</p>
+              <p class="mt-2 text-sm text-slate-600">Criada por {{ selectedVersion.createdBy }}</p>
             </div>
 
             <div class="inner-panel p-5">
-              <p class="text-sm font-semibold text-slate-500">Versao publicada</p>
-              <p class="mt-3 text-lg font-semibold text-slate-950">{{ currentDomain.published.version }}</p>
-              <p class="mt-2 text-sm text-slate-600">
-                {{ currentDomain.published.updatedAt }} - {{ currentDomain.published.updatedBy }}
+              <p class="text-sm font-semibold text-slate-500">Snapshots congelados</p>
+              <p class="mt-3 text-lg font-semibold text-slate-950">
+                {{ selectedVersion.nodeCount }} no(s) / {{ selectedVersion.linkCount }} link(s)
               </p>
-              <p class="mt-3 text-sm leading-6 text-slate-600">{{ currentDomain.published.summary }}</p>
+              <p class="mt-2 text-sm text-slate-600">
+                Cada versao aponta para seus proprios snapshots canônicos.
+              </p>
             </div>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
             <div class="inner-panel p-5">
-              <p class="text-sm font-semibold text-slate-500">Aprovacao</p>
-              <p class="mt-3 text-lg font-semibold text-slate-950">{{ currentDomain.approval.status }}</p>
-              <p class="mt-2 text-sm text-slate-600">
-                {{ currentDomain.approval.approvedAt || 'Sem aprovacao registrada' }}
-              </p>
-              <p class="mt-2 text-sm text-slate-600">
-                {{ currentDomain.approval.approvedBy || 'Aguardando aprovacao' }}
-              </p>
+              <p class="text-sm font-semibold text-slate-500">Ultima aprovacao</p>
+              <p class="mt-3 text-lg font-semibold text-slate-950">{{ selectedVersion.approvedBy || 'Sem aprovacao' }}</p>
+              <p class="mt-2 text-sm text-slate-600">{{ selectedVersion.publishedAt || 'Sem publicacao registrada' }}</p>
             </div>
 
             <div class="inner-panel p-5">
-              <p class="text-sm font-semibold text-slate-500">Resumo das mudancas</p>
-              <p class="mt-3 text-lg font-semibold text-slate-950">{{ currentDomain.diffHeadline }}</p>
+              <p class="text-sm font-semibold text-slate-500">Publicacao ativa</p>
+              <p class="mt-3 text-lg font-semibold text-slate-950">
+                {{ currentBundle.publishedVersion?.versionNumber || 'Nenhuma' }}
+              </p>
               <p class="mt-2 text-sm text-slate-600">
-                Fila, prazo, criticidade, calendario e permissoes aparecem reunidos no mesmo
-                painel.
+                {{ currentBundle.publishedVersion?.publishedBy || 'Sem ator registrado' }}
               </p>
             </div>
           </div>
@@ -220,15 +228,17 @@ function publishDraft() {
           <div class="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              class="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
-              @click="approveDraft"
+              class="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="!selectedVersion.canApprove"
+              @click="approveSelectedVersion"
             >
-              Aprovar edicao
+              Aprovar versao
             </button>
             <button
               type="button"
-              class="rounded-[18px] bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.18)]"
-              @click="publishDraft"
+              class="rounded-[18px] bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="!selectedVersion.canPublish"
+              @click="publishSelectedVersion"
             >
               Publicar versao
             </button>
@@ -240,139 +250,12 @@ function publishDraft() {
             </span>
           </div>
         </div>
-      </SectionPanel>
-
-      <SectionPanel
-        eyebrow="Mudancas"
-        title="Itens em comparacao"
-        description="Cada item representa um tema, regra, nivel, destaque de calendario ou politica alterada, nova ou removida."
-      >
-        <div v-if="currentDomain.diffItems.length" class="grid gap-3">
-          <button
-            v-for="item in currentDomain.diffItems"
-            :key="item.id"
-            type="button"
-            class="option-button text-left"
-            :class="{ 'is-active': ui.selectedDiffId === item.id }"
-            @click="selectDiff(item.id)"
-          >
-            <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p class="text-xs font-semibold text-slate-500">
-                  {{ item.groupLabel }} - {{ item.itemTypeLabel }}
-                </p>
-                <h3 class="mt-2 text-base font-semibold text-slate-950">{{ item.title }}</h3>
-                <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.subtitle }}</p>
-                <p v-if="item.description" class="mt-2 text-sm leading-6 text-slate-500">
-                  {{ item.description }}
-                </p>
-              </div>
-
-              <div class="flex flex-wrap gap-2">
-                <StatusBadge :label="buildChangeTypeLabel(item.changeType)" />
-                <StatusBadge :label="item.summary" />
-              </div>
-            </div>
-          </button>
-        </div>
 
         <div v-else class="inner-panel p-6">
-          <p class="text-xs font-semibold text-slate-500">Sem diferencas</p>
+          <p class="text-xs font-semibold text-slate-500">Nenhuma versao selecionada</p>
           <h3 class="mt-3 text-2xl font-semibold text-slate-950">
-            Edicao atual e versao publicada estao alinhadas.
+            Selecione um bundle para inspecionar sua publicacao canonica.
           </h3>
-          <p class="mt-3 text-sm leading-6 text-slate-600">
-            A proxima mudanca deste dominio aparecera aqui automaticamente.
-          </p>
-        </div>
-      </SectionPanel>
-    </div>
-
-    <div v-if="currentDomain" class="grid gap-6 xl:grid-cols-[0.96fr_1.04fr]">
-      <SectionPanel
-        eyebrow="Detalhe"
-        title="Campos alterados"
-        description="Veja o que mudou em cada campo para apoiar a decisao de aprovar ou publicar."
-      >
-        <div v-if="selectedDiffItem" class="grid gap-5">
-          <div class="flex flex-wrap gap-2">
-            <StatusBadge :label="selectedDiffItem.groupLabel" />
-            <StatusBadge :label="buildChangeTypeLabel(selectedDiffItem.changeType)" />
-          </div>
-
-          <div class="inner-panel p-5">
-            <p class="text-xs font-semibold text-slate-500">{{ selectedDiffItem.itemTypeLabel }}</p>
-            <h3 class="mt-3 text-xl font-semibold text-slate-950">{{ selectedDiffItem.title }}</h3>
-            <p class="mt-2 text-sm leading-6 text-slate-600">{{ selectedDiffItem.subtitle }}</p>
-            <p v-if="selectedDiffItem.description" class="mt-3 text-sm leading-6 text-slate-500">
-              {{ selectedDiffItem.description }}
-            </p>
-          </div>
-
-          <div v-if="selectedDiffItem.fieldChanges.length" class="grid gap-3">
-            <article
-              v-for="fieldChange in selectedDiffItem.fieldChanges"
-              :key="fieldChange.key"
-              class="inner-panel p-5"
-            >
-              <p class="text-xs font-semibold text-slate-500">{{ fieldChange.label }}</p>
-              <div class="mt-4 grid gap-3 md:grid-cols-2">
-                <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                  <p class="text-sm font-semibold text-slate-500">Versao publicada</p>
-                  <p class="mt-2 text-sm font-semibold text-slate-900">{{ fieldChange.from }}</p>
-                </div>
-                <div class="rounded-[18px] bg-slate-50 px-4 py-3">
-                  <p class="text-sm font-semibold text-slate-500">Edicao atual</p>
-                  <p class="mt-2 text-sm font-semibold text-slate-900">{{ fieldChange.to }}</p>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div v-else class="inner-panel p-5">
-            <p class="text-sm font-semibold text-slate-900">Este item e novo ou removido.</p>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              A comparacao nao mostra campos individuais porque a mudanca ocorreu no item inteiro.
-            </p>
-          </div>
-        </div>
-
-        <div v-else class="inner-panel p-6">
-          <p class="text-xs font-semibold text-slate-500">Nenhuma mudanca selecionada</p>
-          <h3 class="mt-3 text-2xl font-semibold text-slate-950">
-            Selecione um item para ver a comparacao.
-          </h3>
-        </div>
-      </SectionPanel>
-
-      <SectionPanel
-        eyebrow="Auditoria"
-        title="Aprovacoes e publicacoes"
-        description="Eventos administrativos separados por aprovacao e publicacao, com dominio, ator, versao anterior, versao nova e resumo."
-      >
-        <div class="grid gap-3">
-          <article
-            v-for="event in selectedDomainEvents"
-            :key="event.id"
-            class="inner-panel p-5"
-          >
-            <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p class="text-xs font-semibold text-slate-500">
-                  {{ buildActionTypeLabel(event.actionType) }}
-                </p>
-                <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ event.summary }}</h3>
-                <p class="mt-2 text-sm leading-6 text-slate-600">
-                  {{ event.actorName }} - {{ event.actorRole }} - {{ event.changedAtLabel }}
-                </p>
-              </div>
-
-              <div class="flex flex-wrap gap-2">
-                <StatusBadge :label="event.previousVersion" />
-                <StatusBadge :label="event.nextVersion" />
-              </div>
-            </div>
-          </article>
         </div>
       </SectionPanel>
     </div>

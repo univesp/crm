@@ -16,6 +16,7 @@ const router = createRouter({
   history: createWebHistory(routerBase),
   routes,
 })
+const CHUNK_RELOAD_GUARD_KEY = 'univesp-router-chunk-reload'
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore(pinia)
@@ -69,6 +70,40 @@ router.beforeEach(async (to) => {
       redirect: normalizeInternalRouteTarget(to.fullPath),
     },
   }
+})
+
+router.afterEach(() => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.sessionStorage?.removeItem(CHUNK_RELOAD_GUARD_KEY)
+})
+
+router.onError((error, to) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const message = String(error?.message || '')
+  const isChunkLoadError =
+    message.includes('Failed to fetch dynamically imported module') ||
+    message.includes('Importing a module script failed') ||
+    message.toLowerCase().includes('dynamically imported')
+
+  if (!isChunkLoadError) {
+    console.error(error)
+    return
+  }
+
+  if (window.sessionStorage?.getItem(CHUNK_RELOAD_GUARD_KEY) === '1') {
+    window.sessionStorage.removeItem(CHUNK_RELOAD_GUARD_KEY)
+    console.error(error)
+    return
+  }
+
+  window.sessionStorage?.setItem(CHUNK_RELOAD_GUARD_KEY, '1')
+  window.location.assign(to.fullPath)
 })
 
 app.use(pinia)

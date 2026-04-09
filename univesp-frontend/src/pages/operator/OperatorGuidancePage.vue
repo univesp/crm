@@ -9,6 +9,15 @@ const route = useRoute()
 const router = useRouter()
 
 const selectedNodeId = ref(String(route.query.node || ''))
+const searchQuery = ref('')
+
+function normalizeText(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
 
 const faqRuntime = computed(() => buildStudentFaqRuntime())
 const faqNodeIndex = computed(() => {
@@ -65,6 +74,61 @@ const stageCopy = computed(() => {
       title: activeNode.value.titulo_exibido,
       description: 'Veja primeiro o que o aluno encontraria no portal e, logo abaixo, como o OP deve conduzir a tratativa.',
   }
+})
+
+const searchableNodes = computed(() =>
+  [...faqNodeIndex.value.values()].filter((node) => node.id && node.titulo_exibido),
+)
+
+const searchResults = computed(() => {
+  const query = normalizeText(searchQuery.value)
+
+  if (!query) {
+    return []
+  }
+
+  return searchableNodes.value
+    .map((node) => {
+      const haystack = normalizeText(
+        [node.titulo_exibido, node.pergunta_exibida, node.tema, node.subtema].filter(Boolean).join(' '),
+      )
+
+      const score =
+        haystack.startsWith(query) ? 3 : haystack.includes(query) ? 2 : 0
+
+      if (!score) {
+        return null
+      }
+
+      const lineage = node.runtime?.lineage
+        ?.map((nodeId) => faqNodeIndex.value.get(nodeId))
+        .filter(Boolean)
+        .map((item) => item.titulo_exibido) || []
+
+      return {
+        id: node.id,
+        title: node.titulo_exibido,
+        description: node.pergunta_exibida || node.descricao_interna || node.resposta || 'Abrir orientacao',
+        lineage,
+        isLeaf: !(node.children?.length),
+        highlighted: node.runtime?.isHighlighted,
+        badgeLabel: node.runtime?.highlightLabel,
+        score,
+      }
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score
+      }
+
+      if (left.isLeaf !== right.isLeaf) {
+        return left.isLeaf ? -1 : 1
+      }
+
+      return left.title.localeCompare(right.title, 'pt-BR')
+    })
+    .slice(0, 10)
 })
 
 const visibleOptions = computed(() => {
@@ -133,7 +197,12 @@ function findLeafByThemeSubtheme() {
 
 function openNode(nodeId) {
   selectedNodeId.value = nodeId
+  searchQuery.value = ''
   router.replace({ path: route.path, query: { node: nodeId } })
+}
+
+function clearSearch() {
+  searchQuery.value = ''
 }
 
 function goBack() {
@@ -216,6 +285,31 @@ watch(
         </button>
       </div>
 
+      <div class="mt-4 flex flex-col gap-2">
+        <label class="grid gap-2">
+          <span class="text-sm font-semibold text-slate-700">Buscar assunto</span>
+          <div class="flex items-center gap-2">
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="w-full rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+              placeholder="Tema, subtema ou orientacao"
+            />
+            <button
+              v-if="searchQuery.trim()"
+              type="button"
+              class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="clearSearch"
+            >
+              Limpar
+            </button>
+          </div>
+        </label>
+        <p class="text-sm leading-6 text-slate-600">
+          Use a busca quando quiser abrir direto um assunto da FAQ sem percorrer toda a trilha.
+        </p>
+      </div>
+
       <div v-if="activeLineage.length" class="mt-4 flex flex-wrap gap-2">
         <button
           v-for="step in activeLineage"
@@ -230,7 +324,65 @@ watch(
     </section>
 
     <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
-      <div v-if="!activeNode" class="px-5 py-5">
+      <div v-if="searchQuery.trim()" class="px-5 py-5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-slate-900">Resultados da busca</p>
+            <p class="mt-1 text-sm leading-6 text-slate-600">
+              Abra direto o assunto encontrado para consultar a orientacao correspondente.
+            </p>
+          </div>
+          <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            {{ searchResults.length }} resultado(s)
+          </span>
+        </div>
+
+        <div v-if="searchResults.length" class="mt-4 grid gap-3">
+          <button
+            v-for="result in searchResults"
+            :key="result.id"
+            type="button"
+            :class="[
+              'rounded-[14px] border px-4 py-4 text-left transition hover:bg-slate-50',
+              result.highlighted
+                ? 'border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.04)]'
+                : 'border-slate-200 bg-white',
+            ]"
+            @click="openNode(result.id)"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-base font-semibold text-slate-950">{{ result.title }}</p>
+                <p class="mt-2 text-sm leading-6 text-slate-600">{{ result.description }}</p>
+                <div v-if="result.lineage.length" class="mt-3 flex flex-wrap gap-2">
+                  <span
+                    v-for="step in result.lineage"
+                    :key="`${result.id}-${step}`"
+                    class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                  >
+                    {{ step }}
+                  </span>
+                </div>
+              </div>
+              <span
+                v-if="result.badgeLabel"
+                class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--color-primary-dark)] ring-1 ring-[rgba(209,50,57,0.12)]"
+              >
+                {{ result.badgeLabel }}
+              </span>
+            </div>
+          </button>
+        </div>
+
+        <div v-else class="mt-4 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+          <p class="text-sm font-semibold text-slate-900">Nenhuma orientacao encontrada</p>
+          <p class="mt-2 text-sm leading-6 text-slate-600">
+            Tente buscar por tema, subtema ou parte do nome do assunto.
+          </p>
+        </div>
+      </div>
+
+      <div v-else-if="!activeNode" class="px-5 py-5">
         <div class="grid gap-3 md:grid-cols-2">
           <button
             v-for="option in visibleOptions"

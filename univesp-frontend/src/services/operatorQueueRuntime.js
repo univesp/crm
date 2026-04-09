@@ -2,6 +2,15 @@ import loggedStudent from '../../mocks/usuario-logado.json'
 import studentFaq from '../../mocks/faq-aluno.json'
 import operatorFaq from '../../mocks/faq-op.json'
 import { buildCaseRoutingContext, filterCasesForMockContext } from '@/services/caseRoutingRuntime'
+import { CASE_PROTOCOL_STATUSES } from '@/services/canonicalFoundationRuntime'
+import {
+  buildCanonicalSla,
+  mapLegacyCaseStatusCode,
+  parseLegacySlaMinutes,
+  resolveOperationalBucket,
+  resolveOperationalStatusLabel,
+  shouldShowOperationalDeadline,
+} from '@/services/canonicalCaseRuntime'
 import {
   operatorQueue as seededOperatorQueue,
   operatorCaseSeeds,
@@ -36,6 +45,9 @@ const STATUS_SCORE = {
 const ACTION_METADATA = {
   reply: {
     title: 'Resposta registrada pelo OP',
+    canonicalStatusCode: CASE_PROTOCOL_STATUSES.RESOLVED,
+    pendingParty: 'none',
+    closedBy: 'op',
     statusLabel: 'Respondido pelo OP',
     pendingLabel: 'Aguardando leitura do aluno no portal',
     channel: 'Portal do atendimento',
@@ -47,6 +59,9 @@ const ACTION_METADATA = {
   },
   request_info: {
     title: 'Complementacao solicitada',
+    canonicalStatusCode: CASE_PROTOCOL_STATUSES.WAITING_STUDENT,
+    pendingParty: 'student',
+    closedBy: '',
     statusLabel: 'Aguardando complementacao do aluno',
     pendingLabel: 'Aluno precisa complementar informacoes ou anexos',
     channel: 'Portal do atendimento',
@@ -64,6 +79,9 @@ const ACTION_METADATA = {
   },
   escalate: {
     title: 'Escalado para area interna',
+    canonicalStatusCode: CASE_PROTOCOL_STATUSES.WAITING_AREA,
+    pendingParty: 'area',
+    closedBy: '',
     statusLabel: 'Escalado para area interna',
     pendingLabel: 'Aguardando atuacao do last mile',
     channel: 'Encaminhamento interno',
@@ -94,6 +112,10 @@ function normalizeText(value = '') {
   return String(value).trim().toLowerCase()
 }
 
+function sanitizeObjectCollection(collection = []) {
+  return Array.isArray(collection) ? collection.filter((item) => item && typeof item === 'object') : []
+}
+
 function tokenize(value = '') {
   return normalizeText(value)
     .normalize('NFD')
@@ -113,6 +135,36 @@ function titleCase(value = '') {
   }
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+function hasMeaningfulText(value = '') {
+  return String(value || '').trim().length > 0
+}
+
+function pickFirstText(...values) {
+  for (const value of values) {
+    if (hasMeaningfulText(value)) {
+      return String(value).trim()
+    }
+  }
+
+  return ''
+}
+
+function pickArray(...values) {
+  for (const value of values) {
+    if (Array.isArray(value) && value.length) {
+      return [...value]
+    }
+  }
+
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      return [...value]
+    }
+  }
+
+  return []
 }
 
 function buildTimestampParts(value = new Date()) {
@@ -257,38 +309,8 @@ function buildPriorityLabel(criticality, fallback = '') {
   return 'Media'
 }
 
-function parseSlaMinutes(sla = '') {
-  const normalized = normalizeText(sla)
-
-  if (!normalized || normalized.includes('nao informado') || normalized.includes('encerrad')) {
-    return Number.MAX_SAFE_INTEGER
-  }
-
-  if (normalized.includes('vencid') || normalized.includes('atrasad')) {
-    return -1
-  }
-
-  if (normalized.includes('hoje')) {
-    return 8 * 60
-  }
-
-  const daysMatch = normalized.match(/(\d+)\s*d/)
-  const hoursMatch = normalized.match(/(\d+)\s*h/)
-  const minutesMatch = normalized.match(/(\d+)\s*min/)
-
-  if (daysMatch || hoursMatch || minutesMatch) {
-    return (
-      Number.parseInt(daysMatch?.[1] || '0', 10) * 24 * 60 +
-      Number.parseInt(hoursMatch?.[1] || '0', 10) * 60 +
-      Number.parseInt(minutesMatch?.[1] || '0', 10)
-    )
-  }
-
-  return Number.MAX_SAFE_INTEGER - 1
-}
-
 function buildSortTokens({ priority, criticality, status, activityAt, source, sla }) {
-  const slaMinutes = parseSlaMinutes(sla)
+  const slaMinutes = typeof sla === 'number' ? sla : parseLegacySlaMinutes(sla)
   return {
     priorityScore: PRIORITY_SCORE[normalizeText(priority)] || 0,
     criticalityScore: CRITICALITY_SCORE[normalizeText(criticality)] || 0,
@@ -299,7 +321,22 @@ function buildSortTokens({ priority, criticality, status, activityAt, source, sl
   }
 }
 
-function isSlaAtRisk(sla) {
+function hasStructuredStudentData(value = null) {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      [value.nome, value.email, value.ra, value.curso, value.polo].some(hasMeaningfulText),
+  )
+}
+
+function isSlaAtRisk(sla, slaState = '') {
+  const normalizedState = normalizeText(slaState)
+
+  if (normalizedState === 'at_risk' || normalizedState === 'overdue') {
+    return true
+  }
+
   const normalized = normalizeText(sla)
 
   return normalized.includes('min') || normalized.includes('restante') || normalized.includes('4h')
@@ -350,11 +387,28 @@ function resolveSourceLabel(source = '') {
 }
 
 export function resolveQueueBucket(entry = {}) {
+  if (entry.statusCode) {
+    return resolveOperationalBucket(entry)
+  }
+
   const status = normalizeText(entry.status)
   const pending = normalizeText(entry.pendingLabel)
 
-  if (status.includes('faq') || status.includes('respondido') || status.includes('conclu')) {
+  if (
+    status.includes('faq') ||
+    status.includes('respondido pelo op') ||
+    status.includes('concluido pela area') ||
+    status.includes('conclu')
+  ) {
     return 'completed'
+  }
+
+  if (status.includes('respondido pela area') || status.includes('complementacao solicitada pela area')) {
+    return 'needs_action'
+  }
+
+  if (status.includes('reencaminhado')) {
+    return 'waiting_area'
   }
 
   if (
@@ -379,9 +433,29 @@ export function resolveQueueBucket(entry = {}) {
 }
 
 export function resolveOperationalStatus(entry = {}) {
+  if (entry.statusCode) {
+    return resolveOperationalStatusLabel(entry)
+  }
+
   const status = normalizeText(entry.status)
   const bucket = resolveQueueBucket(entry)
   const sla = normalizeText(entry.sla)
+
+  if (status.includes('respondido pela area')) {
+    return 'Resposta da area'
+  }
+
+  if (status.includes('complementacao solicitada pela area')) {
+    return 'Area pediu complemento'
+  }
+
+  if (status.includes('reencaminhado')) {
+    return 'Reencaminhado'
+  }
+
+  if (status.includes('concluido pela area')) {
+    return 'Concluido pela area'
+  }
 
   if (status.includes('faq')) {
     return 'Respondido FAQ'
@@ -415,7 +489,11 @@ export function resolveOperationalStatus(entry = {}) {
 }
 
 export function shouldShowResponseDeadline(entry = {}) {
-  return resolveQueueBucket(entry) !== 'waiting_student'
+  if (entry.statusCode) {
+    return shouldShowOperationalDeadline(entry)
+  }
+
+  return resolveQueueBucket(entry) !== 'waiting_student' && !normalizeText(entry.status).includes('reencaminhado')
 }
 
 function resolveAssignedOperatorName({
@@ -483,6 +561,14 @@ function buildPendingFacetLabel({ status = '', pendingLabel = '' } = {}) {
   const normalizedStatus = normalizeText(status)
   const normalizedPending = normalizeText(pendingLabel)
 
+  if (normalizedStatus.includes('respondido pela area')) {
+    return 'Aguardando acao do OP'
+  }
+
+  if (normalizedStatus.includes('complementacao solicitada pela area')) {
+    return 'Complementacao pendente'
+  }
+
   if (normalizedStatus.includes('faq') || normalizedStatus.includes('conclu') || normalizedStatus.includes('respondido')) {
     return 'Concluidos'
   }
@@ -510,6 +596,13 @@ function buildEscalationStateLabel({ status = '', queue = '', routing = null } =
   const normalizedStatus = normalizeText(status)
   const normalizedQueue = normalizeText(queue)
   const normalizedCurrentQueue = normalizeText(routing?.currentQueueLabel)
+
+  if (
+    normalizedStatus.includes('respondido pela area') ||
+    normalizedStatus.includes('complementacao solicitada pela area')
+  ) {
+    return 'No OP'
+  }
 
   if (normalizedStatus.includes('escalado') || (normalizedCurrentQueue && normalizedQueue !== normalizedCurrentQueue)) {
     return 'Escalado'
@@ -546,34 +639,112 @@ function buildNextStepLabel({ status = '', pendingLabel = '', sla = '', critical
   return 'Validar a tratativa e registrar a proxima decisao.'
 }
 
+function buildPendingFacetFromCanonical(caseProtocol = {}) {
+  if (caseProtocol.closedBy || ['resolved', 'closed'].includes(caseProtocol.statusCode)) {
+    return 'Concluidos'
+  }
+
+  if (caseProtocol.latestAreaActionType === 'request_complement' || caseProtocol.pendingParty === 'student') {
+    return 'Complementacao pendente'
+  }
+
+  if (caseProtocol.pendingParty === 'area' || caseProtocol.statusCode === 'rerouted') {
+    return 'Aguardando area interna'
+  }
+
+  return 'Aguardando acao do OP'
+}
+
+function buildEscalationStateFromCanonical(caseProtocol = {}) {
+  if (caseProtocol.pendingParty === 'area' || caseProtocol.statusCode === 'rerouted') {
+    return 'Escalado'
+  }
+
+  return 'No OP'
+}
+
+function buildNextStepFromCanonical(caseProtocol = {}) {
+  if (caseProtocol.latestAreaActionType === 'request_complement') {
+    return 'Reunir os subsidios pedidos pela area antes de devolver o caso.'
+  }
+
+  if (caseProtocol.latestAreaActionType === 'technical_reply') {
+    return 'Traduzir a resposta tecnica da area para o aluno e registrar a devolutiva.'
+  }
+
+  if (caseProtocol.pendingParty === 'student') {
+    return 'Aguardar a complementacao do aluno antes de retomar a analise.'
+  }
+
+  if (caseProtocol.pendingParty === 'area' || caseProtocol.statusCode === 'rerouted') {
+    return 'Acompanhar o handoff interno e aguardar a devolutiva da area.'
+  }
+
+  if (caseProtocol.slaState === 'overdue' || caseProtocol.slaState === 'at_risk' || caseProtocol.criticalityCode === 'critica') {
+    return 'Priorizar a leitura e registrar a decisao agora.'
+  }
+
+  return 'Validar a tratativa e registrar a proxima decisao.'
+}
+
+function buildPriorityReasonFromCanonical(caseProtocol = {}) {
+  if (caseProtocol.slaState === 'overdue' || caseProtocol.slaState === 'at_risk') {
+    return 'SLA em risco'
+  }
+
+  if (caseProtocol.pendingParty === 'area' || caseProtocol.statusCode === 'rerouted') {
+    return 'Handoff para area interna'
+  }
+
+  if (caseProtocol.pendingParty === 'student') {
+    return 'Complementacao pendente'
+  }
+
+  if (caseProtocol.criticalityCode === 'critica' || caseProtocol.criticalityCode === 'alta') {
+    return 'Criticidade alta'
+  }
+
+  return 'Fila ativa'
+}
+
 function getCaseActionLogs(actionLogs = [], caseId) {
   return actionLogs
     .filter((log) => log.caseId === caseId)
     .sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime())
 }
 
-function applyActionLogsToQueueEntry(entry, actionLogs = []) {
+function getCaseAreaActionLogs(areaActionLogs = [], caseId) {
+  return areaActionLogs
+    .filter((log) => log.caseId === caseId)
+    .sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime())
+}
+
+function applyActionLogsToQueueEntry(entry, actionLogs = [], areaActionLogs = []) {
   const caseLogs = getCaseActionLogs(actionLogs, entry.id)
   const latestLog = caseLogs[caseLogs.length - 1] || null
-  const status = latestLog?.statusLabel || entry.status
-  const queue = latestLog?.queueLabel || entry.queue
-  const pending = latestLog?.pendingLabel || entry.pendingLabel || 'Aguardando triagem operacional'
-  const activityAt = latestLog?.occurredAt || entry.createdAt
-  const activityAtLabel = latestLog?.occurredAtLabel || entry.createdAtLabel
+  const caseAreaLogs = getCaseAreaActionLogs(areaActionLogs, entry.id)
+  const latestAreaLog = caseAreaLogs[caseAreaLogs.length - 1] || null
+  const status = latestAreaLog?.statusAfter || latestLog?.statusLabel || entry.status
+  const queue = latestAreaLog?.queueAfter || latestLog?.queueLabel || entry.queue
+  const pending =
+    latestAreaLog?.pendingLabel || latestLog?.pendingLabel || entry.pendingLabel || 'Aguardando triagem operacional'
+  const activityAt = latestAreaLog?.occurredAt || latestLog?.occurredAt || entry.createdAt
+  const activityAtLabel = latestAreaLog?.occurredAtLabel || latestLog?.occurredAtLabel || entry.createdAtLabel
   const priority = latestLog?.priorityLabel || entry.priority
   const criticality = latestLog?.criticalityLabel || entry.criticality
   const assignedOperator = entry.assignedOperator
   const normalizedStatus = normalizeText(status)
   const currentSla =
-    normalizedStatus.includes('respondido') ||
+    (normalizedStatus.includes('respondido') && !normalizedStatus.includes('respondido pela area')) ||
     normalizedStatus.includes('faq') ||
     normalizedStatus.includes('conclu')
       ? 'Encerrado'
       : entry.sla
-  const routing = latestLog?.queueLabel
+  const routing = latestLog?.queueLabel || latestAreaLog?.queueAfter
     ? {
         ...entry.routing,
-        targetAreaLabel: latestLog.destinationLabel || entry.routing?.targetAreaLabel,
+        targetAreaLabel:
+          latestAreaLog?.destinationLabel || latestLog?.destinationLabel || entry.routing?.targetAreaLabel,
       }
     : entry.routing
   const originLabel = entry.originLabel || resolveSourceLabel(entry.source)
@@ -587,7 +758,8 @@ function applyActionLogsToQueueEntry(entry, actionLogs = []) {
     activityAt,
     activityAtLabel,
     assignedOperator,
-    ownerLabel: latestLog?.assigneeLabel || entry.ownerLabel || assignedOperator,
+    ownerLabel:
+      latestAreaLog?.assigneeLabel || latestLog?.assigneeLabel || entry.ownerLabel || assignedOperator,
     originLabel,
     sla: currentSla,
     slaState: buildSlaStateLabel(currentSla),
@@ -620,6 +792,7 @@ function applyActionLogsToQueueEntry(entry, actionLogs = []) {
       entry.polo,
       assignedOperator,
       latestLog?.assigneeLabel,
+      latestAreaLog?.assigneeLabel,
       pending,
     ].join(' '),
     sortTokens: buildSortTokens({
@@ -633,7 +806,62 @@ function applyActionLogsToQueueEntry(entry, actionLogs = []) {
   }
 }
 
-function buildSeedQueueEntry(item, actionLogs = []) {
+function mergeCanonicalCaseProtocol(entry, canonicalCaseProtocol = null, caseKnowledgeUsages = []) {
+  if (!canonicalCaseProtocol) {
+    return entry
+  }
+
+  const sla = buildCanonicalSla({
+    statusCode: canonicalCaseProtocol.statusCode,
+    createdAt: canonicalCaseProtocol.createdAt || entry.createdAt,
+    slaPolicyCode: canonicalCaseProtocol.slaPolicyCode || '',
+    legacyLabel: canonicalCaseProtocol.slaLabel || entry.sla,
+    legacyMinutes: canonicalCaseProtocol.slaMinutesRemaining,
+  })
+  const knowledgeUsages = caseKnowledgeUsages
+    .filter((record) => record.caseId === entry.id)
+    .sort((left, right) => new Date(left.usedAt || 0).getTime() - new Date(right.usedAt || 0).getTime())
+
+  return {
+    ...entry,
+    subjectCode: canonicalCaseProtocol.subjectCode || entry.themeKey,
+    subsubjectCode: canonicalCaseProtocol.subsubjectCode || entry.subsubjectKey,
+    currentNodeId: canonicalCaseProtocol.currentNodeId || null,
+    statusCode: canonicalCaseProtocol.statusCode,
+    pendingParty: canonicalCaseProtocol.pendingParty,
+    criticalityCode: canonicalCaseProtocol.criticalityCode || normalizeText(entry.criticality),
+    currentAreaLabel: canonicalCaseProtocol.currentAreaLabel || entry.queue,
+    lastMileAreaLabel: canonicalCaseProtocol.lastMileAreaLabel || entry.lastMileAreaLabel,
+    routingMode: canonicalCaseProtocol.routingMode || 'standard',
+    exceptionReason: canonicalCaseProtocol.exceptionReason || '',
+    latestOperatorActionType: canonicalCaseProtocol.latestOperatorActionType || '',
+    latestAreaActionType: canonicalCaseProtocol.latestAreaActionType || '',
+    closedBy: canonicalCaseProtocol.closedBy || '',
+    slaPolicyCode: canonicalCaseProtocol.slaPolicyCode || '',
+    slaDeadlineAt: sla.slaDeadlineAt,
+    slaState: sla.slaState,
+    sla: sla.slaLabel,
+    knowledgeUsages,
+    latestKnowledgeUsage: knowledgeUsages.at(-1) || null,
+    pendingFacetLabel: buildPendingFacetFromCanonical(canonicalCaseProtocol),
+    escalationState: buildEscalationStateFromCanonical(canonicalCaseProtocol),
+    nextStepLabel: buildNextStepFromCanonical(canonicalCaseProtocol),
+    priorityReasonLabel: buildPriorityReasonFromCanonical(canonicalCaseProtocol),
+    sortTokens: buildSortTokens({
+      priority: entry.priority,
+      criticality: entry.criticality,
+      status: resolveOperationalStatusLabel({
+        ...canonicalCaseProtocol,
+        closedBy: canonicalCaseProtocol.closedBy || '',
+      }),
+      activityAt: entry.activityAt,
+      source: entry.source,
+      sla: sla.slaMinutesRemaining,
+    }),
+  }
+}
+
+function buildSeedQueueEntry(item, actionLogs = [], areaActionLogs = []) {
   const seedCase = findSeedCaseById(item.id)
   const priority = buildPriorityLabel(item.criticality, item.priority)
   const criticality = formatCriticalityLabel(item.criticality)
@@ -677,11 +905,12 @@ function buildSeedQueueEntry(item, actionLogs = []) {
       routing,
     },
     actionLogs,
+    areaActionLogs,
   )
 }
 
-function buildLocalQueueEntry(protocol, studentProfile = loggedStudent, actionLogs = []) {
-  const protocolStudent = protocol.studentData || studentProfile
+function buildLocalQueueEntry(protocol, actionLogs = [], areaActionLogs = []) {
+  const protocolStudent = hasStructuredStudentData(protocol.studentData) ? protocol.studentData : {}
   const priority = buildPriorityLabel(protocol.context?.criticality, protocol.priorityLabel)
   const criticality = formatCriticalityLabel(protocol.context?.criticality)
   const status = protocol.statusLabel || 'Aguardando acao do OP'
@@ -705,7 +934,7 @@ function buildLocalQueueEntry(protocol, studentProfile = loggedStudent, actionLo
       themeKey: normalizeText(protocol.context?.theme),
       subsubject: titleCase(protocol.context?.subtheme || protocol.context?.finalNode?.title),
       subsubjectKey: normalizeText(protocol.context?.subtheme || protocol.context?.finalNode?.title),
-      student: protocolStudent.nome || 'Aluno logado',
+      student: protocolStudent.nome || 'Aluno nao informado',
       studentRa: protocolStudent.ra || '',
       polo: protocolStudent.polo || 'Nao informado',
       status,
@@ -728,6 +957,7 @@ function buildLocalQueueEntry(protocol, studentProfile = loggedStudent, actionLo
       routing,
     },
     actionLogs,
+    areaActionLogs,
   )
 }
 
@@ -803,16 +1033,16 @@ function buildSeedCaseDetail(entry) {
   }
 }
 
-function buildLocalCaseDetail(protocol, entry, studentProfile = loggedStudent) {
-  const protocolStudent = protocol.studentData || studentProfile
+function buildLocalCaseDetail(protocol, entry) {
+  const protocolStudent = hasStructuredStudentData(protocol.studentData) ? protocol.studentData : {}
 
   return {
     studentData: {
-      nome: protocolStudent.nome,
-      email: protocolStudent.email,
-      ra: protocolStudent.ra,
-      curso: protocolStudent.curso,
-      polo: protocolStudent.polo,
+      nome: protocolStudent.nome || '',
+      email: protocolStudent.email || '',
+      ra: protocolStudent.ra || '',
+      curso: protocolStudent.curso || '',
+      polo: protocolStudent.polo || '',
     },
     faqContext: {
       ...protocol.context,
@@ -823,6 +1053,26 @@ function buildLocalCaseDetail(protocol, entry, studentProfile = loggedStudent) {
     attachments: protocol.attachments || [],
     interactions: protocol.interactions || [],
     operatorIntake: protocol.operatorIntake || null,
+  }
+}
+
+function buildDefaultFaqContext(routing = null) {
+  return {
+    theme: 'Nao informado',
+    subtheme: null,
+    breadcrumb: [],
+    breadcrumbPath: [],
+    finalNode: {
+      id: null,
+      title: 'Nao informado',
+      nodeType: 'leaf',
+    },
+    displayedAnswer: '',
+    action: null,
+    queueDestination: null,
+    criticality: null,
+    sla: null,
+    routing,
   }
 }
 
@@ -851,13 +1101,13 @@ function normalizeRecordHistory(record, studentProfile = loggedStudent) {
   })
 }
 
-function normalizeProtocolHistory(protocol, studentProfile = loggedStudent) {
-  const protocolStudent = protocol.studentData || studentProfile
+function normalizeProtocolHistory(protocol) {
+  const protocolStudent = hasStructuredStudentData(protocol.studentData) ? protocol.studentData : {}
 
   return buildHistoryItemBase({
     id: protocol.protocolNumber,
-    student: protocolStudent.nome,
-    polo: protocolStudent.polo,
+    student: protocolStudent.nome || 'Aluno nao informado',
+    polo: protocolStudent.polo || 'Nao informado',
     subject: protocol.subject,
     theme: protocol.context?.theme,
     subtheme: protocol.context?.subtheme || protocol.context?.finalNode?.title,
@@ -942,20 +1192,205 @@ function buildCorrelatedHistory({
   }
 }
 
+function buildEmptyCorrelatedHistory() {
+  return {
+    items: [],
+    summary: {
+      total: 0,
+      previousFaqResolvedCount: 0,
+      previousProtocolsCount: 0,
+      sameThemeCount: 0,
+      sameSubsubjectCount: 0,
+      recentWindowCount: 0,
+      recurrenceLabel: 'Nao ha reincidencia relevante nesta janela mockada.',
+    },
+    signals: {
+      repeatedTheme: false,
+      repeatedSubsubject: false,
+      priorSelfServiceRelated: false,
+    },
+  }
+}
+
+function mergeQueueEntryWithSeedFallback(seedEntry = null, localEntry = null) {
+  if (!seedEntry) {
+    return localEntry
+  }
+
+  if (!localEntry) {
+    return seedEntry
+  }
+
+  const merged = {
+    ...seedEntry,
+    ...localEntry,
+    subject: pickFirstText(localEntry.subject, seedEntry.subject, 'Atendimento sem assunto'),
+    theme: pickFirstText(
+      localEntry.theme && localEntry.theme !== 'Nao informado' ? localEntry.theme : '',
+      seedEntry.theme,
+      'Nao informado',
+    ),
+    themeKey: pickFirstText(localEntry.themeKey, seedEntry.themeKey),
+    subsubject: pickFirstText(
+      localEntry.subsubject && localEntry.subsubject !== 'Nao informado' ? localEntry.subsubject : '',
+      seedEntry.subsubject,
+      'Nao informado',
+    ),
+    subsubjectKey: pickFirstText(localEntry.subsubjectKey, seedEntry.subsubjectKey),
+    student: pickFirstText(localEntry.student, seedEntry.student, 'Aluno nao informado'),
+    studentRa: pickFirstText(localEntry.studentRa, seedEntry.studentRa),
+    polo: pickFirstText(localEntry.polo, seedEntry.polo, 'Nao informado'),
+    status: pickFirstText(localEntry.status, seedEntry.status, 'Aguardando acao do OP'),
+    priority: pickFirstText(localEntry.priority, seedEntry.priority, 'Media'),
+    criticality: pickFirstText(localEntry.criticality, seedEntry.criticality, 'Media'),
+    sla: pickFirstText(localEntry.sla, seedEntry.sla, 'Nao informado'),
+    queue: pickFirstText(localEntry.queue, seedEntry.queue, 'Fila nao informada'),
+    lastMileAreaLabel: pickFirstText(localEntry.lastMileAreaLabel, seedEntry.lastMileAreaLabel),
+    createdAt: pickFirstText(localEntry.createdAt, seedEntry.createdAt),
+    createdAtLabel: pickFirstText(localEntry.createdAtLabel, seedEntry.createdAtLabel, 'Nao informado'),
+    source: pickFirstText(localEntry.source, seedEntry.source, 'mock_operacional'),
+    originLabel: pickFirstText(localEntry.originLabel, seedEntry.originLabel, 'Nao informado'),
+    assignedOperator: pickFirstText(localEntry.assignedOperator, seedEntry.assignedOperator),
+    pendingLabel: pickFirstText(localEntry.pendingLabel, seedEntry.pendingLabel, 'Aguardando triagem operacional'),
+    routing: localEntry.routing || seedEntry.routing || null,
+  }
+
+  return {
+    ...merged,
+    searchText: [
+      merged.id,
+      merged.subject,
+      merged.student,
+      merged.studentRa,
+      merged.polo,
+      merged.assignedOperator,
+      merged.pendingLabel,
+    ].filter(Boolean).join(' '),
+    sortTokens: buildSortTokens({
+      priority: merged.priority,
+      criticality: merged.criticality,
+      status: merged.status,
+      activityAt: merged.activityAt || merged.createdAt,
+      source: merged.source,
+      sla: merged.sla,
+    }),
+  }
+}
+
+function buildNormalizedOperatorDetail({
+  caseEntry,
+  localProtocol = null,
+  studentProfile = loggedStudent,
+  records = [],
+  protocols = [],
+  playbook = {},
+}) {
+  const seedDetail = buildSeedCaseDetail(caseEntry)
+  const localDetail = localProtocol ? buildLocalCaseDetail(localProtocol, caseEntry) : null
+  const seedFaqContext = seedDetail?.faqContext || buildDefaultFaqContext(caseEntry.routing || null)
+  const localFaqContext = localDetail?.faqContext || {}
+  const correlatedHistory =
+    buildCorrelatedHistory({
+      caseEntry,
+      records,
+      protocols,
+      studentProfile,
+    }) || buildEmptyCorrelatedHistory()
+
+  return {
+    studentData: {
+      nome: pickFirstText(
+        localDetail?.studentData?.nome,
+        seedDetail?.studentData?.nome,
+        caseEntry.student,
+        studentProfile.nome,
+        'Aluno nao informado',
+      ),
+      email: pickFirstText(localDetail?.studentData?.email, seedDetail?.studentData?.email, studentProfile.email),
+      ra: pickFirstText(localDetail?.studentData?.ra, seedDetail?.studentData?.ra, caseEntry.studentRa),
+      curso: pickFirstText(localDetail?.studentData?.curso, seedDetail?.studentData?.curso, studentProfile.curso),
+      polo: pickFirstText(
+        localDetail?.studentData?.polo,
+        seedDetail?.studentData?.polo,
+        caseEntry.polo,
+        studentProfile.polo,
+        'Nao informado',
+      ),
+    },
+    faqContext: {
+      ...seedFaqContext,
+      ...localFaqContext,
+      theme: pickFirstText(localFaqContext.theme, seedFaqContext.theme, caseEntry.theme, 'Nao informado'),
+      subtheme: pickFirstText(localFaqContext.subtheme, seedFaqContext.subtheme, caseEntry.subsubject) || null,
+      breadcrumb: pickArray(localFaqContext.breadcrumb, seedFaqContext.breadcrumb),
+      breadcrumbPath: pickArray(localFaqContext.breadcrumbPath, seedFaqContext.breadcrumbPath),
+      finalNode: {
+        ...(seedFaqContext.finalNode || buildDefaultFaqContext().finalNode),
+        ...(localFaqContext.finalNode || {}),
+      },
+      displayedAnswer: pickFirstText(localFaqContext.displayedAnswer, seedFaqContext.displayedAnswer),
+      routing: localFaqContext.routing || seedFaqContext.routing || caseEntry.routing || null,
+    },
+    faqAnswer: pickFirstText(localDetail?.faqAnswer, seedDetail?.faqAnswer, seedFaqContext.displayedAnswer),
+    timeline: pickArray(localDetail?.timeline, seedDetail?.timeline),
+    attachments: pickArray(localDetail?.attachments, seedDetail?.attachments),
+    interactions: pickArray(localDetail?.interactions, seedDetail?.interactions),
+    operatorIntake: localDetail?.operatorIntake || null,
+    playbook: {
+      title: pickFirstText(playbook.title, 'Orientacao operacional indisponivel'),
+      checklist: pickArray(playbook.checklist),
+      systemsToCheck: pickArray(playbook.systemsToCheck),
+      documentsRequested: pickArray(playbook.documentsRequested),
+      responseTemplate: pickFirstText(playbook.responseTemplate),
+      escalationCriteria: pickFirstText(playbook.escalationCriteria),
+      escalationReason: pickFirstText(playbook.escalationReason, 'playbook_nao_publicado'),
+      matchedNodeId: playbook.matchedNodeId || null,
+    },
+    correlatedHistory,
+  }
+}
+
 export function buildOperatorQueueEntries({
   protocols = [],
   actionLogs = [],
-  studentProfile = loggedStudent,
+  areaActionLogs = [],
   seededQueue = seededOperatorQueue,
+  canonicalCaseProtocols = [],
+  caseKnowledgeUsages = [],
   viewerContext = null,
 } = {}) {
+  const canonicalMap = new Map((canonicalCaseProtocols || []).map((item) => [item.id, item]))
   const localEntries = protocols
-    .filter((protocol) => normalizeText(protocol.statusGroup) !== 'completed')
-    .map((protocol) => buildLocalQueueEntry(protocol, studentProfile, actionLogs))
+    .filter((protocol) => {
+      const statusCode =
+        protocol.statusCode ||
+        mapLegacyCaseStatusCode({
+          statusLabel: protocol.statusLabel,
+          pendingLabel: protocol.pendingLabel,
+        })
 
-  const seedEntries = seededQueue.map((item) => buildSeedQueueEntry(item, actionLogs))
+      return !['resolved', 'closed'].includes(statusCode)
+    })
+    .map((protocol) => buildLocalQueueEntry(protocol, actionLogs, areaActionLogs))
 
-  return filterCasesForMockContext([...localEntries, ...seedEntries], viewerContext).sort(compareQueueEntries)
+  const seedEntries = seededQueue.map((item) => buildSeedQueueEntry(item, actionLogs, areaActionLogs))
+  const localEntryMap = new Map(localEntries.map((entry) => [entry.id, entry]))
+  const seedEntryMap = new Map(seedEntries.map((entry) => [entry.id, entry]))
+  const mergedEntries = new Map()
+
+  for (const [id, seedEntry] of seedEntryMap.entries()) {
+    mergedEntries.set(id, mergeQueueEntryWithSeedFallback(seedEntry, localEntryMap.get(id) || null))
+  }
+
+  for (const [id, localEntry] of localEntryMap.entries()) {
+    if (!mergedEntries.has(id)) {
+      mergedEntries.set(id, localEntry)
+    }
+  }
+
+  return filterCasesForMockContext([...mergedEntries.values()], viewerContext)
+    .map((entry) => mergeCanonicalCaseProtocol(entry, canonicalMap.get(entry.id), caseKnowledgeUsages))
+    .sort(compareQueueEntries)
 }
 
 export function filterOperatorQueueEntries(entries = [], filters = {}) {
@@ -998,7 +1433,7 @@ export function buildOperatorQueueMetrics(entries = []) {
     const criticality = normalizeText(entry.criticality)
     return criticality === 'critica' || criticality === 'alta'
   }).length
-  const atRiskCases = entries.filter((entry) => isSlaAtRisk(entry.sla)).length
+  const atRiskCases = entries.filter((entry) => isSlaAtRisk(entry.sla, entry.slaState)).length
   const portalCases = entries.filter((entry) => entry.source === 'portal_aluno').length
   const actionRequiredCases = entries.filter((entry) => normalizeText(entry.status).includes('acao do op')).length
 
@@ -1063,10 +1498,15 @@ export function buildOperatorActionLog({
     statusBefore: caseEntry.status,
     statusLabel: metadata.statusLabel,
     statusAfter: metadata.statusLabel,
+    canonicalStatusCode: metadata.canonicalStatusCode || '',
+    pendingParty: metadata.pendingParty || '',
+    closedBy: metadata.closedBy || '',
     queueBefore: caseEntry.queue,
     queueLabel,
     queueAfter: queueLabel,
     destinationLabel: queueLabel,
+    resolvedAreaLabel: queueLabel,
+    routingMode: 'standard',
     pendingLabel: metadata.pendingLabel,
     escalationReason: actionType === 'escalate' ? playbook.escalationReason || null : null,
     note: normalizedNote,
@@ -1094,13 +1534,21 @@ export function buildOperatorCaseDetail({
   protocols = [],
   records = [],
   actionLogs = [],
+  areaActionLogs = [],
   studentProfile = loggedStudent,
+  canonicalCaseProtocols = [],
+  caseKnowledgeUsages = [],
+  caseRoutingDecisions = [],
+  caseEvents = [],
   viewerContext = null,
 } = {}) {
   const queueEntries = buildOperatorQueueEntries({
     protocols,
     actionLogs,
+    areaActionLogs,
     studentProfile,
+    canonicalCaseProtocols,
+    caseKnowledgeUsages,
     viewerContext,
   })
   const caseEntry = queueEntries.find((entry) => entry.id === caseId) || null
@@ -1110,11 +1558,16 @@ export function buildOperatorCaseDetail({
   }
 
   const localProtocol = protocols.find((protocol) => protocol.protocolNumber === caseId) || null
-  const baseDetail = localProtocol
-    ? buildLocalCaseDetail(localProtocol, caseEntry, studentProfile)
-    : buildSeedCaseDetail(caseEntry)
-  const playbook = buildPlaybookPayload(caseEntry)
+  const baseDetail = buildNormalizedOperatorDetail({
+    caseEntry,
+    localProtocol,
+    studentProfile,
+    records,
+    protocols,
+    playbook: buildPlaybookPayload(caseEntry),
+  })
   const caseActionLogs = getCaseActionLogs(actionLogs, caseId)
+  const caseAreaActionLogs = getCaseAreaActionLogs(areaActionLogs, caseId)
 
   return {
     ...caseEntry,
@@ -1124,23 +1577,24 @@ export function buildOperatorCaseDetail({
     routing: caseEntry.routing || baseDetail.faqContext?.routing || null,
     lastMileAreaLabel:
       caseEntry.lastMileAreaLabel || caseEntry.routing?.targetAreaLabel || 'Nao informado',
-    timeline: [
+    timeline: sanitizeObjectCollection([
       ...(baseDetail.timeline || []),
       ...caseActionLogs.map((log) => log.timelineItem),
-    ],
-    attachments: baseDetail.attachments || [],
-    interactions: [
+      ...caseAreaActionLogs.map((log) => log.timelineItem),
+    ]),
+    attachments: sanitizeObjectCollection(baseDetail.attachments),
+    interactions: sanitizeObjectCollection([
       ...(baseDetail.interactions || []),
       ...caseActionLogs.map((log) => log.interactionItem),
-    ],
-    actionLogs: caseActionLogs,
+      ...caseAreaActionLogs.map((log) => log.interactionItem),
+    ]),
+    actionLogs: sanitizeObjectCollection(caseActionLogs),
+    areaActionLogs: sanitizeObjectCollection(caseAreaActionLogs),
+    caseKnowledgeUsages: sanitizeObjectCollection(caseKnowledgeUsages.filter((record) => record.caseId === caseId)),
+    routingDecisions: sanitizeObjectCollection(caseRoutingDecisions.filter((record) => record.caseId === caseId)),
+    caseEvents: sanitizeObjectCollection(caseEvents.filter((record) => record.caseId === caseId)),
     operatorIntake: baseDetail.operatorIntake || null,
-    playbook,
-    correlatedHistory: buildCorrelatedHistory({
-      caseEntry,
-      records,
-      protocols,
-      studentProfile,
-    }),
+    playbook: baseDetail.playbook,
+    correlatedHistory: baseDetail.correlatedHistory,
   }
 }

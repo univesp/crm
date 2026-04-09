@@ -87,6 +87,29 @@ export function isCaseVisibleForMockContext(caseEntry, mockContext = null) {
   const routing = caseEntry.routing || {}
 
   if (mockContext.isOperationalShell) {
+    if (mockContext.profileKey === 'analista_area' || mockContext.profileKey === 'gestor_area') {
+      const areaSet = new Set(mockContext.visibleAreas || [])
+      const currentArea = normalizeText(mockContext.currentArea)
+      const matchesArea =
+        areaSet.has(caseEntry.queue) ||
+        areaSet.has(caseEntry.lastMileAreaLabel) ||
+        areaSet.has(routing.targetAreaLabel)
+
+      if (!matchesArea) {
+        return false
+      }
+
+      if (currentArea && currentArea !== normalizeText('Nao se aplica')) {
+        return (
+          normalizeText(caseEntry.queue) === currentArea ||
+          normalizeText(caseEntry.lastMileAreaLabel) === currentArea ||
+          normalizeText(routing.targetAreaLabel) === currentArea
+        )
+      }
+
+      return true
+    }
+
     const visibleForOperationalScope =
       queueSet.has(caseEntry.queue) ||
       queueSet.has(routing.currentQueueLabel) ||

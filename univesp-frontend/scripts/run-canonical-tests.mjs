@@ -1,0 +1,781 @@
+import assert from 'node:assert/strict'
+import process from 'node:process'
+import { createServer } from 'vite'
+import { createPinia, setActivePinia } from 'pinia'
+import { createSSRApp } from 'vue'
+import { renderToString } from '@vue/server-renderer'
+import { createMemoryHistory, createRouter } from 'vue-router'
+
+const root = process.cwd()
+
+function createBrowserMock(initialState = null) {
+  let state = initialState
+
+  const localStorage = {
+    getItem(key) {
+      return key === 'univesp-student-support' ? state : null
+    },
+    setItem(key, value) {
+      if (key === 'univesp-student-support') {
+        state = String(value)
+      }
+    },
+    removeItem(key) {
+      if (key === 'univesp-student-support') {
+        state = null
+      }
+    },
+    clear() {
+      state = null
+    },
+  }
+
+  globalThis.window = {
+    localStorage,
+    location: {
+      assign() {},
+    },
+    addEventListener() {},
+    removeEventListener() {},
+  }
+  globalThis.localStorage = localStorage
+
+  return {
+    readState() {
+      return state
+    },
+    writeState(nextState) {
+      state = nextState == null ? null : String(nextState)
+    },
+    clear() {
+      state = null
+    },
+  }
+}
+
+const server = await createServer({
+  root,
+  logLevel: 'error',
+  appType: 'custom',
+  server: {
+    middlewareMode: true,
+  },
+})
+
+const loadModule = (modulePath) => server.ssrLoadModule(modulePath)
+
+const foundationRuntime = await loadModule('/src/services/canonicalFoundationRuntime.js')
+const distributionEngine = await loadModule('/src/services/distributionEngine.js')
+const areaGovernanceRuntime = await loadModule('/src/services/areaGovernanceRuntime.js')
+const areaQueueRuntime = await loadModule('/src/services/areaQueueRuntime.js')
+const studentSupportModule = await loadModule('/src/stores/studentSupport.js')
+const mockContextModule = await loadModule('/src/services/mockContextRuntime.js')
+const authModule = await loadModule('/src/stores/auth.js')
+const areaCaseDetailModule = await loadModule('/src/pages/area/AreaCaseDetailPage.vue')
+const operatorCaseDetailModule = await loadModule('/src/pages/operator/OperatorCaseDetailPage.vue')
+
+const {
+  CASE_ASSIGNMENT_STATUSES,
+  KNOWLEDGE_BUNDLE_VERSION_STATUSES,
+  cloneCanonicalFoundationSeeds,
+  buildInitialKnowledgeUsageRecords,
+  findKnowledgeDefinitionBySubject,
+  getActiveKnowledgeBundleVersionId,
+  buildSubsubjectCode,
+  buildSubjectCode,
+} = foundationRuntime
+const { buildDistributionDecision, resolveEligibleUsers } = distributionEngine
+const { canViewerAccessAreaSubject } = areaGovernanceRuntime
+const { resolveAreaQueueBucket } = areaQueueRuntime
+const { useStudentSupportStore } = studentSupportModule
+const { buildMockAccessContext } = mockContextModule
+const { useAuthStore } = authModule
+const AreaCaseDetailPage = areaCaseDetailModule.default
+const OperatorCaseDetailPage = operatorCaseDetailModule.default
+
+function getMockContext(profileKey) {
+  return buildMockAccessContext({
+    displayName:
+      profileKey === 'analista_area'
+        ? 'Camila Nunes'
+        : profileKey === 'gestor_area'
+          ? 'Rafael Martins'
+          : profileKey === 'gestor_polos'
+            ? 'Henrique Ramos'
+            : 'Juliana Prado',
+    raw: { profileKey },
+  })
+}
+
+function createFreshStore(storage, { reset = true } = {}) {
+  if (reset) {
+    storage.clear()
+  }
+
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  return useStudentSupportStore(pinia)
+}
+
+async function renderAreaCaseDetailCase({ caseId, profileKey = 'gestor_area', areaLabel = '' }) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const studentSupportStore = useStudentSupportStore(pinia)
+  const authStore = useAuthStore(pinia)
+
+  authStore.status = 'authenticated'
+  authStore.user = {
+    displayName: profileKey === 'gestor_area' ? 'Rafael Martins' : 'Camila Nunes',
+    raw: { profileKey },
+  }
+
+  if (areaLabel) {
+    authStore.setSelectedOperationalArea(areaLabel)
+  }
+
+  const router = createRouter({
+    history: createMemoryHistory('/crm/'),
+    routes: [
+      {
+        path: '/area/orientacao',
+        component: { template: '<div>orientacao</div>' },
+      },
+      {
+        path: '/area/fila',
+        component: { template: '<div>fila</div>' },
+      },
+      {
+        path: '/area/fila/:caseId',
+        component: AreaCaseDetailPage,
+      },
+    ],
+  })
+
+  const app = createSSRApp(AreaCaseDetailPage)
+  app.use(pinia)
+  app.use(router)
+
+  await router.push({
+    path: `/area/fila/${caseId}`,
+    query: areaLabel ? { area: areaLabel } : {},
+  })
+  await router.isReady()
+
+  const html = await renderToString(app)
+
+  return {
+    html,
+    detail: studentSupportStore.areaCaseById(caseId, authStore.mockContext),
+  }
+}
+
+async function renderOperatorCaseDetailCase({ caseId, profileKey = 'op', poloLabel = '' }) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const studentSupportStore = useStudentSupportStore(pinia)
+  const authStore = useAuthStore(pinia)
+
+  authStore.status = 'authenticated'
+  authStore.user = {
+    displayName: profileKey === 'gestor_polos' ? 'Henrique Ramos' : 'Juliana Prado',
+    raw: { profileKey },
+  }
+
+  if (poloLabel) {
+    authStore.setSelectedOperationalPolo(poloLabel)
+  }
+
+  const router = createRouter({
+    history: createMemoryHistory('/crm/'),
+    routes: [
+      {
+        path: '/op/fila',
+        component: { template: '<div>fila</div>' },
+      },
+      {
+        path: '/op/orientacao',
+        component: { template: '<div>orientacao</div>' },
+      },
+      {
+        path: '/op/playbook',
+        component: { template: '<div>playbook</div>' },
+      },
+      {
+        path: '/op/fila/:caseId',
+        component: OperatorCaseDetailPage,
+      },
+    ],
+  })
+
+  const app = createSSRApp(OperatorCaseDetailPage)
+  app.use(pinia)
+  app.use(router)
+
+  await router.push({
+    path: `/op/fila/${caseId}`,
+    query: poloLabel ? { polo: poloLabel } : {},
+  })
+  await router.isReady()
+
+  const html = await renderToString(app)
+
+  return {
+    html,
+    detail: studentSupportStore.operatorCaseById(caseId, authStore.mockContext),
+  }
+}
+
+const tests = []
+
+function test(name, fn) {
+  tests.push({ name, fn })
+}
+
+const now = new Date('2026-04-08T10:00:00-03:00')
+
+test('distribuicao ignora assignments completed na carga ativa', async () => {
+  const foundation = cloneCanonicalFoundationSeeds()
+  const decision = buildDistributionDecision({
+    caseProtocol: {
+      id: 'CASE-NEW-001',
+      currentAreaLabel: 'Suporte Academico Digital',
+      lastMileAreaLabel: 'Suporte Academico Digital',
+      themeKey: 'provas',
+      subsubjectKey: 'envio_de_atestado',
+      statusCode: 'waiting_area',
+      slaDeadlineAt: '2026-04-08T14:00:00-03:00',
+    },
+    operationalAreas: foundation.operationalAreas,
+    areaSubjectEligibility: [],
+    userAvailability: [],
+    caseAssignments: [
+      {
+        caseId: 'CASE-OLD-001',
+        areaLabel: 'Suporte Academico Digital',
+        analystName: 'Camila Nunes',
+        statusCode: CASE_ASSIGNMENT_STATUSES.COMPLETED,
+        assignedAt: '2026-04-08T08:00:00-03:00',
+      },
+    ],
+    caseProtocols: [
+      {
+        id: 'CASE-OLD-001',
+        statusCode: 'waiting_area',
+        currentAreaLabel: 'Suporte Academico Digital',
+        slaDeadlineAt: '2026-04-08T16:00:00-03:00',
+        slaState: 'on_track',
+      },
+    ],
+    currentDate: now,
+  })
+
+  assert.equal(decision.analystName, 'Camila Nunes')
+})
+
+test('distribuicao respeita indisponibilidade global sem areaLabel', async () => {
+  const foundation = cloneCanonicalFoundationSeeds()
+  const decision = buildDistributionDecision({
+    caseProtocol: {
+      id: 'CASE-NEW-002',
+      currentAreaLabel: 'Suporte Academico Digital',
+      lastMileAreaLabel: 'Suporte Academico Digital',
+      themeKey: 'provas',
+      subsubjectKey: 'envio_de_atestado',
+      statusCode: 'waiting_area',
+      slaDeadlineAt: '2026-04-08T14:00:00-03:00',
+    },
+    operationalAreas: foundation.operationalAreas,
+    areaSubjectEligibility: [],
+    userAvailability: [
+      {
+        id: 'availability-global-camila',
+        userName: 'Camila Nunes',
+        areaLabel: '',
+        statusCode: 'unavailable',
+        capacityFactor: 0,
+        startsAt: '2026-04-08T00:00:00-03:00',
+        endsAt: '2026-04-08T23:59:59-03:00',
+      },
+    ],
+    caseAssignments: [],
+    caseProtocols: [],
+    currentDate: now,
+  })
+
+  assert.notEqual(decision.analystName, 'Camila Nunes')
+  assert.ok(decision.scoreSummary.unavailableUsers.includes('Camila Nunes'))
+})
+
+test('regra de elegibilidade inativa nao restringe distribuicao', async () => {
+  const foundation = cloneCanonicalFoundationSeeds()
+  const eligibility = resolveEligibleUsers({
+    areaLabel: 'Suporte Academico Digital',
+    themeKey: 'provas',
+    subsubjectKey: 'envio_de_atestado',
+    operationalAreas: foundation.operationalAreas,
+    areaSubjectEligibility: [
+      {
+        id: 'rule-inactive',
+        areaLabel: 'Suporte Academico Digital',
+        subjectCode: buildSubjectCode('provas'),
+        subsubjectCode: buildSubsubjectCode('provas', 'envio_de_atestado'),
+        visibilityMode: 'restricted',
+        eligibleUsers: ['Camila Nunes'],
+        isActive: false,
+      },
+    ],
+  })
+
+  assert.deepEqual(eligibility.eligibleUsers, ['Camila Nunes', 'Leandro Farias', 'Sofia Teles'])
+})
+
+test('snapshot operacional usa conteudo operacional e nao replica guidance do aluno', async () => {
+  const definition = findKnowledgeDefinitionBySubject('provas', 'envio_de_atestado')
+  const usages = buildInitialKnowledgeUsageRecords({
+    caseId: 'CASE-KNOWLEDGE-001',
+    themeKey: 'provas',
+    subsubjectKey: 'envio_de_atestado',
+    actorName: 'Operacao',
+    actorRole: 'op',
+    usedAt: now.toISOString(),
+  })
+  const operationalUsage = usages.find((record) => record.bundleType === 'orientacao_operacional')
+
+  assert.ok(operationalUsage)
+  assert.equal(
+    operationalUsage.displayedResponseSnapshot,
+    definition.operatorNode.operatorGuidance || definition.operatorNode.responseText || '',
+  )
+  assert.equal(operationalUsage.operatorGuidanceSnapshot, operationalUsage.displayedResponseSnapshot)
+  assert.equal(operationalUsage.studentGuidanceSnapshot, '')
+})
+
+test('assign manual da area gera trilha append-only e conclui assignments anteriores', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const caseId = 'UVSP-20260327-239'
+  const areaLabel = 'Suporte Academico Digital'
+  const baseline = store.canonicalCaseAssignments.filter(
+    (record) => record.caseId === caseId && record.areaLabel === areaLabel,
+  ).length
+
+  const first = store.assignAreaCase({
+    caseId,
+    areaLabel,
+    analystName: 'Camila Nunes',
+    actorName: 'Rafael Martins',
+    reason: 'Primeira atribuicao gerencial.',
+    currentDate: new Date('2026-04-08T10:30:00-03:00'),
+  })
+
+  const second = store.assignAreaCase({
+    caseId,
+    areaLabel,
+    analystName: 'Leandro Farias',
+    actorName: 'Rafael Martins',
+    reason: 'Redistribuicao gerencial.',
+    currentDate: new Date('2026-04-08T11:30:00-03:00'),
+  })
+
+  const records = store.canonicalCaseAssignments.filter(
+    (record) => record.caseId === caseId && record.areaLabel === areaLabel,
+  )
+  const activeRecords = records.filter((record) => record.statusCode !== CASE_ASSIGNMENT_STATUSES.COMPLETED)
+
+  assert.equal(records.length, baseline + 2)
+  assert.equal(activeRecords.length, 1)
+  assert.equal(activeRecords[0].analystName, 'Leandro Farias')
+  assert.ok(records.some((record) => record.id === first.id && record.statusCode === CASE_ASSIGNMENT_STATUSES.COMPLETED))
+  assert.ok(records.some((record) => record.id === second.id && record.statusCode !== CASE_ASSIGNMENT_STATUSES.COMPLETED))
+})
+
+test('auto assignment preserva assignmentMode e scoreSummary apos rehidratacao', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const assignment = store.applyAutomaticAreaAssignment({
+    caseId: 'UVSP-20260327-239',
+    areaLabel: 'Suporte Academico Digital',
+    actorName: 'Sistema',
+    currentDate: new Date('2026-04-08T12:00:00-03:00'),
+  })
+
+  store.persistState()
+
+  const rehydratedStore = createFreshStore(storage, { reset: false })
+  const rehydratedAssignment =
+    rehydratedStore.canonicalCaseAssignments
+      .filter((record) => record.caseId === 'UVSP-20260327-239' && record.id === assignment.id)
+      .at(-1) || null
+
+  assert.ok(rehydratedAssignment)
+  assert.equal(rehydratedAssignment.assignmentMode, 'auto')
+  assert.ok(Array.isArray(rehydratedAssignment.scoreSummary?.candidateScores))
+  assert.ok(rehydratedAssignment.scoreSummary.candidateScores.length > 0)
+})
+
+test('manager_exception gera routing decision rastreavel', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const caseId = store.areaQueueEntries().find((record) => record.areaBucket === 'needs_review')?.id
+
+  const actionLog = store.registerAreaAction({
+    caseId,
+    actionType: 'reassign',
+    nextArea: 'Secretaria Academica',
+    isManagerException: true,
+    actorName: 'Rafael Martins',
+    currentDate: new Date('2026-04-08T13:15:00-03:00'),
+  })
+  const lastRoutingDecision =
+    store.mergedCaseRoutingDecisions.filter((record) => record.caseId === caseId).at(-1) || null
+
+  assert.ok(caseId)
+  assert.ok(actionLog)
+  assert.equal(actionLog.routingMode, 'manager_exception')
+  assert.ok(lastRoutingDecision)
+  assert.equal(lastRoutingDecision.routingMode, 'manager_exception')
+  assert.equal(lastRoutingDecision.resolvedAreaLabel, 'Secretaria Academica')
+})
+
+test('aprovacao e publicacao canonicas preservam historico e trocam a versao ativa', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const bundleType = 'faq_aluno'
+  const previousPublishedVersion = store.knowledgeBundleVersions.find(
+    (record) => record.bundleType === bundleType && record.statusCode === KNOWLEDGE_BUNDLE_VERSION_STATUSES.PUBLISHED,
+  )
+  const targetVersion = store.knowledgeBundleVersions.find(
+    (record) =>
+      record.bundleType === bundleType &&
+      [KNOWLEDGE_BUNDLE_VERSION_STATUSES.DRAFT, KNOWLEDGE_BUNDLE_VERSION_STATUSES.IN_REVIEW, KNOWLEDGE_BUNDLE_VERSION_STATUSES.APPROVED].includes(record.statusCode),
+  )
+  const publicationHistoryBefore = store.knowledgePublications.filter((record) => record.bundleType === bundleType).length
+
+  assert.ok(previousPublishedVersion)
+  assert.ok(targetVersion)
+
+  store.approveKnowledgeBundleVersion({
+    bundleVersionId: targetVersion.id,
+    actorName: 'Admin central',
+    currentDate: new Date('2026-04-08T14:00:00-03:00'),
+  })
+  store.publishKnowledgeBundleVersion({
+    bundleVersionId: targetVersion.id,
+    actorName: 'Admin central',
+    currentDate: new Date('2026-04-08T14:05:00-03:00'),
+  })
+
+  const refreshedTarget = store.knowledgeBundleVersions.find((record) => record.id === targetVersion.id)
+  const archivedPrevious = store.knowledgeBundleVersions.find((record) => record.id === previousPublishedVersion.id)
+  const publicationHistoryAfter = store.knowledgePublications.filter((record) => record.bundleType === bundleType)
+  const activeVersionId = getActiveKnowledgeBundleVersionId(bundleType, store.knowledgeFoundation)
+  const versionScopedNodes = store.knowledgeFoundation.nodes.filter((record) => record.bundleVersionId === targetVersion.id)
+
+  assert.equal(refreshedTarget.statusCode, KNOWLEDGE_BUNDLE_VERSION_STATUSES.PUBLISHED)
+  assert.equal(archivedPrevious.statusCode, KNOWLEDGE_BUNDLE_VERSION_STATUSES.ARCHIVED)
+  assert.equal(publicationHistoryAfter.length, publicationHistoryBefore + 1)
+  assert.ok(publicationHistoryAfter.some((record) => record.bundleVersionId === previousPublishedVersion.id))
+  assert.ok(publicationHistoryAfter.some((record) => record.bundleVersionId === targetVersion.id))
+  assert.equal(activeVersionId, targetVersion.id)
+  assert.ok(versionScopedNodes.length > 0)
+  assert.ok(versionScopedNodes.every((record) => record.id.startsWith(`${targetVersion.id}:node:`)))
+})
+
+test('escopo por assunto respeita analista elegivel e libera gestor da area', async () => {
+  const foundation = cloneCanonicalFoundationSeeds()
+  const entry = {
+    currentAreaLabel: 'Suporte Academico Digital',
+    themeKey: 'estagio',
+    subsubjectKey: 'termo_de_compromisso',
+  }
+
+  assert.equal(
+    canViewerAccessAreaSubject(entry, { profileKey: 'analista_area', userName: 'Leandro Farias' }, foundation.areaSubjectEligibility),
+    false,
+  )
+  assert.equal(
+    canViewerAccessAreaSubject(entry, { profileKey: 'analista_area', userName: 'Camila Nunes' }, foundation.areaSubjectEligibility),
+    true,
+  )
+  assert.equal(
+    canViewerAccessAreaSubject(entry, { profileKey: 'gestor_area', userName: 'Rafael Martins' }, foundation.areaSubjectEligibility),
+    true,
+  )
+})
+
+test('detalhe do OP usa fallback do seed quando houver protocolo persistido parcial com o mesmo id', async () => {
+  const storage = createBrowserMock(
+    JSON.stringify({
+      protocols: [
+        {
+          protocolNumber: 'UVSP-20260319-104',
+          subject: '',
+          studentData: {
+            nome: '',
+            ra: '',
+            polo: '',
+          },
+          context: {},
+          timeline: [],
+          interactions: [],
+          attachments: [],
+        },
+      ],
+    }),
+  )
+  const store = createFreshStore(storage, { reset: false })
+  const detail = store.operatorCaseById('UVSP-20260319-104')
+  const matchingEntries = store.operatorQueueEntries().filter((entry) => entry.id === 'UVSP-20260319-104')
+
+  assert.ok(detail)
+  assert.equal(detail.subject, 'Rematricula para o proximo semestre')
+  assert.equal(detail.studentData.nome, 'Marina Costa')
+  assert.ok(Array.isArray(detail.timeline))
+  assert.ok(Array.isArray(detail.interactions))
+  assert.ok(Array.isArray(detail.attachments))
+  assert.ok(detail.playbook)
+  assert.ok(detail.correlatedHistory)
+  assert.equal(matchingEntries.length, 1)
+})
+
+test('todos os casos visiveis na fila do OP abrem detalhe sem quebrar', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const opContext = getMockContext('op')
+  const queueEntries = store.operatorQueueEntries(opContext)
+
+  assert.ok(queueEntries.length > 0)
+
+  for (const entry of queueEntries) {
+    const detail = store.operatorCaseById(entry.id, opContext)
+
+    assert.ok(detail, `Detalhe do OP ausente para ${entry.id}`)
+    assert.ok(detail.subject, `Assunto ausente no detalhe do OP para ${entry.id}`)
+    assert.ok(Array.isArray(detail.timeline), `Timeline invalida no detalhe do OP para ${entry.id}`)
+    assert.ok(Array.isArray(detail.interactions), `Interacoes invalidas no detalhe do OP para ${entry.id}`)
+    assert.ok(Array.isArray(detail.attachments), `Anexos invalidos no detalhe do OP para ${entry.id}`)
+    assert.ok(detail.playbook, `Playbook ausente no detalhe do OP para ${entry.id}`)
+  }
+})
+
+test('componente de detalhe do OP renderiza todos os casos visiveis sem falha', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const contexts = [
+    { profileKey: 'op', poloLabel: 'Guarulhos' },
+    { profileKey: 'gestor_polos', poloLabel: 'Guarulhos' },
+  ]
+
+  for (const contextConfig of contexts) {
+    const context = getMockContext(contextConfig.profileKey)
+    context.currentPolo = contextConfig.poloLabel
+    const entries = store.operatorQueueEntries(context)
+
+    assert.ok(entries.length > 0, `Nenhum caso visivel encontrado para ${contextConfig.profileKey}`)
+
+    for (const entry of entries) {
+      const rendered = await renderOperatorCaseDetailCase({
+        caseId: entry.id,
+        profileKey: contextConfig.profileKey,
+        poloLabel: contextConfig.poloLabel,
+      })
+
+      assert.ok(rendered.detail, `Detalhe do OP nao montado para ${contextConfig.profileKey} em ${entry.id}`)
+      assert.ok(rendered.html.includes('Detalhe do atendimento'), `Cabecalho do detalhe do OP ausente em ${entry.id}`)
+      assert.ok(rendered.html.includes(entry.subject), `Assunto do detalhe do OP ausente em ${entry.id}`)
+    }
+  }
+})
+
+test('todos os casos visiveis para analista e gestor da area abrem detalhe sem quebrar', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const analystContext = getMockContext('analista_area')
+  const managerContext = getMockContext('gestor_area')
+  const analystEntries = store.areaQueueEntries(analystContext)
+  const managerEntries = store.areaQueueEntries(managerContext)
+
+  assert.ok(analystEntries.length > 0)
+  assert.ok(managerEntries.length > 0)
+
+  for (const [label, entries, context] of [
+    ['analista', analystEntries, analystContext],
+    ['gestor', managerEntries, managerContext],
+  ]) {
+    for (const entry of entries) {
+      const detail = store.areaCaseById(entry.id, context)
+
+      assert.ok(detail, `Detalhe da area ausente para ${label} em ${entry.id}`)
+      assert.ok(detail.subject, `Assunto ausente no detalhe da area para ${label} em ${entry.id}`)
+      assert.ok(Array.isArray(detail.summaryBullets), `Resumo invalido no detalhe da area para ${label} em ${entry.id}`)
+      assert.ok(Array.isArray(detail.analysisSections), `Analise invalida no detalhe da area para ${label} em ${entry.id}`)
+      assert.ok(Array.isArray(detail.availableAreas), `Areas disponiveis invalidas para ${label} em ${entry.id}`)
+    }
+  }
+})
+
+test('detalhe da area continua abrindo quando o header esta em outra area visivel', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const analystDefaultContext = getMockContext('analista_area')
+  const analystAltAreaContext = {
+    ...analystDefaultContext,
+    currentArea: 'Secretaria Academica',
+  }
+  const managerDefaultContext = getMockContext('gestor_area')
+  const managerAltAreaContext = {
+    ...managerDefaultContext,
+    currentArea: 'Secretaria Academica',
+  }
+
+  const analystAltEntry = store.areaQueueEntries(analystAltAreaContext)[0] || null
+  const managerAltEntry = store.areaQueueEntries(managerAltAreaContext)[0] || null
+
+  assert.ok(analystAltEntry, 'Nao foi encontrado caso alternativo para analista na outra area visivel')
+  assert.ok(managerAltEntry, 'Nao foi encontrado caso alternativo para gestor na outra area visivel')
+
+  const analystDetail = store.areaCaseById(analystAltEntry.id, analystDefaultContext)
+  const managerDetail = store.areaCaseById(managerAltEntry.id, managerDefaultContext)
+
+  assert.ok(analystDetail, `Detalhe da area ausente para analista com area desencontrada em ${analystAltEntry.id}`)
+  assert.ok(managerDetail, `Detalhe da area ausente para gestor com area desencontrada em ${managerAltEntry.id}`)
+  assert.equal(analystDetail.id, analystAltEntry.id)
+  assert.equal(managerDetail.id, managerAltEntry.id)
+})
+
+test('fila e detalhe da area resistem a protocolo persistido antigo com status defasado', async () => {
+  const storage = createBrowserMock(
+    JSON.stringify({
+      protocols: [
+        {
+          protocolNumber: 'UVSP-20260326-214',
+          statusCode: 'waiting_area',
+          statusLabel: 'Escalado para area interna',
+          pendingLabel: 'Aguardando secretaria academica',
+          studentData: null,
+          timeline: null,
+          interactions: null,
+          attachments: null,
+          context: null,
+        },
+      ],
+    }),
+  )
+  const store = createFreshStore(storage, { reset: false })
+  const managerContext = getMockContext('gestor_area')
+  managerContext.currentArea = 'Secretaria Academica'
+
+  const entry = store.areaQueueEntries(managerContext).find((item) => item.id === 'UVSP-20260326-214')
+  const detail = store.areaCaseById('UVSP-20260326-214', managerContext)
+
+  assert.ok(entry, 'Caso 214 nao apareceu na fila da area com estado persistido antigo')
+  assert.equal(resolveAreaQueueBucket(entry), 'completed')
+  assert.ok(detail, 'Detalhe da area nao abriu para o caso 214 com estado persistido antigo')
+  assert.equal(detail.areaStatusLabel, 'Concluido pela area')
+  assert.equal(detail.studentData.nome, 'Beatriz Moura')
+  assert.ok(Array.isArray(detail.timeline))
+  assert.ok(Array.isArray(detail.interactions))
+  assert.ok(Array.isArray(detail.attachments))
+  assert.ok(Array.isArray(detail.summaryBullets))
+  assert.ok(Array.isArray(detail.handoffItems))
+  assert.ok(Array.isArray(detail.analysisSections))
+})
+
+test('detalhe da area renderiza casos devolvidos pela area sem tela em branco', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const managerContext = getMockContext('gestor_area')
+  managerContext.currentArea = 'Suporte Academico Digital'
+
+  const answeredEntry = store.areaQueueEntries(managerContext).find((entry) => entry.id === 'UVSP-20260320-119')
+  const complementedEntry = store.areaQueueEntries(managerContext).find((entry) => entry.id === 'UVSP-20260326-233')
+
+  const answeredCase = await renderAreaCaseDetailCase({
+    caseId: 'UVSP-20260320-119',
+    profileKey: 'gestor_area',
+    areaLabel: 'Suporte Academico Digital',
+  })
+  const complementedCase = await renderAreaCaseDetailCase({
+    caseId: 'UVSP-20260326-233',
+    profileKey: 'gestor_area',
+    areaLabel: 'Suporte Academico Digital',
+  })
+
+  assert.ok(answeredCase.detail, 'Detalhe do caso 119 nao foi montado para renderizacao')
+  assert.ok(answeredEntry, 'Caso 119 nao apareceu na fila da area')
+  assert.equal(answeredEntry.areaBucket, 'completed')
+  assert.ok(answeredCase.html.includes('Detalhe da analise'))
+  assert.ok(answeredCase.html.includes('Envio de atestado para segunda chamada'))
+
+  assert.ok(complementedCase.detail, 'Detalhe do caso 233 nao foi montado para renderizacao')
+  assert.ok(complementedEntry, 'Caso 233 nao apareceu na fila da area')
+  assert.equal(complementedEntry.areaBucket, 'waiting_complement')
+  assert.ok(complementedCase.html.includes('Detalhe da analise'))
+  assert.ok(complementedCase.html.includes('Envio de atividade sem print completo do erro no AVA'))
+})
+
+test('componente de detalhe da area renderiza todos os casos visiveis sem falha', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+
+  for (const [profileKey, areaLabel] of [
+    ['analista_area', 'Suporte Academico Digital'],
+    ['gestor_area', 'Suporte Academico Digital'],
+    ['gestor_area', 'Secretaria Academica'],
+  ]) {
+    const context = getMockContext(profileKey)
+    context.currentArea = areaLabel
+    const entries = store.areaQueueEntries(context)
+
+    assert.ok(entries.length > 0, `Nenhum caso visivel encontrado para ${profileKey} em ${areaLabel}`)
+
+    for (const entry of entries) {
+      const rendered = await renderAreaCaseDetailCase({
+        caseId: entry.id,
+        profileKey,
+        areaLabel,
+      })
+
+      assert.ok(rendered.detail, `Detalhe nao montado para ${profileKey} em ${entry.id}`)
+      assert.ok(rendered.html.includes('Detalhe da analise'), `Tela nao renderizou cabecalho para ${profileKey} em ${entry.id}`)
+      assert.ok(rendered.html.includes(entry.subject), `Assunto nao apareceu no render para ${profileKey} em ${entry.id}`)
+    }
+  }
+})
+
+test('home gerencial da area carrega visao consolidada com backlog e distribuicao', async () => {
+  const storage = createBrowserMock()
+  const store = createFreshStore(storage)
+  const managerContext = getMockContext('gestor_area')
+  const overview = store.areaManagerOverview(managerContext)
+
+  assert.ok(overview)
+  assert.equal(overview.summary.length, 4)
+  assert.ok(Array.isArray(overview.loadByAnalyst))
+  assert.ok(Array.isArray(overview.subjectBottlenecks))
+  assert.ok(Array.isArray(overview.redistributionSuggestions))
+})
+
+let failures = 0
+
+try {
+  for (const entry of tests) {
+    try {
+      await entry.fn()
+      console.log(`OK  ${entry.name}`)
+    } catch (error) {
+      failures += 1
+      console.error(`FAIL ${entry.name}`)
+      console.error(error?.stack || error?.message || error)
+    }
+  }
+} finally {
+  await server.close()
+}
+
+if (failures > 0) {
+  console.error(`\n${failures} teste(s) falharam.`)
+  process.exit(1)
+}
+
+console.log(`\n${tests.length} teste(s) passaram.`)

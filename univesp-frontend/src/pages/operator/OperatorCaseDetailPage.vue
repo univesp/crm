@@ -393,7 +393,17 @@ const actionAvailability = computed(() => {
   const status = normalizeText(detail.value.status)
   const pending = normalizeText(detail.value.pendingLabel)
 
-  if (status.includes('respondido') || status.includes('faq') || status.includes('conclu')) {
+  if (
+    status.includes('respondido pela area') ||
+    status.includes('complementacao solicitada pela area')
+  ) {
+    return {
+      canAct: true,
+      reason: '',
+    }
+  }
+
+  if (status.includes('respondido pelo op') || status.includes('faq') || status.includes('conclu')) {
     return {
       canAct: false,
       reason: 'Este atendimento ja foi encerrado. Nao ha nova acao do OP neste momento.',
@@ -414,6 +424,7 @@ const actionAvailability = computed(() => {
   if (
     status.includes('retorno da area') ||
     status.includes('escalado') ||
+    status.includes('reencaminhado') ||
     pending.includes('area') ||
     pending.includes('secretaria')
   ) {

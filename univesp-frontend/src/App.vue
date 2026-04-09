@@ -18,8 +18,32 @@ const pageTitle = computed(() => {
       return auth.mockContext.profileKey === 'gestor_polos' ? 'Atendimentos do polo' : 'Meus atendimentos'
     }
 
+    if (route.name === 'area-manager-home') {
+      return 'Operacao da area'
+    }
+
+    if (route.name === 'area-queue') {
+      return auth.mockContext.profileKey === 'gestor_area' ? 'Casos da area' : 'Minha fila da area'
+    }
+
     if (route.name === 'operator-case-detail') {
       return 'Analise do caso'
+    }
+
+    if (route.name === 'area-case-detail') {
+      return 'Analise da area'
+    }
+
+    if (route.name === 'area-guidance') {
+      return 'Conteudo vigente da area'
+    }
+
+    if (route.name === 'area-knowledge-review') {
+      return 'Mudancas pendentes'
+    }
+
+    if (route.name === 'area-governance') {
+      return 'Regras operacionais da area'
     }
 
     if (route.name === 'operator-playbook') {
@@ -52,13 +76,35 @@ const shellThemeClass = computed(() => {
 const isManagerOperationalShell = computed(
   () => auth.mockContext.isOperationalShell && auth.mockContext.profileKey === 'gestor_polos',
 )
-const showOperationalBackAction = computed(() => route.name === 'operator-case-detail')
+const isAreaOperationalShell = computed(() =>
+  ['analista_area', 'gestor_area'].includes(auth.mockContext.profileKey),
+)
+const isAreaManagerOperationalShell = computed(
+  () => auth.mockContext.isOperationalShell && auth.mockContext.profileKey === 'gestor_area',
+)
+const showAreaSelector = computed(
+  () => isAreaOperationalShell.value && (auth.mockContext.linkedAreas || []).length > 1,
+)
+const showOperationalBackAction = computed(() =>
+  ['operator-case-detail', 'area-case-detail'].includes(String(route.name || '')),
+)
+const operationalBackRoute = computed(() =>
+  route.name === 'area-case-detail' ? '/area/fila' : '/op/fila',
+)
 const operationalPoloModel = computed({
   get() {
     return auth.mockContext.currentPolo
   },
   set(value) {
     auth.setSelectedOperationalPolo(value)
+  },
+})
+const operationalAreaModel = computed({
+  get() {
+    return auth.mockContext.currentArea
+  },
+  set(value) {
+    auth.setSelectedOperationalArea(value)
   },
 })
 
@@ -154,25 +200,45 @@ watch(
               <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700">
                 <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
               </div>
-              <select
-                v-if="isManagerOperationalShell"
-                v-model="operationalPoloModel"
-                aria-label="Selecionar polo do gestor"
-                class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
-              >
-                <option v-for="polo in auth.mockContext.linkedPolos" :key="polo" :value="polo">
-                  {{ polo }}
-                </option>
-              </select>
-              <div
-                v-else
-                class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
-              >
-                {{ auth.mockContext.currentPolo }}
-              </div>
+              <template v-if="isAreaOperationalShell">
+                <select
+                  v-if="showAreaSelector"
+                  v-model="operationalAreaModel"
+                  :aria-label="isAreaManagerOperationalShell ? 'Selecionar area do gestor' : 'Selecionar area de trabalho'"
+                  class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
+                >
+                  <option v-for="area in auth.mockContext.linkedAreas" :key="area" :value="area">
+                    {{ area }}
+                  </option>
+                </select>
+                <div
+                  v-else
+                  class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
+                >
+                  {{ auth.mockContext.currentArea }}
+                </div>
+              </template>
+              <template v-else>
+                <select
+                  v-if="isManagerOperationalShell"
+                  v-model="operationalPoloModel"
+                  aria-label="Selecionar polo do gestor"
+                  class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
+                >
+                  <option v-for="polo in auth.mockContext.linkedPolos" :key="polo" :value="polo">
+                    {{ polo }}
+                  </option>
+                </select>
+                <div
+                  v-else
+                  class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
+                >
+                  {{ auth.mockContext.currentPolo }}
+                </div>
+              </template>
               <RouterLink
                 v-if="showOperationalBackAction"
-                to="/op/fila"
+                :to="operationalBackRoute"
                 class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Voltar para fila

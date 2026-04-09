@@ -16,7 +16,8 @@
     "review": "vite build --mode development && npm run preview:local",
     "lint": "eslint . --ext .js,.vue --max-warnings=0",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "check": "npm run lint && npm run typecheck && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run build",
+    "test:foundation": "node scripts/run-canonical-tests.mjs"
   },
   "dependencies": {
     "pinia": "^2.3.1",

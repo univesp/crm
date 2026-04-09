@@ -1,5 +1,6 @@
 import loggedStudent from '../../mocks/usuario-logado.json'
 import { buildCaseRoutingContext } from '@/services/caseRoutingRuntime'
+import { buildSubsubjectCode, buildSubjectCode } from '@/services/canonicalFoundationRuntime'
 import { faqAdminSettings } from '../../mocks/faqAdminSettings'
 import { STUDENT_REQUEST_STATES } from '@/services/studentPortalRuntime'
 
@@ -129,6 +130,8 @@ export function buildFaqAttendanceContext({ node, lineage, sessionId, currentDat
       title: node.titulo_exibido,
       nodeType: node.node_type || node.node_kind || 'leaf',
     },
+    subjectCode: buildSubjectCode(node.tema),
+    subsubjectCode: buildSubsubjectCode(node.tema, node.subtema || node.titulo_exibido),
     displayedAnswer: node.resposta || '',
     action: node.acao,
     queueDestination: node.fila_destino,
@@ -191,6 +194,8 @@ export function buildProtocolDraft({ context, sourceRecordId, currentDate = new 
     form: {
       theme: context.theme || '',
       subtheme: context.subtheme || '',
+      subjectCode: context.subjectCode || buildSubjectCode(context.theme),
+      subsubjectCode: context.subsubjectCode || buildSubsubjectCode(context.theme, context.subtheme || context.finalNode.title),
       subject: context.subject,
       breadcrumb: context.breadcrumb.join(' > '),
       finalNodeTitle: context.finalNode.title,
@@ -279,16 +284,27 @@ export function buildSubmittedProtocol({ draft, currentDate = new Date() }) {
     updatedAt: timestamp.iso,
     updatedAtLabel: timestamp.label,
     statusCode: 'aguardando_acao_op',
+    canonicalStatusCode: 'in_progress_op',
     studentState: STUDENT_REQUEST_STATES.WAITING,
     statusLabel: draft.context.routing.exceptionToCentral
       ? 'Aguardando triagem central'
       : 'Aguardando acao do OP',
     statusGroup: 'submitted',
     subject: draft.form.subject,
+    subjectCode: draft.form.subjectCode || draft.context.subjectCode || buildSubjectCode(draft.context.theme),
+    subsubjectCode:
+      draft.form.subsubjectCode ||
+      draft.context.subsubjectCode ||
+      buildSubsubjectCode(draft.context.theme, draft.context.subtheme || draft.context.finalNode.title),
+    currentNodeId: draft.context.finalNode?.id || null,
     priorityLabel,
     queueLabel: draft.context.routing.currentQueueLabel,
+    currentAreaLabel: draft.context.routing.currentQueueLabel,
     lastMileAreaLabel: draft.context.routing.targetAreaLabel,
+    routingMode: 'standard',
+    pendingParty: draft.context.routing.exceptionToCentral ? 'op' : 'op',
     slaLabel: draft.context.sla,
+    currentResponseSnapshot: draft.context.displayedAnswer || '',
     pendingLabel: draft.context.routing.exceptionToCentral
       ? 'Aguardando triagem inicial da central'
       : 'Aguardando triagem inicial da operacao',
