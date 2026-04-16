@@ -2,6 +2,8 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { buildAreaCaseSummaryBackendReadiness, buildAreaCaseSummaryPayload } from '@/contracts/areaCaseSummaryContract'
+import { AREA_OPERATIONAL_SERVER_PARITY_NOTE, canRunAreaAction } from '@/contracts/areaOperationalContracts'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -20,6 +22,7 @@ const noteError = ref('')
 const destinationError = ref('')
 const reassignReasonError = ref('')
 const reassignVerifiedError = ref('')
+const concludeSafetyError = ref('')
 const isSubmitting = ref(false)
 const pendingConfirmationAction = ref('')
 const confirmationPanelRef = ref(null)
@@ -30,6 +33,15 @@ const assignmentFeedback = ref({ type: '', message: '' })
 const assignmentError = ref('')
 const selectedReassignReason = ref('')
 const reassignVerifiedContext = ref('')
+const concludeNoPendingConfirmed = ref(false)
+const activeSupportTab = ref('op_context')
+const showFullTimeline = ref(false)
+
+const SUPPORT_TAB_OPTIONS = Object.freeze([
+  { id: 'op_context', label: 'Contexto OP' },
+  { id: 'guidance', label: 'Orientacao' },
+  { id: 'history', label: 'Historico' },
+])
 
 const REASSIGN_REASON_OPTIONS = [
   {
@@ -58,7 +70,10 @@ const areaViewerContext = computed(() =>
         currentArea: '',
       },
 )
-const detail = computed(() => studentSupportStore.areaCaseById(route.params.caseId, areaViewerContext.value))
+const caseId = computed(() => String(route.params.caseId || '').trim())
+const detail = computed(() => studentSupportStore.areaCaseById(caseId.value, areaViewerContext.value))
+const globalAreaDetail = computed(() => studentSupportStore.areaCaseById(caseId.value, null))
+const globalOperatorDetail = computed(() => studentSupportStore.operatorCaseById(caseId.value, null))
 const queueFlashStorageKey = computed(() => `univesp-area-queue-flash:${auth.mockContext.profileKey}`)
 const teamMembers = computed(() =>
   detail.value ? studentSupportStore.areaTeamMembers(detail.value.currentAreaLabel || auth.mockContext.currentArea) : [],
@@ -84,10 +99,13 @@ const isManagerExceptionSelected = computed(
     selectedDestinationArea.value &&
     !detail.value?.standardAreas?.includes(selectedDestinationArea.value),
 )
+const serverParityNote = AREA_OPERATIONAL_SERVER_PARITY_NOTE
+const backendReadiness = buildAreaCaseSummaryBackendReadiness({ hasServerSummary: false })
+const backendMinimalFieldEntries = computed(() => Object.entries(backendReadiness.minimalPayload || {}))
 
 function buildActionAvailabilityState(detailValue) {
   if (!detailValue) {
-    return { canAct: false, reason: 'Caso indisponivel.' }
+    return { canAct: false, reason: 'Caso indisponivel no momento.' }
   }
 
   if (
@@ -98,7 +116,7 @@ function buildActionAvailabilityState(detailValue) {
   ) {
     return {
       canAct: false,
-      reason: `Este caso esta atribuido para ${detailValue.currentAssigneeLabel}. Redistribua pelo gestor antes de atuar.`,
+      reason: `Caso atribuido para ${detailValue.currentAssigneeLabel}. Solicite redistribuicao antes de atuar.`,
     }
   }
 
@@ -107,14 +125,14 @@ function buildActionAvailabilityState(detailValue) {
   if (status.includes('respondido pela area') || status.includes('concluido pela area') || status.includes('reencaminhado')) {
     return {
       canAct: false,
-      reason: 'A area ja concluiu a atuacao principal neste caso. Ele fica disponivel apenas para consulta.',
+      reason: 'Tratativa principal ja encerrada. Caso somente para consulta.',
     }
   }
 
   if (status.includes('complementacao solicitada pela area')) {
     return {
       canAct: false,
-      reason: 'O caso esta aguardando o polo complementar subsidios antes de nova analise da area.',
+      reason: 'Aguardando complemento do polo para nova analise.',
     }
   }
 
@@ -123,35 +141,6 @@ function buildActionAvailabilityState(detailValue) {
     reason: '',
   }
 }
-
-const ownershipSummary = computed(() => {
-  if (!detail.value) {
-    return []
-  }
-
-  if (isAreaManager.value) {
-    const assignee = detail.value.currentAssigneeLabel || 'Sem responsavel'
-    return [
-      {
-        label: 'Responsavel atual',
-        value: assignee,
-      },
-      {
-        label: 'Escopo do assunto',
-        value:
-          detail.value.subjectScopeRule?.accessMode === 'restricted'
-            ? 'Restrito a analistas selecionados'
-            : 'Aberto para o time da area',
-      },
-      {
-        label: 'Dono do caso',
-        value: detail.value.currentAssigneeLabel ? 'Caso atribuido' : 'Caso sem dono',
-      },
-    ]
-  }
-
-  return []
-})
 
 const latestRoutingDecision = computed(() =>
   (Array.isArray(detail.value?.routingDecisions) ? detail.value.routingDecisions : [])
@@ -211,9 +200,113 @@ const distributionOverview = computed(() => {
   }
 })
 
+const managerCaseInterventionSummary = computed(() => {
+  if (!isAreaManager.value || !detail.value) {
+    return null
+  }
+
+  const alerts = []
+
+  if (detail.value.currentAssigneeLabel === 'Sem responsavel') {
+    alerts.push('Caso sem responsavel definido.')
+  }
+
+  if (detail.value.sortTokens?.slaMinutes < 0) {
+    alerts.push('SLA vencido no momento.')
+  } else if ((detail.value.sortTokens?.slaMinutes || 0) <= 120) {
+    alerts.push('SLA em risco no curto prazo.')
+  }
+
+  if (detail.value.areaBucket === 'rerouted') {
+    alerts.push('Caso em fluxo de excecao/reencaminhamento.')
+  }
+
+  if (detail.value.subjectScopeRule?.accessMode === 'restricted') {
+    const analysts = detail.value.subjectScopeRule?.allowedAnalysts || []
+    alerts.push(
+      analysts.length
+        ? `Assunto restrito para ${analysts.join(', ')}.`
+        : 'Assunto restrito sem analista autorizado.',
+    )
+  }
+
+  return {
+    alerts,
+    hasAlerts: Boolean(alerts.length),
+  }
+})
+
 function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase()
 }
+
+function buildAreaQueueRoute(extraQuery = {}) {
+  return {
+    path: '/area/fila',
+    query: {
+      ...extraQuery,
+    },
+  }
+}
+
+const detailAccessState = computed(() => {
+  if (detail.value) {
+    return null
+  }
+
+  if (!caseId.value) {
+    return {
+      title: 'URL incompleta para abrir o caso',
+      description: 'O identificador do protocolo nao foi informado corretamente na rota.',
+      queueRoute: buildAreaQueueRoute(),
+      scopeRoute: null,
+      switchRoute: null,
+    }
+  }
+
+  if (!globalOperatorDetail.value) {
+    return {
+      title: 'Protocolo nao encontrado',
+      description: 'O caso informado nao existe na base carregada deste ambiente.',
+      queueRoute: buildAreaQueueRoute(),
+      scopeRoute: null,
+      switchRoute: null,
+    }
+  }
+
+  if (!globalAreaDetail.value) {
+    return {
+      title: 'Caso fora do fluxo da area',
+      description: 'Este protocolo existe, mas nao esta no fluxo de atuacao da area neste momento.',
+      queueRoute: buildAreaQueueRoute(),
+      scopeRoute: null,
+      switchRoute: null,
+    }
+  }
+
+  const expectedArea = globalAreaDetail.value.currentAreaLabel || globalAreaDetail.value.lastMileAreaLabel || ''
+  const requestedArea = String(route.query.area || '').trim()
+  const canSwitchToExpectedArea = (auth.mockContext.linkedAreas || []).includes(expectedArea)
+  const hasAreaMismatch =
+    requestedArea && expectedArea && normalizeText(requestedArea) !== normalizeText(expectedArea)
+
+  return {
+    title: hasAreaMismatch ? 'Escopo de area inconsistente' : 'Sem acesso ao caso neste escopo',
+    description: hasAreaMismatch
+      ? `A URL aponta para ${requestedArea}, mas o caso esta em ${expectedArea}.`
+      : 'Seu perfil atual nao tem visibilidade para este caso no recorte selecionado.',
+    queueRoute: buildAreaQueueRoute(),
+    scopeRoute: canSwitchToExpectedArea ? buildAreaQueueRoute({ areaFilter: expectedArea }) : null,
+    switchRoute: canSwitchToExpectedArea
+      ? {
+          path: `/area/fila/${caseId.value}`,
+          query: {
+            area: expectedArea,
+          },
+        }
+      : null,
+  }
+})
 
 function withPeriod(value = '') {
   const text = String(value || '').trim()
@@ -224,40 +317,6 @@ function withPeriod(value = '') {
 
   return /[.!?]$/.test(text) ? text : `${text}.`
 }
-
-const headerMeta = computed(() => {
-  if (!detail.value) {
-    return []
-  }
-
-  const studentData = detail.value.studentData || {}
-  const items = [
-    { key: 'student', label: studentData.nome || 'Aluno nao informado', clickable: true },
-    {
-      key: 'ra',
-      label: studentData.ra ? `RA ${studentData.ra}` : 'RA nao informado',
-    },
-    {
-      key: 'polo',
-      label: `Polo ${studentData.polo || 'Nao informado'}`,
-    },
-    {
-      key: 'area',
-      label: `Area ${detail.value.currentAreaLabel || 'Nao informada'}`,
-    },
-    { key: 'protocol', label: `Protocolo ${detail.value.id}` },
-    { key: 'status', label: detail.value.areaStatusLabel },
-  ]
-
-  if (detail.value.sla && detail.value.sla !== 'Encerrado') {
-    items.splice(3, 0, {
-      key: 'deadline',
-      label: `Prazo: ${detail.value.sla}`,
-    })
-  }
-
-  return items
-})
 
 const exchangeItems = computed(() => {
   if (!detail.value) {
@@ -293,8 +352,8 @@ const decisionSuggestion = computed(() => {
   if (needsComplement) {
     return {
       actionId: 'request_complement',
-      title: 'Saida sugerida: solicitar complementacao',
-      description: 'Ainda faltam evidencias basicas. O caminho normal aqui e pedir complemento ao aluno e ao polo.',
+      title: 'Acao sugerida: pedir complemento',
+      description: 'Faltam evidencias essenciais para resposta final.',
       toneClass: 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.4)] text-[#8a5200]',
     }
   }
@@ -302,16 +361,16 @@ const decisionSuggestion = computed(() => {
   if (systemsToCheck.length > 0) {
     return {
       actionId: 'technical_reply',
-      title: 'Saida sugerida: validar e enviar resposta',
-      description: 'O caso ja tem base inicial. Confira os sistemas indicados e, se nao surgir impeditivo, responda.',
+      title: 'Acao sugerida: validar e responder',
+      description: 'Ha base inicial. Valide sistemas e responda se nao houver impeditivo.',
       toneClass: 'border-[rgba(209,50,57,0.18)] bg-[rgba(253,236,237,0.35)] text-[var(--color-primary-dark)]',
     }
   }
 
   return {
     actionId: 'technical_reply',
-    title: 'Saida sugerida: enviar resposta',
-    description: 'Nao ha sinal forte de dependencia de outra area. Se a checagem estiver coerente, resolva aqui.',
+    title: 'Acao sugerida: responder',
+    description: 'Sem dependencia relevante de outra area. Resolva aqui.',
     toneClass: 'border-[rgba(209,50,57,0.18)] bg-[rgba(253,236,237,0.35)] text-[var(--color-primary-dark)]',
   }
 })
@@ -328,35 +387,330 @@ const preDecisionChecks = computed(() => {
 
   return [
     {
+      requirementCode: 'documentos_evidencias',
       title: 'Ha base para responder?',
       toneClass: evidenceMissing
         ? 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.36)]'
         : 'border-[rgba(26,111,67,0.16)] bg-[rgba(220,252,231,0.25)]',
-      statusLabel: evidenceMissing ? 'Ainda nao' : 'Sim, ha base inicial',
+      statusLabel: evidenceMissing ? 'Pendente' : 'OK',
+      isPending: evidenceMissing,
       helperText: requiredDocuments.length > 0
         ? evidenceMissing
-          ? `Faltam ${requiredDocuments.join(', ')}.`
-          : `Documentos obrigatorios recebidos.`
-        : 'Nao ha documento obrigatorio pendente.',
+          ? `Faltam: ${requiredDocuments.join(', ')}.`
+          : 'Documentos obrigatorios recebidos.'
+        : 'Sem pendencia de documento obrigatorio.',
     },
     {
+      requirementCode: 'checagens_sistema',
       title: 'Ainda falta alguma checagem?',
       toneClass: systemsToCheck.length
         ? 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.32)]'
         : 'border-slate-200 bg-white',
-      statusLabel: systemsToCheck.length ? 'Sim, ha checagem pendente' : 'Nao ha checagem obrigatoria aberta',
+      statusLabel: systemsToCheck.length ? 'Pendente' : 'OK',
+      isPending: Boolean(systemsToCheck.length),
       helperText: systemsToCheck.length
         ? `Consulte ${systemsToCheck.join(', ')} antes de responder.`
-        : 'Nada bloqueia a resposta por sistema.',
+        : 'Sem checagem de sistema em aberto.',
     },
     {
       title: 'Depende mesmo de outra area?',
       toneClass: 'border-slate-200 bg-white',
-      statusLabel: 'Use isso so como excecao',
+      statusLabel: 'Excecao',
       helperText: 'Se sua area consegue resolver, responda ou peca complemento.',
     },
   ]
 })
+
+const decisionExamples = computed(() => [
+  {
+    title: 'Quando responder',
+    description: 'Quando houver base suficiente e a area conseguir resolver o caso.',
+  },
+  {
+    title: 'Quando pedir complemento',
+    description: 'Quando faltar documento, evidencia ou validacao para fechar a resposta.',
+  },
+  {
+    title: 'Quando concluir',
+    description: 'Quando nao houver nova tratativa pendente para polo ou outra area.',
+  },
+  {
+    title: 'Quando encaminhar excepcionalmente',
+    description: 'Quando a area realmente nao puder resolver mesmo apos as checagens basicas.',
+  },
+])
+
+const supportTabOptions = computed(() => SUPPORT_TAB_OPTIONS)
+
+const missingRequirementLabels = Object.freeze({
+  documentos_evidencias: 'Documentos/evidencias obrigatorios',
+  checagens_sistema: 'Checagens de sistema pendentes',
+  resposta_final_obrigatoria: 'Resposta final obrigatoria antes da conclusao',
+  contexto_op_incompleto: 'Contexto do OP incompleto',
+})
+
+function mapMissingRequirementLabel(code = '') {
+  return missingRequirementLabels[code] || code
+}
+
+function resolveActionLabel(actionId = '') {
+  if (actionId === 'technical_reply') {
+    return 'Responder ao aluno e ao OP'
+  }
+
+  if (actionId === 'request_complement') {
+    return 'Solicitar complemento'
+  }
+
+  if (actionId === 'conclude') {
+    return 'Concluir analise interna'
+  }
+
+  if (actionId === 'reassign') {
+    return 'Encaminhar excepcionalmente'
+  }
+
+  return 'Analisar caso'
+}
+
+const caseSummaryPayload = computed(() =>
+  buildAreaCaseSummaryPayload({
+    detail: detail.value,
+    detailAccessState: detailAccessState.value,
+    decisionSuggestion: decisionSuggestion.value,
+    preDecisionChecks: preDecisionChecks.value,
+    concludeReadiness: concludeReadiness.value,
+    actionAvailability: actionAvailability.value,
+    actionAuthorization: actionAuthorization.value,
+  }),
+)
+
+const decisionStatusPresentation = computed(() => {
+  const status = caseSummaryPayload.value.decisionStatus
+
+  if (status === 'scope_invalid') {
+    return {
+      label: 'Fora do escopo',
+      helper: 'Revise area/escopo antes de atuar.',
+      toneClass: 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.62)] text-[var(--color-danger)]',
+    }
+  }
+
+  if (status === 'read_only') {
+    return {
+      label: 'Apenas consulta',
+      helper: actionAvailability.value.reason || 'Atuacao principal da area ja registrada.',
+      toneClass: 'border-slate-200 bg-slate-100 text-slate-700',
+    }
+  }
+
+  if (status === 'missing_requirements') {
+    return {
+      label: 'Faltam requisitos',
+      helper: 'Resolva pendencias antes de finalizar a decisao.',
+      toneClass: 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.5)] text-[#8a5200]',
+    }
+  }
+
+  if (status === 'ready_to_reply') {
+    return {
+      label: 'Caso apto para resposta',
+      helper: 'Fluxo principal: responder aluno e OP.',
+      toneClass: 'border-[rgba(26,111,67,0.18)] bg-[rgba(220,252,231,0.55)] text-[var(--color-success)]',
+    }
+  }
+
+  if (status === 'ready_to_request_complement') {
+    return {
+      label: 'Apto para pedir complemento',
+      helper: 'Ainda faltam subsidios para resposta final segura.',
+      toneClass: 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.5)] text-[#8a5200]',
+    }
+  }
+
+  return {
+    label: 'Caso em analise',
+    helper: 'Revise o resumo e escolha a proxima acao.',
+    toneClass: 'border-slate-200 bg-slate-50 text-slate-700',
+  }
+})
+
+const decisionQuickSummary = computed(() => {
+  if (!detail.value) {
+    return null
+  }
+
+  const validatedItems = (detail.value.handoffItems || [])
+    .slice(0, 2)
+    .map((item) => `${item.label}: ${item.value}`)
+    .filter(Boolean)
+
+  const missingRequirements = caseSummaryPayload.value.missingRequirements
+  const normalizedMissingLabel = missingRequirements.length
+    ? missingRequirements.map((item) => mapMissingRequirementLabel(item)).join(' · ')
+    : 'Sem pendencias essenciais.'
+  const normalizedValidatedLabel = validatedItems.length
+    ? validatedItems.join(' · ')
+    : 'Sem validacao registrada no handoff inicial.'
+  const missingLabel = missingRequirements.length
+    ? missingRequirements
+      .map((item) => {
+        if (item === 'documentos_evidencias') return 'Documentos/evidencias obrigatorios'
+        if (item === 'checagens_sistema') return 'Checagens de sistema pendentes'
+        if (item === 'resposta_final_obrigatoria') return 'Resposta final obrigatoria antes da conclusao'
+        if (item === 'contexto_op_incompleto') return 'Contexto do OP incompleto'
+        return item
+      })
+      .join(' · ')
+    : 'Sem pendencias essenciais.'
+
+  return {
+    whyInArea: detail.value.contextFromOp || detail.value.pendingLabel || 'Contexto operacional nao informado.',
+    validated: validatedItems.length
+      ? validatedItems.join(' · ')
+      : 'Sem validacao registrada no handoff inicial.',
+    missingNow: missingLabel,
+    normalizedMissingNow: normalizedMissingLabel,
+    normalizedValidated: normalizedValidatedLabel,
+    recommendedAction: resolveActionLabel(caseSummaryPayload.value.recommendedAction),
+  }
+})
+
+const recommendedActionPanel = computed(() => {
+  const actionId = caseSummaryPayload.value.recommendedAction || 'technical_reply'
+  const missing = caseSummaryPayload.value.missingRequirements || []
+  const hasBlockers = Boolean(missing.length) || !actionAvailability.value.canAct
+
+  return {
+    actionId,
+    nextStep: resolveActionLabel(actionId),
+    reason: decisionSuggestion.value?.description || decisionStatusPresentation.value.helper,
+    pendingItems: missing.map((item) => mapMissingRequirementLabel(item)),
+    blockers: !actionAvailability.value.canAct ? [actionAvailability.value.reason] : [],
+    toneClass: hasBlockers
+      ? 'border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.45)] text-[#8a5200]'
+      : 'border-[rgba(26,111,67,0.2)] bg-[rgba(220,252,231,0.45)] text-[var(--color-success)]',
+  }
+})
+
+const decisionStateBadges = computed(() => {
+  if (!detail.value) {
+    return []
+  }
+
+  const badges = [
+    {
+      id: 'decision_status',
+      label: decisionStatusPresentation.value.label,
+      toneClass: decisionStatusPresentation.value.toneClass,
+    },
+  ]
+
+  if (detail.value.currentAssigneeLabel === 'Sem responsavel') {
+    badges.push({
+      id: 'unassigned',
+      label: 'Sem responsavel',
+      toneClass: 'border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.45)] text-[#8a5200]',
+    })
+  }
+
+  if (!isAreaManager.value && analystOperationalState.value?.value === 'Atribuido a outro analista') {
+    badges.push({
+      id: 'assignment_conflict',
+      label: 'Conflito de ownership',
+      toneClass: 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.55)] text-[var(--color-danger)]',
+    })
+  }
+
+  if (selectedAction.value === 'reassign') {
+    badges.push({
+      id: 'exception_flow',
+      label: 'Excecao exige justificativa',
+      toneClass: 'border-[rgba(8,115,145,0.2)] bg-[rgba(224,242,254,0.55)] text-[#0b6e8c]',
+    })
+  }
+
+  if (!caseSummaryPayload.value.responseAllowed) {
+    badges.push({
+      id: 'response_blocked',
+      label: 'Resposta bloqueada por permissao',
+      toneClass: 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.55)] text-[var(--color-danger)]',
+    })
+  }
+
+  if (!caseSummaryPayload.value.exceptionAllowed) {
+    badges.push({
+      id: 'exception_blocked',
+      label: 'Excecao bloqueada por permissao',
+      toneClass: 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.55)] text-[var(--color-danger)]',
+    })
+  }
+
+  if (actionFeedback.value.type === 'error') {
+    badges.push({
+      id: 'sync_error',
+      label: 'Erro de sincronizacao',
+      toneClass: 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.55)] text-[var(--color-danger)]',
+    })
+  }
+
+  return badges
+})
+
+const complementaryContextWarning = computed(() => {
+  if (!detail.value) {
+    return ''
+  }
+
+  if (!detail.value.contextFromOp) {
+    return 'Contexto recebido do OP esta incompleto. Use historico e trilha para reduzir risco de decisao.'
+  }
+
+  if (!detail.value.timeline?.length && !detail.value.historySummary?.length) {
+    return 'Historico ainda sem eventos consolidados. Registre decisao com nota clara para manter rastreabilidade.'
+  }
+
+  return ''
+})
+
+const timelineItems = computed(() =>
+  Array.isArray(detail.value?.timeline) ? detail.value.timeline.slice().reverse() : [],
+)
+const supportTabState = computed(() => {
+  const contextState = detail.value?.contextLoadState || {}
+  const hasGuidance = Boolean(detail.value?.analysisSections?.length)
+  const hasHistory = Boolean(detail.value?.historySummary?.length || detail.value?.timeline?.length)
+
+  return {
+    op_context: {
+      loading: Boolean(contextState.opContextLoading),
+      error: String(contextState.opContextError || ''),
+      emptyMessage: 'Sem contexto adicional do OP para este caso.',
+      summary: detail.value?.contextFromOp ? 'Contexto inicial registrado.' : 'Contexto inicial incompleto.',
+    },
+    guidance: {
+      loading: Boolean(contextState.guidanceLoading),
+      error: String(contextState.guidanceError || ''),
+      emptyMessage: 'Orientacao indisponivel para este assunto.',
+      summary: hasGuidance ? 'Passos de orientacao disponiveis.' : 'Sem orientacao estruturada no momento.',
+    },
+    history: {
+      loading: Boolean(contextState.historyLoading),
+      error: String(contextState.historyError || ''),
+      emptyMessage: 'Historico indisponivel para este protocolo.',
+      summary: hasHistory ? 'Eventos recentes carregados.' : 'Sem eventos historicos.',
+      lazyLoadHint: 'No backend real, eventos antigos serao carregados por paginacao.',
+    },
+  }
+})
+const activeSupportTabState = computed(() => supportTabState.value[activeSupportTab.value] || null)
+
+const timelinePreviewLimit = 3
+const visibleTimelineItems = computed(() =>
+  showFullTimeline.value ? timelineItems.value : timelineItems.value.slice(0, timelinePreviewLimit),
+)
+const hasMoreTimelineItems = computed(() => timelineItems.value.length > visibleTimelineItems.value.length)
+const hiddenTimelineCount = computed(() => Math.max(timelineItems.value.length - visibleTimelineItems.value.length, 0))
 
 const actionOptions = computed(() => {
   if (!detail.value) {
@@ -367,12 +721,12 @@ const actionOptions = computed(() => {
     {
       id: 'technical_reply',
       kind: 'primary',
-      title: 'Enviar resposta ao aluno',
-      description: 'Saida normal quando a area ja tiver base suficiente para resolver o caso.',
-      submitLabel: 'Enviar resposta ao aluno',
+      title: 'Responder aluno + OP',
+      description: 'Saida principal quando ha base suficiente.',
+      submitLabel: 'Enviar resposta',
       fieldLabel: 'Resposta final para aluno e OP',
       previewLabel: 'Resposta final que sera enviada ao aluno e ao OP',
-      placeholder: 'Escreva a resposta final que o aluno vai receber. O OP recebera o mesmo texto para finalizar o caso.',
+      placeholder: 'Escreva a resposta final para aluno e OP.',
       toneClass:
         selectedAction.value === 'technical_reply'
           ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.08)] text-[var(--color-primary-dark)] shadow-[0_10px_24px_rgba(166,31,40,0.08)]'
@@ -381,22 +735,36 @@ const actionOptions = computed(() => {
     {
       id: 'request_complement',
       kind: 'secondary',
-      title: 'Solicitar complementacao',
-      description: 'Use quando ainda faltarem subsidios, evidencias ou nova validacao antes da resposta final.',
-      submitLabel: 'Solicitar complementacao',
+      title: 'Pedir complemento',
+      description: 'Use quando faltar evidencia para responder com seguranca.',
+      submitLabel: 'Enviar solicitacao',
       fieldLabel: 'Solicitacao para aluno e OP',
       previewLabel: 'Complementacao que sera enviada ao aluno e ao OP',
-      placeholder: 'Explique o que ainda falta para a area retomar a analise do caso.',
+      placeholder: 'Descreva o que falta para retomar a analise.',
       toneClass:
         selectedAction.value === 'request_complement'
           ? 'border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.18)] text-[#9a5b00]'
           : 'border-slate-200 bg-white text-slate-700',
     },
     {
+      id: 'conclude',
+      kind: 'tertiary',
+      title: 'Concluir analise interna',
+      description: 'Use so sem pendencia para polo ou outra area.',
+      submitLabel: 'Concluir analise interna',
+      fieldLabel: 'Registro de conclusao interna',
+      previewLabel: 'Resumo da conclusao interna',
+      placeholder: 'Registre por que a analise pode ser concluida.',
+      toneClass:
+        selectedAction.value === 'conclude'
+          ? 'border-slate-300 bg-slate-100 text-slate-900'
+          : 'border-slate-200 bg-white text-slate-700',
+    },
+    {
       id: 'reassign',
       kind: 'exception',
-      title: 'Tratar como excecao',
-      description: 'Use so quando esta area realmente nao puder resolver e o caso precisar sair do fluxo normal.',
+      title: 'Encaminhar excepcionalmente para outra area',
+      description: 'Use apenas quando a area nao puder resolver.',
       submitLabel: 'Registrar excecao',
       fieldLabel: 'Motivo da excecao',
       previewLabel: 'Registro excepcional que sera enviado para a nova area',
@@ -409,12 +777,53 @@ const actionOptions = computed(() => {
   ]
 })
 
+const hasFinalResponseToStudent = computed(() =>
+  (detail.value?.areaActionLogs || []).some((log) => log.actionType === 'technical_reply'),
+)
+const concludeReadiness = computed(() => {
+  if (!detail.value) {
+    return {
+      required: false,
+      canConclude: false,
+      missingReason: '',
+    }
+  }
+
+  if (hasFinalResponseToStudent.value) {
+    return {
+      required: true,
+      canConclude: true,
+      missingReason: '',
+    }
+  }
+
+  return {
+    required: true,
+    canConclude: false,
+    missingReason: 'Antes de concluir, envie uma resposta final para aluno e OP.',
+  }
+})
+const actionAuthorization = computed(() => {
+  const result = {}
+
+  for (const option of actionOptions.value) {
+    result[option.id] = canRunAreaAction({
+      actionType: option.id,
+      viewerContext: auth.mockContext,
+      isManagerException: option.id === 'reassign' ? isManagerExceptionSelected.value : false,
+    })
+  }
+
+  return result
+})
+
 const activeAction = computed(
   () => actionOptions.value.find((option) => option.id === selectedAction.value) || null,
 )
 
 const primaryActionOption = computed(() => actionOptions.value.find((option) => option.kind === 'primary') || null)
 const secondaryActionOption = computed(() => actionOptions.value.find((option) => option.kind === 'secondary') || null)
+const tertiaryActionOption = computed(() => actionOptions.value.find((option) => option.kind === 'tertiary') || null)
 const exceptionActionOption = computed(() => actionOptions.value.find((option) => option.kind === 'exception') || null)
 const normalDecisionActions = computed(() =>
   [primaryActionOption.value, secondaryActionOption.value].filter(Boolean),
@@ -437,6 +846,10 @@ function buildSuggestedNote(actionType) {
 
   if (actionType === 'request_complement') {
     return 'Para retomar a analise, ainda faltam subsidios, evidencias ou validacoes do aluno e do polo.'
+  }
+
+  if (actionType === 'conclude') {
+    return `Analise interna concluida pela area sobre ${subjectLabel}, sem tratativa pendente para polo ou outra area.`
   }
 
   if (actionType === 'reassign') {
@@ -530,13 +943,17 @@ watch(
     destinationError.value = ''
     reassignReasonError.value = ''
     reassignVerifiedError.value = ''
+    concludeSafetyError.value = ''
     pendingConfirmationAction.value = ''
+    concludeNoPendingConfirmed.value = false
     selectedAssignee.value = detail.value?.currentAssigneeLabel && detail.value.currentAssigneeLabel !== 'Sem responsavel'
       ? detail.value.currentAssigneeLabel
       : ''
     assignmentReason.value = ''
     assignmentError.value = ''
     assignmentFeedback.value = { type: '', message: '' }
+    activeSupportTab.value = 'op_context'
+    showFullTimeline.value = false
     clearFeedback()
   },
   { immediate: true },
@@ -567,6 +984,7 @@ watch(selectedAction, () => {
   destinationError.value = ''
   reassignReasonError.value = ''
   reassignVerifiedError.value = ''
+  concludeSafetyError.value = ''
   pendingConfirmationAction.value = ''
   clearFeedback()
 
@@ -574,6 +992,13 @@ watch(selectedAction, () => {
     selectedDestinationArea.value = ''
     selectedReassignReason.value = ''
     reassignVerifiedContext.value = ''
+  }
+
+  if (selectedAction.value !== 'conclude') {
+    concludeNoPendingConfirmed.value = false
+  }
+  if (selectedAction.value === 'conclude' && !concludeReadiness.value.canConclude) {
+    concludeSafetyError.value = concludeReadiness.value.missingReason
   }
 
   if (selectedAction.value) {
@@ -586,6 +1011,7 @@ watch(selectedAction, () => {
   selectedDestinationArea.value = ''
   selectedReassignReason.value = ''
   reassignVerifiedContext.value = ''
+  concludeNoPendingConfirmed.value = false
   lastSuggestedNote.value = ''
 })
 
@@ -615,6 +1041,46 @@ const actionAvailability = computed(() => {
   return buildActionAvailabilityState(detail.value)
 })
 
+function actionPermissionReason(actionType = '') {
+  const policy = actionAuthorization.value[actionType]
+  return policy?.allowed ? '' : policy?.reason || 'Acao indisponivel para o perfil atual.'
+}
+
+const analystOperationalState = computed(() => {
+  if (isAreaManager.value || !detail.value) {
+    return null
+  }
+
+  const assignee = detail.value.currentAssigneeLabel || 'Sem responsavel'
+  const normalizedAssignee = normalizeText(assignee)
+  const currentUser = normalizeText(auth.mockContext.userName)
+
+  if (assignee === 'Sem responsavel') {
+    return {
+      title: 'Voce pode atuar agora?',
+      value: 'Sem responsavel',
+      helper: 'Este caso ainda nao tem dono fixo na area.',
+      toneClass: 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.4)] text-[#8a5200]',
+    }
+  }
+
+  if (normalizedAssignee === currentUser) {
+    return {
+      title: 'Voce pode atuar agora?',
+      value: 'Caso atribuido a voce',
+      helper: 'Voce esta com ownership da tratativa neste momento.',
+      toneClass: 'border-[rgba(26,111,67,0.18)] bg-[rgba(220,252,231,0.35)] text-[var(--color-success)]',
+    }
+  }
+
+  return {
+    title: 'Voce pode atuar agora?',
+    value: 'Atribuido a outro analista',
+    helper: `Ownership atual: ${assignee}.`,
+    toneClass: 'border-slate-200 bg-slate-50 text-slate-700',
+  }
+})
+
 watch(
   [() => detail.value?.id, () => decisionSuggestion.value?.actionId, () => actionAvailability.value.canAct],
   ([caseId, suggestedAction, canAct]) => {
@@ -623,7 +1089,9 @@ watch(
     }
 
     if (!selectedAction.value) {
-      selectedAction.value = suggestedAction
+      if (!actionPermissionReason(suggestedAction)) {
+        selectedAction.value = suggestedAction
+      }
     }
   },
   { immediate: true },
@@ -643,16 +1111,25 @@ function openStudentCases() {
 }
 
 function ensureActionReady(actionType) {
+  const permissionError = actionPermissionReason(actionType)
+  if (permissionError) {
+    actionFeedback.value = {
+      type: 'error',
+      message: permissionError,
+    }
+    return false
+  }
+
   if (actionType === 'reassign') {
     if (!selectedReassignReason.value) {
-      reassignReasonError.value = 'Escolha por que este caso precisa sair da area antes de encaminhar.'
+      reassignReasonError.value = 'Selecione o motivo do encaminhamento excepcional.'
       return false
     }
 
     reassignReasonError.value = ''
 
     if (!reassignVerifiedContext.value.trim()) {
-      reassignVerifiedError.value = 'Explique o que ja foi verificado nesta area antes de encaminhar.'
+      reassignVerifiedError.value = 'Informe o que ja foi verificado nesta area.'
       focusNoteField()
       return false
     }
@@ -660,25 +1137,39 @@ function ensureActionReady(actionType) {
     reassignVerifiedError.value = ''
 
     if (!selectedDestinationArea.value) {
-      destinationError.value = 'Selecione a area de destino antes de encaminhar.'
+      destinationError.value = 'Selecione a area de destino.'
       return false
     }
 
     destinationError.value = ''
     noteError.value = ''
+    concludeSafetyError.value = ''
     return true
   }
 
   if (!actionNote.value.trim()) {
-    noteError.value = 'Preencha o registro da area antes de continuar.'
+    noteError.value = 'Preencha o registro desta acao antes de continuar.'
     focusNoteField()
     return false
   }
 
   noteError.value = ''
 
+  if (actionType === 'conclude' && !concludeReadiness.value.canConclude) {
+    concludeSafetyError.value = concludeReadiness.value.missingReason
+    return false
+  }
+
+  if (actionType === 'conclude' && !concludeNoPendingConfirmed.value) {
+    concludeSafetyError.value =
+      'Confirme que nao ha tratativa pendente para polo ou outra area.'
+    return false
+  }
+
+  concludeSafetyError.value = ''
+
   if (actionType === 'reassign' && !selectedDestinationArea.value) {
-    destinationError.value = 'Selecione a area de destino antes de reencaminhar.'
+    destinationError.value = 'Selecione a area de destino.'
     return false
   }
 
@@ -700,6 +1191,23 @@ function handleActionClick(actionType) {
 }
 
 function selectAction(actionType) {
+  const permissionError = actionPermissionReason(actionType)
+  if (permissionError) {
+    actionFeedback.value = {
+      type: 'error',
+      message: permissionError,
+    }
+    return
+  }
+
+  if (actionType === 'conclude' && !concludeReadiness.value.canConclude) {
+    actionFeedback.value = {
+      type: 'error',
+      message: concludeReadiness.value.missingReason,
+    }
+    return
+  }
+
   selectedAction.value = actionType
 }
 
@@ -719,7 +1227,7 @@ const confirmationCopy = computed(() => {
   if (pendingConfirmationAction.value === 'technical_reply') {
     return {
       title: 'Confirmar envio da resposta',
-      consequence: 'A resposta final ficara disponivel para o aluno e tambem para o OP encerrar o caso.',
+      consequence: 'Aluno e OP receberao a resposta final.',
       buttonClass: 'bg-[var(--color-primary)] text-white',
       buttonLabel: 'Confirmar envio da resposta',
     }
@@ -727,10 +1235,10 @@ const confirmationCopy = computed(() => {
 
   if (pendingConfirmationAction.value === 'request_complement') {
     return {
-      title: 'Confirmar solicitacao de complementacao',
-      consequence: 'A solicitacao sera enviada ao aluno e ao OP para que a tratativa continue.',
+      title: 'Confirmar pedido de complemento',
+      consequence: 'Aluno e OP receberao esta solicitacao.',
       buttonClass: 'border border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.82)] text-[#8a5200]',
-      buttonLabel: 'Confirmar solicitacao de complementacao',
+      buttonLabel: 'Confirmar pedido de complemento',
     }
   }
 
@@ -738,10 +1246,19 @@ const confirmationCopy = computed(() => {
     return {
       title: isManagerExceptionSelected.value ? 'Confirmar encaminhamento excepcional' : 'Confirmar encaminhamento excepcional',
       consequence: isManagerExceptionSelected.value
-        ? `O caso saira do caminho preferencial da area e seguira para ${selectedDestinationArea.value} com excecao gerencial justificada.`
-        : `O caso saira do fluxo preferencial desta area e seguira para ${selectedDestinationArea.value}.`,
+        ? `O caso saira do caminho padrao e seguira para ${selectedDestinationArea.value} com excecao gerencial.`
+        : `O caso seguira para ${selectedDestinationArea.value} fora do fluxo preferencial.`,
       buttonClass: 'bg-[#0f4c81] text-white',
       buttonLabel: 'Confirmar encaminhamento excepcional',
+    }
+  }
+
+  if (pendingConfirmationAction.value === 'conclude') {
+    return {
+      title: 'Confirmar conclusao interna',
+      consequence: 'A analise sera encerrada internamente sem nova tratativa pendente.',
+      buttonClass: 'border border-slate-300 bg-slate-100 text-slate-800',
+      buttonLabel: 'Confirmar conclusao interna',
     }
   }
 
@@ -759,22 +1276,31 @@ function submitAreaAction(actionType) {
 
   isSubmitting.value = true
   clearFeedback()
-
-  const actionLog = studentSupportStore.registerAreaAction({
-    caseId: detail.value.id,
-    actionType,
-    note: actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value,
-    actorName: auth.mockContext.userName,
-    nextArea: selectedDestinationArea.value,
-    isManagerException: isManagerExceptionSelected.value,
-  })
+  let actionLog = null
+  try {
+    actionLog = studentSupportStore.registerAreaAction({
+      caseId: detail.value.id,
+      actionType,
+      note: actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value,
+      actorName: auth.mockContext.userName,
+      nextArea: selectedDestinationArea.value,
+      isManagerException: isManagerExceptionSelected.value,
+    })
+  } catch (error) {
+    isSubmitting.value = false
+    actionFeedback.value = {
+      type: 'error',
+      message: error?.message || 'Falha ao registrar a acao. Tente novamente.',
+    }
+    return
+  }
 
   isSubmitting.value = false
 
   if (!actionLog) {
     actionFeedback.value = {
       type: 'error',
-      message: 'Nao foi possivel registrar a acao da area agora. Tente novamente.',
+      message: 'Falha ao registrar a acao. Tente novamente.',
     }
     return
   }
@@ -784,14 +1310,16 @@ function submitAreaAction(actionType) {
     type: 'success',
     message:
       actionType === 'technical_reply'
-        ? 'Resposta final enviada com sucesso para aluno e OP.'
+        ? 'Resposta enviada para aluno e OP.'
         : actionType === 'request_complement'
-          ? 'Solicitacao de complementacao enviada com sucesso para aluno e OP.'
+          ? 'Pedido de complemento enviado para aluno e OP.'
           : actionType === 'reassign'
             ? isManagerExceptionSelected.value
-              ? `Caso reencaminhado para ${actionLog.destinationLabel} por excecao gerencial.`
+              ? `Caso encaminhado para ${actionLog.destinationLabel} com excecao gerencial.`
               : `Caso reencaminhado para ${actionLog.destinationLabel}.`
-            : 'Acao da area registrada com sucesso.',
+            : actionType === 'conclude'
+              ? 'Analise interna concluida.'
+              : 'Acao registrada com sucesso.',
   }
 
   if (actionType === 'reassign' && typeof window !== 'undefined') {
@@ -812,6 +1340,19 @@ function submitAreaAction(actionType) {
 
 function assignCase() {
   if (!detail.value || !isAreaManager.value) {
+    return
+  }
+
+  const assignmentPolicy = canRunAreaAction({
+    actionType: 'assign_case',
+    viewerContext: auth.mockContext,
+  })
+
+  if (!assignmentPolicy.allowed) {
+    assignmentFeedback.value = {
+      type: 'error',
+      message: assignmentPolicy.reason,
+    }
     return
   }
 
@@ -840,90 +1381,169 @@ function assignCase() {
 
 <template>
   <div v-if="!detail" class="rounded-[16px] border border-slate-200 bg-white px-6 py-6">
-    <p class="text-xs font-semibold text-slate-500">Caso indisponivel</p>
+    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Erro de acesso ao caso</p>
     <h3 class="mt-3 text-2xl font-semibold text-slate-950">
-      O caso informado nao foi encontrado no escopo atual da area.
+      {{ detailAccessState?.title || 'Caso indisponivel no escopo atual' }}
     </h3>
     <p class="mt-3 text-sm leading-7 text-slate-600">
-      Volte para a fila da area e abra um caso que realmente esteja no escopo deste perfil.
+      {{ detailAccessState?.description || 'A URL nao corresponde ao escopo atual desta area.' }}
     </p>
+    <div class="mt-5 flex flex-wrap gap-2">
+      <RouterLink
+        :to="detailAccessState?.queueRoute || '/area/fila'"
+        class="rounded-[14px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+      >
+        Voltar para fila da area
+      </RouterLink>
+      <RouterLink
+        v-if="detailAccessState?.switchRoute"
+        :to="detailAccessState.switchRoute"
+        class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+      >
+        Trocar para area correta
+      </RouterLink>
+      <RouterLink
+        v-if="detailAccessState?.scopeRoute"
+        :to="detailAccessState.scopeRoute"
+        class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+      >
+        Abrir fila deste escopo
+      </RouterLink>
+    </div>
   </div>
 
-  <div v-else class="grid gap-3">
+  <div v-else class="grid gap-4">
     <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
-      <div class="px-5 py-5">
-        <p class="text-lg font-semibold text-slate-950">Detalhe da analise</p>
-        <h2 class="mt-3 text-[1.45rem] font-semibold leading-tight text-slate-950">
-          {{ detail.subject }}
-        </h2>
-        <div class="mt-4 rounded-[14px] border border-slate-300 bg-[rgba(248,250,252,0.95)] px-4 py-3 text-sm font-semibold leading-6 text-slate-800 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-          <div class="flex flex-wrap items-center gap-y-2">
-            <template v-for="(item, index) in headerMeta" :key="item.key">
-              <button
-                v-if="item.clickable"
-                type="button"
-                class="font-semibold text-slate-950 transition hover:text-[var(--color-primary)]"
-                @click="openStudentCases"
-              >
-                {{ item.label }}
-              </button>
-              <span v-else>{{ item.label }}</span>
-              <span v-if="index < headerMeta.length - 1" class="px-2 text-slate-300" aria-hidden="true">|</span>
-            </template>
+      <div class="sticky top-0 z-10 border-b border-slate-200 bg-white px-5 py-4 shadow-[0_8px_20px_rgba(15,23,42,0.05)]">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Estado atual do caso</p>
+            <p class="mt-1 text-lg font-semibold text-slate-950">Detalhe da analise</p>
+            <h2 class="mt-1 text-[1.35rem] font-semibold leading-tight text-slate-950">{{ detail.subject }}</h2>
           </div>
-        </div>
-        <div class="mt-3 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">O que falta agora</p>
-          <p class="mt-1 text-sm font-medium leading-6 text-slate-800">
-            {{ detail.pendingLabel }}
-          </p>
-        </div>
-        <div v-if="ownershipSummary.length" class="mt-3 grid gap-3 md:grid-cols-3">
-          <div
-            v-for="item in ownershipSummary"
-            :key="item.label"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3"
+          <RouterLink
+            to="/area/fila"
+            class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
-            <p class="mt-1 text-sm font-medium leading-6 text-slate-800">{{ item.value }}</p>
+            Voltar para fila
+          </RouterLink>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            {{ detail.id }}
+          </span>
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:text-[var(--color-primary)]"
+            @click="openStudentCases"
+          >
+            {{ detail.studentData.nome || 'Aluno nao informado' }}
+          </button>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            RA {{ detail.studentData.ra || 'nao informado' }}
+          </span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            Polo {{ detail.studentData.polo || 'nao informado' }}
+          </span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            Area {{ detail.currentAreaLabel || 'nao informada' }}
+          </span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            {{ detail.areaStatusLabel }}
+          </span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            SLA {{ detail.sla || 'nao informado' }}
+          </span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            Responsavel: {{ detail.currentAssigneeLabel || 'Sem responsavel' }}
+          </span>
+        </div>
+        <div :class="['mt-3 rounded-[12px] border px-4 py-3', decisionStatusPresentation.toneClass]">
+          <p class="text-sm font-semibold">{{ decisionStatusPresentation.label }}</p>
+          <p class="mt-1 text-sm leading-6">{{ decisionStatusPresentation.helper }}</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <span
+              v-for="badge in decisionStateBadges"
+              :key="badge.id"
+              :class="['rounded-full border px-3 py-1 text-xs font-semibold', badge.toneClass]"
+            >
+              {{ badge.label }}
+            </span>
           </div>
+          <p v-if="caseSummaryPayload.lastMeaningfulEvent?.title" class="mt-1 text-xs leading-6 text-slate-600">
+            Ultimo evento relevante: {{ caseSummaryPayload.lastMeaningfulEvent.title }}
+            <span v-if="caseSummaryPayload.lastMeaningfulEvent.atLabel"> · {{ caseSummaryPayload.lastMeaningfulEvent.atLabel }}</span>
+          </p>
         </div>
       </div>
 
-      <div class="grid gap-4 px-5 pb-5">
-        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
-          <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            O caso em 3 pontos
-          </summary>
-          <div class="border-t border-slate-200 px-4 py-4">
-            <ul class="grid gap-2 text-sm leading-6 text-slate-700">
-              <li v-for="item in detail.summaryBullets" :key="item" class="flex gap-2">
-                <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
-                <span>{{ item }}</span>
-              </li>
-            </ul>
-          </div>
-        </details>
-
-        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
-          <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            O que ja foi feito
-          </summary>
-          <div class="grid gap-3 border-t border-slate-200 px-4 py-4 md:grid-cols-2">
-            <div
-              v-for="item in detail.handoffItems"
-              :key="item.label"
-              class="rounded-[12px] border border-slate-200 bg-white px-4 py-3"
-            >
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
-              <p class="mt-2 text-sm leading-6 text-slate-800">{{ item.value }}</p>
+      <div class="grid gap-4 px-5 py-4">
+        <section class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+          <h3 class="text-base font-semibold text-slate-950">Resumo para decidir</h3>
+          <div class="mt-3 grid gap-3">
+            <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Por que o caso chegou na area</p>
+              <p class="mt-1 text-sm leading-6 text-slate-700">{{ decisionQuickSummary?.whyInArea }}</p>
+            </div>
+            <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Ja validado</p>
+              <p class="mt-1 text-sm leading-6 text-slate-700">{{ decisionQuickSummary?.normalizedValidated || decisionQuickSummary?.validated }}</p>
+            </div>
+            <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">O que ainda falta</p>
+              <p class="mt-1 text-sm leading-6 text-slate-700">{{ decisionQuickSummary?.normalizedMissingNow || decisionQuickSummary?.missingNow }}</p>
+            </div>
+            <div class="rounded-[12px] border border-[rgba(26,111,67,0.16)] bg-[rgba(220,252,231,0.3)] px-4 py-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Acao recomendada agora</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ decisionQuickSummary?.recommendedAction }}</p>
             </div>
           </div>
-        </details>
+        </section>
 
-        <section v-if="isAreaManager" class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <section
+          v-if="isAreaManager && managerCaseInterventionSummary"
+          class="order-35 rounded-[14px] border border-slate-200 bg-white px-4 py-4"
+        >
+          <p class="text-sm font-semibold text-slate-950">Intervencao gerencial no caso</p>
+          <p class="mt-1 text-sm leading-6 text-slate-600">
+            Esta camada e para ownership, excecao e risco operacional. A decisao tecnica continua no fluxo principal da area.
+          </p>
+
+          <div class="mt-3 grid gap-2">
+            <p
+              v-for="item in managerCaseInterventionSummary.alerts"
+              :key="item"
+              class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-700"
+            >
+              {{ item }}
+            </p>
+            <p
+              v-if="!managerCaseInterventionSummary.hasAlerts"
+              class="rounded-[12px] border border-[rgba(26,111,67,0.16)] bg-[rgba(220,252,231,0.5)] px-3 py-2 text-xs leading-5 text-[var(--color-success)]"
+            >
+              Sem alerta forte neste caso. Mantenha apenas monitoramento de prazo e ownership.
+            </p>
+          </div>
+
+          <div class="mt-3 flex flex-wrap gap-2">
+            <RouterLink
+              to="/area/fila"
+              class="rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Voltar para fila da area
+            </RouterLink>
+            <RouterLink
+              to="/area/governanca"
+              class="rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Ajustar regra/visibilidade
+            </RouterLink>
+          </div>
+        </section>
+
+        <section v-if="isAreaManager" class="order-40 overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
           <div class="bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Distribuicao e ownership</h3>
+            <h3 class="text-base font-semibold text-slate-950">Leitura gerencial de distribuicao</h3>
           </div>
           <div class="grid gap-4 border-t border-slate-200 px-4 py-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
             <div class="grid gap-3">
@@ -993,10 +1613,10 @@ function assignCase() {
 
         <section
           v-if="isAreaManager"
-          class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70"
+          class="order-41 overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70"
         >
           <div class="bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Gestao do caso na area</h3>
+            <h3 class="text-base font-semibold text-slate-950">Intervencao de ownership</h3>
           </div>
           <div class="grid gap-4 border-t border-slate-200 px-4 py-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
             <div class="grid gap-3">
@@ -1067,10 +1687,54 @@ function assignCase() {
           </div>
         </section>
 
+        <section class="order-30 rounded-[14px] border border-slate-200 bg-white px-4 py-4">
+          <p class="text-sm font-semibold text-slate-950">Contexto complementar</p>
+          <p class="mt-1 text-sm leading-6 text-slate-600">
+            Consulte somente o bloco necessario para decidir com seguranca.
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button
+              v-for="tab in supportTabOptions"
+              :key="tab.id"
+              type="button"
+              :class="[
+                'rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+                activeSupportTab === tab.id
+                  ? 'border-slate-800 bg-slate-800 text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+              ]"
+              @click="activeSupportTab = tab.id"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+          <p v-if="activeSupportTabState?.summary" class="mt-3 text-xs font-medium text-slate-500">
+            {{ activeSupportTabState.summary }}
+          </p>
+          <p
+            v-if="complementaryContextWarning"
+            class="mt-3 rounded-[12px] border border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.45)] px-3 py-2 text-xs leading-6 text-[#8a5200]"
+          >
+            {{ complementaryContextWarning }}
+          </p>
+          <p
+            v-if="activeSupportTabState?.loading"
+            class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-6 text-slate-600"
+          >
+            Carregando contexto desta aba...
+          </p>
+          <p
+            v-if="activeSupportTabState?.error"
+            class="mt-3 rounded-[12px] border border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.58)] px-3 py-2 text-xs leading-6 text-[var(--color-danger)]"
+          >
+            {{ activeSupportTabState.error }}
+          </p>
+        </section>
+
         <details
-          v-if="exchangeItems.length"
+          v-if="activeSupportTab === 'op_context' && !activeSupportTabState?.loading && !activeSupportTabState?.error && exchangeItems.length"
           :class="[
-            'overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70',
+            'order-31 overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70',
             !isAreaManager ? 'order-last' : '',
           ]"
         >
@@ -1091,10 +1755,19 @@ function assignCase() {
             </div>
           </div>
         </details>
+        <p
+          v-if="activeSupportTab === 'op_context' && !activeSupportTabState?.loading && !activeSupportTabState?.error && !exchangeItems.length"
+          class="order-31 rounded-[12px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-6 text-slate-600"
+        >
+          {{ activeSupportTabState?.emptyMessage || 'Nao ha troca recente adicional registrada.' }}
+        </p>
 
-        <section class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <section
+          v-if="activeSupportTab === 'guidance' && !activeSupportTabState?.loading && !activeSupportTabState?.error"
+          class="order-32 overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70"
+        >
           <div class="bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Confirme antes de responder</h3>
+            <h3 class="text-base font-semibold text-slate-950">Antes de decidir</h3>
           </div>
           <div class="grid gap-4 border-t border-slate-200 px-4 py-4">
             <div
@@ -1122,10 +1795,23 @@ function assignCase() {
                 </div>
               </div>
             </div>
+
+            <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
+              <p class="text-sm font-semibold text-slate-950">Exemplos rapidos de decisao</p>
+              <ul class="mt-3 grid gap-2 text-sm leading-6 text-slate-700">
+                <li v-for="item in decisionExamples" :key="item.title" class="flex gap-2">
+                  <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                  <span><strong>{{ item.title }}:</strong> {{ item.description }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </section>
 
-        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <details
+          v-if="activeSupportTab === 'guidance' && !activeSupportTabState?.loading && !activeSupportTabState?.error && detail.analysisSections.length"
+          class="order-33 overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70"
+        >
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
             Orientacao rapida da area
           </summary>
@@ -1156,12 +1842,53 @@ function assignCase() {
             </RouterLink>
           </div>
         </details>
+        <p
+          v-if="activeSupportTab === 'guidance' && !activeSupportTabState?.loading && !activeSupportTabState?.error && !detail.analysisSections.length"
+          class="order-33 rounded-[12px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-6 text-slate-600"
+        >
+          {{ activeSupportTabState?.emptyMessage || 'Orientacao indisponivel para este assunto.' }}
+        </p>
 
-        <section class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <section class="order-20 overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
           <div class="bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Resposta da area</h3>
+            <h3 class="text-base font-semibold text-slate-950">Decisao da area</h3>
+            <p class="mt-1 text-sm leading-6 text-slate-600">Escolha uma saida por vez. O formulario abaixo muda conforme a decisao selecionada.</p>
           </div>
           <div class="grid gap-4 border-t border-slate-200 px-4 py-4">
+            <p class="rounded-[12px] border border-slate-200 bg-white px-4 py-3 text-xs leading-6 text-slate-600">
+              {{ serverParityNote }}
+            </p>
+            <details class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
+              <summary class="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                Payload canonico esperado do backend
+              </summary>
+              <ul class="mt-3 grid gap-1 text-xs leading-5 text-slate-600">
+                <li v-for="[field, type] in backendMinimalFieldEntries" :key="field">
+                  <strong>{{ field }}:</strong> {{ type }}
+                </li>
+              </ul>
+            </details>
+            <div :class="['rounded-[12px] border px-4 py-3', recommendedActionPanel.toneClass]">
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Acao recomendada agora</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">
+                {{ recommendedActionPanel.nextStep || 'Analisar e decidir' }}
+              </p>
+              <p class="mt-1 text-sm leading-6">
+                {{ recommendedActionPanel.reason }}
+              </p>
+              <ul v-if="recommendedActionPanel.pendingItems.length" class="mt-2 grid gap-1 text-xs leading-5">
+                <li v-for="item in recommendedActionPanel.pendingItems" :key="`pending-${item}`" class="flex gap-2">
+                  <span class="mt-[0.4rem] h-1.5 w-1.5 rounded-full bg-current"></span>
+                  <span>Pendencia: {{ item }}</span>
+                </li>
+              </ul>
+              <ul v-if="recommendedActionPanel.blockers.length" class="mt-2 grid gap-1 text-xs leading-5">
+                <li v-for="item in recommendedActionPanel.blockers" :key="`block-${item}`" class="flex gap-2">
+                  <span class="mt-[0.4rem] h-1.5 w-1.5 rounded-full bg-current"></span>
+                  <span>Bloqueio: {{ item }}</span>
+                </li>
+              </ul>
+            </div>
             <p
               v-if="!actionAvailability.canAct"
               class="rounded-[12px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-600"
@@ -1179,38 +1906,79 @@ function assignCase() {
                       :key="option.id"
                       type="button"
                       :class="[
-                        'rounded-[14px] border px-4 py-3 text-left transition',
+                        'rounded-[14px] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-55',
                         option.toneClass,
                       ]"
+                      :disabled="Boolean(actionPermissionReason(option.id))"
                       @click="selectAction(option.id)"
                     >
                       <p class="text-sm font-semibold">{{ option.title }}</p>
                       <p class="mt-1 text-sm leading-6">{{ option.description }}</p>
+                      <p v-if="actionPermissionReason(option.id)" class="mt-2 text-xs text-[var(--color-danger)]">
+                        {{ actionPermissionReason(option.id) }}
+                      </p>
                     </button>
                   </div>
                 </div>
 
-                <div class="rounded-[14px] border border-[rgba(8,115,145,0.14)] bg-[rgba(241,245,249,0.78)] px-4 py-4">
-                  <p class="text-sm font-semibold text-slate-950">Nao consigo resolver nesta area</p>
+                <div v-if="tertiaryActionOption" class="rounded-[14px] border border-slate-200 bg-white px-4 py-4">
+                  <p class="text-sm font-semibold text-slate-950">Fechamento interno (uso restrito)</p>
                   <p class="mt-2 text-sm leading-6 text-slate-600">
-                    Encaminhar para outra area nao e a saida normal. Use isso apenas quando sua area realmente nao puder resolver o caso. Se a duvida for de criterio, fale com o gestor antes de encaminhar.
+                    Concluir analise interna nao e atalho. Use apenas quando nao houver nova tratativa pendente para polo ou outra area.
+                  </p>
+                  <p
+                    v-if="!concludeReadiness.canConclude"
+                    class="mt-2 rounded-[10px] border border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.58)] px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
+                  >
+                    {{ concludeReadiness.missingReason }}
+                  </p>
+                  <button
+                    type="button"
+                    :class="[
+                      'mt-3 rounded-[14px] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-55',
+                      tertiaryActionOption.toneClass,
+                    ]"
+                    :disabled="!concludeReadiness.canConclude || Boolean(actionPermissionReason(tertiaryActionOption.id))"
+                    @click="selectAction(tertiaryActionOption.id)"
+                  >
+                    <p class="text-sm font-semibold">{{ tertiaryActionOption.title }}</p>
+                    <p class="mt-1 text-sm leading-6">{{ tertiaryActionOption.description }}</p>
+                    <p
+                      v-if="actionPermissionReason(tertiaryActionOption.id)"
+                      class="mt-2 text-xs text-[var(--color-danger)]"
+                    >
+                      {{ actionPermissionReason(tertiaryActionOption.id) }}
+                    </p>
+                  </button>
+                </div>
+
+                <details class="rounded-[14px] border border-[rgba(8,115,145,0.14)] bg-[rgba(241,245,249,0.78)] px-4 py-4">
+                  <summary class="cursor-pointer list-none text-sm font-semibold text-slate-950">
+                    Encaminhar excepcionalmente para outra area
+                  </summary>
+                  <p class="mt-2 text-sm leading-6 text-slate-600">
+                    Nao e a saida normal. Use somente quando sua area realmente nao puder resolver.
                   </p>
                   <button
                     v-if="exceptionActionOption && detail.availableAreas.length"
                     type="button"
                     :class="[
-                      'mt-4 rounded-[14px] border border-dashed px-4 py-3 text-left transition',
+                      'mt-3 rounded-[14px] border border-dashed px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-55',
                       exceptionActionOption.toneClass,
                     ]"
+                    :disabled="Boolean(actionPermissionReason(exceptionActionOption.id))"
                     @click="selectAction(exceptionActionOption.id)"
                   >
                     <p class="text-sm font-semibold">{{ exceptionActionOption.title }}</p>
                     <p class="mt-1 text-sm leading-6">{{ exceptionActionOption.description }}</p>
+                    <p v-if="actionPermissionReason(exceptionActionOption.id)" class="mt-2 text-xs text-[var(--color-danger)]">
+                      {{ actionPermissionReason(exceptionActionOption.id) }}
+                    </p>
                   </button>
-                  <p v-else class="mt-4 text-sm leading-6 text-slate-600">
+                  <p v-else class="mt-3 text-sm leading-6 text-slate-600">
                     Nao ha outra area sugerida para este caso no escopo atual.
                   </p>
-                </div>
+                </details>
               </div>
 
               <div
@@ -1232,6 +2000,33 @@ function assignCase() {
                         :placeholder="activeAction.placeholder"
                       ></textarea>
                     </label>
+
+                    <label
+                      v-if="activeAction.id === 'conclude'"
+                      class="flex items-start gap-2 rounded-[12px] border border-slate-200 bg-slate-50/80 px-3 py-3 text-sm leading-6 text-slate-700"
+                    >
+                      <input
+                        v-model="concludeNoPendingConfirmed"
+                        type="checkbox"
+                        class="mt-1 h-4 w-4 rounded border-slate-300 text-[var(--color-primary)]"
+                      />
+                      <span>Confirmo que nao existe nova tratativa pendente para polo ou outra area.</span>
+                    </label>
+                    <p
+                      v-if="activeAction.id === 'conclude'"
+                      :class="[
+                        'rounded-[12px] border px-3 py-2 text-xs font-semibold',
+                        concludeReadiness.canConclude
+                          ? 'border-[rgba(26,111,67,0.16)] bg-[rgba(220,252,231,0.55)] text-[var(--color-success)]'
+                          : 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.58)] text-[var(--color-danger)]',
+                      ]"
+                    >
+                      {{
+                        concludeReadiness.canConclude
+                          ? 'Resposta final ja registrada para aluno e OP.'
+                          : concludeReadiness.missingReason
+                      }}
+                    </p>
                   </div>
 
                   <div v-else class="grid gap-4 rounded-[14px] border border-[rgba(8,115,145,0.14)] bg-[rgba(241,245,249,0.6)] px-4 py-4">
@@ -1288,6 +2083,7 @@ function assignCase() {
                   <p v-if="noteError" class="text-sm font-medium text-[var(--color-danger)]">{{ noteError }}</p>
                   <p v-if="reassignReasonError" class="text-sm font-medium text-[var(--color-danger)]">{{ reassignReasonError }}</p>
                   <p v-if="reassignVerifiedError" class="text-sm font-medium text-[var(--color-danger)]">{{ reassignVerifiedError }}</p>
+                  <p v-if="concludeSafetyError" class="text-sm font-medium text-[var(--color-danger)]">{{ concludeSafetyError }}</p>
                   <p v-if="destinationError" class="text-sm font-medium text-[var(--color-danger)]">{{ destinationError }}</p>
 
                   <div class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-4 py-3">
@@ -1335,9 +2131,15 @@ function assignCase() {
                           ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)]'
                           : activeAction.id === 'request_complement'
                             ? 'bg-[#b7791f] hover:bg-[#8f5d18]'
-                            : 'bg-[#0f4c81] hover:bg-[#0c3f6a]',
+                            : activeAction.id === 'conclude'
+                              ? 'bg-slate-800 hover:bg-slate-700'
+                              : 'bg-[#0f4c81] hover:bg-[#0c3f6a]',
                       ]"
-                      :disabled="isSubmitting"
+                      :disabled="
+                        isSubmitting ||
+                          Boolean(actionPermissionReason(activeAction.id)) ||
+                          (activeAction.id === 'conclude' && !concludeReadiness.canConclude)
+                      "
                       @click="handleActionClick(activeAction.id)"
                     >
                       {{ activeAction.submitLabel }}
@@ -1359,12 +2161,19 @@ function assignCase() {
           </div>
         </section>
 
-        <details class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <details
+          v-if="activeSupportTab === 'history' && !activeSupportTabState?.loading && !activeSupportTabState?.error"
+          class="order-34 overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70"
+        >
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
             Historico do caso
           </summary>
           <div class="grid gap-4 border-t border-slate-200 px-4 py-4">
-            <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
+            <p class="text-xs font-medium text-slate-500">
+              Mostrando {{ visibleTimelineItems.length }} de {{ timelineItems.length }} evento(s) do fluxo.
+            </p>
+
+            <div v-if="detail.historySummary.length" class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
               <p class="text-sm font-semibold text-slate-950">Historico recente</p>
               <ul class="mt-3 grid gap-2 text-sm leading-6 text-slate-700">
                 <li v-for="item in detail.historySummary" :key="item" class="flex gap-2">
@@ -1374,9 +2183,9 @@ function assignCase() {
               </ul>
             </div>
 
-            <div class="grid gap-3">
+            <div v-if="timelineItems.length" class="grid gap-3">
               <div
-                v-for="item in detail.timeline.slice().reverse()"
+                v-for="item in visibleTimelineItems"
                 :key="item.id"
                 class="rounded-[12px] border border-slate-200 bg-white px-4 py-3"
               >
@@ -1387,6 +2196,31 @@ function assignCase() {
                 <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.description }}</p>
               </div>
             </div>
+            <p
+              v-else
+              class="rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600"
+            >
+              {{ activeSupportTabState?.emptyMessage || 'Sem eventos historicos para este caso.' }}
+            </p>
+            <button
+              v-if="hasMoreTimelineItems"
+              type="button"
+              class="w-fit rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="showFullTimeline = true"
+            >
+              Ver historico completo (mais {{ hiddenTimelineCount }} evento(s))
+            </button>
+            <button
+              v-else-if="showFullTimeline && timelineItems.length > timelinePreviewLimit"
+              type="button"
+              class="w-fit rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="showFullTimeline = false"
+            >
+              Voltar para historico resumido
+            </button>
+            <p class="text-xs leading-6 text-slate-500">
+              {{ activeSupportTabState?.lazyLoadHint }}
+            </p>
 
             <div
               v-if="detail.attachments.length"
@@ -1401,6 +2235,15 @@ function assignCase() {
             </div>
           </div>
         </details>
+
+        <section
+          v-if="analystOperationalState"
+          :class="['order-50 rounded-[14px] border px-4 py-4', analystOperationalState.toneClass]"
+        >
+          <p class="text-xs font-semibold uppercase tracking-[0.08em]">Apoio operacional</p>
+          <p class="mt-2 text-sm font-semibold">{{ analystOperationalState.value }}</p>
+          <p class="mt-1 text-sm leading-6">{{ analystOperationalState.helper }}</p>
+        </section>
       </div>
     </section>
   </div>

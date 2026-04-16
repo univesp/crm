@@ -145,6 +145,10 @@ async function renderAreaCaseDetailCase({ caseId, profileKey = 'gestor_area', ar
         component: { template: '<div>fila</div>' },
       },
       {
+        path: '/area/governanca',
+        component: { template: '<div>governanca</div>' },
+      },
+      {
         path: '/area/fila/:caseId',
         component: AreaCaseDetailPage,
       },

@@ -14,6 +14,8 @@ import {
 import { buildDistributionDecision } from '@/services/distributionEngine'
 
 const DEFAULT_AREA_CATALOG = ['Secretaria Academica', 'Suporte Academico Digital', 'Financeiro']
+export const AREA_QUEUE_DEFAULT_PAGE_SIZE = 20
+export const AREA_QUEUE_MAX_PAGE_SIZE = 100
 const STANDARD_AREA_ESCALATION_MAP = Object.freeze({
   'Suporte Academico Digital': ['Secretaria Academica'],
   'Secretaria Academica': ['Suporte Academico Digital'],
@@ -335,6 +337,9 @@ function buildAreaQueueEntry(
     sla,
     areaStatusLabel: resolveAreaStatus({ ...entry, status }),
     nextStepLabel: buildAreaNextStepLabel({ ...entry, status }),
+    subjectScopeLabel:
+      subjectRule?.subjectLabel ||
+      `${entry.theme || entry.themeKey || 'Tema'} / ${entry.subsubject || entry.subsubjectKey || 'Subassunto'}`,
     currentAssigneeLabel: assignment?.analystName || 'Sem responsavel',
     currentAssigneeMeta:
       assignment?.analystName
@@ -353,6 +358,13 @@ function buildAreaQueueEntry(
     ),
     subjectScopeRule: subjectRule,
     areaBucket,
+    isUnassigned: !(assignment?.analystName || '').trim(),
+    isOverdue: Number(entry.sortTokens?.slaMinutes || 0) < 0,
+    isAtRisk:
+      Number(entry.sortTokens?.slaMinutes || 0) >= 0 &&
+      Number(entry.sortTokens?.slaMinutes || 0) <= 120,
+    isExceptionRoute: areaBucket === 'rerouted',
+    isWaitingComplement: areaBucket === 'waiting_complement',
     searchText: [entry.id, entry.student, entry.studentRa, entry.polo, entry.subject, contextFromOp, queue, status].join(' '),
   }
 }
@@ -363,6 +375,96 @@ function compareAreaEntries(left, right) {
     new Date(right.activityAt || 0).getTime() - new Date(left.activityAt || 0).getTime() ||
     String(left.student).localeCompare(String(right.student), 'pt-BR', { sensitivity: 'base' })
   )
+}
+
+function compareText(left = '', right = '') {
+  return String(left).localeCompare(String(right), 'pt-BR', { sensitivity: 'base' })
+}
+
+function compareEntriesByField(left = {}, right = {}, field = 'sla') {
+  switch (field) {
+    case 'student':
+      return compareText(left.student, right.student)
+    case 'ra':
+      return compareText(left.studentRa, right.studentRa)
+    case 'polo':
+      return compareText(left.polo, right.polo)
+    case 'subject':
+      return compareText(left.subject, right.subject)
+    case 'next_step':
+      return compareText(left.nextStepLabel, right.nextStepLabel)
+    case 'status':
+      return compareText(left.areaStatusLabel, right.areaStatusLabel)
+    case 'owner':
+      return compareText(left.currentAssigneeLabel, right.currentAssigneeLabel)
+    case 'protocol':
+      return compareText(left.id, right.id)
+    case 'sla':
+      return (left.sortTokens?.slaMinutes || 0) - (right.sortTokens?.slaMinutes || 0)
+    default:
+      return 0
+  }
+}
+
+export function buildAreaQueueQuery(filters = {}, options = {}) {
+  const page = Math.max(1, Number(filters.page || options.page || 1) || 1)
+  const rawPageSize = Number(filters.pageSize || options.pageSize || AREA_QUEUE_DEFAULT_PAGE_SIZE) || AREA_QUEUE_DEFAULT_PAGE_SIZE
+  const pageSize = Math.min(Math.max(1, rawPageSize), AREA_QUEUE_MAX_PAGE_SIZE)
+  const direction = String(filters.sortDirection || options.sortDirection || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc'
+
+  return {
+    search: String(filters.search || '').trim(),
+    area: String(filters.area || 'todos'),
+    subject: String(filters.subject || 'todos'),
+    status: String(filters.status || 'todos'),
+    owner: String(filters.owner || 'todos'),
+    scopeState: String(filters.scopeState || 'todos'),
+    bucket: String(filters.bucket || 'all'),
+    sortField: String(filters.sortField || 'sla'),
+    sortDirection: direction,
+    page,
+    pageSize,
+  }
+}
+
+function sortAreaQueueEntries(entries = [], query = {}) {
+  const direction = query.sortDirection === 'desc' ? -1 : 1
+  const field = query.sortField || 'sla'
+
+  return [...entries].sort((left, right) => {
+    const primary = compareEntriesByField(left, right, field)
+
+    if (primary !== 0) {
+      return primary * direction
+    }
+
+    return compareEntriesByField(left, right, 'sla')
+  })
+}
+
+export function runAreaQueueQuery(entries = [], filters = {}, options = {}) {
+  const query = buildAreaQueueQuery(filters, options)
+  const baseEntries = filterAreaQueueEntries(entries, {
+    ...query,
+    bucket: 'all',
+  })
+  const bucketEntries =
+    query.bucket === 'all'
+      ? baseEntries
+      : baseEntries.filter((entry) => resolveAreaQueueBucket(entry) === query.bucket)
+  const orderedEntries = sortAreaQueueEntries(bucketEntries, query)
+  const startIndex = (query.page - 1) * query.pageSize
+  const endIndex = startIndex + query.pageSize
+  const items = orderedEntries.slice(startIndex, endIndex)
+  const total = orderedEntries.length
+
+  return {
+    query,
+    total,
+    items,
+    hasPreviousPage: query.page > 1,
+    hasNextPage: endIndex < total,
+  }
 }
 
 function matchesQuery(query = '', ...values) {
@@ -450,6 +552,7 @@ export function filterAreaQueueEntries(entries = [], filters = {}) {
     return (
       matchesQuery(filters.search, entry.searchText, entry.subject, entry.student, entry.studentRa, entry.id) &&
       matchesFilter(filters.area, entry.currentAreaLabel) &&
+      matchesFilter(filters.subject, entry.subjectScopeLabel) &&
       matchesFilter(filters.status, entry.areaStatusLabel) &&
       matchesFilter(filters.owner, entry.currentAssigneeLabel) &&
       (!filters.scopeState || filters.scopeState === 'todos' || normalizeText(filters.scopeState) === normalizeText(entry.ownershipState))
@@ -460,6 +563,7 @@ export function filterAreaQueueEntries(entries = [], filters = {}) {
 export function buildAreaQueueFilterOptions(entries = []) {
   return {
     area: buildFilterOptions(entries, 'currentAreaLabel'),
+    subject: buildFilterOptions(entries, 'subjectScopeLabel'),
     status: buildFilterOptions(entries, 'areaStatusLabel'),
     owner: buildFilterOptions(entries, 'currentAssigneeLabel'),
   }
@@ -527,6 +631,10 @@ function buildAnalysisSections(detail) {
     {
       title: 'Saida normal',
       items: ['Se houver base suficiente, envie a resposta final para aluno e OP.'],
+    },
+    {
+      title: 'Concluir analise interna',
+      items: ['Conclua somente quando nao houver nova tratativa pendente para polo ou outra area.'],
     },
     {
       title: 'Excecao operacional',
@@ -678,6 +786,32 @@ export function buildAreaCaseDetail({
   const latestEscalation = getLatestOperatorEscalation(operatorActionLogs, caseId)
   const areaLogs = getCaseAreaActionLogs(areaActionLogs, caseId)
   const normalizedDetail = normalizeAreaDetail(detail, areaEntry)
+  const requiredDocuments = Array.isArray(normalizedDetail.playbook?.documentsRequested)
+    ? normalizedDetail.playbook.documentsRequested
+    : []
+  const systemsToCheck = Array.isArray(normalizedDetail.playbook?.systemsToCheck)
+    ? normalizedDetail.playbook.systemsToCheck
+    : []
+  const attachments = Array.isArray(normalizedDetail.attachments) ? normalizedDetail.attachments : []
+  const missingRequirements = []
+
+  if (requiredDocuments.length && !attachments.length) {
+    missingRequirements.push('documentos_evidencias')
+  }
+
+  if (systemsToCheck.length) {
+    missingRequirements.push('checagens_sistema')
+  }
+
+  const latestMeaningfulTimelineEvent = Array.isArray(normalizedDetail.timeline)
+    ? normalizedDetail.timeline
+      .slice()
+      .sort((left, right) => new Date(right.at || 0).getTime() - new Date(left.at || 0).getTime())[0] || null
+    : null
+  const recommendedAction = missingRequirements.includes('documentos_evidencias')
+    ? 'request_complement'
+    : 'technical_reply'
+  const decisionStatus = missingRequirements.length ? 'missing_requirements' : 'ready_to_reply'
 
   return {
     ...normalizedDetail,
@@ -693,6 +827,28 @@ export function buildAreaCaseDetail({
     standardAreas: buildAvailableAreas(areaEntry.currentAreaLabel, viewerContext?.visibleAreas || [], false),
     areaActionLogs: areaLogs,
     latestEscalation,
+    scopeValid: true,
+    decisionStatus,
+    missingRequirements,
+    recommendedAction,
+    responseAllowed: true,
+    exceptionAllowed: true,
+    assignmentStatus: areaEntry.currentAssignment?.statusCode || areaEntry.ownershipState || '',
+    lastMeaningfulEvent: latestMeaningfulTimelineEvent
+      ? {
+          title: latestMeaningfulTimelineEvent.title || 'Ultimo evento registrado',
+          at: latestMeaningfulTimelineEvent.at || null,
+          atLabel: latestMeaningfulTimelineEvent.atLabel || '',
+        }
+      : null,
+    contextLoadState: {
+      opContextLoading: false,
+      opContextError: '',
+      guidanceLoading: false,
+      guidanceError: '',
+      historyLoading: false,
+      historyError: '',
+    },
   }
 }
 

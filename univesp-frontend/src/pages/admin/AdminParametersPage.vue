@@ -34,6 +34,32 @@ const selectedSlaLevel = computed(() =>
 const selectedRule = computed(() =>
   findApplicationRule(parameterDraft.applicationRules, ui.selectedRuleId),
 )
+const selectedRuleImpact = computed(() => {
+  if (!selectedRule.value) {
+    return null
+  }
+
+  const impactedCases = runtime.value.caseImpacts.filter((item) =>
+    item.matchedRules.some((rule) => rule.id === selectedRule.value.id),
+  )
+  const impactScope =
+    selectedRule.value.targetType === 'queue'
+      ? 'local'
+      : impactedCases.length >= 12
+        ? 'amplo'
+        : 'controlado'
+
+  return {
+    impactedCases: impactedCases.length,
+    highCriticalityCases: impactedCases.filter((item) => item.becomesHighCriticality).length,
+    shorterSlaCases: impactedCases.filter((item) => item.getsShorterSla).length,
+    impactScope,
+    targetLabel:
+      selectedRule.value.targetType === 'queue'
+        ? selectedRule.value.targetValue
+        : selectedRule.value.targetValue.replaceAll('_', ' '),
+  }
+})
 const currentRuleTargetOptions = computed(() => {
   if (!selectedRule.value) {
     return []
@@ -431,6 +457,28 @@ function selectRule(ruleId) {
               </label>
             </div>
 
+            <div
+              v-if="selectedRuleImpact"
+              :class="[
+                'rounded-[16px] border px-4 py-4',
+                selectedRuleImpact.impactScope === 'amplo'
+                  ? 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.58)]'
+                  : selectedRuleImpact.impactScope === 'local'
+                    ? 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.55)]'
+                    : 'border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.58)]',
+              ]"
+            >
+              <p class="text-sm font-semibold text-slate-900">
+                Impacto estimado da regra: {{ selectedRuleImpact.targetLabel }}
+              </p>
+              <p class="mt-2 text-sm leading-6 text-slate-700">
+                Escopo {{ selectedRuleImpact.impactScope }}. {{ selectedRuleImpact.impactedCases }} caso(s) podem ser alterados nesta leitura.
+              </p>
+              <p class="mt-1 text-xs text-slate-600">
+                {{ selectedRuleImpact.highCriticalityCases }} caso(s) podem subir criticidade e {{ selectedRuleImpact.shorterSlaCases }} podem reduzir SLA.
+              </p>
+            </div>
+
             <label class="inner-panel flex items-center justify-between gap-3 p-4">
               <span class="text-sm font-semibold text-slate-900">Regra ativa</span>
               <input
@@ -438,6 +486,13 @@ function selectRule(ruleId) {
                 type="checkbox"
               />
             </label>
+
+            <div class="rounded-[16px] border border-slate-200 bg-white px-4 py-4">
+              <p class="text-sm font-semibold text-slate-900">Preparacao para rollback</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">
+                Nesta rodada o rollback ainda e manual por historico de auditoria. A proxima etapa deve salvar versao anterior e permitir restauracao em um clique.
+              </p>
+            </div>
           </div>
         </div>
       </SectionPanel>

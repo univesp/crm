@@ -40,6 +40,26 @@ const selectedEntry = computed(() => findPermissionEntry(permissionsDraft.matrix
 const selectedRuntimeEntry = computed(
   () => runtime.value.matrixEntries.find((entry) => entry.id === ui.selectedEntryId) || null,
 )
+const selectedPermissionImpact = computed(() => {
+  if (!selectedRuntimeEntry.value) {
+    return null
+  }
+
+  const scopeType = selectedRuntimeEntry.value.scopeType || 'global'
+  const impactScope =
+    scopeType === 'global'
+      ? 'amplo'
+      : scopeType.startsWith('multi_')
+        ? 'moderado'
+        : 'local'
+
+  return {
+    impactScope,
+    visibleQueueCount: selectedRuntimeEntry.value.visibleQueueCount || 0,
+    visiblePolos: selectedRuntimeEntry.value.visiblePolos || [],
+    administeredAreas: selectedRuntimeEntry.value.administeredAreas || [],
+  }
+})
 
 watchEffect(() => {
   if (!selectedEntry.value && permissionsDraft.matrix[0]) {
@@ -264,6 +284,26 @@ function savePermissionChanges() {
             <StatusBadge :label="selectedRuntimeEntry.scopeLabel" />
           </div>
 
+          <div
+            v-if="selectedPermissionImpact"
+            :class="[
+              'rounded-[16px] border px-4 py-4',
+              selectedPermissionImpact.impactScope === 'amplo'
+                ? 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.58)]'
+                : selectedPermissionImpact.impactScope === 'moderado'
+                  ? 'border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.58)]'
+                  : 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.55)]',
+            ]"
+          >
+            <p class="text-sm font-semibold text-slate-900">Impacto operacional da alteracao</p>
+            <p class="mt-2 text-sm leading-6 text-slate-700">
+              Escopo {{ selectedPermissionImpact.impactScope }}: {{ selectedPermissionImpact.visibleQueueCount }} fila(s), {{ selectedPermissionImpact.visiblePolos.length }} polo(s), {{ selectedPermissionImpact.administeredAreas.length }} area(s) gerenciavel(is).
+            </p>
+            <p class="mt-1 text-xs text-slate-600">
+              Em backend real, o servidor deve rejeitar qualquer acao fora desse escopo mesmo que a UI seja alterada.
+            </p>
+          </div>
+
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm font-semibold text-slate-600">Perfil</span>
@@ -452,6 +492,13 @@ function savePermissionChanges() {
             >
               {{ ui.lastAuditMessage }}
             </span>
+          </div>
+
+          <div class="rounded-[16px] border border-slate-200 bg-white px-4 py-4">
+            <p class="text-sm font-semibold text-slate-900">Preparacao para rollback de permissao</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">
+              A reversao ainda usa o registro de auditoria (antes/depois). Proxima rodada deve permitir restaurar automaticamente o estado anterior por versao.
+            </p>
           </div>
         </div>
 

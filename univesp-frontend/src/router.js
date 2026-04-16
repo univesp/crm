@@ -305,9 +305,22 @@ const routes = [
   {
     path: '/admin/faq',
     name: 'admin-faq',
+    component: () => import('@/pages/admin/AdminFaqLibraryPage.vue'),
+    meta: {
+      title: 'Biblioteca de fluxos FAQ',
+      stage: 'admin-faq',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['edit_faq'],
+    },
+  },
+  {
+    path: '/admin/faq/:bundleId',
+    name: 'admin-faq-builder',
     component: () => import('@/pages/admin/AdminFaqPage.vue'),
     meta: {
-      title: 'Gestao da FAQ',
+      title: 'Builder de fluxo FAQ',
       stage: 'admin-faq',
       requiresAuth: true,
       shellKey: 'governance',

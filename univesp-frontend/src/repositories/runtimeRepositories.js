@@ -1,4 +1,5 @@
 import { buildAdminVersioningRuntime } from '@/services/adminVersioningRuntime'
+import { buildAreaQueueQuery, runAreaQueueQuery } from '@/services/areaQueueRuntime'
 
 export function createRuntimeRepositories(studentSupportStore) {
   return {
@@ -47,6 +48,11 @@ export function createRuntimeRepositories(studentSupportStore) {
       },
       getAreaDetail(caseId = '', viewerContext = null) {
         return studentSupportStore.areaCaseById(caseId, viewerContext)
+      },
+      listAreaQueue({ viewerContext = null, filters = {}, options = {} } = {}) {
+        const entries = studentSupportStore.areaQueueEntries(viewerContext)
+        const query = buildAreaQueueQuery(filters, options)
+        return runAreaQueueQuery(entries, query, options)
       },
       getKnowledgeUsage(caseId = '') {
         return studentSupportStore.mergedCaseKnowledgeUsages.filter((record) => record.caseId === caseId)

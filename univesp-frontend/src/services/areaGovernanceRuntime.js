@@ -248,12 +248,52 @@ export function buildAreaKnowledgeRows(entries = [], suggestions = [], areaLabel
     .sort((left, right) => left.subjectLabel.localeCompare(right.subjectLabel, 'pt-BR'))
 }
 
+function toMinutesLeft(entry = {}) {
+  return Number(entry.sortTokens?.slaMinutes || 0)
+}
+
+function toActivityHours(entry = {}, currentDate = new Date()) {
+  const reference = entry.activityAt || entry.createdAt || null
+  const timestamp = reference ? new Date(reference).getTime() : Number.NaN
+
+  if (!Number.isFinite(timestamp)) {
+    return 0
+  }
+
+  return Math.max(0, Math.round((currentDate.getTime() - timestamp) / (1000 * 60 * 60)))
+}
+
+function isSuggestionPending(item = {}) {
+  return (
+    normalizeText(item.status) === 'pending' ||
+    normalizeText(item.statusCode) === 'pending review'
+  )
+}
+
+function isAvailabilityActive(record = {}, currentDate = new Date()) {
+  if (!record?.startsAt || !record?.endsAt) {
+    return false
+  }
+
+  const start = new Date(record.startsAt).getTime()
+  const end = new Date(record.endsAt).getTime()
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return false
+  }
+
+  const currentTimestamp = currentDate.getTime()
+  return currentTimestamp >= start && currentTimestamp <= end
+}
+
 export function buildAreaManagerOverview({
   entries = [],
   assignments = [],
   suggestions = [],
   rules = [],
+  userAvailability = [],
   viewerContext = null,
+  currentDate = new Date(),
 } = {}) {
   const areaLabel = viewerContext?.currentArea || ''
   const areaEntries = entries.filter(
@@ -262,13 +302,12 @@ export function buildAreaManagerOverview({
   const activeEntries = areaEntries.filter((entry) => !isCompletedBucket(entry.areaBucket))
   const teamMembers = getTeamMembersForArea(areaLabel)
   const assignmentMap = new Map(activeEntries.map((entry) => [entry.id, findAreaAssignment(entry, assignments)]))
-  const overdueEntries = activeEntries.filter((entry) => entry.sortTokens?.slaMinutes < 0)
-  const riskEntries = activeEntries.filter(
-    (entry) => entry.sortTokens?.slaMinutes >= 0 && entry.sortTokens?.slaMinutes <= 120,
-  )
-  const unassignedEntries = activeEntries.filter((entry) => !assignmentMap.get(entry.id)?.analystName)
+  const overdueEntries = activeEntries.filter((entry) => toMinutesLeft(entry) < 0)
+  const riskEntries = activeEntries.filter((entry) => toMinutesLeft(entry) >= 0 && toMinutesLeft(entry) <= 120)
+  const unassignedEntries = activeEntries.filter((entry) => !(assignmentMap.get(entry.id)?.analystName || '').trim())
   const waitingComplementEntries = activeEntries.filter((entry) => normalizeText(entry.areaBucket) === 'waiting_complement')
-  const reroutedEntries = areaEntries.filter((entry) => normalizeText(entry.areaBucket) === 'rerouted')
+  const reroutedEntries = activeEntries.filter((entry) => normalizeText(entry.areaBucket) === 'rerouted')
+  const stalledEntries = waitingComplementEntries.filter((entry) => toActivityHours(entry, currentDate) >= 48)
 
   const loadByAnalyst = teamMembers
     .map((analystName) => {
@@ -279,10 +318,8 @@ export function buildAreaManagerOverview({
       return {
         analystName,
         activeCases: analystEntries.length,
-        overdueCases: analystEntries.filter((entry) => entry.sortTokens?.slaMinutes < 0).length,
-        riskCases: analystEntries.filter(
-          (entry) => entry.sortTokens?.slaMinutes >= 0 && entry.sortTokens?.slaMinutes <= 120,
-        ).length,
+        overdueCases: analystEntries.filter((entry) => toMinutesLeft(entry) < 0).length,
+        riskCases: analystEntries.filter((entry) => toMinutesLeft(entry) >= 0 && toMinutesLeft(entry) <= 120).length,
         waitingComplementCases: analystEntries.filter(
           (entry) => normalizeText(entry.areaBucket) === 'waiting_complement',
         ).length,
@@ -292,14 +329,47 @@ export function buildAreaManagerOverview({
 
   const maxLoad = loadByAnalyst[0]?.activeCases || 0
   const minLoad = loadByAnalyst.at(-1)?.activeCases || 0
+  const loadGap = maxLoad - minLoad
   const leastLoaded = loadByAnalyst.filter((item) => item.activeCases === minLoad).map((item) => item.analystName)
 
-  const subjectBottlenecks = buildAreaSubjectGovernanceRows(areaEntries, rules, areaLabel)
-    .filter((row) => row.openCases)
-    .slice(0, 5)
-
+  const subjectRows = buildAreaSubjectGovernanceRows(areaEntries, rules, areaLabel)
+  const subjectBottlenecks = subjectRows.filter((row) => row.openCases).slice(0, 5)
   const repeatedComplementSubjects = buildAreaSubjectGovernanceRows(waitingComplementEntries, rules, areaLabel)
     .filter((row) => row.openCases > 1)
+    .slice(0, 3)
+
+  const pendingSuggestions = suggestions.filter(
+    (item) =>
+      normalizeText(item.areaLabel) === normalizeText(areaLabel) &&
+      isSuggestionPending(item),
+  )
+
+  const activeAvailability = userAvailability.filter((record) => {
+    const recordArea = normalizeText(record.areaLabel || '')
+    const areaMatch = !recordArea || recordArea === normalizeText(areaLabel)
+    const analystMatch = teamMembers.some(
+      (member) => normalizeText(member) === normalizeText(record.userName),
+    )
+    return areaMatch && analystMatch && isAvailabilityActive(record, currentDate)
+  })
+
+  const unavailableAnalysts = Array.from(
+    new Set(
+      activeAvailability
+        .filter((record) => normalizeText(record.statusCode) === 'unavailable')
+        .map((record) => record.userName),
+    ),
+  )
+  const reducedCapacityAnalysts = Array.from(
+    new Set(
+      activeAvailability
+        .filter((record) => normalizeText(record.statusCode) === 'reduced_capacity')
+        .map((record) => record.userName),
+    ),
+  )
+
+  const restrictedCriticalSubjects = subjectRows
+    .filter((row) => normalizeText(row.accessMode) === 'restricted' && row.openCases > 0 && (row.allowedAnalysts || []).length <= 1)
     .slice(0, 3)
 
   const redistributionSuggestions = []
@@ -310,15 +380,19 @@ export function buildAreaManagerOverview({
       tone: 'danger',
       title: `${unassignedEntries.length} caso(s) sem responsavel`,
       description: `Distribuir primeiro para ${leastLoaded.join(', ')} ou assumir excepcionalmente no gestor.`,
+      routeQuery: { owner: 'Sem responsavel', bucket: 'all' },
+      priority: 'critical',
     })
   }
 
-  if (maxLoad - minLoad >= 3 && loadByAnalyst.length > 1) {
+  if (loadGap >= 3 && loadByAnalyst.length > 1) {
     redistributionSuggestions.push({
       id: 'load-imbalance',
       tone: 'warning',
       title: 'Carga desigual entre analistas',
       description: `${loadByAnalyst[0].analystName} esta com ${maxLoad} casos ativos e ${leastLoaded.join(', ')} com ${minLoad}. Vale redistribuir parte do backlog.`,
+      routeQuery: { bucket: 'all', owner: 'todos', sortField: 'owner' },
+      priority: 'high',
     })
   }
 
@@ -327,7 +401,20 @@ export function buildAreaManagerOverview({
       id: 'overdue-cases',
       tone: 'danger',
       title: `${overdueEntries.length} caso(s) vencido(s)`,
-      description: 'Priorize reasignacao ou assuncao gerencial nos casos vencidos desta area.',
+      description: 'Priorize reatribuicao ou assuncao gerencial nos casos vencidos desta area.',
+      routeQuery: { bucket: 'needs_review', status: 'Precisa de analise', sortField: 'sla', sortDirection: 'asc' },
+      priority: 'critical',
+    })
+  }
+
+  if (stalledEntries.length) {
+    redistributionSuggestions.push({
+      id: 'stalled-cases',
+      tone: 'warning',
+      title: `${stalledEntries.length} caso(s) parado(s) aguardando complemento`,
+      description: 'Revise dependencias com o polo e force retomada para evitar reabertura de SLA.',
+      routeQuery: { bucket: 'waiting_complement', sortField: 'sla', sortDirection: 'asc' },
+      priority: 'high',
     })
   }
 
@@ -337,17 +424,118 @@ export function buildAreaManagerOverview({
       tone: 'info',
       title: 'Complementacoes recorrentes por assunto',
       description: `Ha recorrencia de devolucao em ${repeatedComplementSubjects.map((item) => item.subjectLabel).join(', ')}.`,
+      routeQuery: { bucket: 'waiting_complement', sortField: 'subject' },
+      priority: 'medium',
     })
   }
 
-  const pendingSuggestions = suggestions.filter(
-    (item) =>
-      normalizeText(item.areaLabel) === normalizeText(areaLabel) &&
-      normalizeText(item.status) === 'pending',
-  )
+  const operationalQuestions = [
+    {
+      id: 'risk-now',
+      question: 'Onde esta o risco agora?',
+      value: overdueEntries.length + riskEntries.length,
+      headline: overdueEntries.length
+        ? `${overdueEntries.length} vencido(s) exigem acao imediata`
+        : riskEntries.length
+          ? `${riskEntries.length} caso(s) em risco de SLA`
+          : 'Sem risco forte no momento',
+      helper: 'Combine vencidos e em risco para priorizar a intervencao.',
+      tone: overdueEntries.length ? 'danger' : riskEntries.length ? 'warning' : 'stable',
+      routeQuery: { bucket: 'needs_review', sortField: 'sla', sortDirection: 'asc' },
+    },
+    {
+      id: 'gargalo-now',
+      question: 'Onde esta o gargalo agora?',
+      value: subjectBottlenecks[0]?.openCases || 0,
+      headline: subjectBottlenecks[0]
+        ? `${subjectBottlenecks[0].subjectLabel} concentra ${subjectBottlenecks[0].openCases} caso(s)`
+        : 'Sem gargalo de assunto no recorte atual',
+      helper: 'Assunto com maior concentracao de backlog na area.',
+      tone: subjectBottlenecks[0]?.overdueCases ? 'warning' : 'info',
+      routeQuery: subjectBottlenecks[0]
+        ? { subject: subjectBottlenecks[0].subjectLabel, bucket: 'all', sortField: 'sla', sortDirection: 'asc' }
+        : { bucket: 'all' },
+    },
+    {
+      id: 'intervention-now',
+      question: 'Onde preciso intervir agora?',
+      value: unassignedEntries.length + stalledEntries.length,
+      headline:
+        unassignedEntries.length || stalledEntries.length
+          ? `${unassignedEntries.length} sem responsavel e ${stalledEntries.length} parado(s)`
+          : 'Sem intervencao obrigatoria imediata',
+      helper: 'Ownership vazio e casos travados devem ser tratados antes da fila crescer.',
+      tone: unassignedEntries.length ? 'danger' : stalledEntries.length ? 'warning' : 'stable',
+      routeQuery: unassignedEntries.length
+        ? { owner: 'Sem responsavel', bucket: 'all' }
+        : { bucket: 'waiting_complement', sortField: 'sla', sortDirection: 'asc' },
+    },
+    {
+      id: 'rules-impact-now',
+      question: 'Quais regras impactam a operacao?',
+      value: restrictedCriticalSubjects.length + pendingSuggestions.length + unavailableAnalysts.length,
+      headline:
+        restrictedCriticalSubjects.length
+          ? `${restrictedCriticalSubjects.length} assunto(s) restrito(s) com alto impacto`
+          : pendingSuggestions.length
+            ? `${pendingSuggestions.length} mudanca(s) pendente(s) de conhecimento`
+            : 'Sem impacto forte de regra no momento',
+      helper: 'Conecte disponibilidade, escopo e mudancas pendentes com a saude da fila.',
+      tone: restrictedCriticalSubjects.length ? 'warning' : pendingSuggestions.length ? 'info' : 'stable',
+      routeQuery: restrictedCriticalSubjects.length ? { bucket: 'all' } : { bucket: 'all' },
+    },
+  ]
+
+  const ruleImpactHints = [
+    ...(restrictedCriticalSubjects.length
+      ? [
+          {
+            id: 'restricted-subject-pressure',
+            tone: 'warning',
+            title: 'Escopo restrito pode gerar gargalo',
+            description: `Assuntos com alta pressao e pouca cobertura: ${restrictedCriticalSubjects.map((row) => row.subjectLabel).join(', ')}.`,
+          },
+        ]
+      : []),
+    ...(unavailableAnalysts.length
+      ? [
+          {
+            id: 'unavailable-analysts',
+            tone: 'warning',
+            title: 'Indisponibilidade ativa no time',
+            description: `${unavailableAnalysts.join(', ')} fora da distribuicao. Reavalie ownership e visibilidade de assuntos restritos.`,
+          },
+        ]
+      : []),
+    ...(reducedCapacityAnalysts.length
+      ? [
+          {
+            id: 'reduced-capacity-analysts',
+            tone: 'info',
+            title: 'Capacidade reduzida em vigor',
+            description: `${reducedCapacityAnalysts.join(', ')} recebendo menos carga. Ajuste expectativas de prazo e reatribuicao.`,
+          },
+        ]
+      : []),
+  ]
 
   return {
     areaLabel,
+    kpis: {
+      backlogTotal: activeEntries.length,
+      overdue: overdueEntries.length,
+      atRisk: riskEntries.length,
+      unassigned: unassignedEntries.length,
+      distributionImbalance: loadGap,
+      casesBySubject: subjectBottlenecks.map((item) => ({
+        subjectLabel: item.subjectLabel,
+        openCases: item.openCases,
+      })),
+      exceptionCount: reroutedEntries.length,
+      pendingKnowledgeChanges: pendingSuggestions.length,
+      stalledCases: stalledEntries.length,
+    },
+    operationalQuestions,
     summary: [
       {
         id: 'backlog',
@@ -378,11 +566,13 @@ export function buildAreaManagerOverview({
       waitingComplement: waitingComplementEntries.length,
       rerouted: reroutedEntries.length,
       pendingSuggestions: pendingSuggestions.length,
-      overloadGap: maxLoad - minLoad,
+      overloadGap: loadGap,
     },
     loadByAnalyst,
     subjectBottlenecks,
     redistributionSuggestions,
+    interventionQueue: redistributionSuggestions,
+    ruleImpactHints,
     attentionCases: [...overdueEntries, ...riskEntries.filter((entry) => !overdueEntries.some((item) => item.id === entry.id))]
       .slice(0, 6),
     pendingKnowledgeSuggestions: pendingSuggestions.slice(0, 4),

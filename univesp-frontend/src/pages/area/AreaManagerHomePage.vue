@@ -1,6 +1,10 @@
 <script setup>
 import { computed } from 'vue'
 
+import {
+  AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
+  buildAreaManagerBackendReadiness,
+} from '@/contracts/areaManagerOperationalContract'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -8,6 +12,8 @@ const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 
 const overview = computed(() => studentSupportStore.areaManagerOverview(auth.mockContext))
+const backendReadiness = buildAreaManagerBackendReadiness({ hasServerOverview: false })
+const backendFieldEntries = computed(() => Object.entries(backendReadiness.minimalOverviewPayload || {}))
 
 function buildCaseRoute(caseEntry = {}) {
   const caseId = typeof caseEntry === 'string' ? caseEntry : caseEntry?.id || ''
@@ -33,59 +39,87 @@ function buildQueueRoute(query = {}) {
   }
 }
 
-const healthCards = computed(() => [
+const kpiCards = computed(() => [
   {
-    id: 'waiting-complement',
-    label: 'Aguardando complemento',
-    value: overview.value.health.waitingComplement,
-    helper: 'Casos que voltaram para o polo e ainda dependem de novo subsidio.',
+    id: 'backlog',
+    label: 'Backlog',
+    value: overview.value.kpis.backlogTotal,
+    helper: 'Casos ativos da area.',
   },
   {
-    id: 'rerouted',
-    label: 'Reencaminhados',
-    value: overview.value.health.rerouted,
-    helper: 'Casos que sairam do caminho inicial da area e pedem leitura de excecao.',
+    id: 'overdue',
+    label: 'Vencidos',
+    value: overview.value.kpis.overdue,
+    helper: 'Risco imediato de SLA.',
   },
   {
-    id: 'pending-suggestions',
-    label: 'Conhecimento pendente',
-    value: overview.value.health.pendingSuggestions,
-    helper: 'Sugestoes aguardando decisao antes de entrar na trilha oficial.',
+    id: 'risk',
+    label: 'Em risco',
+    value: overview.value.kpis.atRisk,
+    helper: 'Podem virar vencidos no turno.',
   },
   {
-    id: 'load-gap',
-    label: 'Gap de carga',
-    value: overview.value.health.overloadGap,
-    helper: 'Diferenca entre quem esta mais e menos carregado no time.',
+    id: 'unassigned',
+    label: 'Sem responsavel',
+    value: overview.value.kpis.unassigned,
+    helper: 'Exigem intervencao de ownership.',
+  },
+  {
+    id: 'exceptions',
+    label: 'Excecoes',
+    value: overview.value.kpis.exceptionCount,
+    helper: 'Casos fora do caminho padrao.',
+  },
+  {
+    id: 'knowledge',
+    label: 'Mudancas pendentes',
+    value: overview.value.kpis.pendingKnowledgeChanges,
+    helper: 'Sugestoes aguardando decisao.',
   },
 ])
 
 const quickActions = computed(() => [
   {
     id: 'unassigned',
-    title: 'Atacar casos sem responsavel',
-    description: 'Abrir a fila com foco imediato nos casos sem dono definido.',
-    route: buildQueueRoute({ scopeState: 'unassigned', bucket: 'all' }),
+    title: 'Assumir sem responsavel',
+    description: 'Abrir fila com foco em ownership vazio.',
+    route: buildQueueRoute({ owner: 'Sem responsavel', bucket: 'all' }),
   },
   {
-    id: 'needs-review',
-    title: 'Atacar backlog da analise',
-    description: 'Abrir os casos que ainda pedem leitura tecnica da area.',
-    route: buildQueueRoute({ bucket: 'needs_review' }),
+    id: 'sla',
+    title: 'Atacar risco de SLA',
+    description: 'Abrir fila priorizada por vencidos e em risco.',
+    route: buildQueueRoute({ bucket: 'needs_review', sortField: 'sla', sortDirection: 'asc' }),
   },
   {
     id: 'knowledge',
     title: 'Decidir mudancas pendentes',
-    description: 'Ir direto para sugestoes de conhecimento que aguardam decisao.',
+    description: 'Revisar propostas de melhoria da base operacional.',
     route: '/area/mudancas',
   },
   {
     id: 'governance',
     title: 'Ajustar regras operacionais',
-    description: 'Abrir visibilidade por assunto e disponibilidade do time.',
+    description: 'Revisar visibilidade por assunto e disponibilidade.',
     route: '/area/governanca',
   },
 ])
+
+function questionToneClass(tone = '') {
+  if (tone === 'danger') {
+    return 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.72)]'
+  }
+
+  if (tone === 'warning') {
+    return 'border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.72)]'
+  }
+
+  if (tone === 'info') {
+    return 'border-[rgba(8,115,145,0.14)] bg-[rgba(224,242,254,0.62)]'
+  }
+
+  return 'border-[rgba(26,111,67,0.16)] bg-[rgba(220,252,231,0.58)]'
+}
 
 function recommendationToneClass(tone = '') {
   if (tone === 'danger') {
@@ -98,67 +132,128 @@ function recommendationToneClass(tone = '') {
 
   return 'border-[rgba(8,115,145,0.14)] bg-[rgba(224,242,254,0.62)]'
 }
+
+function recommendationPriorityLabel(priority = '') {
+  if (priority === 'critical') {
+    return 'Critico'
+  }
+
+  if (priority === 'high') {
+    return 'Alta prioridade'
+  }
+
+  if (priority === 'medium') {
+    return 'Media prioridade'
+  }
+
+  return 'Acompanhar'
+}
 </script>
 
 <template>
   <div class="grid gap-4">
     <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div class="max-w-[760px]">
+        <div class="max-w-[780px]">
           <p class="text-sm font-semibold text-slate-900">
-            Use esta visao para entender rapidamente a saude da area e agir sobre backlog, ownership vazio, conhecimento pendente e distribuicao desigual.
+            Entrada gerencial da area: leia risco, gargalo e necessidade de intervencao antes de abrir caso a caso.
           </p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            A fila continua disponivel para o caso a caso, mas esta precisa ser sua entrada principal de supervisao.
+            O objetivo desta tela e priorizar acao. Fila, mudancas e governanca devem ser usadas como desdobramento.
           </p>
         </div>
 
         <div class="flex flex-wrap gap-2">
           <RouterLink
-            :to="buildQueueRoute({ bucket: 'needs_review' })"
+            :to="buildQueueRoute({ bucket: 'needs_review', sortField: 'sla', sortDirection: 'asc' })"
             class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Casos da area
+            Abrir fila priorizada
           </RouterLink>
           <RouterLink
             to="/area/mudancas"
             class="rounded-[14px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            Mudancas pendentes
+            Decidir mudancas
           </RouterLink>
         </div>
       </div>
+
+      <p class="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+        {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
+      </p>
     </section>
 
-    <section class="grid gap-3 lg:grid-cols-4">
+    <section class="grid gap-3 xl:grid-cols-4">
       <article
-        v-for="item in overview.summary"
+        v-for="item in overview.operationalQuestions"
         :key="item.id"
-        class="rounded-[16px] border border-slate-200 bg-white px-5 py-4"
+        :class="['rounded-[16px] border px-5 py-4', questionToneClass(item.tone)]"
       >
-        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
-        <p class="mt-3 text-[2rem] font-semibold leading-none text-slate-950">{{ item.value }}</p>
-        <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.helper }}</p>
-      </article>
-    </section>
-
-    <section class="grid gap-3 lg:grid-cols-4">
-      <article
-        v-for="item in healthCards"
-        :key="item.id"
-        class="rounded-[16px] border border-slate-200 bg-white px-5 py-4"
-      >
-        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
-        <p class="mt-3 text-[1.8rem] font-semibold leading-none text-slate-950">{{ item.value }}</p>
-        <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.helper }}</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.question }}</p>
+        <p class="mt-3 text-2xl font-semibold leading-none text-slate-950">{{ item.value }}</p>
+        <p class="mt-3 text-sm font-semibold text-slate-900">{{ item.headline }}</p>
+        <p class="mt-2 text-sm leading-6 text-slate-700">{{ item.helper }}</p>
+        <RouterLink
+          :to="buildQueueRoute(item.routeQuery || {})"
+          class="mt-3 inline-flex items-center text-xs font-semibold text-[#0b6e8c] transition hover:underline"
+        >
+          Abrir recorte
+        </RouterLink>
       </article>
     </section>
 
     <section class="rounded-[16px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
-        <p class="text-base font-semibold text-slate-950">Agir agora</p>
+        <p class="text-base font-semibold text-slate-950">Intervencao recomendada agora</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
-          Atalhos de intervencao para backlog, excecao, conhecimento e regra operacional.
+          Acao gerencial sugerida com base em risco de SLA, ownership e desequilibrio da fila.
+        </p>
+      </div>
+      <div class="grid gap-3 px-5 py-4">
+        <article
+          v-for="item in overview.interventionQueue"
+          :key="item.id"
+          :class="['rounded-[14px] border px-4 py-4', recommendationToneClass(item.tone)]"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
+            <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+              {{ recommendationPriorityLabel(item.priority) }}
+            </span>
+          </div>
+          <p class="mt-2 text-sm leading-6 text-slate-700">{{ item.description }}</p>
+          <RouterLink
+            :to="buildQueueRoute(item.routeQuery || {})"
+            class="mt-3 inline-flex items-center text-xs font-semibold text-[#0b6e8c] transition hover:underline"
+          >
+            Ir para fila com este recorte
+          </RouterLink>
+        </article>
+
+        <p v-if="!overview.interventionQueue.length" class="text-sm leading-6 text-slate-600">
+          Sem excecao forte no momento. Mantenha monitoramento de risco de SLA e ownership.
+        </p>
+      </div>
+    </section>
+
+    <section class="grid gap-3 lg:grid-cols-6">
+      <article
+        v-for="item in kpiCards"
+        :key="item.id"
+        class="rounded-[16px] border border-slate-200 bg-white px-5 py-4"
+      >
+        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
+        <p class="mt-3 text-[1.8rem] font-semibold leading-none text-slate-950">{{ item.value }}</p>
+        <p class="mt-2 text-xs leading-5 text-slate-600">{{ item.helper }}</p>
+      </article>
+    </section>
+
+    <section class="rounded-[16px] border border-slate-200 bg-white">
+      <div class="border-b border-slate-200 px-5 py-4">
+        <p class="text-base font-semibold text-slate-950">Atalhos de acao gerencial</p>
+        <p class="mt-1 text-sm leading-6 text-slate-600">
+          Caminhos curtos para intervir na fila e ajustar governanca com menor friccao.
         </p>
       </div>
       <div class="grid gap-3 px-5 py-5 xl:grid-cols-2">
@@ -179,7 +274,7 @@ function recommendationToneClass(tone = '') {
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Carga por analista</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Veja distribuicao, risco e quem ainda pode absorver casos sem responsavel.
+            Compare distribuicao, risco e fila de complemento para decidir reatribuicao.
           </p>
         </div>
         <div class="divide-y divide-slate-200">
@@ -190,7 +285,7 @@ function recommendationToneClass(tone = '') {
           >
             <div>
               <p class="text-sm font-semibold text-slate-950">{{ item.analystName }}</p>
-              <p class="mt-1 text-xs text-slate-500">Carga ativa e risco no escopo atual.</p>
+              <p class="mt-1 text-xs text-slate-500">Leitura de carga no escopo atual.</p>
             </div>
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Ativos</p>
@@ -214,23 +309,29 @@ function recommendationToneClass(tone = '') {
 
       <article class="rounded-[16px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
-          <p class="text-base font-semibold text-slate-950">Sugestoes de redistribuicao</p>
+          <p class="text-base font-semibold text-slate-950">Impacto de regra na operacao</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Apoios operacionais para agir sobre desequilibrio, ownership vazio, atraso e gargalo recorrente.
+            Sinais de configuracao local que podem gerar gargalo, sem responsavel ou atraso.
           </p>
         </div>
         <div class="grid gap-3 px-5 py-4">
           <div
-            v-for="item in overview.redistributionSuggestions"
+            v-for="item in overview.ruleImpactHints"
             :key="item.id"
             :class="['rounded-[14px] border px-4 py-4', recommendationToneClass(item.tone)]"
           >
             <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
             <p class="mt-2 text-sm leading-6 text-slate-700">{{ item.description }}</p>
+            <RouterLink
+              to="/area/governanca"
+              class="mt-3 inline-flex items-center text-xs font-semibold text-[#0b6e8c] transition hover:underline"
+            >
+              Abrir regras operacionais
+            </RouterLink>
           </div>
 
-          <p v-if="!overview.redistributionSuggestions.length" class="text-sm leading-6 text-slate-600">
-            Nenhuma excecao forte foi encontrada no recorte atual. A operacao segue estavel nesta area.
+          <p v-if="!overview.ruleImpactHints.length" class="text-sm leading-6 text-slate-600">
+            Nenhum impacto forte de regra foi identificado no recorte atual.
           </p>
         </div>
       </article>
@@ -241,7 +342,7 @@ function recommendationToneClass(tone = '') {
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Gargalos por assunto</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Assuntos com maior concentracao de backlog, risco ou vencimento.
+            Assuntos com maior concentracao de backlog, vencidos ou risco de SLA.
           </p>
         </div>
         <div class="divide-y divide-slate-200">
@@ -253,8 +354,14 @@ function recommendationToneClass(tone = '') {
             <div>
               <p class="text-sm font-semibold text-slate-950">{{ item.subjectLabel }}</p>
               <p class="mt-1 text-xs text-slate-500">
-                {{ item.accessMode === 'restricted' ? 'Assunto restrito por analista' : 'Assunto aberto para o time' }}
+                {{ item.accessMode === 'restricted' ? 'Escopo restrito por analista' : 'Escopo aberto no time' }}
               </p>
+              <RouterLink
+                :to="buildQueueRoute({ subject: item.subjectLabel, bucket: 'all', sortField: 'sla', sortDirection: 'asc' })"
+                class="mt-2 inline-flex items-center text-xs font-semibold text-[#0b6e8c] transition hover:underline"
+              >
+                Abrir casos deste assunto
+              </RouterLink>
             </div>
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Backlog</p>
@@ -278,9 +385,9 @@ function recommendationToneClass(tone = '') {
 
       <article class="rounded-[16px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
-          <p class="text-base font-semibold text-slate-950">Excecoes e conhecimento pendente</p>
+          <p class="text-base font-semibold text-slate-950">Casos expostos e mudancas pendentes</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Casos expostos e mudancas de conhecimento que precisam de decisao gerencial agora.
+            Priorize os casos mais sensiveis e as sugestoes de conhecimento que afetam a fila.
           </p>
         </div>
         <div class="grid gap-3 px-5 py-4">
@@ -315,6 +422,19 @@ function recommendationToneClass(tone = '') {
           </RouterLink>
         </div>
       </article>
+    </section>
+
+    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-4">
+      <details>
+        <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
+          Contrato minimo esperado para backend da home gerencial
+        </summary>
+        <ul class="mt-3 grid gap-1 text-xs leading-5 text-slate-600">
+          <li v-for="[field, type] in backendFieldEntries" :key="field">
+            <strong>{{ field }}:</strong> {{ type }}
+          </li>
+        </ul>
+      </details>
     </section>
   </div>
 </template>

@@ -1,6 +1,10 @@
 <script setup>
 import { computed, reactive, watch } from 'vue'
 
+import {
+  AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
+  buildAreaManagerBackendReadiness,
+} from '@/contracts/areaManagerOperationalContract'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -8,6 +12,18 @@ const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 
 const governanceRows = computed(() => studentSupportStore.areaGovernanceRows(auth.mockContext))
+const managerOverview = computed(
+  () =>
+    studentSupportStore.areaManagerOverview(auth.mockContext) || {
+      kpis: {
+        unassigned: 0,
+        overdue: 0,
+        stalledCases: 0,
+        distributionImbalance: 0,
+      },
+      ruleImpactHints: [],
+    },
+)
 const areaTeamMembers = computed(() => studentSupportStore.areaTeamMembers(auth.mockContext.currentArea))
 const availabilityRows = computed(() =>
   studentSupportStore.userAvailabilityCatalog
@@ -18,6 +34,35 @@ const availabilityRows = computed(() =>
     )
     .sort((left, right) => new Date(right.startsAt || 0).getTime() - new Date(left.startsAt || 0).getTime()),
 )
+const backendReadiness = buildAreaManagerBackendReadiness({ hasServerOverview: false })
+const backendImpactFields = computed(() => backendReadiness.governanceImpactFields || [])
+
+const operationalImpactCards = computed(() => [
+  {
+    id: 'unassigned',
+    label: 'Sem responsavel',
+    value: managerOverview.value.kpis.unassigned,
+    helper: 'Casos sem dono no escopo atual.',
+  },
+  {
+    id: 'overdue',
+    label: 'Vencidos',
+    value: managerOverview.value.kpis.overdue,
+    helper: 'Casos com SLA estourado.',
+  },
+  {
+    id: 'stalled',
+    label: 'Parados',
+    value: managerOverview.value.kpis.stalledCases,
+    helper: 'Aguardando complemento por mais tempo.',
+  },
+  {
+    id: 'imbalance',
+    label: 'Gap de carga',
+    value: managerOverview.value.kpis.distributionImbalance,
+    helper: 'Diferenca entre maior e menor carga.',
+  },
+])
 
 const scopeDrafts = reactive({})
 const feedback = reactive({
@@ -133,6 +178,65 @@ function formatScopeLabel(record) {
   return record.areaLabel ? `Somente ${record.areaLabel}` : 'Todas as areas do usuario'
 }
 
+function buildRuleQueueRoute(row = {}) {
+  return {
+    path: '/area/fila',
+    query: {
+      subject: row.subjectLabel,
+      bucket: 'all',
+      sortField: 'sla',
+      sortDirection: 'asc',
+    },
+  }
+}
+
+function rowRiskState(row = {}) {
+  const restricted = row.accessMode === 'restricted'
+  const allowedCount = Array.isArray(row.allowedAnalysts) ? row.allowedAnalysts.length : 0
+
+  if (restricted && allowedCount === 0) {
+    return {
+      label: 'Risco alto',
+      helper: 'Regra restrita sem analista autorizado gera bloqueio de visibilidade e ownership.',
+      toneClass: 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.72)] text-[var(--color-danger)]',
+    }
+  }
+
+  if (restricted && allowedCount === 1 && row.openCases > 0) {
+    return {
+      label: 'Atencao',
+      helper: 'Apenas 1 analista autorizado em assunto com casos abertos.',
+      toneClass: 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.72)] text-[#8a5200]',
+    }
+  }
+
+  if (row.overdueCases > 0 || row.riskCases > 0) {
+    return {
+      label: 'Acompanhar',
+      helper: 'Este assunto ja aparece com risco de SLA na fila.',
+      toneClass: 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.65)] text-[#0b6e8c]',
+    }
+  }
+
+  return {
+    label: 'Estavel',
+    helper: 'Sem sinal forte de gargalo neste recorte.',
+    toneClass: 'border-slate-200 bg-slate-100 text-slate-700',
+  }
+}
+
+function impactHintToneClass(tone = '') {
+  if (tone === 'warning') {
+    return 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.72)]'
+  }
+
+  if (tone === 'danger') {
+    return 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.72)]'
+  }
+
+  return 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.62)]'
+}
+
 function resetAvailabilityForm() {
   availabilityForm.scope = 'current_area'
   availabilityForm.statusCode = 'unavailable'
@@ -200,6 +304,43 @@ function saveAvailability() {
           </RouterLink>
         </div>
       </div>
+      <p class="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+        {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
+      </p>
+    </section>
+
+    <section class="grid gap-3 lg:grid-cols-4">
+      <article
+        v-for="item in operationalImpactCards"
+        :key="item.id"
+        class="rounded-[16px] border border-slate-200 bg-white px-5 py-4"
+      >
+        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
+        <p class="mt-3 text-[1.8rem] font-semibold leading-none text-slate-950">{{ item.value }}</p>
+        <p class="mt-2 text-xs leading-5 text-slate-600">{{ item.helper }}</p>
+      </article>
+    </section>
+
+    <section class="rounded-[16px] border border-slate-200 bg-white">
+      <div class="border-b border-slate-200 px-5 py-4">
+        <p class="text-base font-semibold text-slate-950">Sinais de impacto operacional</p>
+        <p class="mt-1 text-sm leading-6 text-slate-600">
+          Antes de mudar regra, veja o que ja esta pressionando backlog, ownership e SLA.
+        </p>
+      </div>
+      <div class="grid gap-3 px-5 py-4">
+        <article
+          v-for="hint in managerOverview.ruleImpactHints"
+          :key="hint.id"
+          :class="['rounded-[14px] border px-4 py-3', impactHintToneClass(hint.tone)]"
+        >
+          <p class="text-sm font-semibold text-slate-950">{{ hint.title }}</p>
+          <p class="mt-1 text-sm leading-6 text-slate-700">{{ hint.description }}</p>
+        </article>
+        <p v-if="!managerOverview.ruleImpactHints.length" class="text-sm leading-6 text-slate-600">
+          Sem alerta forte de regra no recorte atual.
+        </p>
+      </div>
     </section>
 
     <section class="rounded-[16px] border border-slate-200 bg-white">
@@ -251,6 +392,17 @@ function saveAvailability() {
           </div>
 
           <div class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <div :class="['mb-4 rounded-[12px] border px-3 py-2 text-xs leading-5', rowRiskState(row).toneClass]">
+              <p class="font-semibold">{{ rowRiskState(row).label }}</p>
+              <p class="mt-1">{{ rowRiskState(row).helper }}</p>
+              <RouterLink
+                :to="buildRuleQueueRoute(row)"
+                class="mt-2 inline-flex items-center font-semibold transition hover:underline"
+              >
+                Abrir fila deste assunto
+              </RouterLink>
+            </div>
+
             <label class="grid gap-2">
               <span class="text-sm font-semibold text-slate-700">Regra de visibilidade</span>
               <select
@@ -461,6 +613,19 @@ function saveAvailability() {
           Nenhuma janela de disponibilidade foi registrada para este time ainda.
         </div>
       </article>
+    </section>
+
+    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-4">
+      <details>
+        <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
+          Campos de impacto que a governanca deve receber do backend
+        </summary>
+        <ul class="mt-3 grid gap-1 text-xs leading-5 text-slate-600">
+          <li v-for="field in backendImpactFields" :key="field">
+            <strong>{{ field }}</strong>
+          </li>
+        </ul>
+      </details>
     </section>
   </div>
 </template>

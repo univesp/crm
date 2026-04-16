@@ -1,0 +1,2193 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Documentacao completa - Sistema CRM UNIVESP</title>
+    <style>
+      :root {
+        --text: #111827;
+        --muted: #4b5563;
+        --border: #d1d5db;
+        --bg: #ffffff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--text);
+        font-family: "Segoe UI", Arial, sans-serif;
+        line-height: 1.45;
+        background: var(--bg);
+      }
+      .cover {
+        padding: 28px 34px 20px;
+        border-bottom: 2px solid #111827;
+      }
+      .cover h1 {
+        margin: 0 0 10px;
+        font-size: 28px;
+      }
+      .cover p {
+        margin: 4px 0;
+        color: var(--muted);
+      }
+      .toc {
+        padding: 18px 34px;
+        border-bottom: 1px solid var(--border);
+      }
+      .toc h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li { margin: 4px 0; }
+      .toc a {
+        color: #1d4ed8;
+        text-decoration: none;
+      }
+      .doc-section {
+        page-break-before: always;
+        padding: 26px 34px 20px;
+      }
+      .doc-header {
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      .doc-header h1 {
+        margin: 0 0 6px;
+        font-size: 22px;
+      }
+      .doc-header p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .doc-content h1 { font-size: 24px; margin: 16px 0 8px; }
+      .doc-content h2 { font-size: 20px; margin: 14px 0 8px; }
+      .doc-content h3 { font-size: 16px; margin: 12px 0 6px; }
+      .doc-content p { margin: 7px 0; }
+      .doc-content ul, .doc-content ol {
+        margin: 6px 0 8px;
+        padding-left: 22px;
+      }
+      .doc-content li { margin: 4px 0; }
+      .doc-content a { color: #1d4ed8; word-break: break-all; }
+      .doc-content hr {
+        border: 0;
+        border-top: 1px solid var(--border);
+        margin: 14px 0;
+      }
+      .doc-content code {
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        padding: 1px 4px;
+        font-family: Consolas, monospace;
+        font-size: 0.92em;
+      }
+      .missing {
+        border: 1px solid #dc2626;
+        padding: 10px;
+        color: #991b1b;
+        background: #fef2f2;
+      }
+      .inline-image img {
+        max-width: 100%;
+        border: 1px solid var(--border);
+      }
+      .inline-image figcaption {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .gallery-root {
+        page-break-before: always;
+        padding: 26px 34px 24px;
+      }
+      .gallery-root h1 {
+        margin: 0 0 10px;
+        font-size: 24px;
+      }
+      .gallery-group {
+        page-break-inside: avoid;
+        margin-top: 18px;
+      }
+      .gallery-group h2 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+      .gallery-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      .gallery-card {
+        margin: 0;
+        page-break-inside: avoid;
+      }
+      .gallery-card img {
+        width: 100%;
+        border: 1px solid var(--border);
+      }
+      .gallery-card figcaption {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <section class="cover">
+      <h1>Documentacao completa do sistema CRM/backoffice</h1>
+      <p>Projeto: UNIVESP Frontend</p>
+      <p>Gerado automaticamente para envio externo com todos os documentos e imagens.</p>
+      <p>Data de geracao: 14/04/2026, 19:17:17</p>
+    </section>
+
+    <section class="toc">
+      <h2>Indice dos documentos incluidos</h2>
+      <ol>
+        <li><a href="#doc-1">00_indice-geral</a></li>
+<li><a href="#doc-2">01_visao-executiva-do-sistema</a></li>
+<li><a href="#doc-3">02_visao-geral-funcional</a></li>
+<li><a href="#doc-4">03_mapa-de-modulos</a></li>
+<li><a href="#doc-5">04_perfis-e-permissoes</a></li>
+<li><a href="#doc-6">05_fluxos-completos</a></li>
+<li><a href="#doc-7">06_catalogo-de-telas</a></li>
+<li><a href="#doc-8">07_regras-de-negocio-e-logica-operacional</a></li>
+<li><a href="#doc-9">08_ux-e-analise-critica</a></li>
+<li><a href="#doc-10">09_lacunas-riscos-e-pontos-para-validacao</a></li>
+<li><a href="#doc-11">10_checklist-para-especialista</a></li>
+<li><a href="#doc-12">11_resumo-final</a></li>
+<li><a href="#doc-13">documentacao-completa-sistema</a></li>
+      </ol>
+    </section>
+
+    
+      <section class="doc-section" id="doc-1">
+        <header class="doc-header">
+          <h1>00_indice-geral</h1>
+          <p>Fonte: 00_indice-geral.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Indice geral da revisao do sistema</h1>
+<h2>Sobre este pacote</h2>
+<p>Este pacote foi montado para analise externa sem acesso inicial ao sistema. Todo o conteudo foi baseado em:</p>
+<ul><li>observacao de telas reais no ambiente local (<code>http://localhost:8080/crm/acesso-local</code>)</li><li>leitura de codigo-fonte (rotas, stores, runtimes, componentes, mocks e servicos)</li><li>analise de documentacao existente no repositorio</li></ul>
+<p>Legenda de evidencia usada em todos os documentos:</p>
+<ul><li><strong>[OBS]</strong> observacao direta em tela/execucao local</li><li><strong>[COD]</strong> confirmado por leitura de codigo</li><li><strong>[INF]</strong> inferencia tecnica plausivel, ainda sem confirmacao de runtime ponta a ponta</li></ul>
+<h2>Documentos principais</h2>
+<ol><li><a href="./01_visao-executiva-do-sistema.md">01_visao-executiva-do-sistema.md</a></li><li><a href="./02_visao-geral-funcional.md">02_visao-geral-funcional.md</a></li><li><a href="./03_mapa-de-modulos.md">03_mapa-de-modulos.md</a></li><li><a href="./04_perfis-e-permissoes.md">04_perfis-e-permissoes.md</a></li><li><a href="./05_fluxos-completos.md">05_fluxos-completos.md</a></li><li><a href="./06_catalogo-de-telas.md">06_catalogo-de-telas.md</a></li><li><a href="./07_regras-de-negocio-e-logica-operacional.md">07_regras-de-negocio-e-logica-operacional.md</a></li><li><a href="./08_ux-e-analise-critica.md">08_ux-e-analise-critica.md</a></li><li><a href="./09_lacunas-riscos-e-pontos-para-validacao.md">09_lacunas-riscos-e-pontos-para-validacao.md</a></li><li><a href="./10_checklist-para-especialista.md">10_checklist-para-especialista.md</a></li><li><a href="./11_resumo-final.md">11_resumo-final.md</a></li><li><a href="./documentacao-completa-sistema.md">documentacao-completa-sistema.md</a></li></ol>
+<h2>Evidencias visuais (prints)</h2>
+<h3>Geral</h3>
+<ul><li><a href="./assets/screens/geral/01-acesso-local.png">assets/screens/geral/01-acesso-local.png</a></li><li><a href="./assets/screens/geral/02-login.png">assets/screens/geral/02-login.png</a></li></ul>
+<h3>Aluno</h3>
+<ul><li><a href="./assets/screens/aluno/01-home-aluno.png">assets/screens/aluno/01-home-aluno.png</a></li><li><a href="./assets/screens/aluno/02-jornada-duvida.png">assets/screens/aluno/02-jornada-duvida.png</a></li><li><a href="./assets/screens/aluno/03-minhas-solicitacoes.png">assets/screens/aluno/03-minhas-solicitacoes.png</a></li><li><a href="./assets/screens/aluno/04-detalhe-solicitacao.png">assets/screens/aluno/04-detalhe-solicitacao.png</a></li><li><a href="./assets/screens/aluno/05-abertura-protocolo.png">assets/screens/aluno/05-abertura-protocolo.png</a></li></ul>
+<h3>Orientador de polo e gestor de polos</h3>
+<ul><li><a href="./assets/screens/orientador/01-fila-op.png">assets/screens/orientador/01-fila-op.png</a></li><li><a href="./assets/screens/orientador/02-detalhe-caso-op.png">assets/screens/orientador/02-detalhe-caso-op.png</a></li><li><a href="./assets/screens/orientador/03-consultar-orientacao-op.png">assets/screens/orientador/03-consultar-orientacao-op.png</a></li><li><a href="./assets/screens/orientador/04-abrir-atendimento-op.png">assets/screens/orientador/04-abrir-atendimento-op.png</a></li><li><a href="./assets/screens/orientador/05-fila-gestor-polos.png">assets/screens/orientador/05-fila-gestor-polos.png</a></li><li><a href="./assets/screens/orientador/06-detalhe-gestor-polos.png">assets/screens/orientador/06-detalhe-gestor-polos.png</a></li></ul>
+<h3>Analista de area</h3>
+<ul><li><a href="./assets/screens/analista/01-fila-analista-area.png">assets/screens/analista/01-fila-analista-area.png</a></li><li><a href="./assets/screens/analista/02-detalhe-analista-area.png">assets/screens/analista/02-detalhe-analista-area.png</a></li><li><a href="./assets/screens/analista/03-detalhe-analista-vazio.png">assets/screens/analista/03-detalhe-analista-vazio.png</a></li><li><a href="./assets/screens/analista/04-conteudo-vigente-analista.png">assets/screens/analista/04-conteudo-vigente-analista.png</a></li></ul>
+<h3>Gestor de area</h3>
+<ul><li><a href="./assets/screens/gestor/01-home-gestor-area.png">assets/screens/gestor/01-home-gestor-area.png</a></li><li><a href="./assets/screens/gestor/02-fila-gestor-area.png">assets/screens/gestor/02-fila-gestor-area.png</a></li><li><a href="./assets/screens/gestor/03-detalhe-gestor-area.png">assets/screens/gestor/03-detalhe-gestor-area.png</a></li><li><a href="./assets/screens/gestor/04-conteudo-vigente-gestor.png">assets/screens/gestor/04-conteudo-vigente-gestor.png</a></li><li><a href="./assets/screens/gestor/05-mudancas-pendentes-gestor.png">assets/screens/gestor/05-mudancas-pendentes-gestor.png</a></li><li><a href="./assets/screens/gestor/06-regras-operacionais-gestor.png">assets/screens/gestor/06-regras-operacionais-gestor.png</a></li></ul>
+<h3>Admin central e institucional</h3>
+<ul><li><a href="./assets/screens/admin/01-dashboard-admin.png">assets/screens/admin/01-dashboard-admin.png</a></li><li><a href="./assets/screens/admin/02-faq-admin.png">assets/screens/admin/02-faq-admin.png</a></li><li><a href="./assets/screens/admin/03-parametros-admin.png">assets/screens/admin/03-parametros-admin.png</a></li><li><a href="./assets/screens/admin/04-permissoes-admin.png">assets/screens/admin/04-permissoes-admin.png</a></li><li><a href="./assets/screens/admin/05-publicacao-admin.png">assets/screens/admin/05-publicacao-admin.png</a></li><li><a href="./assets/screens/admin/06-visao-institucional-admin.png">assets/screens/admin/06-visao-institucional-admin.png</a></li><li><a href="./assets/screens/admin/07-triagem-admin.png">assets/screens/admin/07-triagem-admin.png</a></li><li><a href="./assets/screens/admin/08-ticket-admin.png">assets/screens/admin/08-ticket-admin.png</a></li><li><a href="./assets/screens/admin/09-handoff-admin.png">assets/screens/admin/09-handoff-admin.png</a></li><li><a href="./assets/screens/admin/10-integracoes-admin.png">assets/screens/admin/10-integracoes-admin.png</a></li></ul>
+<h2>Limitacao registrada</h2>
+<ul><li>Nao foi identificado print dedicado para as rotas abaixo; essas telas foram documentadas por codigo:</li><li><code>/wireframes/aluno/:screenId?</code></li><li><code>/aluno/confirmacao/:protocolId</code></li><li>Nao foi possivel gerar <code>documentacao-completa-sistema.pdf</code> nesta maquina porque <code>pandoc</code> nao esta instalado.</li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-2">
+        <header class="doc-header">
+          <h1>01_visao-executiva-do-sistema</h1>
+          <p>Fonte: 01_visao-executiva-do-sistema.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Visao executiva do sistema</h1>
+<h2>Proposito do sistema</h2>
+<p>O produto e um CRM operacional-academico desenhado para reduzir atrito no atendimento em larga escala da UNIVESP, com foco em:</p>
+<ul><li>reduzir abertura de protocolos desnecessarios</li><li>qualificar o que chega na operacao</li><li>padronizar decisao por conhecimento versionado</li><li>dar visao gerencial acionavel para polos, areas e administracao central</li></ul>
+<p><strong>Evidencia:</strong> [OBS] rotas e telas por perfil; [COD] <code>src/router.js</code>, <code>src/pages/*</code>, <code>src/services/*Runtime.js</code>.</p>
+<h2>Problema institucional que resolve</h2>
+<p>Num cenario de alto volume (picos de 10k-20k protocolos), o risco operacional principal e:</p>
+<ul><li>escalar tudo para area especialista</li><li>perder rastreabilidade de decisao</li><li>ter filas sem priorizacao objetiva</li><li>manter conhecimento em texto solto e desatualizado</li></ul>
+<p>O sistema foi desenhado para quebrar esse padrao com triagem orientada, camada intermediaria forte, distribuicao por regra e governanca de conhecimento.</p>
+<h2>Publico-alvo e cadeia de atendimento</h2>
+<p>Perfis contemplados no frontend atual:</p>
+<ul><li>Aluno</li><li>Orientador de Polo (OP)</li><li>Gestor de Polos</li><li>Analista de Area</li><li>Gestor de Area</li><li>Admin Central</li></ul>
+<p>Cadeia funcional desenhada:</p>
+<ol><li>Aluno tenta resolver via orientacao</li><li>Aluno abre protocolo somente quando necessario</li><li>OP trata o que e resolvivel na camada intermediaria</li><li>Casos complexos escalam para Area</li><li>Gestor de Area intervem em carga, escopo e excecao</li><li>Admin Central governa versao, parametros, permissoes e auditoria</li></ol>
+<h2>Premissas estruturais do produto</h2>
+<p>Premissas confirmadas no codigo:</p>
+<ul><li>controle de acesso por perfil e acao em rota (<code>allowedProfiles</code>, <code>requiredActions</code>)</li><li>modelo canonico para conhecimento, sugestao, publicacao, assignment, eventos e usage</li><li>snapshots de conhecimento por caso para auditoria</li><li>distribuicao baseada em elegibilidade + disponibilidade + carga + capacidade + SLA</li></ul>
+<p><strong>Evidencia:</strong> [COD] <code>src/router.js</code>, <code>src/main.js</code>, <code>src/services/canonicalFoundationRuntime.js</code>, <code>src/services/distributionEngine.js</code>, <code>src/stores/studentSupport.js</code>.</p>
+<h2>Diferencial da solucao</h2>
+<p>O diferencial nao e apenas visual: a base atual ja separa regras operacionais de apresentacao, incluindo:</p>
+<ul><li>workflow canonico de versao de conhecimento (<code>Draft</code>, <code>In Review</code>, <code>Approved</code>, <code>Published</code>, <code>Archived</code>)</li><li>workflow canonico de sugestao (<code>Pending Review</code>, <code>Approved</code>, <code>Rejected</code>, <code>Implemented</code>, <code>Superseded</code>)</li><li>historico append-like de assignment e trilha de eventos</li><li>governanca por perfil para aprovacao/publicacao/escopo</li></ul>
+<h2>Beneficios operacionais esperados</h2>
+<p>Se os contratos backend seguirem a fundacao atual:</p>
+<ul><li>menor retrabalho de triagem</li><li>menor escalonamento indevido</li><li>maior consistencia de resposta ao aluno</li><li>rastreabilidade por protocolo (quem decidiu, quando, com qual base)</li><li>melhor capacidade de gestao de backlog, SLA e gargalo por assunto/area</li></ul>
+<h2>Ganhos institucionais estimados (visao de produto)</h2>
+<p>atendimento guiado reduz tickets mal categorizados e melhora qualidade de entrada.</p>
+<ol><li>Reducao de volume improdutivo:</li></ol>
+<p>distribuicao com elegibilidade/disponibilidade reduz fila parada por pessoa indisponivel.</p>
+<ol><li>Reducao de tempo de resposta:</li></ol>
+<p>mudanca de FAQ/playbook passa por trilha de sugestao e aprovacao, com historico.</p>
+<ol><li>Melhor governanca:</li></ol>
+<p>base modular e orientada a runtime/repositorio diminui retrabalho na transicao para Frappe.</p>
+<ol><li>Maior prontidao para escala:</li></ol>
+<h2>Leitura de maturidade atual</h2>
+<p>Estagio atual do sistema: <strong>pre-homologacao funcional robusta em frontend mockado</strong>, com boa fundacao canonica e risco ainda relevante em:</p>
+<ul><li>dependencia de <code>Pinia + localStorage</code> como fonte de verdade</li><li>ausencia de contratos API reais efetivamente integrados</li><li>algumas rotas ainda mais demonstrativas (institucional/wireframe) do que operacionais</li></ul>
+<p>Resumo executivo:</p>
+<ul><li><strong>forte para demonstracao e auditoria funcional</strong></li><li><strong>bom para iniciar homologacao controlada</strong></li><li><strong>ainda nao pronto para producao sem backend canonico e testes de integracao</strong></li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-3">
+        <header class="doc-header">
+          <h1>02_visao-geral-funcional</h1>
+          <p>Fonte: 02_visao-geral-funcional.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Visao geral funcional</h1>
+<h2>O que e o sistema</h2>
+<p>E uma plataforma de atendimento CRM/backoffice para operacao academica, com experiencia separada por perfil, cobrindo:</p>
+<ul><li>autosservico e protocolo do aluno</li><li>operacao de polo (fila, analise e abertura assistida)</li><li>operacao especializada de area (analista e gestor)</li><li>governanca administrativa (dashboard, FAQ, parametros, permissao e publicacao)</li></ul>
+<h2>Como funciona em alto nivel</h2>
+<ol><li>O usuario autentica por SSO (ou bypass local em desenvolvimento)</li><li>O router valida perfil e acoes permitidas por rota</li><li>O store central monta contexto por perfil/polo/area</li><li>Paginas consomem runtimes especializados (fila, detalhe, governanca, admin)</li><li>Acoes de atendimento geram eventos, assignment, routing e knowledge usage</li></ol>
+<p><strong>Evidencia:</strong> [COD] <code>src/main.js</code>, <code>src/router.js</code>, <code>src/stores/auth.js</code>, <code>src/stores/studentSupport.js</code>, <code>src/repositories/runtimeRepositories.js</code>.</p>
+<h2>Modulos identificados</h2>
+<ul><li>Autenticacao e acesso local (<code>/login</code>, <code>/acesso-local</code>)</li><li>Institucional/diagnostico (<code>/</code>, <code>/triagem</code>, <code>/ticket</code>, <code>/handoff</code>, <code>/integracoes</code>)</li><li>Jornada do aluno (<code>/aluno/*</code>)</li><li>OP e gestor de polos (<code>/op/*</code>)</li><li>Area (analista e gestor de area) (<code>/area/*</code>)</li><li>Admin central (<code>/admin/*</code>)</li><li>Wireframe navegavel de aluno (<code>/wireframes/aluno/:screenId?</code>)</li></ul>
+<h2>Mapa de maturidade por bloco</h2>
+<h3>Bloco pronto para uso funcional em mock</h3>
+<ul><li>rotas por perfil</li><li>fila OP e detalhe do caso</li><li>fila Area e detalhe orientado a decisao</li><li>governanca de area (visibilidade por assunto e disponibilidade)</li><li>dashboard admin com filtros</li><li>base canonica de conhecimento/versionamento/sugestao</li></ul>
+<h3>Bloco parcialmente mockado, mas com arquitetura encaminhada</h3>
+<ul><li>abertura e persistencia de protocolo em backend real</li><li>publicacao definitiva de versao para API externa</li><li>trilha de auditoria em banco (atualmente local)</li><li>motor de distribuicao rodando contra fonte remota</li></ul>
+<h3>Bloco mais conceitual/demonstrativo</h3>
+<ul><li>paginas institucionais (<code>/triagem</code>, <code>/ticket</code>, <code>/handoff</code>, <code>/integracoes</code>) focadas em blueprint de produto</li><li>wireframe de aluno para exploracao de UX</li></ul>
+<h2>O que esta parametrizavel hoje</h2>
+<ul><li>perfis e escopo local por mocks (<code>mockAccessProfiles</code>)</li><li>regras de visibilidade por assunto/subassunto (area)</li><li>disponibilidade de usuario (inclui indisponibilidade temporal e capacidade reduzida)</li><li>niveis de SLA e criticidade (admin parametros)</li><li>matriz de permissao por escopo (admin permissoes)</li><li>versao e publicacao de bundle de conhecimento (admin publicacao)</li></ul>
+<h2>Como as partes se conectam</h2>
+<h3>Camada de UI</h3>
+<ul><li><code>src/pages/*</code></li><li><code>src/components/*</code></li><li>shell unico em <code>src/App.vue</code>, variando por <code>shellKey</code> e perfil</li></ul>
+<h3>Camada de negocio em frontend</h3>
+<ul><li>runtimes de fila, caso, governanca e admin em <code>src/services/*Runtime.js</code></li><li>motor de distribuicao em <code>src/services/distributionEngine.js</code></li></ul>
+<h3>Camada de estado e persistencia local</h3>
+<ul><li>store central <code>src/stores/studentSupport.js</code></li><li><code>localStorage</code> para sessao e dados mock operacionais</li></ul>
+<h3>Camada de repositorio (ponte para backend futuro)</h3>
+<ul><li><code>src/repositories/runtimeRepositories.js</code></li><li>padroniza acesso a conhecimento, casos e governanca</li></ul>
+<h2>Pontos de coerencia funcional bem estabelecidos</h2>
+<ul><li>status canonicos definidos e reaproveitados entre modulos</li><li>separacao de perfil entre analista e gestor de area</li><li>hierarquia de decisao no detalhe da area (resolver &gt; complementar &gt; concluir &gt; excecao)</li><li>rastro de uso de conhecimento por caso</li></ul>
+<h2>Pontos que ainda exigem validacao externa</h2>
+<ul><li>consistencia final de todos os fluxos em dados de alto volume</li><li>cobertura de edge cases com indisponibilidade simultanea</li><li>convergencia total entre nomenclatura de UI e nomenclatura de modelo</li><li>estrategia de sincronizacao eventual entre local state e backend real</li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-4">
+        <header class="doc-header">
+          <h1>03_mapa-de-modulos</h1>
+          <p>Fonte: 03_mapa-de-modulos.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Mapa de modulos</h1>
+<h2>Leitura geral</h2>
+<p>Este mapa lista modulos funcionais identificados no frontend atual, com objetivo, publico, entradas, saidas e riscos de entendimento.</p>
+<h2>1) Acesso local e autenticacao</h2>
+<h3>Modulo: acesso local por perfil</h3>
+<p>permitir navegacao local em modo mock por perfil sem depender de SSO real.</p>
+<p>time de produto, design, QA, engenharia.</p>
+<p>selecionar perfil (<code>aluno</code>, <code>op</code>, <code>gestor_polos</code>, <code>analista_area</code>, <code>gestor_area</code>, <code>admin_central</code>).</p>
+<p>ativacao de contexto mock e redirecionamento para rota default do perfil.</p>
+<p>escolher perfil, redirecionar, limpar contexto.</p>
+<p><code>VITE_SSO_DEV_BYPASS</code>, <code>authStore</code>, <code>mockAccessProfiles</code>.</p>
+<p>alto para validacao rapida de fluxos.</p>
+<p>baixo no dev; nulo em producao (rota nao e para usuario final).</p>
+<ul><li>Objetivo:</li><li>Publico:</li><li>Entradas:</li><li>Saidas:</li><li>Acoes:</li><li>Dependencias:</li><li>Impacto operacional:</li><li>Risco UX:</li></ul>
+<h3>Modulo: login institucional</h3>
+<p>iniciar fluxo SSO (Azure/SAML) e classificar entrada por email institucional.</p>
+<p>usuarios finais em ambiente integrado.</p>
+<p>email e flow de autenticacao.</p>
+<p>redirecionamento para provedor e sessao autenticada.</p>
+<p><code>ssoClient</code>, variaveis de ambiente de SSO.</p>
+<p>medio se variaveis de ambiente estiverem inconsistentes.</p>
+<ul><li>Objetivo:</li><li>Publico:</li><li>Entradas:</li><li>Saidas:</li><li>Dependencias:</li><li>Risco:</li></ul>
+<h2>2) Modulo aluno</h2>
+<h3>Submodulo: home do aluno</h3>
+<p>dar caminho rapido entre "tirar duvida" e "acompanhar solicitacoes".</p>
+<p>contexto de aluno autenticado.</p>
+<p>navegacao para jornada guiada ou lista de protocolos.</p>
+<p>busca rapida de orientacao, abrir jornada, abrir solicitacoes.</p>
+<p>knowledge base e request runtime.</p>
+<p>baixo.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li><li>Acoes:</li><li>Dependencias:</li><li>Risco UX:</li></ul>
+<h3>Submodulo: jornada guiada / FAQ</h3>
+<p>resolver demanda sem protocolo quando possivel.</p>
+<p>tema/subtema/no da arvore.</p>
+<p>resposta orientada ou continuidade para protocolo.</p>
+<p>navegacao por nos, consulta de resposta, avancar para abertura de caso.</p>
+<p>bundle de conhecimento vigente.</p>
+<p>medio se arvore ficar muito profunda sem resumo contextual.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li><li>Acoes:</li><li>Dependencias:</li><li>Risco UX:</li></ul>
+<h3>Submodulo: abertura de protocolo</h3>
+<p>formalizar caso quando autosservico nao resolve.</p>
+<p>contexto FAQ + descricao + anexos.</p>
+<p>protocolo com trilha inicial e confirmacao.</p>
+<p>editar resumo, anexar, enviar.</p>
+<p>validacao de draft, submissao de protocolo.</p>
+<p>medio se nao houver feedback forte de erro de campo.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li><li>Acoes:</li><li>Dependencias:</li><li>Risco:</li></ul>
+<h3>Submodulo: acompanhamento e detalhe</h3>
+<p>dar transparencia de status, pendencia e proximo passo.</p>
+<p>lista de protocolos do aluno.</p>
+<p>detalhe com timeline e resposta de follow-up.</p>
+<p>baixo para entendimento; medio para escala se agrupamento de lista nao tiver paginacao server-side no futuro.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li><li>Risco:</li></ul>
+<h2>3) Modulo orientador de polo (OP) e gestor de polos</h2>
+<h3>Submodulo: fila OP</h3>
+<p>priorizar e operar casos do polo com filtros e buckets.</p>
+<p>casos visiveis por polo/perfil.</p>
+<p>abertura de detalhe e acao operacional registrada.</p>
+<p>filtrar, ordenar, abrir caso, atualizar.</p>
+<p>runtime de fila OP, status SLA, eventos.</p>
+<p>medio se excesso de chips/filtros sem padrao de prioridade.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li><li>Acoes:</li><li>Dependencias:</li><li>Risco UX:</li></ul>
+<h3>Submodulo: detalhe do caso OP</h3>
+<p>analisar contexto, consultar orientacao e decidir acao.</p>
+<p>caso selecionado da fila.</p>
+<p>resposta, solicitacao de complemento ou escalonamento.</p>
+<p>registrar resposta, pedir complemento, escalar area.</p>
+<p>playbook operacional, timeline e handoff.</p>
+<p>medio-alto em acao errada se criterios nao estiverem bem estruturados em backend.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li><li>Acoes:</li><li>Dependencias:</li><li>Risco:</li></ul>
+<h3>Submodulo: consultar orientacao OP</h3>
+<p>consultar FAQ/playbook sem abrir caso novo.</p>
+<p>busca por tema e selecao de no.</p>
+<p>orientacao de atendimento e possibilidade de abrir atendimento assistido.</p>
+<p>baixo, com bom valor operacional.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li><li>Risco:</li></ul>
+<h3>Submodulo: abrir atendimento em nome do aluno</h3>
+<p>permitir intake assistido pelo OP com trilha estruturada.</p>
+<p>identificacao do aluno + assunto + evidencias.</p>
+<p>abertura de caso ou acao orientada.</p>
+<p>diretorio de aluno mock e rota de submissao.</p>
+<p>medio se validacoes de campo obrigatorio nao espelharem contrato backend real.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li><li>Dependencias:</li><li>Risco:</li></ul>
+<h2>4) Modulo area (analista e gestor de area)</h2>
+<h3>Submodulo: home gerencial da area</h3>
+<p>dar leitura consolidada de backlog, risco, sem responsavel e gargalos.</p>
+<p>gestor de area.</p>
+<p>intervencao gerencial, redistribuicao e acao sobre governanca.</p>
+<p>baixo no desenho atual; depende de KPI canonico no backend.</p>
+<ul><li>Objetivo:</li><li>Publico:</li><li>Saidas:</li><li>Risco:</li></ul>
+<h3>Submodulo: fila da area</h3>
+<p>organizar casos da area com recortes de ownership e status.</p>
+<p>analista e gestor de area.</p>
+<p>area selecionada, filtros, escopo de visibilidade.</p>
+<p>abertura do detalhe da area.</p>
+<p>medio em casos de URL sem area consistente, observado em relatos anteriores de tela vazia.</p>
+<ul><li>Objetivo:</li><li>Publico:</li><li>Entradas:</li><li>Saidas:</li><li>Risco:</li></ul>
+<h3>Submodulo: detalhe da analise da area</h3>
+<p>guiar decisao tecnica com foco em resolver (nao repassar).</p>
+<p>resumo, contexto OP, antes de decidir, orientacao rapida, resposta da area, historico.</p>
+<p>resposta final &gt; complemento &gt; conclusao interna &gt; encaminhamento excepcional.</p>
+<p>playbook, evidencias, assignment, routing decision.</p>
+<p>medio quando dados de caso chegam incompletos ou fora do escopo da area selecionada.</p>
+<ul><li>Objetivo:</li><li>Estrutura principal:</li><li>Hierarquia de acao:</li><li>Dependencias:</li><li>Risco:</li></ul>
+<h3>Submodulo: conteudo vigente da area</h3>
+<p>consultar base vigente por assunto/subassunto e abrir sugestao de melhoria.</p>
+<p>analista e gestor.</p>
+<p>sugestao para trilha de review/aprovacao.</p>
+<ul><li>Objetivo:</li><li>Publico:</li><li>Saidas:</li></ul>
+<h3>Submodulo: mudancas pendentes</h3>
+<p>revisar/aprovar/rejeitar sugestoes de conhecimento.</p>
+<p>gestor de area.</p>
+<p>decisao de governanca registrada.</p>
+<ul><li>Objetivo:</li><li>Publico:</li><li>Saidas:</li></ul>
+<h3>Submodulo: regras operacionais da area</h3>
+<p>definir visibilidade por assunto/subassunto e disponibilidade das pessoas.</p>
+<p>gestor de area.</p>
+<p>regras que impactam distribuicao e escopo.</p>
+<p>medio em configuracao manual sem simulacao de impacto em massa.</p>
+<ul><li>Objetivo:</li><li>Publico:</li><li>Saidas:</li><li>Risco:</li></ul>
+<h2>5) Modulo admin central</h2>
+<h3>Submodulo: dashboard geral</h3>
+<p>visao executiva de backlog, criticidade, SLA, escalonamentos e auditoria.</p>
+<p>filtros por fila/status/criticidade/tema.</p>
+<p>leitura de risco e priorizacao de governanca.</p>
+<ul><li>Objetivo:</li><li>Entradas:</li><li>Saidas:</li></ul>
+<h3>Submodulo: gestao da FAQ</h3>
+<p>editar arvore, links, highlights e campos operacionais.</p>
+<p>runtimes de FAQ builder.</p>
+<p>medio-alto de complexidade para usuario nao tecnico sem camada simplificada.</p>
+<ul><li>Objetivo:</li><li>Dependencias:</li><li>Risco:</li></ul>
+<h3>Submodulo: parametros (SLA e criticidade)</h3>
+<p>definir niveis oficiais e regras de aplicacao por tema/subtema/fila.</p>
+<p>impacto projetado em casos ativos.</p>
+<ul><li>Objetivo:</li><li>Saidas:</li></ul>
+<h3>Submodulo: permissoes e visibilidade</h3>
+<p>manter matriz de escopo e acoes permitidas por perfil.</p>
+<p>auditoria de mudanca administrativa.</p>
+<ul><li>Objetivo:</li><li>Saidas:</li></ul>
+<h3>Submodulo: publicacao e historico</h3>
+<p>aprovar e publicar versoes canonicas de conhecimento.</p>
+<p>versao ativa para uso operacional.</p>
+<ul><li>Objetivo:</li><li>Saidas:</li></ul>
+<h2>6) Modulo institucional (demonstrativo)</h2>
+<h3>Paginas: visao institucional, triagem, ticket, handoff, integracoes</h3>
+<p>mostrar blueprint de produto, dependencias e contrato de integracao.</p>
+<p>gestao/admin/projeto.</p>
+<p>nao sao o fluxo operacional final de producao; funcionam como documentacao viva em runtime.</p>
+<ul><li>Objetivo:</li><li>Publico:</li><li>Observacao:</li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-5">
+        <header class="doc-header">
+          <h1>04_perfis-e-permissoes</h1>
+          <p>Fonte: 04_perfis-e-permissoes.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Perfis e permissoes</h1>
+<h2>Fonte de verdade analisada</h2>
+<ul><li>[COD] <code>mocks/mockAccessProfiles.js</code></li><li>[COD] <code>src/services/mockContextRuntime.js</code></li><li>[COD] <code>src/router.js</code> (meta <code>allowedProfiles</code> e <code>requiredActions</code>)</li><li>[COD] <code>src/main.js</code> (guard de autenticacao e autorizacao)</li><li>[COD] <code>src/pages/admin/AdminPermissionsPage.vue</code></li></ul>
+<h2>Perfis mapeados</h2>
+<ol><li>aluno</li><li>op (orientador de polo)</li><li>gestor_polos</li><li>analista_area</li><li>gestor_area</li><li>admin_central</li></ol>
+<h2>Quadro de acesso por perfil</h2>
+<h2>Aluno</h2>
+<p>rotas <code>/aluno/*</code>.</p>
+<p>consultar orientacao, abrir protocolo, acompanhar status, responder complemento.</p>
+<p>acessar fila operacional, governanca de area, paginas admin.</p>
+<p>baixo.</p>
+<ul><li>Enxerga:</li><li>Pode fazer:</li><li>Nao pode:</li><li>Risco de confusao:</li></ul>
+<h2>OP</h2>
+<p><code>/op/fila</code>, <code>/op/fila/:caseId</code>, <code>/op/playbook</code>, <code>/op/novo-atendimento</code>.</p>
+<p>resposta inicial, solicitar complemento, escalonar quando necessario, abrir atendimento assistido.</p>
+<p>polos vinculados e filas visiveis do contexto.</p>
+<p>medio em fronteira com gestor de polos se nao houver clareza de responsabilidade.</p>
+<ul><li>Enxerga:</li><li>Pode fazer:</li><li>Escopo:</li><li>Risco de confusao:</li></ul>
+<h2>Gestor de polos</h2>
+<p>mesmas rotas do OP.</p>
+<p>mesmas acoes de atendimento, com visao ampliada por multiplos polos.</p>
+<p>escopo, nao tela distinta.</p>
+<p>sobreposicao de papel com OP em UX.</p>
+<ul><li>Enxerga:</li><li>Pode fazer:</li><li>Diferencial real:</li><li>Risco:</li></ul>
+<h2>Analista de area</h2>
+<p><code>/area/fila</code>, <code>/area/fila/:caseId</code>, <code>/area/orientacao</code>.</p>
+<p>atuacao especializada no caso, pedir complemento, responder, concluir, encaminhar excepcionalmente.</p>
+<p>somente casos elegiveis por area/subassunto ou explicitamente atribuidos.</p>
+<p>medio se elegibilidade real ficar apenas no frontend.</p>
+<ul><li>Enxerga:</li><li>Pode fazer:</li><li>Escopo:</li><li>Risco:</li></ul>
+<h2>Gestor de area</h2>
+<p>tudo do analista + <code>/area/operacao</code>, <code>/area/mudancas</code>, <code>/area/governanca</code>.</p>
+<p>intervencao gerencial (redistribuir, assumir excecao, revisar sugestoes, ajustar regras de escopo/disponibilidade).</p>
+<p>camada gerencial e de governanca (nao apenas "analista com filtro").</p>
+<p>medio se backlog/redistribuicao nao for suportado por backend canonicamente.</p>
+<ul><li>Enxerga:</li><li>Pode fazer:</li><li>Diferencial:</li><li>Risco:</li></ul>
+<h2>Admin central</h2>
+<p>modulo institucional e <code>/admin/*</code>.</p>
+<p>dashboard executivo, editar FAQ, parametros, permissoes, publicacao/versionamento.</p>
+<p>alto de sobrecarga funcional em uma unica persona se governanca nao for delegada por times.</p>
+<ul><li>Enxerga:</li><li>Pode fazer:</li><li>Risco:</li></ul>
+<h2>Permissoes por rota e acao (confirmado)</h2>
+<p>Padrao implementado:</p>
+<ul><li><code>allowedProfiles</code>: filtra perfil elegivel na rota</li><li><code>requiredActions</code>: filtra permissao funcional por acao</li><li><code>requiresAuth</code>: exige sessao</li></ul>
+<p>Exemplos:</p>
+<ul><li><code>/area/governanca</code> exige <code>gestor_area</code> + <code>manage_area_scope</code></li><li><code>/area/mudancas</code> exige <code>gestor_area</code> + <code>approve_knowledge</code></li><li><code>/admin/publicacao</code> exige <code>admin_central</code> + <code>publish_version</code></li></ul>
+<h2>Diferencas de permissao bem resolvidas</h2>
+<ul><li>segregacao de aluno versus operacao/admin</li><li>segregacao de analista versus gestor de area em paginas de governanca</li><li>segregacao de admin para publicacao e parametros globais</li></ul>
+<h2>Onde ha risco de confusao ou sobreposicao</h2>
+<p>Impacto: fronteira de responsabilidade menos clara.</p>
+<ol><li>OP e gestor de polos compartilham quase toda a experiencia de tela.</li></ol>
+<p>Impacto: sem home gerencial forte, gestor pode operar como analista.</p>
+<ol><li>Analista e gestor de area compartilham fila e detalhe.</li></ol>
+<p>Impacto: risco de divergencia quando backend real entrar.</p>
+<ol><li>Escopo por permissao ainda depende de contexto mock para funcionar totalmente.</li></ol>
+<h2>Segmentacao atual: avaliacao</h2>
+<p><strong>boa</strong></p>
+<p><strong>boa</strong></p>
+<p><strong>parcial</strong></p>
+<ul><li>Segmentacao por perfil:</li><li>Segmentacao por acao:</li><li>Segmentacao por dominio de dados real (backend):</li></ul>
+<h2>Pontos para validacao externa</h2>
+<ul><li>Matriz de acao cobre todas as operacoes criticas? (especialmente excecao e publicacao)</li><li>Perfil gestor de polos precisa de camada gerencial propria?</li><li>Escopo de analista em multiplas areas esta consistente em todos os endpoints futuros?</li><li>Admin deve manter todas as alavancas ou parte vai para gestores de dominio?</li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-6">
+        <header class="doc-header">
+          <h1>05_fluxos-completos</h1>
+          <p>Fonte: 05_fluxos-completos.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Fluxos completos ponta a ponta</h1>
+<h2>Metodologia</h2>
+<p>Cada fluxo abaixo segue o padrao solicitado:</p>
+<ul><li>nome do fluxo</li><li>perfil principal</li><li>objetivo</li><li>gatilho</li><li>etapas</li><li>decisoes</li><li>excecoes</li><li>saidas</li><li>escalonamentos</li><li>pontos fortes</li><li>gargalos</li><li>riscos operacionais</li><li>riscos de UX</li><li>pontos para validar</li></ul>
+<hr />
+<h2>Fluxo 1: aluno tenta resolver sem abrir protocolo</h2>
+<p>aluno.</p>
+<p>reduzir protocolos desnecessarios por orientacao guiada.</p>
+<p>aluno acessa <code>/aluno</code> e escolhe "Tenho uma duvida".</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho de entrada:</li></ul>
+<h3>Etapas</h3>
+<p>resolver com orientacao ou continuar para protocolo.</p>
+<ol><li>Aluno entra na jornada (<code>/aluno/duvida</code>).</li><li>Seleciona assunto/subassunto em arvore.</li><li>Le resposta final do no.</li><li>Decide entre:</li></ol>
+<h3>Decisoes</h3>
+<p>encerra sem protocolo.</p>
+<p>segue para <code>/aluno/protocolo</code>.</p>
+<ul><li>Se orientacao resolve:</li><li>Se nao resolve:</li></ul>
+<h3>Excecoes</h3>
+<ul><li>arvore sem no terminal util</li><li>linguagem ambigua para usuario nao tecnico</li></ul>
+<h3>Saidas possiveis</h3>
+<ul><li>resolvido via FAQ</li><li>continuidade para abertura de protocolo</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>indireto: vira protocolo e entra cadeia OP/area.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>reduz carga de abertura desnecessaria</li><li>mantem contexto da navegacao para o protocolo</li></ul>
+<h3>Gargalos</h3>
+<ul><li>profundidade de arvore pode cansar</li><li>qualidade da resposta depende de governanca de conteudo</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>conteudo desatualizado aumentar retrabalho</li></ul>
+<h3>Riscos de UX</h3>
+<ul><li>excesso de texto em no terminal</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>taxa de abandono na jornada</li><li>taxa de "resolvido sem protocolo"</li></ul>
+<hr />
+<h2>Fluxo 2: aluno abre protocolo</h2>
+<p>aluno.</p>
+<p>formalizar caso quando FAQ nao resolve.</p>
+<p>acao "continuar com solicitacao" apos jornada.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<ol><li>Tela de protocolo recebe contexto da jornada.</li><li>Aluno revisa resumo e anexa evidencias.</li><li>Sistema valida campos minimos.</li><li>Protocolo e submetido e gera confirmacao.</li></ol>
+<h3>Decisoes</h3>
+<p>bloqueia envio e pede correcao.</p>
+<p>gera protocolo.</p>
+<ul><li>se faltam dados obrigatorios:</li><li>se valido:</li></ul>
+<h3>Excecoes</h3>
+<ul><li>anexos indisponiveis</li><li>descricao insuficiente</li></ul>
+<h3>Saidas possiveis</h3>
+<ul><li>protocolo criado</li><li>retorno para ajustes no formulario</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>protocolo segue para fila operacional.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>contexto da duvida reaproveitado</li><li>estrutura de validacao explicita</li></ul>
+<h3>Gargalos</h3>
+<ul><li>falta de feedback detalhado por campo em alguns cenarios de mock</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>baixa qualidade de entrada se campos nao forem canonicos no backend</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>confusao se aluno nao entender diferenca entre "enviar" e "acompanhar"</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>aderencia dos campos ao contrato Frappe final</li></ul>
+<hr />
+<h2>Fluxo 3: aluno acompanha solicitacao e responde complemento</h2>
+<p>aluno.</p>
+<p>evitar ruptura de comunicacao apos abertura.</p>
+<p>acesso a <code>/aluno/solicitacoes</code> e detalhe <code>/aluno/solicitacoes/:protocolId</code>.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<ol><li>Aluno ve lista agrupada por status.</li><li>Entra no detalhe do protocolo.</li><li>Le proximo passo.</li><li>Se houver pendencia, envia complemento.</li></ol>
+<h3>Decisoes</h3>
+<p>mostrar CTA de resposta.</p>
+<p>modo consulta.</p>
+<ul><li>pendencia aberta:</li><li>sem pendencia:</li></ul>
+<h3>Excecoes</h3>
+<ul><li>protocolo inexistente no escopo do aluno</li></ul>
+<h3>Saidas</h3>
+<ul><li>complemento enviado</li><li>caso mantido em acompanhamento</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>resposta alimenta OP/area para retomada.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>timeline e proximo passo reduzem ansiedade do aluno</li></ul>
+<h3>Gargalos</h3>
+<ul><li>sem backend real, estados podem divergir do comportamento futuro</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>follow-up sem padronizacao gerar nova ida e volta</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>status sem definicao simples pode confundir usuario leigo</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>nomenclatura de status para publico nao tecnico</li></ul>
+<hr />
+<h2>Fluxo 4: OP opera fila e trata caso</h2>
+<p>orientador de polo.</p>
+<p>resolver o maximo na camada intermediaria.</p>
+<p>acesso a <code>/op/fila</code>.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<p>responder, pedir complemento ou escalar.</p>
+<ol><li>OP filtra e prioriza casos.</li><li>Abre detalhe (<code>/op/fila/:caseId</code>).</li><li>Revisa resumo, historico e orientacao.</li><li>Escolhe acao:</li><li>Sistema registra evento e atualiza caso.</li></ol>
+<h3>Decisoes</h3>
+<p>responder.</p>
+<p>pedir complemento.</p>
+<p>escalar para area.</p>
+<ul><li>base suficiente:</li><li>evidencia insuficiente:</li><li>dependencia especializada:</li></ul>
+<h3>Excecoes</h3>
+<ul><li>caso fora do escopo do polo</li><li>caso ja encerrado</li></ul>
+<h3>Saidas</h3>
+<ul><li>resposta ao aluno</li><li>solicitacao de complemento</li><li>encaminhamento para area</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>para area conforme regras de roteamento/handoff.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>fila e detalhe com foco operacional</li><li>playbook consultavel durante atendimento</li></ul>
+<h3>Gargalos</h3>
+<ul><li>confiabilidade total depende de dados canonicos vindo do backend</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>escalonamento precoce se criterio estiver frouxo</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>excesso de informacao em alguns detalhes de caso</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>taxa real de resolucao no OP</li><li>taxa de escalonamento por tema</li></ul>
+<hr />
+<h2>Fluxo 5: OP abre atendimento em nome do aluno</h2>
+<p>OP.</p>
+<p>assistir aluno quando ele nao consegue abrir sozinho.</p>
+<p>rota <code>/op/novo-atendimento</code>.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<ol><li>OP identifica aluno (diretorio/manual).</li><li>Navega por assunto/subassunto.</li><li>Registra contexto validado.</li><li>Decide abertura, complemento ou escalonamento.</li><li>Confirma envio.</li></ol>
+<h3>Decisoes</h3>
+<ul><li>abrir novo caso</li><li>pedir mais informacao</li><li>escalar ja na abertura (se criterio fechado)</li></ul>
+<h3>Excecoes</h3>
+<ul><li>RA nao localizado</li><li>assunto sem caminho claro</li></ul>
+<h3>Saidas</h3>
+<ul><li>caso criado com contexto estruturado</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>direto para fila/area conforme regra.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>evita abertura informal fora do sistema</li></ul>
+<h3>Gargalos</h3>
+<ul><li>depende de boas regras de validacao para nao gerar ruído</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>OP abrir caso indevido em nome do aluno sem lastro</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>fluxo em multiplas etapas pode cansar sem autosave robusto</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>trilha de auditoria de "abertura assistida por terceiro"</li></ul>
+<hr />
+<h2>Fluxo 6: analista de area trabalha caso especializado</h2>
+<p>analista de area.</p>
+<p>resolver tecnicamente com apoio guiado.</p>
+<p><code>/area/fila</code> &gt; abrir caso <code>/area/fila/:caseId</code>.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<p>resposta final, complemento, conclusao interna ou excecao.</p>
+<ol><li>Analista escolhe area/escopo e abre caso.</li><li>Le resumo, contexto OP e historico.</li><li>Passa por bloco "Antes de decidir".</li><li>Consulta orientacao rapida da area.</li><li>Executa acao:</li></ol>
+<h3>Decisoes</h3>
+<ul><li>acao principal: responder</li><li>secundaria: pedir complemento</li><li>terciaria: concluir analise interna</li><li>excepcional: encaminhar para outra area</li></ul>
+<h3>Excecoes</h3>
+<ul><li>caso atribuido para outro analista</li><li>caso fora da area selecionada (pode gerar tela vazia se URL inconsistente)</li></ul>
+<h3>Saidas</h3>
+<ul><li>resposta ao aluno + OP</li><li>complemento ao aluno + OP</li><li>conclusao interna</li><li>encaminhamento excepcional registrado</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>apenas no fluxo excepcional.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>hierarquia de acao bem explicita</li><li>reencaminhamento com motivo estruturado</li></ul>
+<h3>Gargalos</h3>
+<ul><li>alguns casos relatados com abertura em branco por mismatch de area na URL</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>conclusao sem resposta final em contrato backend (precisa regra dura)</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>carga textual ainda alta em trechos do detalhe</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>bloqueio tecnico de concluir sem resposta final ao aluno</li></ul>
+<hr />
+<h2>Fluxo 7: gestor de area supervisiona operacao e intervem</h2>
+<p>gestor de area.</p>
+<p>equilibrar carga, atacar gargalo e governar escopo.</p>
+<p>acesso <code>/area/operacao</code>.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<ol><li>Le KPIs de backlog/risco/sem responsavel.</li><li>Abre fila ou caso critico.</li><li>Intervem em atribuicao, excecao ou reencaminhamento.</li><li>Ajusta regras operacionais (<code>/area/governanca</code>).</li><li>Revisa mudancas de conhecimento (<code>/area/mudancas</code>).</li></ol>
+<h3>Decisoes</h3>
+<ul><li>redistribuir caso</li><li>assumir caso</li><li>aprovar/rejeitar sugestao</li><li>ajustar visibilidade e disponibilidade</li></ul>
+<h3>Excecoes</h3>
+<ul><li>excecao gerencial fora do fluxo padrao da FAQ</li></ul>
+<h3>Saidas</h3>
+<ul><li>operacao estabilizada</li><li>governanca atualizada</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>para admin quando decisao excede area local.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>separacao mais clara entre papel gerencial e papel executor</li></ul>
+<h3>Gargalos</h3>
+<ul><li>sem backend real, metricas podem nao refletir latencia/concorrencia reais</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>intervencao manual excessiva se motor automatico nao for confiavel</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>risco de dashboard ficar denso sem foco em acao</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>qualidade de sugestao de redistribuicao em volume real</li></ul>
+<hr />
+<h2>Fluxo 8: governanca de conhecimento (sugestao -&gt; revisao -&gt; publicacao)</h2>
+<p>analista, gestor de area, admin.</p>
+<p>evoluir FAQ/playbook com trilha auditavel.</p>
+<p>analista identifica lacuna no conteudo.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<ol><li>Analista envia sugestao no modulo de orientacao.</li><li>Sugestao entra como <code>Pending Review</code>.</li><li>Gestor/admin revisa e decide.</li><li>Versao aprovada pode virar publicacao imutavel.</li><li>Casos passam a usar versao nova em usos futuros.</li></ol>
+<h3>Decisoes</h3>
+<ul><li>aprovar, rejeitar, implementar, superseder</li><li>aprovar/publicar bundle version</li></ul>
+<h3>Excecoes</h3>
+<ul><li>sugestao duplicada</li><li>conflito entre sugestoes simultaneas</li></ul>
+<h3>Saidas</h3>
+<ul><li>conteudo vigente atualizado com historico</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>admin central para publicacao global.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>workflow canonico ja explicito</li></ul>
+<h3>Gargalos</h3>
+<ul><li>sem diff visual sofisticado</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>publicar sem criterio claro de impacto</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>editor admin ainda tecnico para usuario nao especialista</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>politica de aprovacao por area versus central</li></ul>
+<hr />
+<h2>Fluxo 9: distribuicao automatica de caso de area</h2>
+<p>motor runtime + gestor/analista como consumidores.</p>
+<p>atribuir caso de forma coerente com elegibilidade e disponibilidade.</p>
+<p>caso entra em area sem responsavel.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<ol><li>filtra area responsavel</li><li>filtra assunto/subassunto elegivel</li><li>remove regras inativas</li><li>remove indisponiveis</li><li>pondera capacidade</li><li>calcula carga ativa</li><li>considera risco SLA</li><li>escolhe melhor candidato</li><li>registra scoreSummary e motivo</li></ol>
+<h3>Decisoes</h3>
+<p>gera <code>unassigned_exception</code>.</p>
+<ul><li>se nao houver candidato:</li></ul>
+<h3>Excecoes</h3>
+<ul><li>indisponibilidade global sem area</li><li>capacidade reduzida para todos elegiveis</li></ul>
+<h3>Saidas</h3>
+<ul><li>assignment automatico ou pendente sem responsavel</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>gestor pode sobrescrever manualmente.</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>criterio explicito, sem caixa preta</li></ul>
+<h3>Gargalos</h3>
+<ul><li>depende da qualidade do cadastro de disponibilidade e elegibilidade</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>fairness ruim se carga ativa no backend nao estiver consistente</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>explicabilidade da escolha precisa aparecer claramente para gestor</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>comportamento sob pico simultaneo e concorrencia real</li></ul>
+<hr />
+<h2>Fluxo 10: governanca admin de parametros e permissao</h2>
+<p>admin central.</p>
+<p>padronizar criticidade, SLA, escopo e trilha de mudanca.</p>
+<p>acesso a <code>/admin/parametros</code> e <code>/admin/permissoes</code>.</p>
+<ul><li>Perfil principal:</li><li>Objetivo:</li><li>Gatilho:</li></ul>
+<h3>Etapas</h3>
+<ol><li>admin revisa niveis oficiais</li><li>ajusta regra por tema/subtema/fila</li><li>visualiza impacto projetado</li><li>edita matriz de permissao</li><li>salva e gera log administrativo</li></ol>
+<h3>Decisoes</h3>
+<ul><li>nivel oficial</li><li>regra ativa/inativa</li><li>escopo por perfil</li></ul>
+<h3>Excecoes</h3>
+<ul><li>conflito entre regras</li><li>escopo global excessivo</li></ul>
+<h3>Saidas</h3>
+<ul><li>governanca operacional ajustada</li></ul>
+<h3>Escalonamentos</h3>
+<ul><li>impacto desce para OP/area/aluno via runtime comum</li></ul>
+<h3>Pontos fortes</h3>
+<ul><li>painel com simulacao de impacto</li></ul>
+<h3>Gargalos</h3>
+<ul><li>necessidade de reconciliar essas regras com backend final</li></ul>
+<h3>Riscos operacionais</h3>
+<ul><li>erro administrativo afetar muitos casos ao mesmo tempo</li></ul>
+<h3>Riscos UX</h3>
+<ul><li>interfaces densas para administradores sem treino</li></ul>
+<h3>Pontos para validar</h3>
+<ul><li>modelo de rollback seguro por versao de parametro/permissao</li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-7">
+        <header class="doc-header">
+          <h1>06_catalogo-de-telas</h1>
+          <p>Fonte: 06_catalogo-de-telas.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Catalogo de telas</h1>
+<h2>Escopo deste catalogo</h2>
+<p>Foram catalogadas todas as telas encontradas em <code>src/router.js</code> e suas paginas associadas em <code>src/pages</code>. Quando nao houve print dedicado, a tela foi registrada como "documentada por codigo".</p>
+<p>Legenda de evidencia:</p>
+<ul><li>[OBS] tela observada no ambiente local e/ou print existente</li><li>[COD] comportamento confirmado no codigo</li><li>[INF] inferencia tecnica plausivel</li></ul>
+<hr />
+<h2>Tela 01 - acesso local por perfil</h2>
+<p>Acesso local por perfil.</p>
+<p><code>/acesso-local/:profileKey?</code></p>
+<p>uso interno de desenvolvimento.</p>
+<p>selecionar perfil mock e entrar direto no fluxo correspondente.</p>
+<p>em ambiente com bypass local habilitado.</p>
+<p>cards de perfis agrupados por shell (student, operational, governance).</p>
+<p>escolher perfil e redirecionar.</p>
+<p>brand/header, grupos de shell, cards de perfil.</p>
+<p>sem formulario, apenas selecao por card.</p>
+<p>qual persona simular.</p>
+<p>ativar contexto mock e abrir rota default do perfil.</p>
+<p><code>authStore</code>, <code>mockContextRuntime</code>, <code>ssoClient</code>.</p>
+<p>acelera QA funcional por papel.</p>
+<p>dependencia de variavel de ambiente.</p>
+<p>baixo, por ser tela de dev.</p>
+<p>confirmar se perfil persistido em sessao nao contamina testes cruzados.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/geral/01-acesso-local.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que o usuario ve:</li><li>O que o usuario pode fazer:</li><li>Componentes e blocos:</li><li>Campos e filtros:</li><li>Principais decisoes/interacoes:</li><li>Resultado esperado de cada acao:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Riscos de confusao:</li><li>Sugestoes de validacao:</li><li>Evidencia usada:</li><li>Print relacionado:</li></ul>
+<hr />
+<h2>Tela 02 - login institucional</h2>
+<p>Login UNIVESP.</p>
+<p><code>/login</code></p>
+<p>todos (entrada publica).</p>
+<p>iniciar autenticacao institucional e classificar fluxo por email.</p>
+<p>usuario anonimo sem bypass local.</p>
+<p>campo email institucional e atalhos de login por fluxo.</p>
+<p>enviar email, iniciar SSO, acessar modo local se habilitado.</p>
+<p>hero de autenticacao, formulario, aviso de Azure nao configurado, atalhos.</p>
+<p>email (obrigatorio).</p>
+<p>escolha de canal de login.</p>
+<p>redirect para Azure/SAML.</p>
+<p><code>authStore</code>, <code>ssoClient</code>.</p>
+<p>entrada unica e clara.</p>
+<p>mensagens tecnicas de configuracao podem poluir para usuario final se expostas.</p>
+<p>medio em ambientes mal configurados.</p>
+<p>teste de erro de callback e expiracao de sessao.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/geral/02-login.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que o usuario ve:</li><li>O que pode fazer:</li><li>Componentes e blocos:</li><li>Campos e filtros:</li><li>Decisoes/interacoes:</li><li>Resultado esperado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Riscos de confusao:</li><li>Sugestoes de validacao:</li><li>Evidencia usada:</li><li>Print relacionado:</li></ul>
+<hr />
+<h2>Tela 03 - visao institucional</h2>
+<p>Visao institucional.</p>
+<p><code>/</code></p>
+<p>admin central.</p>
+<p>contextualizar posicionamento, personas e etapas do frontend.</p>
+<p>apos login admin central.</p>
+<p>cards de estrategia, personas, pilares, entregas.</p>
+<p>navegar para triagem e integracoes.</p>
+<p><code>SectionPanel</code>, <code>MetricCard</code>, <code>StageCard</code>.</p>
+<p>sem filtros operacionais.</p>
+<p>priorizacao de roadmap.</p>
+<p>navegacao para modulos institucionais.</p>
+<p><code>flowBlueprint</code>, <code>frontendBlueprint</code>, mocks de personas.</p>
+<p>boa leitura executiva.</p>
+<p>nao e tela de operacao real.</p>
+<p>ser confundida com dashboard operacional.</p>
+<p>manter etiqueta de "documentacao viva".</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/06-visao-institucional-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 04 - triagem institucional</h2>
+<p>Entrada e triagem.</p>
+<p><code>/triagem</code></p>
+<p>admin central.</p>
+<p>demonstrar fluxo de perguntas iniciais por assunto.</p>
+<p>navegacao institucional.</p>
+<p>catalogo de fluxos, perguntas, snapshot para ticket.</p>
+<p>escolher fluxo, responder perguntas, ir para contrato de ticket.</p>
+<p><code>QuestionStep</code>, paines de resumo e campos minimos.</p>
+<p>respostas por questao.</p>
+<p>completar contexto minimo.</p>
+<p>contexto para pagina <code>/ticket</code>.</p>
+<p><code>journeyStore</code>, <code>attendanceFlows</code>.</p>
+<p>didatico para desenhar intake.</p>
+<p>ainda blueprint, nao intake final do produto.</p>
+<p>expectativa de feature pronta de triagem final.</p>
+<p>validar se esta tela ficara oculta em producao.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/07-triagem-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 05 - contrato de ticket</h2>
+<p>Registro do protocolo.</p>
+<p><code>/ticket</code></p>
+<p>admin central.</p>
+<p>mostrar payload e operacoes previstas para Frappe.</p>
+<p>apos triagem institucional.</p>
+<p>metricas de ticket, payload JSON, operacoes esperadas.</p>
+<p>simular criacao de ticket no backend.</p>
+<p>painel de payload, painel de operacoes e notas de modelagem.</p>
+<p>sem edicao principal; acao de submissao.</p>
+<p>validar contrato frontend-backend.</p>
+<p>ticket remoto de teste e feedback de sucesso/erro.</p>
+<p><code>frappeClient</code>, <code>journeyStore</code>.</p>
+<p>explicita contrato de integracao.</p>
+<p>nao cobre ainda regras reais de negocio da operacao.</p>
+<p>confundir prototipo de integracao com implementacao definitiva.</p>
+<p>usar como base de API contract review.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/08-ticket-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 06 - handoff institucional</h2>
+<p>Escalacao humana.</p>
+<p><code>/handoff</code></p>
+<p>admin central.</p>
+<p>mostrar pacote de transferencia para atendimento humano.</p>
+<p>na trilha institucional.</p>
+<p>motivo de escalacao, pacote de dados e checklist de atendente.</p>
+<p>revisar itens de handoff e seguir para integracoes.</p>
+<p>metricas, pacote narrativo, checklist e proximos passos.</p>
+<p>sem campos de edicao.</p>
+<p>qual contexto minimo deve sempre acompanhar caso escalado.</p>
+<p>orienta definicao de contrato de handoff.</p>
+<p><code>journeyStore.transferBrief</code>.</p>
+<p>foco em continuidade de contexto.</p>
+<p>sem acao operacional real.</p>
+<p>baixo (tela de blueprint).</p>
+<p>validar com operacao real se checklist e suficiente.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/09-handoff-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 07 - integracoes e governanca institucional</h2>
+<p>Integracoes e governanca.</p>
+<p><code>/integracoes</code></p>
+<p>admin central.</p>
+<p>documentar rotas, estrutura, SSO, variaveis e modulos.</p>
+<p>trilha institucional.</p>
+<p>blueprint de arquitetura e dependencias.</p>
+<p>inspecionar mapas de integracao.</p>
+<p>listas de rotas, claims SAML, env vars, estrutura de pastas.</p>
+<p>nao possui.</p>
+<p>planejamento tecnico e readiness.</p>
+<p>clareza de acoplamentos e lacunas de integracao.</p>
+<p><code>flowBlueprint</code>, <code>frontendBlueprint</code>, <code>samlAuth</code>.</p>
+<p>boa transparencia tecnica.</p>
+<p>densidade de informacao alta.</p>
+<p>baixa legibilidade para publico nao tecnico.</p>
+<p>separar visao executiva e visao tecnica.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/10-integracoes-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 08 - home do aluno</h2>
+<p>Como podemos ajudar?</p>
+<p><code>/aluno</code></p>
+<p>aluno.</p>
+<p>entrada simples para duvida ou acompanhamento.</p>
+<p>aluno autenticado.</p>
+<p>cards de acao principal e busca rapida de orientacao.</p>
+<p>ir para jornada, abrir solicitacoes, consultar assunto direto.</p>
+<p>cards de acesso e painel de busca.</p>
+<p>campo de busca.</p>
+<p>resolver agora ou acompanhar protocolo.</p>
+<p>navegacao para proxima etapa.</p>
+<p>store de jornada e base de conhecimento.</p>
+<p>entrada objetiva.</p>
+<p>pouca contextualizacao de status sem ir para solicitacoes.</p>
+<p>baixo.</p>
+<p>medir uso da busca versus navegacao por temas.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/aluno/01-home-aluno.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 09 - jornada de duvida do aluno</h2>
+<p>Tenho uma duvida.</p>
+<p><code>/aluno/duvida</code></p>
+<p>aluno.</p>
+<p>resolver por orientacao antes de abrir protocolo.</p>
+<p>acao da home do aluno.</p>
+<p>arvore de assuntos/subassuntos e respostas.</p>
+<p>avancar em nos, voltar e decidir abrir protocolo.</p>
+<p>cards de no, breadcrumbs/estado atual, CTA de continuidade.</p>
+<p>selecao de no.</p>
+<p>resolvido via FAQ ou seguir para protocolo.</p>
+<p>encerramento em autosservico ou transicao para formulario.</p>
+<p>knowledge bundle vigente.</p>
+<p>apoia deflexao de demanda.</p>
+<p>se no final for vago, usuario avanca sem clareza.</p>
+<p>medio em cobertura de conteudo.</p>
+<p>validar qualidade de resposta por tema critico.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/aluno/02-jornada-duvida.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 10 - minhas solicitacoes</h2>
+<p>Minhas solicitacoes.</p>
+<p><code>/aluno/solicitacoes</code></p>
+<p>aluno.</p>
+<p>acompanhar todos os protocolos e pendencias.</p>
+<p>navegacao do aluno.</p>
+<p>lista agrupada por status (rascunho, acao requerida, aguardando, concluidos).</p>
+<p>filtrar, abrir detalhe, retomar rascunho.</p>
+<p>cards/lista com status e prazo.</p>
+<p>busca e recorte por periodo/status.</p>
+<p>qual protocolo priorizar.</p>
+<p>navegacao para detalhe.</p>
+<p>runtime de requests do aluno.</p>
+<p>boa visibilidade de pendencias.</p>
+<p>pode ficar extensa sem paginacao server-side.</p>
+<p>medio em escala.</p>
+<p>validar paginação e ordenacao por urgencia.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/aluno/03-minhas-solicitacoes.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 11 - detalhe da solicitacao do aluno</h2>
+<p>Detalhe da solicitacao.</p>
+<p><code>/aluno/solicitacoes/:protocolId</code></p>
+<p>aluno.</p>
+<p>mostrar historico, proximo passo e formulario de complemento.</p>
+<p>abertura de item da lista.</p>
+<p>timeline, status atual, orientacao de acao e anexos.</p>
+<p>enviar informacao complementar quando solicitado.</p>
+<p>cabecalho do protocolo, bloco de proximo passo, historico.</p>
+<p>textarea e possivel anexo de follow-up.</p>
+<p>responder agora ou aguardar.</p>
+<p>complemento registrado no caso.</p>
+<p><code>studentSupportFlow</code> e store central.</p>
+<p>explica "o que fazer agora".</p>
+<p>status complexos podem exigir legenda.</p>
+<p>medio de interpretacao.</p>
+<p>testar entendimento em usuario sem perfil tecnico.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/aluno/04-detalhe-solicitacao.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 12 - formulario de protocolo do aluno</h2>
+<p>Continuar com a solicitacao.</p>
+<p><code>/aluno/protocolo</code></p>
+<p>aluno.</p>
+<p>finalizar abertura de caso.</p>
+<p>apos jornada de duvida ou acesso direto.</p>
+<p>resumo do assunto, formulario de descricao e anexos.</p>
+<p>editar conteudo, validar e enviar.</p>
+<p>bloco de contexto, campos obrigatorios, CTA de enviar.</p>
+<p>descricao, anexos, dados complementares.</p>
+<p>enviar ou voltar para ajustar.</p>
+<p>protocolo criado e redirecionamento para confirmacao.</p>
+<p>validacao de draft e submissao.</p>
+<p>fluxo direto.</p>
+<p>sem backend real, confirmacao depende de mock.</p>
+<p>baixo no prototipo; medio na integracao.</p>
+<p>validar mensagens de erro de rede/backend.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/aluno/05-abertura-protocolo.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 13 - confirmacao de envio do aluno</h2>
+<p>Confirmacao.</p>
+<p><code>/aluno/confirmacao/:protocolId</code></p>
+<p>aluno.</p>
+<p>confirmar resultado de envio e orientar proximo passo.</p>
+<p>apos submit de protocolo ou resolucao guiada.</p>
+<p>mensagem de confirmacao e referencia do protocolo.</p>
+<p>seguir para acompanhamento.</p>
+<p>card de confirmacao e CTA de continuidade.</p>
+<p>nao possui.</p>
+<p>ir para lista de solicitacoes.</p>
+<p>encerramento da etapa de abertura.</p>
+<p>estado de submissao.</p>
+<p>fecha ciclo com feedback.</p>
+<p>sem print dedicado no pacote atual.</p>
+<p>baixo.</p>
+<p>validar condicao para protocolo invalido na URL.</p>
+<p>[COD] (sem observacao visual dedicada nesta rodada).</p>
+<p>documentado por codigo.</p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia usada:</li><li>Print relacionado:</li></ul>
+<hr />
+<h2>Tela 14 - fila OP (orientador de polo)</h2>
+<p>Atendimentos.</p>
+<p><code>/op/fila</code></p>
+<p>op e gestor_polos.</p>
+<p>operar backlog do polo.</p>
+<p>entrada operacional.</p>
+<p>buckets, filtros, tabela/lista de casos, SLA, prioridade.</p>
+<p>filtrar, buscar, abrir caso.</p>
+<p>chips de bucket, filtros rapidos, tabela com CTA "Abrir".</p>
+<p>busca, status, responsavel, bucket.</p>
+<p>qual caso abrir primeiro.</p>
+<p>navegacao para detalhe.</p>
+<p><code>operatorQueueRuntime</code>.</p>
+<p>visao operacional objetiva.</p>
+<p>densidade visual pode subir com muitos campos.</p>
+<p>medio em escala se nao houver virtualizacao/paginacao.</p>
+<p>validar performance com volume alto.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/orientador/01-fila-op.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 15 - detalhe do caso OP</h2>
+<p>Analise do caso (OP).</p>
+<p><code>/op/fila/:caseId</code></p>
+<p>op e gestor_polos.</p>
+<p>tomar decisao operacional com contexto completo.</p>
+<p>acao "Abrir" na fila.</p>
+<p>resumo, historico, orientacao e bloco de acao.</p>
+<p>responder, pedir complemento, escalar.</p>
+<p>header do caso, secoes de contexto, painel de decisao.</p>
+<p>texto de resposta/solicitacao, selecao de destino em escalonamento.</p>
+<p>resolver na camada OP ou escalar.</p>
+<p>evento operacional registrado e status atualizado.</p>
+<p>store central, knowledge usage, routing.</p>
+<p>integra contexto e acao na mesma tela.</p>
+<p>requer disciplina de preenchimento para rastreabilidade forte.</p>
+<p>medio em acoes sem checklist obrigatorio.</p>
+<p>validar bloqueios para evitar escalonamento sem justificativa.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/orientador/02-detalhe-caso-op.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 16 - consultar orientacao OP</h2>
+<p>Consultar orientacao.</p>
+<p><code>/op/playbook</code></p>
+<p>op e gestor_polos.</p>
+<p>consultar FAQ/playbook sem abrir caso novo.</p>
+<p>menu operacional.</p>
+<p>busca, navegacao por tema/subtema e orientacao operacional.</p>
+<p>consultar orientacao, abrir fluxo de atendimento assistido.</p>
+<p>lista de assuntos, bloco de resposta, CTA para novo atendimento.</p>
+<p>campo de busca por assunto.</p>
+<p>usar orientacao para responder ou abrir caso assistido.</p>
+<p>apoio a atendimento em curso ou criacao de novo caso.</p>
+<p>knowledge runtime.</p>
+<p>alto valor de consulta rapida.</p>
+<p>se busca nao achar termos sinonimos, pode frustrar.</p>
+<p>medio de coverage sem motor semantico.</p>
+<p>validar sinonimos e termos operacionais regionais.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/orientador/03-consultar-orientacao-op.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 17 - abrir atendimento em nome do aluno (OP)</h2>
+<p>Abrir atendimento em nome do aluno.</p>
+<p><code>/op/novo-atendimento</code></p>
+<p>op e gestor_polos.</p>
+<p>registrar intake assistido com trilha formal.</p>
+<p>menu operacional.</p>
+<p>wizard de identificacao, classificacao e confirmacao.</p>
+<p>localizar aluno, definir assunto, registrar verificacoes e submeter.</p>
+<p>etapas, campos de contexto, resumo final.</p>
+<p>RA/nome, assunto, justificativa, acao desejada.</p>
+<p>abrir, complementar ou escalar.</p>
+<p>novo protocolo com contexto estruturado.</p>
+<p>dados de aluno e knowledge path.</p>
+<p>formaliza atendimento assistido.</p>
+<p>processo pode ficar longo sem autosave.</p>
+<p>medio de abandono.</p>
+<p>validar tempo medio da jornada assistida.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/orientador/04-abrir-atendimento-op.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 18 - fila gestor de polos</h2>
+<p>Atendimentos (escopo gestor de polos).</p>
+<p><code>/op/fila</code></p>
+<p>gestor_polos.</p>
+<p>mesma operacao do OP com visao ampliada.</p>
+<p>perfil gestor_polos autenticado.</p>
+<p>fila com abrangencia maior de polos.</p>
+<p>mesmas acoes do OP.</p>
+<p>iguais ao modulo OP.</p>
+<p>iguais ao modulo OP.</p>
+<p>priorizacao por multiplos polos.</p>
+<p>abertura de detalhe/acao.</p>
+<p>mockContext com linkedPolos ampliado.</p>
+<p>reuso de interface.</p>
+<p>diferencial gerencial baixo.</p>
+<p>sobreposicao de papel.</p>
+<p>avaliar home gerencial propria para gestor de polos.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/orientador/05-fila-gestor-polos.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 19 - detalhe gestor de polos</h2>
+<p>Analise do caso (gestor de polos).</p>
+<p><code>/op/fila/:caseId</code></p>
+<p>gestor_polos.</p>
+<p>atuar em caso com escopo ampliado.</p>
+<p>abertura de caso na fila do gestor de polos.</p>
+<p>mesma estrutura do detalhe OP.</p>
+<p>mesmas acoes operacionais.</p>
+<p>iguais ao OP.</p>
+<p>iguais ao OP.</p>
+<p>resolver/pedir complemento/escalar.</p>
+<p>trilha operacional registrada.</p>
+<p>runtime OP.</p>
+<p>consistencia de treinamento.</p>
+<p>falta camada explicitamente gerencial.</p>
+<p>gestor operar como atendente.</p>
+<p>incluir visao consolidada por polo para esse perfil no futuro.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/orientador/06-detalhe-gestor-polos.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 20 - home gerencial de area</h2>
+<p>Operacao da area.</p>
+<p><code>/area/operacao</code></p>
+<p>gestor_area.</p>
+<p>dar leitura consolidada da saude operacional da area.</p>
+<p>entrada padrao do gestor de area.</p>
+<p>KPIs de backlog, risco SLA, sem responsavel, distribuicao e gargalos.</p>
+<p>navegar para fila, governanca e mudancas pendentes.</p>
+<p>cards KPI, listas de excecao, atalhos de intervencao.</p>
+<p>filtros por area/status/assunto (conforme runtime).</p>
+<p>onde intervir primeiro.</p>
+<p>acao gerencial mais rapida.</p>
+<p><code>areaManagerRuntime</code> + store canonico.</p>
+<p>diferencia papel de gestor.</p>
+<p>a qualidade dos KPIs depende da consistencia do runtime.</p>
+<p>medio sem backend analitico consolidado.</p>
+<p>validar 5 KPIs realmente acionaveis e remover ruído.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/gestor/01-home-gestor-area.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 21 - fila da area (analista/gestor)</h2>
+<p>Casos da area.</p>
+<p><code>/area/fila</code></p>
+<p>analista_area e gestor_area.</p>
+<p>listar casos da area com recorte por ownership e status.</p>
+<p>menu "Casos da area".</p>
+<p>chips de escopo (meus, sem responsavel, aguardando complemento, concluidos), filtros e tabela.</p>
+<p>filtrar, atualizar e abrir caso.</p>
+<p>atalhos de escopo, filtros, tabela com contexto recebido do OP.</p>
+<p>busca, status, responsavel, atalho de bucket/escopo.</p>
+<p>prioridade de atuacao.</p>
+<p>navegacao para detalhe.</p>
+<p><code>areaQueueRuntime</code>.</p>
+<p>reforca ownership e resolucao.</p>
+<p>depende da area selecionada no header para consistencia.</p>
+<p>medio de tela vazia em URL com area divergente.</p>
+<p>enforce de area canonica na URL e fallback mais robusto.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/analista/01-fila-analista-area.png</code>, <code>assets/screens/gestor/02-fila-gestor-area.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 22 - detalhe da analise da area</h2>
+<p>Analise da area.</p>
+<p><code>/area/fila/:caseId</code></p>
+<p>analista_area e gestor_area.</p>
+<p>conduzir decisao tecnica com baixo erro.</p>
+<p>acao "Abrir" na fila da area.</p>
+<p>ordem cognitiva de decisao (resumo, contexto OP, antes de decidir, orientacao, resposta, historico).</p>
+<p>enviar resposta ao aluno/OP, pedir complemento, concluir analise interna, encaminhar excepcionalmente.</p>
+<p>blocos de pre-decisao, sugestao de saida, formulario de acao, confirmacao.</p>
+<p>texto de resposta, motivo estruturado de excecao, area destino, checklist de conclusao.</p>
+<p>qual acao aplicar e se existe excecao real.</p>
+<p>evento de area, atualizacao de status/assignment/routing/knowledge usage.</p>
+<p><code>areaQueueRuntime</code>, store, regras de escopo/assignment.</p>
+<p>hierarquia de acao explicita e reencaminhamento rebaixado.</p>
+<p>carga textual ainda alta em algumas secoes.</p>
+<p>acao inconsistente se dados de caso estiverem incompletos.</p>
+<p>fortalecer bloqueio para concluir sem resposta final ao aluno.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/analista/02-detalhe-analista-area.png</code>, <code>assets/screens/gestor/03-detalhe-gestor-area.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 23 - detalhe de area vazio (erro/edge observado)</h2>
+<p>Analise da area sem conteudo.</p>
+<p><code>/area/fila/:caseId</code> (cenario com mismatch de area/escopo).</p>
+<p>analista_area ou gestor_area.</p>
+<p>nao e objetivo funcional; representa estado de falha observado.</p>
+<p>quando caso nao e resolvido no escopo/area da URL.</p>
+<p>estrutura vazia sem corpo do caso.</p>
+<p>voltar para fila.</p>
+<p>somente shell e navegacao.</p>
+<p>nao possui.</p>
+<p>recuperar contexto correto.</p>
+<p>risco de bloqueio operacional.</p>
+<p>resolucao de caso por area (<code>areaCaseById</code> + <code>areaQueueRuntime</code>).</p>
+<p>nenhum relevante.</p>
+<p>estado de erro sem mensagem explicita.</p>
+<p>alto para confianca do operador.</p>
+<p>mostrar mensagem clara de "caso fora do escopo selecionado" com CTA de correcao.</p>
+<p>[OBS].</p>
+<p><code>assets/screens/analista/03-detalhe-analista-vazio.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 24 - conteudo vigente da area</h2>
+<p>Conteudo vigente da area.</p>
+<p><code>/area/orientacao</code></p>
+<p>analista_area e gestor_area.</p>
+<p>consultar orientacao por assunto/subassunto e registrar sugestao.</p>
+<p>menu "Conteudo vigente".</p>
+<p>lista de conteudo aprovado, detalhe do no e formulario de sugestao.</p>
+<p>consultar e sugerir melhoria.</p>
+<p>painel de busca/seletores, painel de orientacao, painel de sugestao.</p>
+<p>tema, subassunto, texto da sugestao, tipo de ajuste.</p>
+<p>quando abrir sugestao de correcao.</p>
+<p>sugestao entra em <code>Pending Review</code>.</p>
+<p>knowledge bundle publicado e store de sugestoes.</p>
+<p>conecta operacao com melhoria continua.</p>
+<p>pode competir com foco de atendimento se acessado no meio da decisao.</p>
+<p>medio de dispersao cognitiva.</p>
+<p>manter consulta leve; sugestao detalhada pode ser assicrona.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/analista/04-conteudo-vigente-analista.png</code>, <code>assets/screens/gestor/04-conteudo-vigente-gestor.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 25 - mudancas pendentes da area</h2>
+<p>Mudancas pendentes.</p>
+<p><code>/area/mudancas</code></p>
+<p>gestor_area.</p>
+<p>revisar, aprovar ou rejeitar sugestoes operacionais.</p>
+<p>menu do gestor de area.</p>
+<p>fila de sugestoes com status e detalhe.</p>
+<p>aprovar/rejeitar e registrar justificativa.</p>
+<p>lista de sugestoes, detalhe da proposta, botoes de decisao.</p>
+<p>status, assunto, autor, texto de review.</p>
+<p>aceitar ou recusar melhoria proposta.</p>
+<p>mudanca de status da sugestao e trilha de review.</p>
+<p><code>knowledgeSuggestions</code>, <code>knowledgeSuggestionReviews</code>.</p>
+<p>governanca clara.</p>
+<p>sem comparador de versao visual nesta fase.</p>
+<p>medio de decisao manual lenta em alto volume.</p>
+<p>priorizacao por impacto/repeticao de tema.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/gestor/05-mudancas-pendentes-gestor.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 26 - regras operacionais da area</h2>
+<p>Regras operacionais da area.</p>
+<p><code>/area/governanca</code></p>
+<p>gestor_area.</p>
+<p>configurar visibilidade por assunto e disponibilidade do time.</p>
+<p>menu do gestor de area.</p>
+<p>regras de assunto/subassunto, disponibilidade e capacidade.</p>
+<p>editar elegibilidade, restringir assuntos, registrar ausencia/ferias/licenca.</p>
+<p>formularios de regra, listas de configuracao e historico.</p>
+<p>area, assunto, subassunto, modo de acesso, usuarios elegiveis, janela temporal.</p>
+<p>quem pode ver/atuar e quando.</p>
+<p>impacta distribuicao automatica e escopo de fila.</p>
+<p><code>areaSubjectEligibilityRules</code>, <code>userAvailabilityCatalog</code>.</p>
+<p>regra operacional explicita, nao apenas filtro visual.</p>
+<p>configuracao pode ser complexa sem assistente.</p>
+<p>alto se regra mal configurada bloquear atendimento.</p>
+<p>incluir simulacao de impacto antes de salvar.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/gestor/06-regras-operacionais-gestor.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 27 - dashboard admin central</h2>
+<p>Dashboard geral.</p>
+<p><code>/admin/dashboard</code></p>
+<p>admin_central.</p>
+<p>leitura executiva de operacao com filtros.</p>
+<p>menu admin.</p>
+<p>KPIs, resumo por fila, auditoria, casos de atencao e cards de governanca.</p>
+<p>filtrar por fila/status/criticidade/tema.</p>
+<p>metric cards, listas executivas, trilha de auditoria.</p>
+<p>filtros globais de leitura.</p>
+<p>onde atacar risco operacional.</p>
+<p>priorizacao de acao administrativa.</p>
+<p><code>adminDashboardRuntime</code>.</p>
+<p>painel acionavel, nao apenas estetico.</p>
+<p>depende de qualidade de dados unificada.</p>
+<p>medio em divergencia de status entre modulos.</p>
+<p>definir KPI canonico e dicionario de metricas.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/01-dashboard-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 28 - gestao da FAQ admin</h2>
+<p>Gestao da FAQ.</p>
+<p><code>/admin/faq</code></p>
+<p>admin_central.</p>
+<p>editar arvore de conhecimento e highlights.</p>
+<p>menu admin.</p>
+<p>arvore de nos, editor de campos, relacoes, validacao, calendario.</p>
+<p>alterar tema/subtema/pergunta/resposta, links e metadados operacionais.</p>
+<p>arvore, editor de no, editor de highlight, painel de governanca.</p>
+<p>diversos campos estruturados e listas.</p>
+<p>conteudo e regra operacional por no.</p>
+<p>rascunho atualizado para fluxo de versao/publicacao.</p>
+<p><code>adminFaqBuilderRuntime</code>.</p>
+<p>estrutura rica e alinhada ao modelo.</p>
+<p>alta densidade para uso sem treinamento.</p>
+<p>alto de erro humano em edicao extensa.</p>
+<p>camada simplificada para edicao por planilha/import assistido.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/02-faq-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 29 - parametros de SLA e criticidade</h2>
+<p>Parametros de SLA e criticidade.</p>
+<p><code>/admin/parametros</code></p>
+<p>admin_central.</p>
+<p>definir niveis oficiais e regras de aplicacao.</p>
+<p>menu admin.</p>
+<p>niveis, regras por alvo e impacto projetado.</p>
+<p>editar niveis, alterar regras, ativar/desativar.</p>
+<p>listas de nivel, editor, painel de impacto por fila/caso.</p>
+<p>label, badge, cor, horas, prioridade, targetType/targetValue.</p>
+<p>como leitura de risco sera aplicada.</p>
+<p>runtime passa a projetar nova criticidade/SLA.</p>
+<p><code>adminParametersRuntime</code>.</p>
+<p>explicita impacto antes da mudanca.</p>
+<p>sem persistencia backend real nesta fase.</p>
+<p>medio-alto se migracao para backend nao respeitar mesmas regras.</p>
+<p>versionar tambem parametros (nao so conhecimento).</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/03-parametros-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 30 - permissoes e visibilidade admin</h2>
+<p>Permissoes e visibilidade.</p>
+<p><code>/admin/permissoes</code></p>
+<p>admin_central.</p>
+<p>gerenciar matriz de acesso por perfil/escopo e trilha de auditoria.</p>
+<p>menu admin.</p>
+<p>impacto por perfil, matriz de politicas, editor e logs.</p>
+<p>alterar perfil, escopo e acoes permitidas.</p>
+<p>cards de impacto, lista de entradas, formulario de edicao, auditoria.</p>
+<p>scopeType, scopeValues, allowedActions, nota.</p>
+<p>quem ve o que e quem pode agir.</p>
+<p>atualizacao da matriz e registro de auditoria.</p>
+<p><code>adminPermissionsRuntime</code>.</p>
+<p>separa visibilidade e governanca por perfil.</p>
+<p>modelo complexo para manutencao manual em grande escala.</p>
+<p>alto de configuracao incorreta com impacto amplo.</p>
+<p>introduzir templates de permissao por perfil e validacao automatica.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/04-permissoes-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 31 - publicacao e historico de versoes</h2>
+<p>Publicacao e historico de versoes.</p>
+<p><code>/admin/publicacao</code></p>
+<p>admin_central.</p>
+<p>aprovar/publicar versoes canonicas de bundles de conhecimento.</p>
+<p>menu admin.</p>
+<p>bundles, versoes, status, snapshots e historico de publicacao.</p>
+<p>aprovar versao, publicar versao.</p>
+<p>metricas, cards de bundle, lista de versoes e painel de acao.</p>
+<p>selecao de bundle e versao.</p>
+<p>quando uma versao vira referencia ativa.</p>
+<p>alteracao de versao publicada no runtime canonico.</p>
+<p><code>runtimeRepositories</code>, <code>knowledgeFoundation</code>, store.</p>
+<p>workflow de publicacao visivel e controlado.</p>
+<p>texto com problema de encoding em labels de algumas strings (ex.: "canÃ´nico").</p>
+<p>baixo funcional, medio de qualidade visual/documental.</p>
+<p>normalizar encoding UTF-8 e manter padrao de nomenclatura.</p>
+<p>[OBS] [COD].</p>
+<p><code>assets/screens/admin/05-publicacao-admin.png</code></p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print:</li></ul>
+<hr />
+<h2>Tela 32 - wireframe navegavel do aluno</h2>
+<p>Wireframe navegavel do aluno.</p>
+<p><code>/wireframes/aluno/:screenId?</code></p>
+<p>uso interno de design/produto.</p>
+<p>iteracao rapida de UX de aluno fora da operacao principal.</p>
+<p>acesso direto por rota.</p>
+<p>varia por <code>screenId</code>.</p>
+<p>navegar cenarios de wireframe.</p>
+<p>layout de wireframe.</p>
+<p>dependente de implementacao da pagina.</p>
+<p>avaliacao exploratoria de UX.</p>
+<p>material de prototipacao.</p>
+<p><code>StudentWireframePage.vue</code>.</p>
+<p>apoia validacao rapida.</p>
+<p>nao e fluxo oficial de operacao.</p>
+<p>confundir prototipo com produto final.</p>
+<p>restringir visibilidade em ambiente produtivo.</p>
+<p>[COD] (sem print dedicado nesta rodada).</p>
+<p>documentado por codigo.</p>
+<ul><li>Nome da tela:</li><li>Rota:</li><li>Perfil:</li><li>Objetivo:</li><li>Quando aparece:</li><li>O que ve:</li><li>O que pode fazer:</li><li>Componentes:</li><li>Campos/filtros:</li><li>Decisoes:</li><li>Resultado:</li><li>Dependencias:</li><li>Pontos fortes:</li><li>Pontos fracos:</li><li>Risco:</li><li>Sugestao:</li><li>Evidencia:</li><li>Print relacionado:</li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-8">
+        <header class="doc-header">
+          <h1>07_regras-de-negocio-e-logica-operacional</h1>
+          <p>Fonte: 07_regras-de-negocio-e-logica-operacional.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Regras de negocio e logica operacional</h1>
+<h2>Como interpretar este documento</h2>
+<p>Cada regra foi classificada em:</p>
+<ul><li><strong>Regra confirmada no codigo</strong>: implementacao explicita encontrada.</li><li><strong>Regra inferida pela interface</strong>: comportamento sugerido na UX, sem validacao completa na camada de dominio.</li><li><strong>Hipotese nao comprovada</strong>: plausivel, mas depende de backend/contrato final.</li></ul>
+<hr />
+<h2>1) Regras de fila e priorizacao</h2>
+<h2>Regra confirmada no codigo</h2>
+<ol><li>Fila OP e fila Area aplicam filtros por escopo/perfil e status.</li><li>Buckets de fila usam mapeamentos de status canonicos e labels operacionais.</li><li>Visualizacao de casos respeita <code>allowedProfiles</code> + <code>requiredActions</code> por rota.</li><li>Casos da area podem ser agrupados por ownership (<code>mine</code>, <code>unassigned</code>, <code>waiting_complement</code>, <code>completed</code>).</li></ol>
+<p><strong>Evidencia:</strong> <code>src/services/operatorQueueRuntime.js</code>, <code>src/services/areaQueueRuntime.js</code>, <code>src/router.js</code>.</p>
+<h2>Regra inferida pela interface</h2>
+<ol><li>Usuario deve priorizar casos vencidos/em risco primeiro.</li><li>Gestor usa leitura por bucket para redistribuicao.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Formula final de prioridade global em backend ainda nao esta fechada.</li></ol>
+<hr />
+<h2>2) Criticidade e SLA</h2>
+<h2>Regra confirmada no codigo</h2>
+<ol><li>Ha niveis de SLA e criticidade com chaves e badges configuraveis.</li><li>Regras podem ser aplicadas por tema/subtema/fila.</li><li>Dashboard admin projeta impacto dessas regras em casos ativos.</li><li>Runtime classifica SLA em <code>on_track</code>, <code>at_risk</code>, <code>overdue</code>, <code>closed</code>.</li></ol>
+<p><strong>Evidencia:</strong> <code>src/pages/admin/AdminParametersPage.vue</code>, <code>src/services/adminParametersRuntime.js</code>, <code>src/services/canonicalCaseRuntime.js</code>.</p>
+<h2>Regra inferida</h2>
+<ol><li>Criticidade alta deve influenciar priorizacao da fila operacional.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Politica oficial institucional de override entre regra de tema e regra de fila.</li></ol>
+<hr />
+<h2>3) Escalonamento e roteamento</h2>
+<h2>Regra confirmada no codigo</h2>
+<ol><li>Existe roteamento padrao por fila/area com possibilidade de excecao gerencial.</li><li>Acoes OP podem gerar escalonamento para area.</li><li>Area pode encaminhar excepcionalmente com motivo estruturado.</li><li>Routing decisions sao registradas com modo (<code>default</code>/<code>manager_exception</code>) e justificativa.</li></ol>
+<p><strong>Evidencia:</strong> <code>src/services/caseRoutingRuntime.js</code>, <code>src/stores/studentSupport.js</code>, <code>src/pages/area/AreaCaseDetailPage.vue</code>.</p>
+<h2>Regra inferida</h2>
+<ol><li>Escalonamento deve ser excecao quando camada atual consegue resolver.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Matriz final de excecoes aprovadas por politica institucional.</li></ol>
+<hr />
+<h2>4) Conhecimento (FAQ/orientacao/playbook)</h2>
+<h2>Regra confirmada no codigo</h2>
+<ol><li>Estrutura canonica contempla subject/subsubject/node e links.</li><li>Bundle de conhecimento possui workflow de versao.</li><li>Publicacao define versao ativa.</li><li>Sugestoes seguem workflow de revisao/aprovacao/rejeicao.</li><li>Uso de conhecimento por caso gera registro (knowledge usage).</li></ol>
+<p><strong>Evidencia:</strong> <code>src/services/canonicalFoundationRuntime.js</code>, <code>src/pages/admin/AdminVersioningPage.vue</code>, <code>src/pages/area/AreaKnowledgeReviewPage.vue</code>.</p>
+<h2>Regra inferida</h2>
+<ol><li>Conteudo vigente orienta decisao operacional em OP e Area.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Estrategia final de importacao em massa (planilha) com validacao semantica.</li></ol>
+<hr />
+<h2>5) Assignment e distribuicao</h2>
+<h2>Regra confirmada no codigo</h2>
+<p>area, assunto/subassunto, elegibilidade ativa, disponibilidade, capacidade e carga.</p>
+<ol><li>Distribuicao filtra por:</li><li>Assignments concluídos nao contam para carga ativa.</li><li>Indisponibilidade pode ser global ou por area e respeita janela temporal.</li><li>Regra de elegibilidade com <code>isActive=false</code> e ignorada.</li><li>Caso pode ficar sem responsavel (<code>unassigned_exception</code>) se nao houver candidato viavel.</li></ol>
+<p><strong>Evidencia:</strong> <code>src/services/distributionEngine.js</code>, <code>src/stores/studentSupport.js</code>, <code>src/services/canonicalFoundationRuntime.js</code>.</p>
+<h2>Regra inferida</h2>
+<ol><li>Gestor usa redistribuicao manual para tratar outliers de carga.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Algoritmo final de fairness para pico de volume multiarea.</li></ol>
+<hr />
+<h2>6) Escopo por perfil e permissao</h2>
+<h2>Regra confirmada no codigo</h2>
+<ol><li>Guard de rota exige autenticacao (<code>requiresAuth</code>) e valida perfil/acao.</li><li><code>mockContext</code> define polos/areas/filas visiveis por perfil.</li><li>Gestor de area tem acesso adicional a governanca e mudancas.</li><li>Admin central concentra permissoes de governanca global.</li></ol>
+<p><strong>Evidencia:</strong> <code>src/main.js</code>, <code>src/router.js</code>, <code>src/services/mockContextRuntime.js</code>.</p>
+<h2>Regra inferida</h2>
+<ol><li>Em backend real, a mesma matriz deve existir em camada server-side.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Design definitivo de permissionamento no Frappe (DocTypes/Roles/ACLs).</li></ol>
+<hr />
+<h2>7) Snapshots e auditoria</h2>
+<h2>Regra confirmada no codigo</h2>
+<p>bundleVersionId, nodeId, snapshots de resposta/orientacao e ator.</p>
+<ol><li>Caso registra uso de conhecimento com:</li><li>Acoes operacionais geram eventos de caso.</li><li>Admin possui trilha de auditoria de mudancas de permissao.</li></ol>
+<p><strong>Evidencia:</strong> <code>src/stores/studentSupport.js</code>, <code>src/repositories/runtimeRepositories.js</code>, <code>src/pages/admin/AdminPermissionsPage.vue</code>.</p>
+<h2>Regra inferida</h2>
+<ol><li>Auditoria permite reconstituir "o que foi respondido ao aluno" por protocolo.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Politica de retencao e imutabilidade juridica da trilha em producao.</li></ol>
+<hr />
+<h2>8) Regras de acao no detalhe da area</h2>
+<h2>Regra confirmada no codigo</h2>
+<p>resposta final (principal), complemento (secundaria), concluir (terciaria), encaminhamento excepcional.</p>
+<p>motivo estruturado, contexto verificado e area destino.</p>
+<ol><li>Hierarquia de acao implementada:</li><li>Encaminhamento excepcional exige:</li><li>Concluir analise interna exige confirmacao explicita.</li></ol>
+<p><strong>Evidencia:</strong> <code>src/pages/area/AreaCaseDetailPage.vue</code>.</p>
+<h2>Regra inferida</h2>
+<ol><li>A tela tenta induzir resolucao local antes de encaminhar.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Bloqueio duro de conclusao sem resposta final em todos os cenarios de backend.</li></ol>
+<hr />
+<h2>9) Regras administrativas que interferem operacao</h2>
+<h2>Regra confirmada no codigo</h2>
+<ol><li>Mudanca de permissao impacta visibilidade de filas e areas.</li><li>Mudanca de parametro altera leitura projetada de criticidade/SLA.</li><li>Publicacao de bundle altera referencia de conhecimento vigente.</li></ol>
+<h2>Regra inferida</h2>
+<ol><li>Esses tres eixos (permissao, parametro, versao) sao os principais controles de governanca.</li></ol>
+<h2>Hipotese nao comprovada</h2>
+<ol><li>Ordem transacional entre publicacao de conhecimento e recálculo de filas em backend real.</li></ol>
+<hr />
+<h2>10) Principais automatismos identificados</h2>
+<h2>Confirmados</h2>
+<ul><li>roteamento automatico de fila/area</li><li>distribuicao automatica de assignment</li><li>sugestao de assignee por score</li><li>calculo de status SLA</li><li>agrupamento de requests do aluno</li></ul>
+<h2>Inferidos</h2>
+<ul><li>recomendacao de proxima decisao com base no contexto do caso</li></ul>
+<h2>Nao comprovados</h2>
+<ul><li>automacao inteligente preditiva (fora do escopo atual)</li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-9">
+        <header class="doc-header">
+          <h1>08_ux-e-analise-critica</h1>
+          <p>Fonte: 08_ux-e-analise-critica.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>UX e analise critica por perfil</h1>
+<h2>Escopo</h2>
+<p>Analise focada em operacao real, clareza de decisao, risco de erro e consistencia entre fluxo e interface.</p>
+<hr />
+<h2>1) Aluno</h2>
+<h2>Clareza visual e entendimento do fluxo</h2>
+<p>entrada do aluno e simples (duvida x solicitacoes).</p>
+<p>status em alguns detalhes podem exigir alfabetizacao operacional maior do que o desejado.</p>
+<ul><li>Ponto forte:</li><li>Ponto fraco:</li></ul>
+<h2>Coerencia entre acao e consequencia</h2>
+<p>jornada FAQ conduz para protocolo quando necessario.</p>
+<p>confirmacao e detalhe podem ficar abstratos sem linguagem mais direta de "o que acontece agora".</p>
+<ul><li>Bom:</li><li>Fragil:</li></ul>
+<h2>Carga cognitiva</h2>
+<ul><li>Boa na home.</li><li>Media na jornada quando arvore fica extensa.</li></ul>
+<h2>Prevencao de erro</h2>
+<ul><li>Validacao de formulario existe.</li><li>Falta validar robustez de mensagens de erro de backend/rede.</li></ul>
+<h2>Consistencia</h2>
+<ul><li>Boa entre home, jornada e solicitacoes.</li><li>Melhorar consistencia de termos: "solicitacao", "protocolo", "atendimento".</li></ul>
+<h2>Classificacao geral</h2>
+<p><strong>boa para homologacao assistida</strong></p>
+<p>padronizar linguagem de status e proximo passo.</p>
+<ul><li>Maturidade UX aluno:</li><li>Ponto critico:</li></ul>
+<hr />
+<h2>2) Orientador de polo (OP)</h2>
+<h2>Clareza visual e fluxo</h2>
+<p>fila + detalhe + orientacao formam jornada operacional coerente.</p>
+<p>detalhe pode ficar denso em alguns cenarios de contexto/historico.</p>
+<ul><li>Ponto forte:</li><li>Ponto fraco:</li></ul>
+<h2>Senso de prioridade</h2>
+<p>chips, bucket e SLA ajudam.</p>
+<p>sem disciplina de regra, pode escalar cedo demais.</p>
+<ul><li>Bom:</li><li>Risco:</li></ul>
+<h2>Prevencao de erro</h2>
+<p>ha confirmacoes de acao, mas depende de texto livre em partes do fluxo.</p>
+<ul><li>Parcial:</li></ul>
+<h2>Aderencia a operacao</h2>
+<p>fluxo de abrir atendimento em nome do aluno e util para realidade de polo.</p>
+<ul><li>Boa:</li></ul>
+<h2>Classificacao geral</h2>
+<p><strong>boa, com risco medio de sobrecarga textual e escalonamento prematuro</strong>.</p>
+<ul><li>Maturidade UX OP:</li></ul>
+<hr />
+<h2>3) Analista de area</h2>
+<h2>Clareza visual e ordem cognitiva</h2>
+<p>bloco "Antes de decidir", hierarquia de acoes e rebaixamento de encaminhamento excepcional.</p>
+<p>volume de texto no detalhe e muitas secoes consecutivas.</p>
+<ul><li>Melhorias relevantes ja implementadas:</li><li>Ainda pesado:</li></ul>
+<h2>Coerencia acao x consequencia</h2>
+<p>acao principal e resolver/responder.</p>
+<p>concluir analise interna sem garantias finais de resposta ao aluno em todos os cenarios.</p>
+<ul><li>Muito melhor:</li><li>Risco remanescente:</li></ul>
+<h2>Carga cognitiva</h2>
+<p>tela informa bastante, mas ainda exige leitura longa.</p>
+<ul><li>Media-alta:</li></ul>
+<h2>Prevencao de erro</h2>
+<p>encaminhamento exige motivo estruturado + area + contexto.</p>
+<p>tela vazia quando caso nao resolve corretamente na area da URL.</p>
+<ul><li>Boa para excecao:</li><li>Fraca em edge case:</li></ul>
+<h2>Consistencia</h2>
+<ul><li>Boa entre fila e detalhe para acao principal.</li><li>Ruim no estado de erro (sem feedback claro).</li></ul>
+<h2>Classificacao geral</h2>
+<p><strong>media-alta</strong></p>
+<p>estado de caso nao encontrado/fuera de escopo precisa tratamento explicito.</p>
+<ul><li>Maturidade UX analista:</li><li>Ponto critico:</li></ul>
+<hr />
+<h2>4) Gestor de area</h2>
+<h2>Clareza de papel gerencial</h2>
+<p>home de operacao da area diferencia gestor do analista.</p>
+<p>ainda compartilha boa parte da experiencia do analista no detalhe do caso.</p>
+<ul><li>Acerto:</li><li>Limite:</li></ul>
+<h2>Leitura de operacao</h2>
+<p>KPIs de backlog, risco, sem responsavel e gargalo.</p>
+<p>se dados de base nao forem canonicos no backend, painel vira "quase certo" e perde confianca.</p>
+<ul><li>Bom:</li><li>Risco:</li></ul>
+<h2>Capacidade de intervencao</h2>
+<p>regras operacionais e revisao de mudancas pendentes existem.</p>
+<p>simulacao de impacto antes de alterar regra de escopo/disponibilidade.</p>
+<ul><li>Boa:</li><li>Falta:</li></ul>
+<h2>Classificacao geral</h2>
+<p><strong>boa para homologacao funcional</strong></p>
+<p>explicabilidade dos impactos de governanca.</p>
+<ul><li>Maturidade UX gestor de area:</li><li>Ponto critico:</li></ul>
+<hr />
+<h2>5) Gestor de polos</h2>
+<h2>Clareza de papel</h2>
+<p>experiencia muito parecida com OP, principalmente na fila e detalhe.</p>
+<ul><li>Fragil:</li></ul>
+<h2>Risco operacional</h2>
+<p>gestor pode operar igual atendente, com pouca camada de supervisao.</p>
+<ul><li>alto de papel sobreposto:</li></ul>
+<h2>Classificacao geral</h2>
+<p><strong>media</strong></p>
+<p>camada gerencial propria (visao multi-polo e distribuicao de carga).</p>
+<ul><li>Maturidade UX gestor de polos:</li><li>Prioridade de melhoria:</li></ul>
+<hr />
+<h2>6) Admin central</h2>
+<h2>Clareza visual</h2>
+<p>modulos de dashboard, FAQ, parametros, permissoes e publicacao estao separados.</p>
+<p>densidade alta de informacao e formulacao tecnica.</p>
+<ul><li>Boa:</li><li>Desafio:</li></ul>
+<h2>Coerencia funcional</h2>
+<p>governanca esta conectada com runtime operacional.</p>
+<p>excesso de alavancas sem trilhas de seguranca (simulacao, rollback, aprovacao em dupla).</p>
+<ul><li>Forte:</li><li>Risco:</li></ul>
+<h2>Consistencia</h2>
+<p>strings com encoding inconsistente em algumas labels.</p>
+<ul><li>Boa estrutura modular.</li><li>Problema pontual:</li></ul>
+<h2>Classificacao geral</h2>
+<p><strong>boa para equipe tecnica/gestao</strong></p>
+<p>evitar que tela de edicao vire gargalo de uso por nao especialistas.</p>
+<ul><li>Maturidade UX admin:</li><li>Ponto critico:</li></ul>
+<hr />
+<h2>Leitura transversal de maturidade de design</h2>
+<h2>Pontos muito bons</h2>
+<ul><li>arquitetura de fluxo por perfil esta clara</li><li>tentativa real de orientar decisao (nao so exibir informacao)</li><li>governanca e operacao compartilham base de modelo</li></ul>
+<h2>Pontos medianos</h2>
+<ul><li>densidade textual em detalhes de caso</li><li>consistencia de nomenclatura entre modulos</li><li>sobreposicao OP x gestor_polos</li></ul>
+<h2>Pontos fracos</h2>
+<ul><li>estado de erro de algumas aberturas de caso sem feedback adequado</li><li>dependencia de mock/local para verdade operacional</li><li>ausencia de trilhas visuais de impacto antes de mudanca de regra critica</li></ul>
+<h2>Pontos criticos</h2>
+<ol><li>caso em branco no detalhe da area (observado)</li><li>possibilidade de conclusao sem guarda de regra final consistente</li><li>escopo/permissao ainda nao validado ponta a ponta em backend real</li></ol>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-10">
+        <header class="doc-header">
+          <h1>09_lacunas-riscos-e-pontos-para-validacao</h1>
+          <p>Fonte: 09_lacunas-riscos-e-pontos-para-validacao.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Lacunas, riscos e pontos para validacao</h1>
+<h2>1) Gaps documentais e de evidencia</h2>
+<p><code>/aluno/confirmacao/:protocolId</code> e <code>/wireframes/aluno/:screenId?</code>.</p>
+<ol><li>Nao ha print dedicado para:</li><li>Algumas telas institucionais sao blueprint e podem ser interpretadas como produto final se nao rotuladas.</li><li>Nem todo fluxo de erro esta documentado visualmente (ex.: caso fora de escopo na area).</li></ol>
+<h2>2) Trechos com aparencia de mock/conceitual</h2>
+<ol><li>Modulo institucional (<code>/triagem</code>, <code>/ticket</code>, <code>/handoff</code>, <code>/integracoes</code>) e fortemente demonstrativo.</li><li>Persistencia principal ainda em <code>Pinia + localStorage</code>.</li><li>Parte dos dados administrativos e de operacao e simulada a partir de mocks do repositorio.</li></ol>
+<h2>3) Fluxos nao totalmente fechados</h2>
+<ol><li>Integracao real de submissao/atualizacao de caso com API canonica.</li><li>Concorrencia de distribuicao e assignment simultaneo em alto volume.</li><li>Reconciliacao transacional entre publicacao de conhecimento e uso imediato em fila ativa.</li></ol>
+<h2>4) Inconsistencias de nomenclatura</h2>
+<p><code>caso</code>, <code>atendimento</code>, <code>solicitacao</code>, <code>protocolo</code>.</p>
+<ol><li>coexistencia de termos:</li><li>em alguns pontos, labels com encoding inconsistente (ex.: "canÃ´nico").</li></ol>
+<h2>5) Riscos de UX confusa</h2>
+<ol><li>Estado vazio/erro no detalhe da area sem mensagem orientativa.</li><li>Densidade textual alta em detalhe do analista.</li><li>Gestor de polos ainda com experiencia muito parecida com OP.</li></ol>
+<h2>6) Riscos operacionais</h2>
+<ol><li>Escalonamento precoce se criterios nao forem bloqueados em backend.</li><li>Configuracao de regra de escopo/disponibilidade sem simulacao de impacto.</li><li>Concluir analise sem resposta final obrigatoria pode quebrar compromisso com aluno.</li></ol>
+<h2>7) Riscos de escala (10k-20k protocolos)</h2>
+<ol><li>lista de fila sem estrategia confirmada de paginacao server-side.</li><li>possivel re-render pesado em detalhes com timeline extensa.</li><li>filtros/client-side podem degradar com volume real se nao migrados para query backend.</li></ol>
+<h2>8) Dependencias ocultas</h2>
+<ol><li>qualidade da distribuicao depende fortemente de cadastro de disponibilidade/elegibilidade.</li><li>governanca funcional depende de dados canonicos unificados entre modulos.</li><li>SSO e contrato de sessao ainda dependem de infraestrutura externa nao exercitada ponta a ponta nesta rodada.</li></ol>
+<h2>9) Fragilidades de governanca</h2>
+<ol><li>admin concentra muitas alavancas criticas sem trilha formal de aprovacao em dupla.</li><li>parametros (SLA/criticidade) sem versionamento dedicado equivalente ao conhecimento.</li><li>risco de "edicao manual intensa" em FAQ/permissao em cenario de alta mudanca.</li></ol>
+<h2>10) Fragilidades de parametrizacao</h2>
+<ol><li>regras complexas podem ser configuradas incorretamente sem validadores de conflito.</li><li>falta simulacao de impacto antes de salvar regra de escopo.</li><li>falta "modo seguro" de rollback rapido.</li></ol>
+<h2>11) Pontos que podem comprometer adocao</h2>
+<ol><li>se analista abrir casos em branco, confianca operacional cai rapidamente.</li><li>se aluno nao receber resposta final consistente, percepcao de valor cai.</li><li>se gestor nao confiar nos KPIs, operacao volta para controles paralelos (planilha/whatsapp/email).</li></ol>
+<h2>12) Prioridade de validacao para especialista externo</h2>
+<h2>Bloqueadores potenciais</h2>
+<ol><li>comportamento de abertura de caso da area em todos os cenarios de URL/escopo.</li><li>regra obrigatoria de resposta final antes de conclusao.</li><li>contrato backend para snapshots/auditoria como fonte oficial.</li></ol>
+<h2>Riscos altos</h2>
+<ol><li>estrategia de performance para volume real de fila.</li><li>modelo de permissao server-side alinhado ao frontend.</li><li>estrategia de rollback de configuracoes administrativas.</li></ol>
+<h2>Riscos medios</h2>
+<ol><li>consistencia de nomenclatura na experiencia.</li><li>simplificacao do editor de FAQ para nao tecnicos.</li><li>diferenciacao adicional de gestor de polos.</li></ol>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-11">
+        <header class="doc-header">
+          <h1>10_checklist-para-especialista</h1>
+          <p>Fonte: 10_checklist-para-especialista.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Checklist para especialista externo</h1>
+<p>Use este checklist para revisar o sistema sem acesso inicial ao ambiente.</p>
+<h2>Bloco A - visao executiva e aderencia institucional</h2>
+<ul><li>[ ] O problema institucional e grande o suficiente para justificar a solucao?</li><li>[ ] A proposta de valor esta clara para cada perfil?</li><li>[ ] A cadeia "aluno -&gt; OP -&gt; area -&gt; gestor -&gt; admin" esta coerente?</li><li>[ ] O modelo evita escalonamento desnecessario?</li><li>[ ] Ha leitura objetiva de ganhos operacionais esperados?</li></ul>
+<h2>Bloco B - coerencia funcional ponta a ponta</h2>
+<ul><li>[ ] Fluxo aluno (duvida, protocolo, acompanhamento) esta completo?</li><li>[ ] Fluxo OP (fila, detalhe, orientacao, abertura assistida) esta consistente?</li><li>[ ] Fluxo analista de area conduz para resolucao antes de excecao?</li><li>[ ] Fluxo gestor de area diferencia supervisao de execucao?</li><li>[ ] Fluxos de admin cobrem governanca real?</li></ul>
+<h2>Bloco C - qualidade de UX operacional</h2>
+<ul><li>[ ] Interfaces privilegiam decisao segura e nao apenas informacao?</li><li>[ ] A carga cognitiva esta adequada para usuario nao tecnico?</li><li>[ ] As acoes criticas tem hierarquia clara?</li><li>[ ] Erros e estados vazios orientam recuperacao?</li><li>[ ] Navegacao entre fila e detalhe e confiavel em todos os perfis?</li></ul>
+<h2>Bloco D - logica de negocio e governanca</h2>
+<ul><li>[ ] Regras de fila/prioridade/SLA estao explicitas?</li><li>[ ] Escopo por perfil e acao esta bem segmentado?</li><li>[ ] Regras de distribuicao automatica sao auditaveis e explicaveis?</li><li>[ ] Excecao gerencial esta rastreavel?</li><li>[ ] Conhecimento (FAQ/playbook) possui workflow real de melhoria e publicacao?</li></ul>
+<h2>Bloco E - modelagem e arquitetura</h2>
+<ul><li>[ ] Fundacao canonica cobre entidades criticas de operacao?</li><li>[ ] Versao/publicacao de conhecimento esta imutavel por bundle?</li><li>[ ] Usage/snapshot de conhecimento por caso esta confiavel?</li><li>[ ] Assignment/routing/eventos estao aptos a auditoria?</li><li>[ ] Existe caminho claro para migrao de <code>localStorage</code> para backend real?</li></ul>
+<h2>Bloco F - escalabilidade e operacao em volume</h2>
+<ul><li>[ ] Fila suporta crescimento para 10k-20k protocolos com paginacao server-side?</li><li>[ ] Filtros e buscas estao prontos para consulta backend indexada?</li><li>[ ] Estrategia de concorrencia para assignment foi considerada?</li><li>[ ] KPIs gerenciais permanecem consistentes em alta carga?</li><li>[ ] Existe estrategia de observabilidade e trilha de incidentes?</li></ul>
+<h2>Bloco G - seguranca operacional</h2>
+<ul><li>[ ] Acoes irreversiveis tem confirmacao e trilha?</li><li>[ ] Permissoes criticas estao protegidas por backend (nao so front)?</li><li>[ ] Concluir caso sem resposta final esta tecnicamente bloqueado?</li><li>[ ] Redistribuicao e excecao tem justificativa obrigatoria?</li><li>[ ] Auditoria atende requisito de responsabilizacao?</li></ul>
+<h2>Bloco H - prontidao para evolucao futura</h2>
+<ul><li>[ ] Base atual reduz retrabalho para integracao Frappe?</li><li>[ ] Runtimes/repositorios estao preparados para troca de fonte de dados?</li><li>[ ] Modulos estao coesos e sem acoplamento excessivo?</li><li>[ ] Ha plano de transicao incremental para backend real?</li><li>[ ] Existe backlog claro do que e bloqueador versus evolucao futura?</li></ul>
+<h2>Parecer sugerido no fechamento da auditoria</h2>
+<ul><li>[ ] Apto para demonstracao</li><li>[ ] Apto para homologacao controlada</li><li>[ ] Apto para producao restrita</li><li>[ ] Apto para producao plena</li></ul>
+<p>Campos de justificativa para preenchimento do especialista:</p>
+<ul><li>bloqueadores encontrados:</li><li>riscos altos remanescentes:</li><li>riscos medios aceitaveis:</li><li>recomendacao final go/no-go:</li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-12">
+        <header class="doc-header">
+          <h1>11_resumo-final</h1>
+          <p>Fonte: 11_resumo-final.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Resumo final consolidado</h1>
+<h2>O que o sistema e hoje</h2>
+<p>O sistema atual e um frontend CRM/backoffice multi-perfil para atendimento academico, com fluxo orientado de aluno, camada intermediaria OP, operacao especializada de area e governanca administrativa.</p>
+<p>A base atual ja contem fundacao canonica importante:</p>
+<ul><li>conhecimento versionado</li><li>sugestao/revisao/publicacao</li><li>assignment/routing/eventos</li><li>snapshots de uso de conhecimento por caso</li><li>permissao por perfil/acao</li></ul>
+<h2>Em que estagio ele parece estar</h2>
+<p>Estagio atual:</p>
+<ul><li><strong>forte para analise funcional e homologacao assistida</strong></li><li><strong>parcial para verdade operacional de producao</strong></li></ul>
+<p>Motivo principal: fonte de verdade ainda concentrada em runtime frontend mockado (Pinia/localStorage), sem backend canonico executando ponta a ponta.</p>
+<h2>Proposta de valor</h2>
+<ol><li>reduzir atrito do aluno e evitar protocolo desnecessario</li><li>melhorar produtividade da camada OP</li><li>restringir escalonamento ao que e realmente especializado</li><li>dar governanca formal de conhecimento e regra operacional</li><li>oferecer visao gerencial acionavel por area e administracao</li></ol>
+<h2>Onde esta forte</h2>
+<ul><li>arquitetura de papeis e rotas</li><li>separacao funcional por modulos</li><li>base canonica de entidades e status</li><li>fluxo do analista de area orientado a resolucao</li><li>governanca de conhecimento com workflow</li><li>painel administrativo com eixos criticos (FAQ, parametros, permissoes, publicacao)</li></ul>
+<h2>Onde precisa amadurecer</h2>
+<ol><li>robustez de edge cases (ex.: abertura de caso da area em branco)</li><li>enforce duro de regra "nao concluir sem resposta final ao aluno"</li><li>migracao da verdade operacional para backend real</li><li>estrategia de performance para volume alto</li><li>diferenciar melhor gestor de polos de operador de fila</li></ol>
+<h2>O que especialista externo provavelmente vai aprofundar</h2>
+<ol><li>consistencia entre modelagem canonicamente desenhada e implementacao real no backend/Frappe</li><li>confiabilidade da distribuicao automatica em cenario de alta concorrencia</li><li>qualidade de permissao/escopo server-side</li><li>rastreabilidade juridica/auditavel de decisoes e respostas</li><li>sustentabilidade de manutencao do editor/governanca sem aumentar burocracia</li></ol>
+<h2>Fechamento objetivo</h2>
+<p>Diagnostico final desta rodada:</p>
+<ul><li><strong>base estrutural promissora e acima do nivel de prototipo superficial</strong></li><li><strong>ainda requer validacao tecnica de producao antes de go-live</strong></li><li><strong>material produzido permite auditoria externa sem acesso inicial ao sistema</strong></li></ul>
+        </article>
+      </section>
+    
+
+      <section class="doc-section" id="doc-13">
+        <header class="doc-header">
+          <h1>documentacao-completa-sistema</h1>
+          <p>Fonte: documentacao-completa-sistema.md</p>
+        </header>
+        <article class="doc-content">
+          <h1>Documentacao completa do sistema</h1>
+<h2>0) Referencia e evidencia</h2>
+<p>Escopo desta documentacao:</p>
+<ul><li>frontend <code>univesp-frontend</code></li><li>analise funcional, operacional, UX e governanca</li><li>revisao por codigo + observacao de telas + prints do pacote</li></ul>
+<p>Legenda:</p>
+<ul><li>[OBS] observacao direta em tela/print</li><li>[COD] confirmado por codigo</li><li>[INF] inferencia plausivel</li></ul>
+<hr />
+<h2>1) Visao executiva</h2>
+<p>O sistema e um CRM de atendimento academico para operacao em larga escala, com arquitetura por papeis:</p>
+<ul><li>aluno</li><li>orientador de polo</li><li>gestor de polos</li><li>analista de area</li><li>gestor de area</li><li>admin central</li></ul>
+<p>Proposta central:</p>
+<ol><li>guiar aluno antes de gerar protocolo</li><li>aumentar resolucao na camada intermediaria</li><li>escalar para area apenas quando necessario</li><li>garantir governanca e rastreabilidade de conhecimento e decisao</li><li>oferecer visao gerencial acionavel</li></ol>
+<p>Estagio atual:</p>
+<ul><li>forte para homologacao funcional assistida</li><li>ainda nao pronto para producao plena sem backend canonico</li></ul>
+<hr />
+<h2>2) Visao funcional de alto nivel</h2>
+<p>Modulos identificados:</p>
+<ul><li>autenticacao e acesso local</li><li>institucional (blueprint)</li><li>aluno</li><li>OP/gestor de polos</li><li>area (analista e gestor)</li><li>admin central</li></ul>
+<p>Fundacao funcional confirmada:</p>
+<ul><li>rotas com controle por perfil e acao</li><li>estados canonicos de protocolo, assignment, disponibilidade e conhecimento</li><li>fluxo de sugestao/revisao/publicacao</li><li>trilha de eventos/routing/knowledge usage</li><li>distribuicao automatica por elegibilidade/disponibilidade/carga/capacidade/SLA</li></ul>
+<hr />
+<h2>3) Mapa de modulos (resumo)</h2>
+<h3>Aluno</h3>
+<ul><li>home simples, jornada de duvida, protocolo, acompanhamento.</li></ul>
+<h3>OP</h3>
+<ul><li>fila operacional, detalhe de caso, orientacao, abertura assistida em nome do aluno.</li></ul>
+<h3>Area</h3>
+<ul><li>fila especializada, detalhe com decisao guiada, orientacao, governanca e revisao de mudancas.</li></ul>
+<h3>Gestao/admin</h3>
+<ul><li>dashboard de operacao, FAQ builder, parametros SLA/criticidade, permissoes e publicacao.</li></ul>
+<h3>Institucional</h3>
+<ul><li>paginas de blueprint para alinhamento tecnico/funcional de integracao.</li></ul>
+<hr />
+<h2>4) Perfis e permissoes</h2>
+<p>Modelo atual de acesso:</p>
+<ul><li>validacao de sessao (<code>requiresAuth</code>)</li><li>validacao de perfil (<code>allowedProfiles</code>)</li><li>validacao de acao (<code>requiredActions</code>)</li></ul>
+<p>Segmentacao bem resolvida:</p>
+<ul><li>aluno isolado da operacao</li><li>gestor de area com capacidades extras sobre analista</li><li>admin central com governanca global</li></ul>
+<p>Risco principal de sobreposicao:</p>
+<ul><li>OP x gestor de polos (mesma experiencia, diferindo mais por escopo que por papel).</li></ul>
+<hr />
+<h2>5) Fluxos ponta a ponta (resumo)</h2>
+<p>Fluxos cobertos:</p>
+<ol><li>aluno resolve duvida sem protocolo</li><li>aluno abre protocolo</li><li>aluno acompanha e complementa</li><li>OP opera fila e trata caso</li><li>OP abre atendimento assistido</li><li>analista de area decide e resolve</li><li>gestor de area supervisiona/intervem</li><li>sugestao -&gt; revisao -&gt; publicacao de conhecimento</li><li>distribuicao automatica</li><li>governanca admin de parametro e permissao</li></ol>
+<p>Principio operacional forte:</p>
+<ul><li>resolver na camada atual sempre que possivel</li><li>encaminhar como excecao justificada</li></ul>
+<hr />
+<h2>6) Catalogo de telas (consolidado)</h2>
+<p>Telas principais mapeadas:</p>
+<ul><li>Geral: acesso local, login</li><li>Institucional: visao institucional, triagem, ticket, handoff, integracoes</li><li>Aluno: home, jornada, solicitacoes, detalhe, protocolo, confirmacao</li><li>OP/gestor de polos: fila, detalhe, orientacao, abertura assistida</li><li>Area: home gestor, fila, detalhe, orientacao, mudancas, governanca</li><li>Admin: dashboard, FAQ, parametros, permissoes, publicacao</li><li>Wireframe: rota exploratoria do aluno</li></ul>
+<p>Observacao importante:</p>
+<ul><li>estado de detalhe da area em branco foi observado em edge case de escopo/URL e registrado como risco.</li></ul>
+<hr />
+<h2>7) Regras de negocio e logica operacional</h2>
+<p>Regras confirmadas:</p>
+<ul><li>workflow canonico de conhecimento/sugestao</li><li>distribuicao com filtros ativos e disponibilidade temporal</li><li>assignment sem carga de itens concluidos</li><li>permissao por perfil e acao na navegacao</li><li>registro de eventos/routing/knowledge usage</li></ul>
+<p>Regras inferidas:</p>
+<ul><li>priorizar resolucao local e reduzir escalonamento</li><li>uso de KPI para intervencao gerencial</li></ul>
+<p>Hipoteses a validar:</p>
+<ul><li>semantica final de prioridade em backend</li><li>politicas de conflito e rollback em producao</li></ul>
+<hr />
+<h2>8) Analise UX critica por perfil</h2>
+<h3>Aluno</h3>
+<ul><li>forte em simplicidade de entrada</li><li>precisa consolidar linguagem de status para leigos</li></ul>
+<h3>OP</h3>
+<ul><li>boa jornada operacional</li><li>risco de sobrecarga textual e escalonamento precoce sem regra dura</li></ul>
+<h3>Analista de area</h3>
+<ul><li>melhoria clara na hierarquia de acao</li><li>ainda denso em texto e com edge case de tela vazia</li></ul>
+<h3>Gestor de area</h3>
+<ul><li>papel gerencial melhor separado</li><li>precisa explicabilidade de impacto de mudancas</li></ul>
+<h3>Gestor de polos</h3>
+<ul><li>sobreposto ao OP (precisa camada gerencial mais propria)</li></ul>
+<h3>Admin</h3>
+<ul><li>completo e poderoso</li><li>denso e tecnico para uso sem capacitacao</li></ul>
+<hr />
+<h2>9) Lacunas e riscos para validacao</h2>
+<p>Bloqueadores potenciais:</p>
+<ol><li>abertura de caso da area em branco em cenario de escopo/URL</li><li>necessidade de regra obrigatoria para resposta final antes de conclusao</li><li>dependencia de estado local como verdade operacional</li></ol>
+<p>Riscos altos:</p>
+<ol><li>performance em volume alto sem paginacao backend</li><li>permissao/escopo ainda nao validado server-side</li><li>governanca administrativa sem rede de seguranca suficiente (simulacao/rollback)</li></ol>
+<p>Riscos medios:</p>
+<ol><li>nomenclatura inconsistente entre modulos</li><li>complexidade do editor de FAQ</li><li>sobreposicao de papel no gestor de polos</li></ol>
+<hr />
+<h2>10) Checklist de revisao externa</h2>
+<p>Checklist recomendado (resumo):</p>
+<ul><li>visao executiva e aderencia institucional</li><li>coerencia funcional ponta a ponta</li><li>UX operacional e seguranca de decisao</li><li>robustez da modelagem canonica</li><li>escalabilidade e governanca</li><li>prontidao para evolucao Frappe</li></ul>
+<p>Arquivo detalhado: <a href="./10_checklist-para-especialista.md">10_checklist-para-especialista.md</a></p>
+<hr />
+<h2>11) Conclusao consolidada</h2>
+<p>Leitura final:</p>
+<ul><li>o sistema tem fundacao funcional e arquitetural acima da media de prototipos</li><li>a estrategia de conhecimento, distribuicao e governanca esta bem encaminhada</li><li>existem riscos reais de producao ligados a backend, edge cases e escala</li></ul>
+<p>Parecer tecnico pragmativo:</p>
+<ul><li><strong>go para homologacao controlada</strong></li><li><strong>no-go para producao plena sem fechar bloqueadores estruturais</strong></li></ul>
+<hr />
+<h2>12) Anexo visual (prints)</h2>
+<p>Referencias completas:</p>
+<ul><li><a href="./00_indice-geral.md">00_indice-geral.md</a></li></ul>
+<p>Pastas:</p>
+<ul><li><a href="./assets/screens/aluno/">assets/screens/aluno</a></li><li><a href="./assets/screens/orientador/">assets/screens/orientador</a></li><li><a href="./assets/screens/analista/">assets/screens/analista</a></li><li><a href="./assets/screens/gestor/">assets/screens/gestor</a></li><li><a href="./assets/screens/admin/">assets/screens/admin</a></li><li><a href="./assets/screens/geral/">assets/screens/geral</a></li></ul>
+        </article>
+      </section>
+    
+
+    <section class="gallery-root" id="galeria-imagens">
+      <h1>Galeria de imagens embutidas</h1>
+      <p>As capturas abaixo foram embutidas no PDF para permitir analise sem acesso ao sistema.</p>
+      
+      <section class="gallery-group">
+        <h2>Geral</h2>
+        <div class="gallery-grid">
+          
+          <figure class="gallery-card">
+            <img src="./assets/screens/geral/01-acesso-local.png" alt="01-acesso-local.png" />
+            <figcaption>01-acesso-local.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/geral/02-login.png" alt="02-login.png" />
+            <figcaption>02-login.png</figcaption>
+          </figure>
+        
+        </div>
+      </section>
+    
+
+      <section class="gallery-group">
+        <h2>Aluno</h2>
+        <div class="gallery-grid">
+          
+          <figure class="gallery-card">
+            <img src="./assets/screens/aluno/01-home-aluno.png" alt="01-home-aluno.png" />
+            <figcaption>01-home-aluno.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/aluno/02-jornada-duvida.png" alt="02-jornada-duvida.png" />
+            <figcaption>02-jornada-duvida.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/aluno/03-minhas-solicitacoes.png" alt="03-minhas-solicitacoes.png" />
+            <figcaption>03-minhas-solicitacoes.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/aluno/04-detalhe-solicitacao.png" alt="04-detalhe-solicitacao.png" />
+            <figcaption>04-detalhe-solicitacao.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/aluno/05-abertura-protocolo.png" alt="05-abertura-protocolo.png" />
+            <figcaption>05-abertura-protocolo.png</figcaption>
+          </figure>
+        
+        </div>
+      </section>
+    
+
+      <section class="gallery-group">
+        <h2>Orientador/OP</h2>
+        <div class="gallery-grid">
+          
+          <figure class="gallery-card">
+            <img src="./assets/screens/orientador/01-fila-op.png" alt="01-fila-op.png" />
+            <figcaption>01-fila-op.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/orientador/02-detalhe-caso-op.png" alt="02-detalhe-caso-op.png" />
+            <figcaption>02-detalhe-caso-op.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/orientador/03-consultar-orientacao-op.png" alt="03-consultar-orientacao-op.png" />
+            <figcaption>03-consultar-orientacao-op.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/orientador/04-abrir-atendimento-op.png" alt="04-abrir-atendimento-op.png" />
+            <figcaption>04-abrir-atendimento-op.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/orientador/05-fila-gestor-polos.png" alt="05-fila-gestor-polos.png" />
+            <figcaption>05-fila-gestor-polos.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/orientador/06-detalhe-gestor-polos.png" alt="06-detalhe-gestor-polos.png" />
+            <figcaption>06-detalhe-gestor-polos.png</figcaption>
+          </figure>
+        
+        </div>
+      </section>
+    
+
+      <section class="gallery-group">
+        <h2>Analista de Area</h2>
+        <div class="gallery-grid">
+          
+          <figure class="gallery-card">
+            <img src="./assets/screens/analista/01-fila-analista-area.png" alt="01-fila-analista-area.png" />
+            <figcaption>01-fila-analista-area.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/analista/02-detalhe-analista-area.png" alt="02-detalhe-analista-area.png" />
+            <figcaption>02-detalhe-analista-area.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/analista/03-detalhe-analista-vazio.png" alt="03-detalhe-analista-vazio.png" />
+            <figcaption>03-detalhe-analista-vazio.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/analista/04-conteudo-vigente-analista.png" alt="04-conteudo-vigente-analista.png" />
+            <figcaption>04-conteudo-vigente-analista.png</figcaption>
+          </figure>
+        
+        </div>
+      </section>
+    
+
+      <section class="gallery-group">
+        <h2>Gestor de Area</h2>
+        <div class="gallery-grid">
+          
+          <figure class="gallery-card">
+            <img src="./assets/screens/gestor/01-home-gestor-area.png" alt="01-home-gestor-area.png" />
+            <figcaption>01-home-gestor-area.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/gestor/02-fila-gestor-area.png" alt="02-fila-gestor-area.png" />
+            <figcaption>02-fila-gestor-area.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/gestor/03-detalhe-gestor-area.png" alt="03-detalhe-gestor-area.png" />
+            <figcaption>03-detalhe-gestor-area.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/gestor/04-conteudo-vigente-gestor.png" alt="04-conteudo-vigente-gestor.png" />
+            <figcaption>04-conteudo-vigente-gestor.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/gestor/05-mudancas-pendentes-gestor.png" alt="05-mudancas-pendentes-gestor.png" />
+            <figcaption>05-mudancas-pendentes-gestor.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/gestor/06-regras-operacionais-gestor.png" alt="06-regras-operacionais-gestor.png" />
+            <figcaption>06-regras-operacionais-gestor.png</figcaption>
+          </figure>
+        
+        </div>
+      </section>
+    
+
+      <section class="gallery-group">
+        <h2>Admin Central</h2>
+        <div class="gallery-grid">
+          
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/01-dashboard-admin.png" alt="01-dashboard-admin.png" />
+            <figcaption>01-dashboard-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/02-faq-admin.png" alt="02-faq-admin.png" />
+            <figcaption>02-faq-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/03-parametros-admin.png" alt="03-parametros-admin.png" />
+            <figcaption>03-parametros-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/04-permissoes-admin.png" alt="04-permissoes-admin.png" />
+            <figcaption>04-permissoes-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/05-publicacao-admin.png" alt="05-publicacao-admin.png" />
+            <figcaption>05-publicacao-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/06-visao-institucional-admin.png" alt="06-visao-institucional-admin.png" />
+            <figcaption>06-visao-institucional-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/07-triagem-admin.png" alt="07-triagem-admin.png" />
+            <figcaption>07-triagem-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/08-ticket-admin.png" alt="08-ticket-admin.png" />
+            <figcaption>08-ticket-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/09-handoff-admin.png" alt="09-handoff-admin.png" />
+            <figcaption>09-handoff-admin.png</figcaption>
+          </figure>
+        
+
+          <figure class="gallery-card">
+            <img src="./assets/screens/admin/10-integracoes-admin.png" alt="10-integracoes-admin.png" />
+            <figcaption>10-integracoes-admin.png</figcaption>
+          </figure>
+        
+        </div>
+      </section>
+    
+    </section>
+  </body>
+</html>

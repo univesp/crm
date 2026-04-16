@@ -201,6 +201,12 @@ function completeMatchingAssignments(assignments = [], caseId = '', areaLabel = 
   })
 }
 
+function hasAreaTechnicalReply(areaLogs = [], caseId = '') {
+  return areaLogs.some(
+    (log) => log.caseId === caseId && String(log.actionType || '').trim() === 'technical_reply',
+  )
+}
+
 function buildCanonicalProtocolsCollection({
   protocols = [],
   operatorProtocols = [],
@@ -698,6 +704,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
           assignments: this.canonicalCaseAssignments,
           suggestions: state.knowledgeSuggestions,
           rules: state.areaSubjectRules,
+          userAvailability: state.userAvailability,
           viewerContext,
         })
     },
@@ -1272,6 +1279,17 @@ export const useStudentSupportStore = defineStore('studentSupport', {
 
       if (!caseDetail) {
         return null
+      }
+
+      if (actionType === 'conclude') {
+        const mergedAreaLogs = [...areaActionSeeds, ...this.areaActionLogs]
+        const hasFinalResponse = hasAreaTechnicalReply(mergedAreaLogs, caseId)
+
+        if (!hasFinalResponse) {
+          const error = new Error('Concluir analise interna exige resposta final registrada para aluno e OP.')
+          error.code = 'missing_final_response'
+          throw error
+        }
       }
 
       const actionLog = buildAreaActionLog({
