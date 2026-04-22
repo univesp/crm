@@ -6,6 +6,7 @@ export const AREA_MANAGER_OVERVIEW_MINIMAL_PAYLOAD = Object.freeze({
   overdue: 'number',
   atRisk: 'number',
   unassigned: 'number',
+  ownerMissing: 'number',
   distributionImbalance: 'number',
   casesBySubject: 'Array<{ subjectLabel: string, openCases: number }>',
   exceptionCount: 'number',

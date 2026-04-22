@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, onErrorCaptured, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import AppSidebar from '@/components/AppSidebar.vue'
@@ -111,6 +111,22 @@ const operationalAreaModel = computed({
   },
 })
 
+const routeRenderError = ref('')
+
+const fallbackRoute = computed(() => {
+  if (auth.mockContext.isOperationalShell) {
+    return auth.mockContext.profileKey === 'gestor_area' ? '/area/operacao' : '/op/fila'
+  }
+  if (auth.mockContext.isStudentShell) {
+    return '/aluno'
+  }
+  return '/admin/dashboard'
+})
+
+function clearRouteRenderError() {
+  routeRenderError.value = ''
+}
+
 watch(
   () => route.meta.stage,
   (stage) => {
@@ -120,6 +136,19 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  () => route.fullPath,
+  () => {
+    routeRenderError.value = ''
+  },
+)
+
+onErrorCaptured((error) => {
+  routeRenderError.value = String(error?.message || 'Falha ao carregar a tela atual.')
+  console.error(error)
+  return false
+})
 </script>
 
 <template>
@@ -279,7 +308,45 @@ watch(
 
         <RouterView v-slot="{ Component }">
           <Transition name="route" mode="out-in">
-            <component :is="Component" />
+            <section
+              v-if="routeRenderError || !Component"
+              class="rounded-[18px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-5 text-slate-800"
+            >
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-danger)]">
+                Tela indisponivel
+              </p>
+              <h2 class="mt-2 text-lg font-semibold text-slate-950">
+                Nao foi possivel carregar este modulo agora.
+              </h2>
+              <p class="mt-2 text-sm leading-6">
+                {{ routeRenderError || 'A rota atual nao encontrou um componente valido para renderizar.' }}
+              </p>
+              <p class="mt-2 text-xs text-slate-600">
+                Rota: {{ route.fullPath }} · Itens reconhecidos: {{ route.matched.length }}
+              </p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  @click="clearRouteRenderError"
+                >
+                  Tentar novamente
+                </button>
+                <RouterLink
+                  :to="fallbackRoute"
+                  class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Voltar para modulo seguro
+                </RouterLink>
+                <RouterLink
+                  to="/acesso-local"
+                  class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Ir para acesso local
+                </RouterLink>
+              </div>
+            </section>
+            <component :is="Component" v-else />
           </Transition>
         </RouterView>
       </main>

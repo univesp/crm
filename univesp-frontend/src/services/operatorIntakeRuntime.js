@@ -2,6 +2,10 @@ import loggedStudent from '../../mocks/usuario-logado.json'
 import { operatorCaseSeeds } from '../../mocks/operations'
 import { buildCaseRoutingContext } from '@/services/caseRoutingRuntime'
 import { buildSubsubjectCode, buildSubjectCode } from '@/services/canonicalFoundationRuntime'
+import {
+  buildOperationalOwnerIntegrity,
+  resolveOperationalOwnerFromProtocol,
+} from '@/services/operationalOwnershipRuntime'
 
 function pad(value) {
   return String(value).padStart(2, '0')
@@ -123,6 +127,26 @@ export function buildOperatorAssistedCase({
   const intakeSummary =
     verifiedSummary.trim() ||
     'Triagem inicial registrada pelo OP antes de decidir a proxima tratativa.'
+  const operationalOwner = resolveOperationalOwnerFromProtocol(
+    {
+      context,
+      ownerType: context?.ownership?.ownerType || '',
+      ownerKey: context?.ownership?.ownerKey || '',
+      ownerQueue: context?.ownership?.queueKey || context?.queueDestination || '',
+      ownerArea: context?.ownership?.areaLabel || '',
+      ownerRole: context?.ownership?.roleKey || '',
+      ownerSource: context?.ownership?.source || '',
+      ownerRoutingHint: context?.ownership?.routingPolicy || '',
+    },
+    {
+      fallbackQueue: context?.queueDestination || '',
+      fallbackArea: routing?.targetAreaLabel || '',
+      source:
+        context?.ownership?.source ||
+        (context?.queueDestination ? 'context_queue' : 'missing'),
+    },
+  )
+  const ownershipIntegrity = buildOperationalOwnerIntegrity(operationalOwner)
 
   return {
     id: protocolNumber,
@@ -141,10 +165,24 @@ export function buildOperatorAssistedCase({
     subsubjectCode:
       context.subsubjectCode || buildSubsubjectCode(context.theme, context.subtheme || context.finalNode?.title),
     currentNodeId: context.finalNode?.id || null,
+    sourceBundleId: context.finalNode?.bundleId || '',
+    sourceBundleVersionId: context.finalNode?.bundleVersionId || '',
+    sourceNodeId: context.finalNode?.id || '',
     priorityLabel: buildPriorityLabel(context.criticality),
     queueLabel: routing.currentQueueLabel,
     currentAreaLabel: routing.currentQueueLabel,
     lastMileAreaLabel: routing.targetAreaLabel,
+    ownerType: operationalOwner.ownerType,
+    ownerKey: operationalOwner.ownerKey,
+    ownerQueue: operationalOwner.ownerQueue,
+    ownerArea: operationalOwner.ownerArea,
+    ownerRole: operationalOwner.ownerRole,
+    ownerSource: operationalOwner.source || '',
+    ownerRoutingHint: operationalOwner.routingHint,
+    ownershipStateCode: operationalOwner.stateCode || '',
+    hasOperationalOwner: Boolean(operationalOwner.hasOwner),
+    ownershipIntegrityMessage: ownershipIntegrity.message || '',
+    operationalOwnerSnapshot: { ...operationalOwner },
     slaLabel: context.sla || 'Nao informado',
     pendingParty: 'op',
     routingMode: 'standard',
@@ -170,6 +208,13 @@ export function buildOperatorAssistedCase({
     },
     context: {
       ...context,
+      ownership: {
+        ...operationalOwner,
+        queueKey: operationalOwner.ownerQueue,
+        areaLabel: operationalOwner.ownerArea,
+        roleKey: operationalOwner.ownerRole,
+        routingPolicy: operationalOwner.routingHint,
+      },
       entryOrigin: channelLabel,
       studentPolo: studentData.polo,
       routing,

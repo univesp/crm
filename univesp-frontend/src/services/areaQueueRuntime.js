@@ -12,6 +12,7 @@ import {
   shouldShowAreaDeadline,
 } from '@/services/canonicalCaseRuntime'
 import { buildDistributionDecision } from '@/services/distributionEngine'
+import { buildOperationalOwnerDescriptor } from '@/services/operationalOwnershipRuntime'
 
 const DEFAULT_AREA_CATALOG = ['Secretaria Academica', 'Suporte Academico Digital', 'Financeiro']
 export const AREA_QUEUE_DEFAULT_PAGE_SIZE = 20
@@ -304,6 +305,22 @@ function buildAreaQueueEntry(
     rules: subjectRules,
   })
   const caseProtocol = canonicalCaseProtocols.find((item) => item.id === entry.id) || entry
+  const operationalOwner = buildOperationalOwnerDescriptor(
+    caseProtocol.operationalOwnerSnapshot || {
+      ownerType: caseProtocol.ownerType || entry.ownerType || '',
+      ownerKey: caseProtocol.ownerKey || entry.ownerKey || '',
+      ownerQueue: caseProtocol.ownerQueue || entry.ownerQueue || '',
+      ownerArea: caseProtocol.ownerArea || entry.ownerArea || '',
+      ownerRole: caseProtocol.ownerRole || entry.ownerRole || '',
+      routingHint: caseProtocol.ownerRoutingHint || entry.ownerRoutingHint || '',
+      source: caseProtocol.ownerSource || entry.ownerSource || '',
+      stateCode: caseProtocol.ownershipStateCode || entry.ownershipStateCode || '',
+      hasOwner:
+        typeof caseProtocol.hasOperationalOwner === 'boolean'
+          ? caseProtocol.hasOperationalOwner
+          : entry.hasOperationalOwner,
+    },
+  )
   const distributionSuggestion = !assignment?.analystName
     ? buildDistributionDecision({
         caseProtocol: {
@@ -342,7 +359,9 @@ function buildAreaQueueEntry(
       `${entry.theme || entry.themeKey || 'Tema'} / ${entry.subsubject || entry.subsubjectKey || 'Subassunto'}`,
     currentAssigneeLabel: assignment?.analystName || 'Sem responsavel',
     currentAssigneeMeta:
-      assignment?.analystName
+      !operationalOwner.hasOwner
+        ? 'Erro estrutural: protocolo sem owner operacional efetivo'
+        : assignment?.analystName
         ? `Responsavel atual: ${assignment.analystName}`
         : distributionSuggestion?.analystName
           ? `Sem dono fixo. Sugestao automatica: ${distributionSuggestion.analystName}`
@@ -356,16 +375,38 @@ function buildAreaQueueEntry(
       assignment,
       getCaseAreaActionLogs(areaActionLogs, entry.id),
     ),
+    operationalOwnerType: operationalOwner.ownerType,
+    operationalOwnerTypeLabel: operationalOwner.ownerTypeLabel,
+    operationalOwnerLabel: operationalOwner.ownerLabel,
+    operationalOwnerSource: operationalOwner.source,
+    operationalOwnerStateCode: operationalOwner.stateCode,
+    operationalOwnerStateLabel: operationalOwner.stateLabel,
+    operationalOwnerSnapshot: { ...operationalOwner },
+    hasOperationalOwner: Boolean(operationalOwner.hasOwner),
+    hasOperationalOwnerError: !operationalOwner.hasOwner,
     subjectScopeRule: subjectRule,
     areaBucket,
     isUnassigned: !(assignment?.analystName || '').trim(),
+    isOwnerMissing: !operationalOwner.hasOwner,
     isOverdue: Number(entry.sortTokens?.slaMinutes || 0) < 0,
     isAtRisk:
       Number(entry.sortTokens?.slaMinutes || 0) >= 0 &&
       Number(entry.sortTokens?.slaMinutes || 0) <= 120,
     isExceptionRoute: areaBucket === 'rerouted',
     isWaitingComplement: areaBucket === 'waiting_complement',
-    searchText: [entry.id, entry.student, entry.studentRa, entry.polo, entry.subject, contextFromOp, queue, status].join(' '),
+    searchText: [
+      entry.id,
+      entry.student,
+      entry.studentRa,
+      entry.polo,
+      entry.subject,
+      contextFromOp,
+      queue,
+      status,
+      operationalOwner.ownerLabel,
+      operationalOwner.stateLabel,
+      assignment?.analystName || 'Sem responsavel',
+    ].join(' '),
   }
 }
 
@@ -794,6 +835,7 @@ export function buildAreaCaseDetail({
     : []
   const attachments = Array.isArray(normalizedDetail.attachments) ? normalizedDetail.attachments : []
   const missingRequirements = []
+  const hasOperationalOwner = Boolean(areaEntry.hasOperationalOwner)
 
   if (requiredDocuments.length && !attachments.length) {
     missingRequirements.push('documentos_evidencias')
@@ -803,14 +845,20 @@ export function buildAreaCaseDetail({
     missingRequirements.push('checagens_sistema')
   }
 
+  if (!hasOperationalOwner) {
+    missingRequirements.push('owner_operacional')
+  }
+
   const latestMeaningfulTimelineEvent = Array.isArray(normalizedDetail.timeline)
     ? normalizedDetail.timeline
       .slice()
       .sort((left, right) => new Date(right.at || 0).getTime() - new Date(left.at || 0).getTime())[0] || null
     : null
-  const recommendedAction = missingRequirements.includes('documentos_evidencias')
-    ? 'request_complement'
-    : 'technical_reply'
+  const recommendedAction = missingRequirements.includes('owner_operacional')
+    ? 'reassign'
+    : missingRequirements.includes('documentos_evidencias')
+      ? 'request_complement'
+      : 'technical_reply'
   const decisionStatus = missingRequirements.length ? 'missing_requirements' : 'ready_to_reply'
 
   return {
@@ -831,9 +879,16 @@ export function buildAreaCaseDetail({
     decisionStatus,
     missingRequirements,
     recommendedAction,
-    responseAllowed: true,
+    responseAllowed: hasOperationalOwner,
     exceptionAllowed: true,
-    assignmentStatus: areaEntry.currentAssignment?.statusCode || areaEntry.ownershipState || '',
+    assignmentStatus:
+      areaEntry.currentAssignment?.statusCode ||
+      areaEntry.operationalOwnerStateCode ||
+      areaEntry.ownershipState ||
+      '',
+    hasOperationalOwner,
+    operationalOwnerStateCode: areaEntry.operationalOwnerStateCode || '',
+    operationalOwnerStateLabel: areaEntry.operationalOwnerStateLabel || '',
     lastMeaningfulEvent: latestMeaningfulTimelineEvent
       ? {
           title: latestMeaningfulTimelineEvent.title || 'Ultimo evento registrado',

@@ -52,7 +52,20 @@ import {
   cloneAreaGovernanceSeeds,
   getTeamMembersForArea,
 } from '@/services/areaGovernanceRuntime'
+import {
+  buildOperationalOwnerIntegrity,
+  resolveOperationalOwnerFromProtocol,
+} from '@/services/operationalOwnershipRuntime'
+import { buildOperationalOwnershipReferenceCatalog } from '@/services/operationalOwnershipReferences'
+import { validateOperationalOwnershipEnvelope } from '@/contracts/operationalOwnershipContract'
+import { OPERATIONAL_OWNERSHIP_BACKEND_ENDPOINTS } from '@/contracts/operationalOwnershipBackendContract'
+import {
+  DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
+  auditLegacyOwnershipRecords,
+  validateOperationalOwnershipForServer,
+} from '@/services/operationalOwnershipServerRuntime'
 import { areaActionSeeds, operatorAuditSeeds, operatorQueue, studentProtocols } from '../../mocks/operations'
+import { mockAccessProfiles } from '../../mocks/mockAccessProfiles'
 
 const STORAGE_KEY = 'univesp-student-support'
 
@@ -75,6 +88,180 @@ function sortByAssignedAtAsc(records = []) {
 
 function normalizeAreaLabel(value = '') {
   return String(value || '').trim().toLowerCase()
+}
+
+function normalizeSourceBindingText(value = '') {
+  return String(value || '').trim()
+}
+
+function resolveProtocolSourceBinding(protocol = {}) {
+  const contextFinalNode = protocol?.context?.finalNode || {}
+  const fallbackProtocolRef = normalizeSourceBindingText(
+    protocol.protocolNumber || protocol.id || protocol.sourceRecordId || '',
+  )
+  const fallbackThemeRef = normalizeSourceBindingText(
+    protocol?.context?.theme || protocol?.context?.themeKey || protocol?.form?.theme || '',
+  )
+  const sourceBundleId = normalizeSourceBindingText(
+    protocol.sourceBundleId ||
+      contextFinalNode.bundleId ||
+      contextFinalNode.bundle_id ||
+      (fallbackThemeRef ? `legacy-bundle:${fallbackThemeRef}` : '') ||
+      '',
+  )
+  const sourceBundleVersionId = normalizeSourceBindingText(
+    protocol.sourceBundleVersionId ||
+      contextFinalNode.bundleVersionId ||
+      contextFinalNode.bundle_version_id ||
+      contextFinalNode.bundle_version ||
+      (sourceBundleId ? 'legacy' : '') ||
+      '',
+  )
+  const sourceNodeId = normalizeSourceBindingText(
+    protocol.sourceNodeId ||
+      protocol.currentNodeId ||
+      contextFinalNode.id ||
+      contextFinalNode.node_id ||
+      (fallbackProtocolRef ? `legacy-node:${fallbackProtocolRef}` : '') ||
+      '',
+  )
+  const hasSourceBinding = Boolean(sourceBundleId && sourceNodeId)
+
+  return {
+    sourceBundleId,
+    sourceBundleVersionId,
+    sourceNodeId,
+    hasSourceBinding,
+    sourceBindingStateCode: hasSourceBinding ? 'source_binding_resolved' : 'source_binding_missing',
+  }
+}
+
+function normalizeProtocolOwnershipPayload(protocol = {}, source = 'store_protocol') {
+  if (!protocol || typeof protocol !== 'object') {
+    return protocol
+  }
+
+  const ownershipSnapshot = resolveOperationalOwnerFromProtocol(
+    {
+      ...protocol,
+      context: protocol.context || {},
+    },
+    {
+      fallbackQueue: protocol.queueLabel || protocol.context?.routing?.currentQueueLabel || protocol.context?.queueDestination || '',
+      fallbackArea:
+        protocol.currentAreaLabel ||
+        protocol.lastMileAreaLabel ||
+        protocol.context?.routing?.targetAreaLabel ||
+        '',
+      source: protocol.ownerSource || protocol.context?.ownership?.source || source,
+    },
+  )
+  const ownershipIntegrity = buildOperationalOwnerIntegrity(ownershipSnapshot)
+  const sourceBinding = resolveProtocolSourceBinding(protocol)
+
+  return {
+    ...protocol,
+    sourceBundleId: sourceBinding.sourceBundleId,
+    sourceBundleVersionId: sourceBinding.sourceBundleVersionId,
+    sourceNodeId: sourceBinding.sourceNodeId,
+    hasSourceBinding: sourceBinding.hasSourceBinding,
+    sourceBindingStateCode: sourceBinding.sourceBindingStateCode,
+    ownerType: ownershipSnapshot.ownerType || '',
+    ownerKey: ownershipSnapshot.ownerKey || '',
+    ownerQueue: ownershipSnapshot.ownerQueue || '',
+    ownerArea: ownershipSnapshot.ownerArea || '',
+    ownerRole: ownershipSnapshot.ownerRole || '',
+    ownerSource: ownershipSnapshot.source || source,
+    ownerRoutingHint: ownershipSnapshot.routingHint || '',
+    hasOperationalOwner: Boolean(ownershipSnapshot.hasOwner),
+    ownershipStateCode: ownershipSnapshot.stateCode || '',
+    ownershipIntegrityMessage: ownershipIntegrity.message || '',
+    operationalOwnerSnapshot: { ...ownershipSnapshot },
+    context: {
+      ...(protocol.context || {}),
+      ownership: {
+        ...(protocol.context?.ownership || {}),
+        ownerType: ownershipSnapshot.ownerType || '',
+        ownerKey: ownershipSnapshot.ownerKey || '',
+        queueKey: ownershipSnapshot.ownerQueue || '',
+        areaLabel: ownershipSnapshot.ownerArea || '',
+        roleKey: ownershipSnapshot.ownerRole || '',
+        routingPolicy: ownershipSnapshot.routingHint || '',
+        source: ownershipSnapshot.source || source,
+        hasOwner: Boolean(ownershipSnapshot.hasOwner),
+        stateCode: ownershipSnapshot.stateCode || '',
+      },
+    },
+  }
+}
+
+function normalizeProtocolDraftOwnershipPayload(draft = {}) {
+  if (!draft || typeof draft !== 'object') {
+    return draft
+  }
+
+  const ownershipSnapshot = resolveOperationalOwnerFromProtocol(
+    {
+      context: draft.context || {},
+      ownerType: draft.form?.ownerType || '',
+      ownerKey: draft.form?.ownerKey || '',
+      ownerQueue: draft.form?.ownerQueue || '',
+      ownerArea: draft.form?.ownerArea || '',
+      ownerRole: draft.form?.ownerRole || '',
+      ownerRoutingHint: draft.form?.routingHint || '',
+      ownerSource: draft.form?.ownerSource || draft.context?.ownership?.source || '',
+    },
+    {
+      fallbackQueue: draft.form?.queueDestination || draft.context?.queueDestination || '',
+      fallbackArea: draft.form?.routingArea || draft.context?.routing?.targetAreaLabel || '',
+      source: draft.form?.ownerSource || draft.context?.ownership?.source || 'protocol_draft',
+    },
+  )
+  const ownershipIntegrity = buildOperationalOwnerIntegrity(ownershipSnapshot)
+  const sourceBinding = resolveProtocolSourceBinding({
+    sourceBundleId: draft.form?.bundleId || '',
+    sourceBundleVersionId: draft.form?.bundleVersionId || '',
+    sourceNodeId: draft.form?.sourceNodeId || '',
+    currentNodeId: draft.context?.finalNode?.id || '',
+    context: draft.context || {},
+  })
+
+  return {
+    ...draft,
+    context: {
+      ...(draft.context || {}),
+      ownership: {
+        ...(draft.context?.ownership || {}),
+        ownerType: ownershipSnapshot.ownerType || '',
+        ownerKey: ownershipSnapshot.ownerKey || '',
+        queueKey: ownershipSnapshot.ownerQueue || '',
+        areaLabel: ownershipSnapshot.ownerArea || '',
+        roleKey: ownershipSnapshot.ownerRole || '',
+        routingPolicy: ownershipSnapshot.routingHint || '',
+        source: ownershipSnapshot.source || 'protocol_draft',
+        hasOwner: Boolean(ownershipSnapshot.hasOwner),
+        stateCode: ownershipSnapshot.stateCode || '',
+      },
+    },
+    form: {
+      ...(draft.form || {}),
+      ownerType: ownershipSnapshot.ownerType || '',
+      ownerKey: ownershipSnapshot.ownerKey || '',
+      ownerQueue: ownershipSnapshot.ownerQueue || '',
+      ownerArea: ownershipSnapshot.ownerArea || '',
+      ownerRole: ownershipSnapshot.ownerRole || '',
+      ownerSource: ownershipSnapshot.source || '',
+      routingHint: ownershipSnapshot.routingHint || '',
+      hasOperationalOwner: Boolean(ownershipSnapshot.hasOwner),
+      ownershipStateCode: ownershipSnapshot.stateCode || '',
+      ownershipIntegrityMessage: ownershipIntegrity.message || '',
+      bundleId: sourceBinding.sourceBundleId,
+      bundleVersionId: sourceBinding.sourceBundleVersionId,
+      sourceNodeId: sourceBinding.sourceNodeId,
+      hasSourceBinding: sourceBinding.hasSourceBinding,
+      sourceBindingStateCode: sourceBinding.sourceBindingStateCode,
+    },
+  }
 }
 
 function deriveClosedBy({
@@ -443,6 +630,13 @@ function normalizePersistedState(rawState) {
 
   return {
     ...mergedState,
+    protocolDraft: normalizeProtocolDraftOwnershipPayload(mergedState.protocolDraft),
+    protocols: (mergedState.protocols || []).map((protocol) =>
+      normalizeProtocolOwnershipPayload(protocol, 'persisted_protocol'),
+    ),
+    operatorProtocols: (mergedState.operatorProtocols || []).map((protocol) =>
+      normalizeProtocolOwnershipPayload(protocol, 'persisted_operator_protocol'),
+    ),
     areaSubjectRules: (mergedState.areaSubjectRules || canonicalSeeds.areaSubjectEligibility || []).map(
       normalizePersistedAreaSubjectRule,
     ),
@@ -525,6 +719,31 @@ function nextSessionId(currentDate = new Date()) {
   return `faq-session-${compact}`
 }
 
+function resolveOwnershipReferenceCatalog(state = {}) {
+  return buildOperationalOwnershipReferenceCatalog({
+    operationalAreas: state?.operationalAreas || [],
+    profiles: mockAccessProfiles,
+  })
+}
+
+function resolveOwnershipServerValidation({
+  state = {},
+  payload = {},
+  endpoint = OPERATIONAL_OWNERSHIP_BACKEND_ENDPOINTS.PROTOCOL_CREATE,
+  requireSourceBinding = true,
+  requireBundleVersion = true,
+  legacyPolicy = DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
+} = {}) {
+  return validateOperationalOwnershipForServer(payload, {
+    endpoint,
+    references: resolveOwnershipReferenceCatalog(state),
+    requireSourceBinding,
+    requireBundleVersion,
+    enforceReferences: true,
+    legacyPolicy,
+  })
+}
+
 export const useStudentSupportStore = defineStore('studentSupport', {
   state: () => loadPersistedState(),
   getters: {
@@ -548,6 +767,15 @@ export const useStudentSupportStore = defineStore('studentSupport', {
     },
     latestAreaAction(state) {
       return state.areaActionLogs[state.areaActionLogs.length - 1] || null
+    },
+    ownershipLegacyAudit(state) {
+      return auditLegacyOwnershipRecords(
+        [...(state.protocols || []), ...(state.operatorProtocols || [])],
+        {
+          references: resolveOwnershipReferenceCatalog(state),
+          legacyPolicy: DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
+        },
+      )
     },
     areaTeamMembers() {
       return (areaLabel = '') => {
@@ -973,25 +1201,97 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         lineage,
         currentDate,
       })
+      const rawDraft = buildProtocolDraft({
+        context,
+        sourceRecordId: '',
+        currentDate,
+      })
+      const draft = normalizeProtocolDraftOwnershipPayload(rawDraft)
+      const ownershipSnapshot = resolveOperationalOwnerFromProtocol({
+        context: draft?.context || {},
+        ownerType: draft?.form?.ownerType || '',
+        ownerKey: draft?.form?.ownerKey || '',
+        ownerQueue: draft?.form?.ownerQueue || '',
+        ownerArea: draft?.form?.ownerArea || '',
+        ownerRole: draft?.form?.ownerRole || '',
+        ownerRoutingHint: draft?.form?.routingHint || '',
+        ownerSource: draft?.form?.ownerSource || '',
+      })
+      const ownershipIntegrity = buildOperationalOwnerIntegrity(ownershipSnapshot)
+      const ownershipEnvelope = validateOperationalOwnershipEnvelope(
+        {
+          ownerType: ownershipSnapshot.ownerType || '',
+          ownerKey: ownershipSnapshot.ownerKey || '',
+          ownerQueue: ownershipSnapshot.ownerQueue || '',
+          ownerArea: ownershipSnapshot.ownerArea || '',
+          ownerRole: ownershipSnapshot.ownerRole || '',
+          hasOperationalOwner: Boolean(ownershipSnapshot.hasOwner),
+          ownershipStateCode: ownershipSnapshot.stateCode || '',
+          sourceBundleId: draft?.form?.bundleId || '',
+          sourceBundleVersionId: draft?.form?.bundleVersionId || '',
+          sourceNodeId: draft?.form?.sourceNodeId || '',
+        },
+        {
+          requireSourceBinding: true,
+          requireBundleVersion: true,
+          enforceReferences: true,
+          references: resolveOwnershipReferenceCatalog(this),
+        },
+      )
+      const ownershipServerValidation = resolveOwnershipServerValidation({
+        state: this,
+        payload: {
+          ownerType: ownershipSnapshot.ownerType || '',
+          ownerKey: ownershipSnapshot.ownerKey || '',
+          ownerQueue: ownershipSnapshot.ownerQueue || '',
+          ownerArea: ownershipSnapshot.ownerArea || '',
+          ownerRole: ownershipSnapshot.ownerRole || '',
+          ownerSource: ownershipSnapshot.source || '',
+          ownershipStateCode: ownershipSnapshot.stateCode || '',
+          hasOperationalOwner: Boolean(ownershipSnapshot.hasOwner),
+          sourceBundleId: draft?.form?.bundleId || '',
+          sourceBundleVersionId: draft?.form?.bundleVersionId || '',
+          sourceNodeId: draft?.form?.sourceNodeId || '',
+          operationalOwnerSnapshot: { ...ownershipSnapshot },
+        },
+        endpoint: OPERATIONAL_OWNERSHIP_BACKEND_ENDPOINTS.DRAFT_CREATE,
+        requireSourceBinding: true,
+        requireBundleVersion: true,
+        legacyPolicy: {
+          ...DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
+          allowLegacyWrite: false,
+          allowLegacyFollowUpWrite: false,
+          allowFallbackOwnerWrite: false,
+          allowLegacySourceBindingWrite: false,
+        },
+      })
+
+      if (!ownershipIntegrity.ok || !ownershipEnvelope.ok || !ownershipServerValidation.ok) {
+        this.protocolDraft = null
+        this.resolvedState = null
+        this.appendAnalytics('protocol_start_blocked_missing_owner', context, currentDate)
+        this.persistState()
+        return null
+      }
+
       const record = buildFaqAttendanceRecord({
         context,
         outcome: 'faq_not_resolved',
         currentDate,
       })
-      const draft = buildProtocolDraft({
-        context,
+      const finalDraft = {
+        ...draft,
         sourceRecordId: record.id,
-        currentDate,
-      })
+      }
 
       this.records = [record, ...this.records]
-      this.protocolDraft = draft
+      this.protocolDraft = finalDraft
       this.resolvedState = null
       this.appendAnalytics('faq_not_resolved', context, currentDate)
       this.appendAnalytics('protocol_started', context, currentDate)
       this.persistState()
 
-      return draft
+      return finalDraft
     },
     submitProtocol(currentDate = new Date()) {
       const validation = validateProtocolDraft(this.protocolDraft)
@@ -1003,10 +1303,69 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         }
       }
 
-      const protocol = buildSubmittedProtocol({
-        draft: this.protocolDraft,
-        currentDate,
+      const protocol = normalizeProtocolOwnershipPayload(
+        buildSubmittedProtocol({
+          draft: this.protocolDraft,
+          currentDate,
+        }),
+        'submitted_protocol',
+      )
+      const ownershipIntegrity = buildOperationalOwnerIntegrity(
+        protocol.operationalOwnerSnapshot || {
+          ownerType: protocol.ownerType || '',
+          ownerKey: protocol.ownerKey || '',
+          ownerQueue: protocol.ownerQueue || '',
+          ownerArea: protocol.ownerArea || '',
+          ownerRole: protocol.ownerRole || '',
+          source: protocol.ownerSource || '',
+          routingHint: protocol.ownerRoutingHint || '',
+          hasOwner: protocol.hasOperationalOwner,
+          stateCode: protocol.ownershipStateCode || '',
+        },
+      )
+      const ownershipEnvelope = validateOperationalOwnershipEnvelope(
+        protocol,
+        {
+          requireSourceBinding: true,
+          requireBundleVersion: true,
+          enforceReferences: true,
+          references: resolveOwnershipReferenceCatalog(this),
+        },
+      )
+      const ownershipServerValidation = resolveOwnershipServerValidation({
+        state: this,
+        payload: protocol,
+        endpoint: OPERATIONAL_OWNERSHIP_BACKEND_ENDPOINTS.PROTOCOL_CREATE,
+        requireSourceBinding: true,
+        requireBundleVersion: true,
+        legacyPolicy: {
+          ...DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
+          allowLegacyWrite: false,
+          allowLegacyFollowUpWrite: false,
+          allowFallbackOwnerWrite: false,
+          allowLegacySourceBindingWrite: false,
+        },
       })
+
+      if (!ownershipIntegrity.ok || !ownershipEnvelope.ok || !ownershipServerValidation.ok) {
+        const serverMessage = ownershipServerValidation.primaryError?.userMessage || ''
+        return {
+          ok: false,
+          validation: {
+            ...validation,
+            isValid: false,
+            errors: {
+              ...(validation.errors || {}),
+              form:
+                serverMessage ||
+                ownershipIntegrity.message ||
+                ownershipEnvelope.message ||
+                'Nao foi possivel enviar porque o protocolo esta sem dono operacional efetivo.',
+            },
+          },
+          backendValidation: ownershipServerValidation,
+        }
+      }
 
       this.protocols = [protocol, ...this.protocols]
       this.appendCaseKnowledgeUsage(
@@ -1024,8 +1383,18 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         buildCanonicalRoutingDecision({
           caseId: protocol.protocolNumber,
           sourceNodeId: protocol.context?.finalNode?.id || '',
-          defaultAreaLabel: protocol.lastMileAreaLabel || protocol.context?.routing?.targetAreaLabel || '',
-          resolvedAreaLabel: protocol.lastMileAreaLabel || protocol.context?.routing?.targetAreaLabel || '',
+          defaultAreaLabel:
+            protocol.ownerArea ||
+            protocol.lastMileAreaLabel ||
+            protocol.context?.routing?.targetAreaLabel ||
+            protocol.ownerQueue ||
+            '',
+          resolvedAreaLabel:
+            protocol.ownerArea ||
+            protocol.lastMileAreaLabel ||
+            protocol.context?.routing?.targetAreaLabel ||
+            protocol.ownerQueue ||
+            '',
           routingMode: 'standard',
           justification: protocol.context?.routing?.assignmentRuleLabel || 'Roteamento inicial pelo conhecimento vigente.',
           decidedBy: 'Aluno',
@@ -1050,6 +1419,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
             subsubjectCode: buildSubsubjectCode(protocol.context?.theme, protocol.context?.subtheme || protocol.context?.finalNode?.title),
             queueLabel: protocol.queueLabel,
             lastMileAreaLabel: protocol.lastMileAreaLabel,
+            ownerType: protocol.ownerType || '',
+            ownerKey: protocol.ownerKey || '',
+            ownerQueue: protocol.ownerQueue || '',
+            ownerArea: protocol.ownerArea || '',
           },
           createdAt: protocol.createdAt,
         }),
@@ -1116,6 +1489,62 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         actorName,
         currentDate,
       })
+      const ownershipIntegrity = buildOperationalOwnerIntegrity(
+        createdCase?.operationalOwnerSnapshot || {
+          ownerType: createdCase?.ownerType || '',
+          ownerKey: createdCase?.ownerKey || '',
+          ownerQueue: createdCase?.ownerQueue || '',
+          ownerArea: createdCase?.ownerArea || '',
+          ownerRole: createdCase?.ownerRole || '',
+          source: createdCase?.ownerSource || '',
+          routingHint: createdCase?.ownerRoutingHint || '',
+          hasOwner: createdCase?.hasOperationalOwner,
+          stateCode: createdCase?.ownershipStateCode || '',
+        },
+      )
+      const ownershipEnvelope = validateOperationalOwnershipEnvelope(
+        createdCase,
+        {
+          requireSourceBinding: true,
+          requireBundleVersion: true,
+          enforceReferences: true,
+          references: resolveOwnershipReferenceCatalog(this),
+        },
+      )
+      const ownershipServerValidation = resolveOwnershipServerValidation({
+        state: this,
+        payload: createdCase,
+        endpoint: OPERATIONAL_OWNERSHIP_BACKEND_ENDPOINTS.PROTOCOL_CREATE,
+        requireSourceBinding: true,
+        requireBundleVersion: true,
+        legacyPolicy: {
+          ...DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
+          allowLegacyWrite: false,
+          allowLegacyFollowUpWrite: false,
+          allowFallbackOwnerWrite: false,
+          allowLegacySourceBindingWrite: false,
+        },
+      })
+
+      if (!ownershipIntegrity.ok || !ownershipEnvelope.ok || !ownershipServerValidation.ok) {
+        this.appendAnalytics('operator_case_open_blocked_missing_owner', context || {}, currentDate)
+        this.persistState()
+        return {
+          ok: false,
+          errorCode:
+            ownershipServerValidation.primaryError?.code ||
+            ownershipIntegrity.code ||
+            'owner_missing',
+          errorMessage:
+            ownershipServerValidation.primaryError?.userMessage ||
+            ownershipIntegrity.message ||
+            ownershipEnvelope.message ||
+            'Nao foi possivel abrir este atendimento porque o fluxo nao possui dono operacional efetivo.',
+          caseItem: null,
+          actionLog: null,
+          backendValidation: ownershipServerValidation,
+        }
+      }
 
       this.operatorProtocols = [createdCase, ...this.operatorProtocols]
       this.appendCaseKnowledgeUsage(
@@ -1133,8 +1562,18 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         buildCanonicalRoutingDecision({
           caseId: createdCase.protocolNumber,
           sourceNodeId: createdCase.context?.finalNode?.id || '',
-          defaultAreaLabel: createdCase.lastMileAreaLabel || createdCase.context?.routing?.targetAreaLabel || '',
-          resolvedAreaLabel: createdCase.lastMileAreaLabel || createdCase.context?.routing?.targetAreaLabel || '',
+          defaultAreaLabel:
+            createdCase.ownerArea ||
+            createdCase.lastMileAreaLabel ||
+            createdCase.context?.routing?.targetAreaLabel ||
+            createdCase.ownerQueue ||
+            '',
+          resolvedAreaLabel:
+            createdCase.ownerArea ||
+            createdCase.lastMileAreaLabel ||
+            createdCase.context?.routing?.targetAreaLabel ||
+            createdCase.ownerQueue ||
+            '',
           routingMode: 'standard',
           justification: createdCase.context?.routing?.assignmentRuleLabel || 'Abertura assistida pelo OP com roteamento padrao.',
           decidedBy: actorName || 'Operacao do polo',
@@ -1158,6 +1597,15 @@ export const useStudentSupportStore = defineStore('studentSupport', {
             subjectCode: buildSubjectCode(createdCase.context?.theme),
             subsubjectCode: buildSubsubjectCode(createdCase.context?.theme, createdCase.context?.subtheme || createdCase.context?.finalNode?.title),
             openedChannel: createdCase.operatorIntake?.channel || contactChannel,
+            ownerType: createdCase.ownerType || '',
+            ownerKey: createdCase.ownerKey || '',
+            ownerQueue: createdCase.ownerQueue || '',
+            ownerArea: createdCase.ownerArea || '',
+            ownerRole: createdCase.ownerRole || '',
+            ownershipStateCode: createdCase.ownershipStateCode || '',
+            sourceBundleId: createdCase.sourceBundleId || '',
+            sourceBundleVersionId: createdCase.sourceBundleVersionId || '',
+            sourceNodeId: createdCase.sourceNodeId || '',
           },
           createdAt: createdCase.createdAt,
         }),
@@ -1179,6 +1627,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       }
 
       return {
+        ok: true,
         caseItem: createdCase,
         actionLog,
       }
@@ -1728,13 +2177,58 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         attachmentNames: attachments,
         currentDate,
       })
+      const normalizedProtocol = normalizeProtocolOwnershipPayload(
+        updatedProtocol,
+        'student_followup',
+      )
+      const ownershipIntegrity = buildOperationalOwnerIntegrity(
+        normalizedProtocol.operationalOwnerSnapshot || {
+          ownerType: normalizedProtocol.ownerType || '',
+          ownerKey: normalizedProtocol.ownerKey || '',
+          ownerQueue: normalizedProtocol.ownerQueue || '',
+          ownerArea: normalizedProtocol.ownerArea || '',
+          ownerRole: normalizedProtocol.ownerRole || '',
+          source: normalizedProtocol.ownerSource || '',
+          routingHint: normalizedProtocol.ownerRoutingHint || '',
+          hasOwner: normalizedProtocol.hasOperationalOwner,
+          stateCode: normalizedProtocol.ownershipStateCode || '',
+        },
+      )
+      const ownershipEnvelope = validateOperationalOwnershipEnvelope(
+        normalizedProtocol,
+        {
+          requireSourceBinding: true,
+          requireBundleVersion: true,
+          enforceReferences: true,
+          references: resolveOwnershipReferenceCatalog(this),
+        },
+      )
+      const ownershipServerValidation = resolveOwnershipServerValidation({
+        state: this,
+        payload: normalizedProtocol,
+        endpoint: OPERATIONAL_OWNERSHIP_BACKEND_ENDPOINTS.PROTOCOL_FOLLOW_UP,
+        requireSourceBinding: true,
+        requireBundleVersion: true,
+        legacyPolicy: {
+          ...DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
+          allowLegacyRead: true,
+          allowLegacyFollowUpWrite: true,
+          allowLegacyWrite: false,
+          allowFallbackOwnerWrite: false,
+          allowLegacySourceBindingWrite: true,
+        },
+      })
+
+      if (!ownershipIntegrity.ok || !ownershipEnvelope.ok || !ownershipServerValidation.ok) {
+        return null
+      }
 
       if (existingProtocol) {
         this.protocols = this.protocols.map((protocol) =>
-          protocol.protocolNumber === normalizedId ? updatedProtocol : protocol,
+          protocol.protocolNumber === normalizedId ? normalizedProtocol : protocol,
         )
       } else {
-        this.protocols = [updatedProtocol, ...this.protocols]
+        this.protocols = [normalizedProtocol, ...this.protocols]
       }
 
       this.appendCaseEvent(
@@ -1745,9 +2239,9 @@ export const useStudentSupportStore = defineStore('studentSupport', {
           actorRole: 'student',
           fromStatus: '',
           toStatus: mapLegacyCaseStatusCode({
-            statusCode: updatedProtocol.statusCode,
-            statusLabel: updatedProtocol.statusLabel,
-            pendingLabel: updatedProtocol.pendingLabel,
+            statusCode: normalizedProtocol.statusCode,
+            statusLabel: normalizedProtocol.statusLabel,
+            pendingLabel: normalizedProtocol.pendingLabel,
           }),
           description: note || 'Complementacao enviada pelo aluno no protocolo.',
           payload: {
@@ -1758,7 +2252,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       )
 
       this.persistState()
-      return updatedProtocol
+      return normalizedProtocol
     },
   },
 })

@@ -99,6 +99,8 @@ router.onError((error, to) => {
   if (window.sessionStorage?.getItem(CHUNK_RELOAD_GUARD_KEY) === '1') {
     window.sessionStorage.removeItem(CHUNK_RELOAD_GUARD_KEY)
     console.error(error)
+    const recoveryHref = router.resolve({ name: 'local-access' }).href
+    window.location.assign(recoveryHref)
     return
   }
 

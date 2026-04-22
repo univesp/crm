@@ -1,8 +1,14 @@
 import loggedStudent from '../../mocks/usuario-logado.json'
 import { buildCaseRoutingContext } from '@/services/caseRoutingRuntime'
 import { buildSubsubjectCode, buildSubjectCode } from '@/services/canonicalFoundationRuntime'
+import { resolveFaqNodeOperationalOwner } from '@/services/faqBuilderHybridRuntime'
 import { faqAdminSettings } from '../../mocks/faqAdminSettings'
 import { STUDENT_REQUEST_STATES } from '@/services/studentPortalRuntime'
+import {
+  buildOperationalOwnerIntegrity,
+  normalizeOperationalOwnerSnapshot,
+  resolveOperationalOwnerFromProtocol,
+} from '@/services/operationalOwnershipRuntime'
 
 function pad(value) {
   return String(value).padStart(2, '0')
@@ -61,6 +67,55 @@ function buildContextSubject(node) {
   return node.titulo_exibido || [node.tema, node.subtema].filter(Boolean).join(' / ')
 }
 
+function mapOwnershipSnapshotToContext(snapshot = {}) {
+  return {
+    ...snapshot,
+    ownerType: snapshot.ownerType || '',
+    ownerKey: snapshot.ownerKey || '',
+    queueKey: snapshot.ownerQueue || '',
+    areaLabel: snapshot.ownerArea || '',
+    roleKey: snapshot.ownerRole || '',
+    routingPolicy: snapshot.routingHint || '',
+  }
+}
+
+function resolveDraftOperationalOwner(draft = {}) {
+  return resolveOperationalOwnerFromProtocol(
+    {
+      context: draft.context || {},
+      ownerType: draft.form?.ownerType || '',
+      ownerKey: draft.form?.ownerKey || '',
+      ownerQueue: draft.form?.ownerQueue || '',
+      ownerArea: draft.form?.ownerArea || '',
+      ownerRole: draft.form?.ownerRole || '',
+      ownerRoutingHint: draft.form?.routingHint || '',
+    },
+    {
+      source: 'faq_draft',
+    },
+  )
+}
+
+function resolveBundleId(node = {}) {
+  if (node.bundle_id) {
+    return node.bundle_id
+  }
+  if (node.faq_id) {
+    return node.faq_id
+  }
+  return `faq-${node.tipo_faq || 'aluno'}:${node.tema || 'geral'}`
+}
+
+function resolveBundleVersionId(node = {}) {
+  return (
+    node.node_version ||
+    node.bundle_version_id ||
+    node.bundleVersionId ||
+    node.bundle_version ||
+    ''
+  )
+}
+
 export function formatStudentFacingStatusLabel(status = '') {
   const normalized = String(status || '').trim().toLowerCase()
 
@@ -108,11 +163,35 @@ export function formatProtocolFieldLabel(field) {
 export function buildFaqAttendanceContext({ node, lineage, sessionId, currentDate = new Date() }) {
   const timestamp = buildTimestampParts(currentDate)
   const highlight = resolveCalendarHighlight(lineage, node)
+  const rawOperationalOwner = resolveFaqNodeOperationalOwner({
+    node,
+    lineage,
+    faqType: node.tipo_faq || 'aluno',
+  })
+  const operationalOwner = normalizeOperationalOwnerSnapshot(
+    {
+      ownerType: rawOperationalOwner.ownerType,
+      ownerKey: rawOperationalOwner.ownerKey,
+      ownerQueue: rawOperationalOwner.queueKey,
+      ownerArea: rawOperationalOwner.areaLabel,
+      ownerRole: rawOperationalOwner.roleKey,
+      routingHint: rawOperationalOwner.routingPolicy,
+      source: rawOperationalOwner.source || 'faq_lineage',
+    },
+    {
+      fallbackQueue: node.fila_destino || '',
+      source: rawOperationalOwner.source || 'faq_lineage',
+    },
+  )
+  const queueDestinationForRouting =
+    operationalOwner.hasOwner && operationalOwner.ownerType === 'queue'
+      ? operationalOwner.ownerQueue
+      : node.fila_destino
   const routing = buildCaseRoutingContext({
     studentPolo: loggedStudent.polo,
     theme: node.tema,
     subtheme: node.subtema,
-    queueDestination: node.fila_destino,
+    queueDestination: queueDestinationForRouting,
     criticality: node.criticidade_padrao,
     entryOrigin: loggedStudent.origem_autenticacao || 'Acesso Unificado',
   })
@@ -129,14 +208,21 @@ export function buildFaqAttendanceContext({ node, lineage, sessionId, currentDat
       id: node.id,
       title: node.titulo_exibido,
       nodeType: node.node_type || node.node_kind || 'leaf',
+      bundleId: resolveBundleId(node),
+      bundleVersionId: resolveBundleVersionId(node),
     },
     subjectCode: buildSubjectCode(node.tema),
     subsubjectCode: buildSubsubjectCode(node.tema, node.subtema || node.titulo_exibido),
     displayedAnswer: node.resposta || '',
     action: node.acao,
-    queueDestination: node.fila_destino,
+    queueDestination: queueDestinationForRouting,
     criticality: node.criticidade_padrao,
     sla: node.sla_padrao,
+    ownership: {
+      ...mapOwnershipSnapshotToContext(operationalOwner),
+      required: true,
+      hasOwner: Boolean(operationalOwner.hasOwner),
+    },
     calendarHighlight: highlight,
     studentPolo: loggedStudent.polo,
     entryOrigin: routing.entryOrigin,
@@ -180,6 +266,21 @@ export function buildFaqAttendanceRecord({ context, outcome, currentDate = new D
 export function buildProtocolDraft({ context, sourceRecordId, currentDate = new Date() }) {
   const timestamp = buildTimestampParts(currentDate)
 
+  const ownership = resolveOperationalOwnerFromProtocol(
+    {
+      context,
+      ownerType: context?.ownership?.ownerType || '',
+      ownerKey: context?.ownership?.ownerKey || '',
+      ownerQueue: context?.ownership?.queueKey || '',
+      ownerArea: context?.ownership?.areaLabel || '',
+      ownerRole: context?.ownership?.roleKey || '',
+      ownerRoutingHint: context?.ownership?.routingPolicy || '',
+    },
+    {
+      source: context?.ownership?.source || 'faq_context',
+    },
+  )
+
   return {
     id: `PTC-${timestamp.compact}`,
     sourceRecordId,
@@ -202,6 +303,16 @@ export function buildProtocolDraft({ context, sourceRecordId, currentDate = new 
       displayedAnswer: context.displayedAnswer,
       action: context.action,
       queueDestination: context.queueDestination,
+      ownerType: context.ownership?.ownerType || '',
+      ownerKey: ownership.ownerKey || '',
+      ownerQueue: ownership.ownerQueue || '',
+      ownerArea: ownership.ownerArea || '',
+      ownerRole: ownership.ownerRole || '',
+      ownerSource: ownership.source || '',
+      routingHint: ownership.routingHint || '',
+      bundleId: context.finalNode?.bundleId || '',
+      bundleVersionId: context.finalNode?.bundleVersionId || '',
+      sourceNodeId: context.finalNode?.id || '',
       routingQueue: context.routing.currentQueueLabel,
       routingArea: context.routing.targetAreaLabel,
       criticality: context.criticality,
@@ -253,6 +364,12 @@ export function validateProtocolDraft(draft) {
       'O no final marcou anexo obrigatorio, mas o fluxo atual nao permite anexos neste mock.'
   }
 
+  const ownership = resolveDraftOperationalOwner(draft)
+  const ownershipIntegrity = buildOperationalOwnerIntegrity(ownership)
+  if (!ownershipIntegrity.ok) {
+    errors.form = 'Nao foi possivel enviar este protocolo porque o fluxo FAQ nao possui dono operacional efetivo.'
+  }
+
   return {
     isValid: Object.keys(errors).length === 0,
     errors,
@@ -274,6 +391,8 @@ export function buildSubmittedProtocol({ draft, currentDate = new Date() }) {
   const description =
     draft.form.description?.trim() ||
     'A solicitacao foi iniciada com o contexto da orientacao exibida no portal.'
+
+  const ownership = resolveDraftOperationalOwner(draft)
 
   return {
     id: protocolNumber,
@@ -297,10 +416,23 @@ export function buildSubmittedProtocol({ draft, currentDate = new Date() }) {
       draft.context.subsubjectCode ||
       buildSubsubjectCode(draft.context.theme, draft.context.subtheme || draft.context.finalNode.title),
     currentNodeId: draft.context.finalNode?.id || null,
+    sourceNodeId: draft.context.finalNode?.id || '',
+    sourceBundleId: draft.context.finalNode?.bundleId || '',
+    sourceBundleVersionId: draft.context.finalNode?.bundleVersionId || '',
     priorityLabel,
     queueLabel: draft.context.routing.currentQueueLabel,
     currentAreaLabel: draft.context.routing.currentQueueLabel,
     lastMileAreaLabel: draft.context.routing.targetAreaLabel,
+    ownerType: ownership.ownerType || '',
+    ownerKey: ownership.ownerKey || '',
+    ownerQueue: ownership.ownerQueue || '',
+    ownerArea: ownership.ownerArea || '',
+    ownerRole: ownership.ownerRole || '',
+    ownerSource: ownership.source || '',
+    ownerRoutingHint: ownership.routingHint || '',
+    ownershipStateCode: ownership.stateCode || '',
+    hasOperationalOwner: Boolean(ownership.hasOwner),
+    operationalOwnerSnapshot: { ...ownership },
     routingMode: 'standard',
     pendingParty: draft.context.routing.exceptionToCentral ? 'op' : 'op',
     slaLabel: draft.context.sla,
@@ -377,6 +509,52 @@ export function buildStudentFollowUpSubmission({
   const timelineDescription = attachmentNames.length
     ? 'O aluno enviou novos documentos para continuar a analise.'
     : 'O aluno enviou novas informacoes pelo portal para continuar o atendimento.'
+  const sourceBundleId =
+    existingProtocol?.sourceBundleId ||
+    existingProtocol?.context?.finalNode?.bundleId ||
+    seedEntry?.sourceBundleId ||
+    (existingProtocol?.context?.theme
+      ? `legacy-bundle:${existingProtocol.context.theme}`
+      : seedEntry?.theme
+        ? `legacy-bundle:${seedEntry.theme}`
+        : `legacy-bundle:${protocolNumber}`)
+  const sourceBundleVersionId =
+    existingProtocol?.sourceBundleVersionId ||
+    existingProtocol?.context?.finalNode?.bundleVersionId ||
+    seedEntry?.sourceBundleVersionId ||
+    'legacy'
+  const sourceNodeId =
+    existingProtocol?.sourceNodeId ||
+    existingProtocol?.currentNodeId ||
+    existingProtocol?.context?.finalNode?.id ||
+    seedEntry?.sourceNodeId ||
+    `legacy-node:${protocolNumber}`
+  const ownership = resolveOperationalOwnerFromProtocol(
+    {
+      ...existingProtocol,
+      ownerType: existingProtocol?.ownerType || seedEntry?.ownerType || '',
+      ownerKey: existingProtocol?.ownerKey || seedEntry?.ownerKey || '',
+      ownerQueue:
+        existingProtocol?.ownerQueue ||
+        seedEntry?.ownerQueue ||
+        existingProtocol?.queueLabel ||
+        seedEntry?.queue ||
+        '',
+      ownerArea:
+        existingProtocol?.ownerArea ||
+        seedEntry?.ownerArea ||
+        existingProtocol?.lastMileAreaLabel ||
+        seedEntry?.queue ||
+        '',
+      ownerRole: existingProtocol?.ownerRole || seedEntry?.ownerRole || '',
+      ownerRoutingHint: existingProtocol?.ownerRoutingHint || seedEntry?.ownerRoutingHint || '',
+      ownerSource: existingProtocol?.ownerSource || seedEntry?.ownerSource || 'followup_snapshot',
+      context: existingProtocol?.context || {},
+    },
+    {
+      source: existingProtocol?.ownerSource || seedEntry?.ownerSource || 'followup_snapshot',
+    },
+  )
 
   return {
     id: protocolNumber,
@@ -391,6 +569,9 @@ export function buildStudentFollowUpSubmission({
     statusLabel: 'Aguardando nova analise',
     statusGroup: 'submitted',
     subject,
+    sourceNodeId,
+    sourceBundleId,
+    sourceBundleVersionId,
     priorityLabel: existingProtocol?.priorityLabel || seedEntry?.priority || 'Media',
     queueLabel: existingProtocol?.queueLabel || 'Equipe responsavel',
     lastMileAreaLabel: existingProtocol?.lastMileAreaLabel || 'Atendimento institucional',
@@ -402,6 +583,16 @@ export function buildStudentFollowUpSubmission({
         finalNode: { title: subject },
         displayedAnswer: '',
       },
+    ownerType: ownership.ownerType || '',
+    ownerKey: ownership.ownerKey || '',
+    ownerQueue: ownership.ownerQueue || '',
+    ownerArea: ownership.ownerArea || '',
+    ownerRole: ownership.ownerRole || '',
+    ownerSource: ownership.source || '',
+    ownerRoutingHint: ownership.routingHint || '',
+    ownershipStateCode: ownership.stateCode || '',
+    hasOperationalOwner: Boolean(ownership.hasOwner),
+    operationalOwnerSnapshot: { ...ownership },
     attachments: [...existingAttachments, ...newAttachments],
     timeline: [
       ...(Array.isArray(existingProtocol?.timeline) ? existingProtocol.timeline : []),
@@ -443,6 +634,11 @@ export function buildAnalyticsEvent({ name, context, currentDate = new Date() })
       queueDestination: context?.queueDestination || null,
       criticality: context?.criticality || null,
       sla: context?.sla || null,
+      ownerType: context?.ownership?.ownerType || null,
+      ownerKey: context?.ownership?.ownerKey || null,
+      ownerQueue: context?.ownership?.queueKey || null,
+      ownerArea: context?.ownership?.areaLabel || null,
+      ownerRole: context?.ownership?.roleKey || null,
       routingQueue: context?.routing?.currentQueueLabel || null,
       routingArea: context?.routing?.targetAreaLabel || null,
       calendarHighlight: context?.calendarHighlight?.label || null,

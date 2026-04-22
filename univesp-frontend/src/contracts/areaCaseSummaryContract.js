@@ -10,6 +10,9 @@ export const AREA_CASE_SUMMARY_MINIMAL_PAYLOAD = Object.freeze({
   responseAllowed: 'boolean',
   exceptionAllowed: 'boolean',
   assignmentStatus: 'string',
+  hasOperationalOwner: 'boolean',
+  operationalOwnerStateCode: 'string',
+  operationalOwnerStateLabel: 'string',
   lastMeaningfulEvent: 'null | { title: string, at: string|null, atLabel: string }',
 })
 
@@ -21,6 +24,9 @@ export const AREA_CASE_SUMMARY_SERVER_CANONICAL_FIELDS = Object.freeze([
   'responseAllowed',
   'exceptionAllowed',
   'assignmentStatus',
+  'hasOperationalOwner',
+  'operationalOwnerStateCode',
+  'operationalOwnerStateLabel',
   'lastMeaningfulEvent',
 ])
 
@@ -169,7 +175,11 @@ export function buildAreaCaseSummaryPayload({
   })
   const responseAllowed = Boolean(actionAuthorization?.technical_reply?.allowed)
   const exceptionAllowed = Boolean(actionAuthorization?.reassign?.allowed)
-  const assignmentStatus = detail?.currentAssignment?.statusCode || detail?.ownershipState?.ownershipState || ''
+  const assignmentStatus =
+    detail?.currentAssignment?.statusCode ||
+    detail?.operationalOwnerStateCode ||
+    detail?.ownershipState ||
+    ''
 
   return {
     scopeValid,
@@ -179,6 +189,9 @@ export function buildAreaCaseSummaryPayload({
     responseAllowed,
     exceptionAllowed,
     assignmentStatus,
+    hasOperationalOwner: Boolean(detail?.hasOperationalOwner),
+    operationalOwnerStateCode: detail?.operationalOwnerStateCode || '',
+    operationalOwnerStateLabel: detail?.operationalOwnerStateLabel || '',
     lastMeaningfulEvent: resolveLastMeaningfulEvent(detail),
   }
 }

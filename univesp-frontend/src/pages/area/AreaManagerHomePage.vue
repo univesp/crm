@@ -59,6 +59,12 @@ const kpiCards = computed(() => [
     helper: 'Podem virar vencidos no turno.',
   },
   {
+    id: 'owner_missing',
+    label: 'Sem owner operacional',
+    value: overview.value.kpis.ownerMissing,
+    helper: 'Erro estrutural: caso sem dono tematico efetivo.',
+  },
+  {
     id: 'unassigned',
     label: 'Sem responsavel',
     value: overview.value.kpis.unassigned,
@@ -80,9 +86,15 @@ const kpiCards = computed(() => [
 
 const quickActions = computed(() => [
   {
+    id: 'owner_missing',
+    title: 'Corrigir ownership estrutural',
+    description: 'Abrir fila focando casos sem owner operacional efetivo.',
+    route: buildQueueRoute({ scopeState: 'owner_missing', bucket: 'all', owner: 'todos' }),
+  },
+  {
     id: 'unassigned',
     title: 'Assumir sem responsavel',
-    description: 'Abrir fila com foco em ownership vazio.',
+    description: 'Abrir fila de casos com owner definido, mas sem assignee humano.',
     route: buildQueueRoute({ owner: 'Sem responsavel', bucket: 'all' }),
   },
   {
@@ -237,7 +249,7 @@ function recommendationPriorityLabel(priority = '') {
       </div>
     </section>
 
-    <section class="grid gap-3 lg:grid-cols-6">
+    <section class="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
       <article
         v-for="item in kpiCards"
         :key="item.id"

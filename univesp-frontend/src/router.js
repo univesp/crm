@@ -317,11 +317,25 @@ const routes = [
   },
   {
     path: '/admin/faq/:bundleId',
-    name: 'admin-faq-builder',
+    name: 'admin-faq-flow',
     component: () => import('@/pages/admin/AdminFaqPage.vue'),
+    meta: {
+      title: 'Visao do fluxo FAQ',
+      stage: 'admin-faq',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['edit_faq'],
+    },
+  },
+  {
+    path: '/admin/faq/:bundleId/editor',
+    name: 'admin-faq-builder',
+    component: () => import('@/pages/admin/AdminFaqEditorPage.vue'),
     meta: {
       title: 'Builder de fluxo FAQ',
       stage: 'admin-faq',
+      layout: 'auth',
       requiresAuth: true,
       shellKey: 'governance',
       allowedProfiles: ['admin_central'],

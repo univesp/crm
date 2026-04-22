@@ -1457,6 +1457,19 @@ function assignCase() {
           <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
             Responsavel: {{ detail.currentAssigneeLabel || 'Sem responsavel' }}
           </span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            Owner operacional: {{ detail.operationalOwnerLabel || 'Nao resolvido' }}
+          </span>
+          <span
+            class="rounded-full border px-3 py-1 text-xs font-semibold"
+            :class="
+              detail.hasOperationalOwnerError
+                ? 'border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.72)] text-[var(--color-danger)]'
+                : 'border-[rgba(26,111,67,0.2)] bg-[rgba(220,252,231,0.72)] text-[var(--color-success)]'
+            "
+          >
+            {{ detail.operationalOwnerStateLabel || (detail.hasOperationalOwnerError ? 'Owner ausente' : 'Owner resolvido') }}
+          </span>
         </div>
         <div :class="['mt-3 rounded-[12px] border px-4 py-3', decisionStatusPresentation.toneClass]">
           <p class="text-sm font-semibold">{{ decisionStatusPresentation.label }}</p>

@@ -12,6 +12,10 @@ import {
   shouldShowOperationalDeadline,
 } from '@/services/canonicalCaseRuntime'
 import {
+  buildOperationalOwnerDescriptor,
+  resolveOperationalOwnerFromProtocol,
+} from '@/services/operationalOwnershipRuntime'
+import {
   operatorQueue as seededOperatorQueue,
   operatorCaseSeeds,
   operatorCorrelationHistory,
@@ -794,6 +798,11 @@ function applyActionLogsToQueueEntry(entry, actionLogs = [], areaActionLogs = []
       latestLog?.assigneeLabel,
       latestAreaLog?.assigneeLabel,
       pending,
+      entry.operationalOwnerLabel,
+      entry.operationalOwnerStateLabel,
+      entry.ownerQueue,
+      entry.ownerArea,
+      entry.ownerRole,
     ].join(' '),
     sortTokens: buildSortTokens({
       priority,
@@ -821,6 +830,19 @@ function mergeCanonicalCaseProtocol(entry, canonicalCaseProtocol = null, caseKno
   const knowledgeUsages = caseKnowledgeUsages
     .filter((record) => record.caseId === entry.id)
     .sort((left, right) => new Date(left.usedAt || 0).getTime() - new Date(right.usedAt || 0).getTime())
+  const ownershipDescriptor = buildOperationalOwnerDescriptor(
+    canonicalCaseProtocol.operationalOwnerSnapshot || {
+      ownerType: canonicalCaseProtocol.ownerType || '',
+      ownerKey: canonicalCaseProtocol.ownerKey || '',
+      ownerQueue: canonicalCaseProtocol.ownerQueue || '',
+      ownerArea: canonicalCaseProtocol.ownerArea || '',
+      ownerRole: canonicalCaseProtocol.ownerRole || '',
+      routingHint: canonicalCaseProtocol.ownerRoutingHint || '',
+      source: canonicalCaseProtocol.ownerSource || '',
+      stateCode: canonicalCaseProtocol.ownershipStateCode || '',
+      hasOwner: canonicalCaseProtocol.hasOperationalOwner,
+    },
+  )
 
   return {
     ...entry,
@@ -837,6 +859,20 @@ function mergeCanonicalCaseProtocol(entry, canonicalCaseProtocol = null, caseKno
     latestOperatorActionType: canonicalCaseProtocol.latestOperatorActionType || '',
     latestAreaActionType: canonicalCaseProtocol.latestAreaActionType || '',
     closedBy: canonicalCaseProtocol.closedBy || '',
+    ownerType: ownershipDescriptor.ownerType || '',
+    ownerKey: ownershipDescriptor.ownerKey || '',
+    ownerQueue: ownershipDescriptor.ownerQueue || '',
+    ownerArea: ownershipDescriptor.ownerArea || '',
+    ownerRole: ownershipDescriptor.ownerRole || '',
+    ownerSource: ownershipDescriptor.source || '',
+    ownerRoutingHint: ownershipDescriptor.routingHint || '',
+    hasOperationalOwner: Boolean(ownershipDescriptor.hasOwner),
+    ownershipStateCode: ownershipDescriptor.stateCode || '',
+    operationalOwnerSnapshot: { ...ownershipDescriptor },
+    operationalOwnerLabel: ownershipDescriptor.ownerLabel,
+    operationalOwnerTypeLabel: ownershipDescriptor.ownerTypeLabel,
+    operationalOwnerStateLabel: ownershipDescriptor.stateLabel,
+    hasOperationalOwnerError: !ownershipDescriptor.hasOwner,
     slaPolicyCode: canonicalCaseProtocol.slaPolicyCode || '',
     slaDeadlineAt: sla.slaDeadlineAt,
     slaState: sla.slaState,
@@ -873,6 +909,26 @@ function buildSeedQueueEntry(item, actionLogs = [], areaActionLogs = []) {
     criticality: item.criticality,
     entryOrigin: 'Portal do atendimento',
   })
+  const operationalOwner = resolveOperationalOwnerFromProtocol(
+    {
+      ownerType: item.ownerType || 'area',
+      ownerKey: item.ownerKey || '',
+      ownerQueue: item.ownerQueue || '',
+      ownerArea: item.ownerArea || item.queue || '',
+      ownerRole: item.ownerRole || '',
+      ownerRoutingHint: item.ownerRoutingHint || '',
+      ownerSource: item.ownerSource || 'seed_queue_entry',
+      queueLabel: item.queue || '',
+      currentAreaLabel: item.queue || '',
+      lastMileAreaLabel: item.queue || '',
+    },
+    {
+      fallbackQueue: item.queue || '',
+      fallbackArea: item.queue || '',
+      source: item.ownerSource || 'seed_queue_entry',
+    },
+  )
+  const ownershipDescriptor = buildOperationalOwnerDescriptor(operationalOwner)
 
   return applyActionLogsToQueueEntry(
     {
@@ -903,6 +959,20 @@ function buildSeedQueueEntry(item, actionLogs = [], areaActionLogs = []) {
       }),
       pendingLabel: item.pendingLabel || 'Leitura inicial pelo OP',
       routing,
+      ownerType: ownershipDescriptor.ownerType,
+      ownerKey: ownershipDescriptor.ownerKey,
+      ownerQueue: ownershipDescriptor.ownerQueue,
+      ownerArea: ownershipDescriptor.ownerArea,
+      ownerRole: ownershipDescriptor.ownerRole,
+      ownerSource: ownershipDescriptor.source,
+      ownerRoutingHint: ownershipDescriptor.routingHint,
+      ownershipStateCode: ownershipDescriptor.stateCode,
+      hasOperationalOwner: Boolean(ownershipDescriptor.hasOwner),
+      operationalOwnerSnapshot: { ...ownershipDescriptor },
+      operationalOwnerLabel: ownershipDescriptor.ownerLabel,
+      operationalOwnerTypeLabel: ownershipDescriptor.ownerTypeLabel,
+      operationalOwnerStateLabel: ownershipDescriptor.stateLabel,
+      hasOperationalOwnerError: !ownershipDescriptor.hasOwner,
     },
     actionLogs,
     areaActionLogs,
@@ -923,8 +993,24 @@ function buildLocalQueueEntry(protocol, actionLogs = [], areaActionLogs = []) {
       subtheme: protocol.context?.subtheme,
       queueDestination: protocol.context?.queueDestination,
       criticality: protocol.context?.criticality,
-      entryOrigin: protocol.context?.entryOrigin || 'Acesso Unificado',
+        entryOrigin: protocol.context?.entryOrigin || 'Acesso Unificado',
     })
+  const operationalOwner = resolveOperationalOwnerFromProtocol(
+    {
+      ...protocol,
+      context: protocol.context || {},
+      queueLabel: protocol.queueLabel || routing.currentQueueLabel || '',
+      currentAreaLabel: protocol.currentAreaLabel || protocol.lastMileAreaLabel || routing.targetAreaLabel || '',
+      lastMileAreaLabel: protocol.lastMileAreaLabel || routing.targetAreaLabel || '',
+      ownerSource: protocol.ownerSource || protocol.context?.ownership?.source || 'local_protocol',
+    },
+    {
+      fallbackQueue: protocol.queueLabel || routing.currentQueueLabel || protocol.context?.queueDestination || '',
+      fallbackArea: protocol.currentAreaLabel || protocol.lastMileAreaLabel || routing.targetAreaLabel || '',
+      source: protocol.ownerSource || protocol.context?.ownership?.source || 'local_protocol',
+    },
+  )
+  const ownershipDescriptor = buildOperationalOwnerDescriptor(operationalOwner)
 
   return applyActionLogsToQueueEntry(
     {
@@ -955,6 +1041,20 @@ function buildLocalQueueEntry(protocol, actionLogs = [], areaActionLogs = []) {
       }),
       pendingLabel: protocol.pendingLabel || 'Aguardando triagem operacional',
       routing,
+      ownerType: ownershipDescriptor.ownerType,
+      ownerKey: ownershipDescriptor.ownerKey,
+      ownerQueue: ownershipDescriptor.ownerQueue,
+      ownerArea: ownershipDescriptor.ownerArea,
+      ownerRole: ownershipDescriptor.ownerRole,
+      ownerSource: ownershipDescriptor.source,
+      ownerRoutingHint: ownershipDescriptor.routingHint,
+      ownershipStateCode: ownershipDescriptor.stateCode,
+      hasOperationalOwner: Boolean(ownershipDescriptor.hasOwner),
+      operationalOwnerSnapshot: { ...ownershipDescriptor },
+      operationalOwnerLabel: ownershipDescriptor.ownerLabel,
+      operationalOwnerTypeLabel: ownershipDescriptor.ownerTypeLabel,
+      operationalOwnerStateLabel: ownershipDescriptor.stateLabel,
+      hasOperationalOwnerError: !ownershipDescriptor.hasOwner,
     },
     actionLogs,
     areaActionLogs,
@@ -1265,6 +1365,11 @@ function mergeQueueEntryWithSeedFallback(seedEntry = null, localEntry = null) {
       merged.polo,
       merged.assignedOperator,
       merged.pendingLabel,
+      merged.operationalOwnerLabel,
+      merged.operationalOwnerStateLabel,
+      merged.ownerQueue,
+      merged.ownerArea,
+      merged.ownerRole,
     ].filter(Boolean).join(' '),
     sortTokens: buildSortTokens({
       priority: merged.priority,

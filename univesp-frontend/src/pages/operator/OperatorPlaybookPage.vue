@@ -450,7 +450,9 @@ function submitAssistedAction() {
   if (!result?.caseItem) {
     actionFeedback.value = {
       type: 'error',
-      message: 'Nao foi possivel registrar o atendimento agora. Tente novamente.',
+      message:
+        result?.errorMessage ||
+        'Nao foi possivel registrar o atendimento agora. Verifique ownership operacional e tente novamente.',
     }
     return
   }

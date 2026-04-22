@@ -126,6 +126,16 @@ export function findAreaAssignment(entry = {}, assignments = []) {
 }
 
 export function deriveAnalystOwnershipState(entry = {}, viewerContext = null, assignment = null, areaLogs = []) {
+  const ownerStateCode = normalizeText(entry.operationalOwnerStateCode || entry.ownershipStateCode || '')
+  const ownerMissing =
+    entry.hasOperationalOwner === false ||
+    entry.hasOperationalOwnerError === true ||
+    ['owner_missing', 'owner_invalid'].includes(ownerStateCode)
+
+  if (ownerMissing) {
+    return 'owner_missing'
+  }
+
   if (!viewerContext || viewerContext.profileKey === 'gestor_area') {
     return 'team'
   }
@@ -308,6 +318,12 @@ export function buildAreaManagerOverview({
   const waitingComplementEntries = activeEntries.filter((entry) => normalizeText(entry.areaBucket) === 'waiting_complement')
   const reroutedEntries = activeEntries.filter((entry) => normalizeText(entry.areaBucket) === 'rerouted')
   const stalledEntries = waitingComplementEntries.filter((entry) => toActivityHours(entry, currentDate) >= 48)
+  const ownerMissingEntries = activeEntries.filter(
+    (entry) =>
+      entry.hasOperationalOwnerError ||
+      entry.hasOperationalOwner === false ||
+      ['owner_missing', 'owner_invalid'].includes(normalizeText(entry.operationalOwnerStateCode)),
+  )
 
   const loadByAnalyst = teamMembers
     .map((analystName) => {
@@ -381,6 +397,18 @@ export function buildAreaManagerOverview({
       title: `${unassignedEntries.length} caso(s) sem responsavel`,
       description: `Distribuir primeiro para ${leastLoaded.join(', ')} ou assumir excepcionalmente no gestor.`,
       routeQuery: { owner: 'Sem responsavel', bucket: 'all' },
+      priority: 'critical',
+    })
+  }
+
+  if (ownerMissingEntries.length) {
+    redistributionSuggestions.push({
+      id: 'owner-structural-gap',
+      tone: 'danger',
+      title: `${ownerMissingEntries.length} caso(s) sem owner operacional`,
+      description:
+        'Falha estrutural de ownership detectada. Revisar bundle/nos de origem e reprocessar roteamento.',
+      routeQuery: { bucket: 'all', scopeState: 'owner_missing', owner: 'todos' },
       priority: 'critical',
     })
   }
@@ -459,15 +487,22 @@ export function buildAreaManagerOverview({
     {
       id: 'intervention-now',
       question: 'Onde preciso intervir agora?',
-      value: unassignedEntries.length + stalledEntries.length,
+      value: ownerMissingEntries.length + unassignedEntries.length + stalledEntries.length,
       headline:
-        unassignedEntries.length || stalledEntries.length
-          ? `${unassignedEntries.length} sem responsavel e ${stalledEntries.length} parado(s)`
+        ownerMissingEntries.length || unassignedEntries.length || stalledEntries.length
+          ? `${ownerMissingEntries.length} sem owner, ${unassignedEntries.length} sem assignee e ${stalledEntries.length} parado(s)`
           : 'Sem intervencao obrigatoria imediata',
       helper: 'Ownership vazio e casos travados devem ser tratados antes da fila crescer.',
-      tone: unassignedEntries.length ? 'danger' : stalledEntries.length ? 'warning' : 'stable',
-      routeQuery: unassignedEntries.length
-        ? { owner: 'Sem responsavel', bucket: 'all' }
+      tone:
+        ownerMissingEntries.length || unassignedEntries.length
+          ? 'danger'
+          : stalledEntries.length
+            ? 'warning'
+            : 'stable',
+      routeQuery: ownerMissingEntries.length || unassignedEntries.length
+        ? ownerMissingEntries.length
+          ? { bucket: 'all', scopeState: 'owner_missing', owner: 'todos' }
+          : { owner: 'Sem responsavel', bucket: 'all' }
         : { bucket: 'waiting_complement', sortField: 'sla', sortDirection: 'asc' },
     },
     {
@@ -481,12 +516,29 @@ export function buildAreaManagerOverview({
             ? `${pendingSuggestions.length} mudanca(s) pendente(s) de conhecimento`
             : 'Sem impacto forte de regra no momento',
       helper: 'Conecte disponibilidade, escopo e mudancas pendentes com a saude da fila.',
-      tone: restrictedCriticalSubjects.length ? 'warning' : pendingSuggestions.length ? 'info' : 'stable',
+      tone:
+        ownerMissingEntries.length
+          ? 'danger'
+          : restrictedCriticalSubjects.length
+            ? 'warning'
+            : pendingSuggestions.length
+              ? 'info'
+              : 'stable',
       routeQuery: restrictedCriticalSubjects.length ? { bucket: 'all' } : { bucket: 'all' },
     },
   ]
 
   const ruleImpactHints = [
+    ...(ownerMissingEntries.length
+      ? [
+          {
+            id: 'owner-structural-gaps',
+            tone: 'danger',
+            title: 'Fluxo gerando caso sem owner operacional',
+            description: `${ownerMissingEntries.length} caso(s) com ownership estrutural ausente/invalido no runtime.`,
+          },
+        ]
+      : []),
     ...(restrictedCriticalSubjects.length
       ? [
           {
@@ -526,6 +578,7 @@ export function buildAreaManagerOverview({
       overdue: overdueEntries.length,
       atRisk: riskEntries.length,
       unassigned: unassignedEntries.length,
+      ownerMissing: ownerMissingEntries.length,
       distributionImbalance: loadGap,
       casesBySubject: subjectBottlenecks.map((item) => ({
         subjectLabel: item.subjectLabel,
@@ -542,6 +595,12 @@ export function buildAreaManagerOverview({
         label: 'Backlog da area',
         value: activeEntries.length,
         helper: 'Casos ativos no escopo atual.',
+      },
+      {
+        id: 'owner_missing',
+        label: 'Sem owner operacional',
+        value: ownerMissingEntries.length,
+        helper: 'Erro estrutural de ownership no fluxo.',
       },
       {
         id: 'unassigned',

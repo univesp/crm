@@ -61,12 +61,21 @@ const contentTypes = {
   '.txt': 'text/plain; charset=utf-8',
 }
 
+const noCacheHeaders = Object.freeze({
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+})
+
 function getContentType(filePath) {
   return contentTypes[path.extname(filePath).toLowerCase()] || 'application/octet-stream'
 }
 
 function writeText(response, statusCode, body) {
-  response.writeHead(statusCode, { 'Content-Type': 'text/plain; charset=utf-8' })
+  response.writeHead(statusCode, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    ...noCacheHeaders,
+  })
   response.end(body)
 }
 
@@ -102,7 +111,10 @@ const server = http.createServer(async (request, response) => {
   }
 
   if (existsSync(candidatePath) && statSync(candidatePath).isFile()) {
-    response.writeHead(200, { 'Content-Type': getContentType(candidatePath) })
+    response.writeHead(200, {
+      'Content-Type': getContentType(candidatePath),
+      ...noCacheHeaders,
+    })
     createReadStream(candidatePath).pipe(response)
     return
   }
@@ -110,7 +122,10 @@ const server = http.createServer(async (request, response) => {
   const hasExtension = Boolean(path.extname(candidatePath))
   if (!hasExtension) {
     const html = await readFile(distIndex)
-    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    response.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      ...noCacheHeaders,
+    })
     response.end(html)
     return
   }

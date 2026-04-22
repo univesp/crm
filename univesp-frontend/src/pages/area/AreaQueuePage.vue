@@ -80,6 +80,7 @@ const bucketDefinitions = [
     inactiveClass: 'border-slate-200 bg-white text-slate-700',
   },
 ]
+const AREA_SCOPE_STATES = ['todos', 'mine', 'unassigned', 'returned_to_me', 'waiting_complement', 'owner_missing']
 const pageSizeOptions = [AREA_QUEUE_DEFAULT_PAGE_SIZE, 50, 100]
 
 function buildDefaultFilters() {
@@ -169,10 +170,7 @@ function applyRouteFilters(query = {}) {
   }
 
   const scopeState = String(query.scopeState || '').trim()
-  if (
-    scopeState &&
-    analystScopeShortcuts.value.some((item) => item.kind === 'scope' && item.value === scopeState)
-  ) {
+  if (scopeState && AREA_SCOPE_STATES.includes(scopeState)) {
     filters.scopeState = scopeState
   }
 
@@ -246,8 +244,13 @@ const queueTotals = computed(() => ({
     ? (queueResult.value.query.page - 1) * queueResult.value.query.pageSize + queueResult.value.items.length
     : 0,
 }))
+const ownerMissingCount = computed(() =>
+  utilityFilteredEntries.value.filter((entry) => entry.hasOperationalOwnerError).length,
+)
 const unassignedCount = computed(() =>
-  utilityFilteredEntries.value.filter((entry) => entry.currentAssigneeLabel === 'Sem responsavel').length,
+  utilityFilteredEntries.value.filter(
+    (entry) => entry.currentAssigneeLabel === 'Sem responsavel' && !entry.hasOperationalOwnerError,
+  ).length,
 )
 
 const scopeBadges = computed(() => {
@@ -278,6 +281,12 @@ const managerQueueCards = computed(() =>
           label: 'Backlog',
           value: managerOverview.value.summary.find((item) => item.id === 'backlog')?.value || 0,
           helper: 'Casos ativos da area neste momento.',
+        },
+        {
+          id: 'owner_missing',
+          label: 'Sem owner operacional',
+          value: managerOverview.value.summary.find((item) => item.id === 'owner_missing')?.value || 0,
+          helper: 'Erro estrutural de ownership no fluxo.',
         },
         {
           id: 'unassigned',
@@ -447,6 +456,14 @@ function managerRowSignals(entry = {}) {
     })
   }
 
+  if (entry.hasOperationalOwnerError) {
+    items.push({
+      id: `${entry.id}-owner-missing`,
+      label: 'Sem owner operacional',
+      toneClass: 'border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.76)] text-[var(--color-danger)]',
+    })
+  }
+
   if (entry.isOverdue) {
     items.push({
       id: `${entry.id}-overdue`,
@@ -524,6 +541,7 @@ const activeFilterChips = computed(() => {
       unassigned: 'Sem responsavel',
       returned_to_me: 'Devolvidos para mim',
       waiting_complement: 'Aguardando complemento',
+      owner_missing: 'Sem owner operacional',
     }
 
     chips.push({
@@ -739,7 +757,7 @@ onUnmounted(() => {
           </ul>
         </details>
 
-        <div v-if="isAreaManager && managerQueueCards.length" class="grid gap-3 md:grid-cols-4">
+        <div v-if="isAreaManager && managerQueueCards.length" class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <article
             v-for="card in managerQueueCards"
             :key="card.id"
@@ -919,11 +937,19 @@ onUnmounted(() => {
         </div>
 
         <div
+          v-if="ownerMissingCount > 0"
+          class="rounded-[14px] border border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.66)] px-4 py-3 text-sm leading-6 text-[var(--color-danger)]"
+        >
+          <p class="font-semibold">Sem owner operacional: {{ ownerMissingCount }} caso(s)</p>
+          <p class="mt-1">Erro estrutural de fluxo/roteamento. Corrija ownership no bundle e reprocese a fila.</p>
+        </div>
+
+        <div
           v-if="unassignedCount > 0"
           class="rounded-[14px] border border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.5)] px-4 py-3 text-sm leading-6 text-[#8a5200]"
         >
-          <p class="font-semibold">Sem responsavel: {{ unassignedCount }} caso(s)</p>
-          <p class="mt-1">Priorize distribuicao para reduzir risco de SLA e retrabalho.</p>
+          <p class="font-semibold">Sem assignee humano: {{ unassignedCount }} caso(s)</p>
+          <p class="mt-1">Owner operacional existe, mas falta distribuir para analista responsavel.</p>
         </div>
       </div>
     </section>
@@ -1011,6 +1037,12 @@ onUnmounted(() => {
                 <div :aria-labelledby="headerId('next_step')">
                   <p class="text-sm leading-6 text-slate-700">{{ entry.nextStepLabel }}</p>
                   <p class="mt-1 text-xs text-slate-500">{{ entry.pendingLabel }}</p>
+                  <p
+                    v-if="entry.hasOperationalOwnerError"
+                    class="mt-1 text-xs font-semibold text-[var(--color-danger)]"
+                  >
+                    Erro estrutural: sem owner operacional efetivo.
+                  </p>
                   <div v-if="isAreaManager" class="mt-2 flex flex-wrap gap-1.5">
                     <span
                       v-for="signal in managerRowSignals(entry)"
@@ -1024,6 +1056,13 @@ onUnmounted(() => {
                 <div v-if="showAssigneeColumn" :aria-labelledby="headerId('owner')">
                   <p class="text-sm font-semibold text-slate-900">{{ entry.currentAssigneeLabel }}</p>
                   <p class="mt-1 text-xs text-slate-500">{{ entry.currentAssigneeMeta }}</p>
+                  <p class="mt-1 text-xs text-slate-500">Owner operacional: {{ entry.operationalOwnerLabel || 'Nao resolvido' }}</p>
+                  <p
+                    class="mt-1 text-xs font-semibold"
+                    :class="entry.hasOperationalOwnerError ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'"
+                  >
+                    {{ entry.operationalOwnerStateLabel || (entry.hasOperationalOwnerError ? 'Owner ausente' : 'Owner resolvido') }}
+                  </p>
                 </div>
                 <div :aria-labelledby="headerId('status')">
                   <StatusBadge :label="entry.areaStatusLabel" />

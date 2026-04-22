@@ -18,6 +18,11 @@ const modeLabel = computed(() =>
 )
 const hasError = computed(() => props.data?.issueSeverity === 'error')
 const hasWarning = computed(() => props.data?.issueSeverity === 'warning')
+const cardStatusLabel = computed(() => {
+  if (hasError.value) return 'Erro estrutural'
+  if (hasWarning.value) return 'Revisar alerta'
+  return props.data?.nodeMode === 'final' ? 'No final' : 'No de caminho'
+})
 const cardToneClass = computed(() => {
   if (hasError.value) {
     return 'border-[rgba(166,31,40,0.28)] bg-[rgba(253,236,237,0.92)]'
@@ -35,6 +40,9 @@ const cardToneClass = computed(() => {
 })
 
 function selectNode() {
+  if (props.data?.readOnly) {
+    return
+  }
   props.data?.onSelect?.()
 }
 
@@ -49,7 +57,7 @@ function addFinalChild() {
 
 <template>
   <div
-    class="group relative w-[250px] rounded-[16px] border p-3 shadow-sm transition"
+    class="group relative w-[278px] rounded-[16px] border px-3.5 py-3 shadow-sm transition"
     :class="[
       cardToneClass,
       selected ? 'ring-2 ring-[rgba(8,115,145,0.26)]' : '',
@@ -59,22 +67,34 @@ function addFinalChild() {
     <Handle :position="Position.Left" type="target" />
     <Handle id="target-top" :position="Position.Top" type="target" />
 
-    <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-      {{ modeLabel }}
-    </p>
-    <p class="mt-1 text-sm font-semibold leading-5 text-slate-950">
+    <div class="flex items-center justify-between gap-2">
+      <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+        {{ modeLabel }}
+      </p>
+      <span
+        class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+        :class="
+          hasError
+            ? 'bg-[rgba(253,236,237,0.92)] text-[var(--color-danger)]'
+            : hasWarning
+              ? 'bg-[rgba(254,243,199,0.92)] text-[#8a5200]'
+              : 'bg-slate-100 text-slate-600'
+        "
+      >
+        {{ cardStatusLabel }}
+      </span>
+    </div>
+
+    <p class="mt-1.5 line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
       {{ data.title }}
     </p>
-    <p class="mt-2 text-xs leading-5 text-slate-600">
+    <p class="mt-1 line-clamp-1 text-xs leading-5 text-slate-600">
       {{ data.subtitle }}
     </p>
 
-    <div class="mt-2 flex flex-wrap gap-1">
+    <div class="mt-2.5 flex flex-wrap gap-1">
       <span class="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
         {{ data.action }}
-      </span>
-      <span class="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-        {{ data.queueDestination }}
       </span>
       <span
         v-if="data.issueCount"
@@ -86,7 +106,8 @@ function addFinalChild() {
     </div>
 
     <div
-      class="pointer-events-none absolute -right-2 -top-2 flex gap-1 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100"
+      v-if="!data.readOnly"
+      class="pointer-events-none absolute -bottom-2 left-3 flex gap-1 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100"
     >
       <button
         type="button"

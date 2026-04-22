@@ -1,5 +1,12 @@
 <script setup>
-import { computed, reactive, ref, watch, watchEffect } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -7,39 +14,25 @@ import { MarkerType, VueFlow } from '@vue-flow/core'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 
-import { buildFaqBuilderBackendReadiness, buildFaqBuilderUpsertPayload } from '@/contracts/faqBuilderContract'
 import FaqCanvasNode from '@/components/admin/faq-builder/FaqCanvasNode.vue'
-import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
-  addFaqBuilderChildNode,
-  buildAutoLayoutSnapshot,
-  buildFaqBuilderDiff,
-  buildFaqBuilderGraph,
-  buildFaqBuilderPreviewJourney,
-  connectFaqBuilderNodes,
-  downloadFaqBuilderTemplateXlsx,
+  buildFaqBuilderGraphSafe,
+  buildFaqBuilderPreviewJourneySafe,
+  buildFaqBuilderPublicationPreview,
+  rebuildFaqBuilderCanvasSnapshot,
   getFaqBuilderBundleById,
-  getFaqBuilderCatalogOptions,
-  getFaqBuilderNode,
   loadFaqBuilderBundleLibraryLocal,
-  moveFaqBuilderNode,
   publishFaqBuilderWorkspace,
-  readFaqBuilderSpreadsheet,
+  runFaqBuilderBundleSanityCheck,
+  resolveFaqBuilderActivePublishedVersion,
   saveFaqBuilderBundleLibraryLocal,
-  setFaqBuilderNodeField,
-  setFaqBuilderNodeListField,
-  syncCanvasSnapshotEdges,
-  touchFaqBuilderWorkspace,
+  saveFaqBuilderDraftWorkspace,
+  startFaqBuilderStudentSession,
   transitionFaqBuilderWorkflow,
-  updateCanvasSnapshotNodePosition,
   validateFaqBuilderBundle,
 } from '@/services/faqBuilderHybridRuntime'
 import { useAuthStore } from '@/stores/auth'
-
-const route = useRoute()
-const router = useRouter()
-const auth = useAuthStore()
 
 function decodeBundleParam(value = '') {
   try {
@@ -49,356 +42,721 @@ function decodeBundleParam(value = '') {
   }
 }
 
-const catalogs = getFaqBuilderCatalogOptions()
-const backendReadiness = buildFaqBuilderBackendReadiness({
-  hasServerUpsert: false,
-  hasServerDryRun: false,
-  hasServerLock: false,
+function formatDate(value = '') {
+  if (!value) {
+    return '-'
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleString('pt-BR')
+}
+
+const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+
+const ui = reactive({
+  showOverflow: false,
+  showPublishModal: false,
+  showTesterModal: false,
+  testerMode: 'draft',
+  testerCurrentNodeId: '',
+  testerPath: [],
+  publishConfirm: false,
 })
-const modeTabs = [
-  { key: 'visual', label: 'Edicao' },
-  { key: 'import', label: 'Importacao' },
-  { key: 'governance', label: 'Governanca' },
-]
-
-const ui = reactive({ mode: String(route.query.mode || 'visual'), selectedNodeId: '', parentTargetId: '', governanceSummary: '' })
 const feedback = reactive({ type: '', message: '' })
-const importState = reactive({ fileName: '', isLoading: false, result: null })
-const previewState = reactive({ activeNodeId: '' })
-const responseEditorRef = ref(null)
+const publishForm = reactive({
+  publishMode: 'immediate',
+  effectiveStartAt: '',
+  effectiveEndAt: '',
+  priority: 50,
+  displayRank: 50,
+  isFeatured: false,
+  conditions: '',
+  summary: '',
+})
+const overflowRef = ref(null)
 
-const currentEditorName = computed(() => auth.displayName || auth.mockContext?.userName || 'Admin local')
+const currentEditorName = computed(
+  () => auth.displayName || auth.mockContext?.userName || 'Admin local',
+)
 const library = reactive(loadFaqBuilderBundleLibraryLocal(currentEditorName.value))
 const bundleId = computed(() => decodeBundleParam(route.params.bundleId))
-const currentBundleEntry = computed(() => getFaqBuilderBundleById(library, bundleId.value))
+const currentBundleEntry = computed(() =>
+  getFaqBuilderBundleById(library, bundleId.value),
+)
 const workspace = computed(() => currentBundleEntry.value?.workspace || null)
-const isMissingBundle = computed(() => !currentBundleEntry.value || !workspace.value)
-
-const validation = computed(() =>
-  workspace.value
-    ? validateFaqBuilderBundle(workspace.value.draftBundle)
-    : { issues: [], errors: [], warnings: [], nodeIssueSummary: new Map(), hasBlockingPublishError: false },
-)
-const graphRuntime = computed(() =>
-  workspace.value
-    ? buildFaqBuilderGraph(workspace.value.draftBundle, workspace.value.canvasSnapshot, validation.value)
-    : { nodes: [], edges: [] },
-)
-const flowNodes = computed(() =>
-  graphRuntime.value.nodes.map((node) => ({
-    ...node,
-    data: {
-      ...node.data,
-      onSelect: () => (ui.selectedNodeId = node.id),
-      onQuickAddPath: () => quickAddChild(node.id, 'path'),
-      onQuickAddFinal: () => quickAddChild(node.id, 'final'),
+const isMissingBundle = computed(() => !workspace.value || !currentBundleEntry.value)
+const openState = reactive({
+  isLoading: false,
+  failed: false,
+  safeMode: String(route.query.safe || '') === '1',
+  issueCode: '',
+  issueMessage: '',
+  markers: [],
+})
+const safeRuntimeState = reactive({
+  sanity: {
+    ok: true,
+    errors: [],
+    warnings: [],
+    bundle: { nodes: [], links: [] },
+    canvasSnapshot: { nodePositions: {}, edges: [] },
+    shouldUseSafeMode: false,
+  },
+  validation: {
+    errors: [],
+    warnings: [],
+    hasBlockingPublishError: false,
+    issues: [],
+    nodeIssueSummary: new Map(),
+    ownershipCoverage: {
+      bundleDefaultConfigured: false,
+      totalFinalNodes: 0,
+      effectiveFinalNodes: 0,
+      missingFinalNodes: 0,
+      invalidOverrides: 0,
     },
-  })),
-)
-const flowEdges = computed(() => graphRuntime.value.edges.map((edge) => ({ ...edge, markerEnd: MarkerType.ArrowClosed })))
-const selectedNode = computed(() => (workspace.value ? getFaqBuilderNode(workspace.value.draftBundle, ui.selectedNodeId) : null))
-const selectedNodeParentLink = computed(() =>
-  workspace.value ? workspace.value.draftBundle.links.find((link) => link.ativo !== false && link.child_node_id === ui.selectedNodeId) || null : null,
-)
-const selectedNodeMode = computed(() => (selectedNode.value?.node_kind === 'leaf' ? 'final' : 'path'))
-const parentOptions = computed(() =>
+  },
+  flowGraph: {
+    nodes: [],
+    edges: [],
+  },
+  previewRuntime: {
+    startId: '',
+    nodeById: new Map(),
+    outgoingMap: new Map(),
+  },
+})
+
+const validation = computed(() => safeRuntimeState.validation)
+const flowGraph = computed(() => safeRuntimeState.flowGraph)
+const activePublished = computed(() =>
   workspace.value
-    ? workspace.value.draftBundle.nodes.filter((node) => node.id !== ui.selectedNodeId).map((node) => ({ value: node.id, label: node.titulo_exibido || node.id }))
-    : [],
+    ? resolveFaqBuilderActivePublishedVersion(workspace.value)
+    : null,
 )
-const previewRuntime = computed(() =>
-  workspace.value ? buildFaqBuilderPreviewJourney(workspace.value.draftBundle, previewState.activeNodeId) : { startId: '', nodeById: new Map(), outgoingMap: new Map() },
-)
-const previewNode = computed(() => previewRuntime.value.nodeById.get(previewState.activeNodeId || previewRuntime.value.startId) || null)
-const previewChoices = computed(() =>
-  previewNode.value
-    ? (previewRuntime.value.outgoingMap.get(previewNode.value.id) || []).map((link) => previewRuntime.value.nodeById.get(link.child_node_id)).filter(Boolean)
-    : [],
-)
-const bundleDiff = computed(() =>
-  workspace.value ? buildFaqBuilderDiff({ draftBundle: workspace.value.draftBundle, publishedBundle: workspace.value.publishedBundle }) : { summary: { createdNodes: 0, removedNodes: 0, updatedNodes: 0, createdLinks: 0, removedLinks: 0 } },
-)
-const upsertPreview = computed(() =>
+const publicationPreview = computed(() =>
   workspace.value
-    ? buildFaqBuilderUpsertPayload({
-        bundleContext: { bundleId: currentBundleEntry.value.bundleId, faqType: currentBundleEntry.value.faqType, subjectKey: currentBundleEntry.value.subjectKey, title: currentBundleEntry.value.title },
-        bundle: workspace.value.draftBundle,
-        canvasSnapshot: workspace.value.canvasSnapshot,
-        workflowStatus: workspace.value.workflowStatus,
-        validation: validation.value,
-        lockContext: workspace.value.lockContext,
+    ? buildFaqBuilderPublicationPreview(workspace.value, {
         actorName: currentEditorName.value,
+        publishConfig: {
+          publishMode: publishForm.publishMode,
+          effectiveStartAt: publishForm.effectiveStartAt || null,
+          effectiveEndAt: publishForm.effectiveEndAt || null,
+          priority: publishForm.priority,
+          displayRank: publishForm.displayRank,
+          isFeatured: publishForm.isFeatured,
+          conditions: publishForm.conditions,
+        },
       })
     : null,
 )
 
-watchEffect(() => {
-  if (workspace.value && !ui.selectedNodeId && workspace.value.draftBundle.nodes[0]) {
-    ui.selectedNodeId = workspace.value.draftBundle.nodes[0].id
+const testBundle = computed(() => {
+  if (!workspace.value) {
+    return null
   }
+  return ui.testerMode === 'published' && workspace.value.publishedBundle?.nodes?.length
+    ? workspace.value.publishedBundle
+    : safeRuntimeState.sanity.bundle
 })
-watch(() => route.query.mode, (mode) => { if (mode && modeTabs.some((tab) => tab.key === mode)) ui.mode = mode })
+const testRuntime = computed(() =>
+  testBundle.value
+    ? buildFaqBuilderPreviewJourneySafe(
+        testBundle.value,
+        ui.testerCurrentNodeId,
+        { mode: openState.safeMode ? 'safe' : 'default' },
+      )
+    : { startId: '', nodeById: new Map(), outgoingMap: new Map() },
+)
+const testerNode = computed(() => {
+  const activeNodeId = ui.testerCurrentNodeId || testRuntime.value.startId
+  return testRuntime.value.nodeById.get(activeNodeId) || null
+})
+const testerChoices = computed(() => {
+  if (!testerNode.value) {
+    return []
+  }
+  return (testRuntime.value.outgoingMap.get(testerNode.value.id) || [])
+    .map((link) => testRuntime.value.nodeById.get(link.child_node_id))
+    .filter(Boolean)
+})
+
+function appendOpenMarker(stage = '', details = '') {
+  const marker = {
+    at: new Date().toISOString(),
+    stage,
+    details,
+  }
+  openState.markers.push(marker)
+  if (openState.markers.length > 30) {
+    openState.markers.shift()
+  }
+  console.info('[faq-builder][open-flow]', marker)
+}
+
+function resolveBundleRuntime({ safeMode = false } = {}) {
+  if (!workspace.value) {
+    openState.failed = true
+    openState.issueCode = 'bundle_not_found'
+    openState.issueMessage = 'Bundle inexistente ou sem workspace.'
+    return
+  }
+
+  openState.isLoading = true
+  openState.failed = false
+  openState.issueCode = ''
+  openState.issueMessage = ''
+  openState.markers = []
+  appendOpenMarker('open bundle started', bundleId.value)
+  appendOpenMarker('bundle resolved', currentBundleEntry.value?.title || bundleId.value)
+
+  try {
+    appendOpenMarker('bundle payload loaded', `nodes=${workspace.value.draftBundle?.nodes?.length || 0}`)
+    const sanity = runFaqBuilderBundleSanityCheck(
+      workspace.value.draftBundle,
+      workspace.value.canvasSnapshot,
+      {
+        mode: safeMode ? 'safe' : 'default',
+      },
+    )
+    safeRuntimeState.sanity = sanity
+    appendOpenMarker('snapshot loaded', `warnings=${sanity.warnings.length}`)
+
+    if (sanity.shouldUseSafeMode && !safeMode) {
+      appendOpenMarker('builder failed with reason runtime_limit_requires_safe_mode')
+      setSafeMode(true, { rerun: true })
+      return
+    }
+
+    appendOpenMarker('validation started')
+    safeRuntimeState.validation = validateFaqBuilderBundle(
+      sanity.bundle,
+      { mode: 'edit' },
+    )
+    appendOpenMarker('validation finished')
+
+    appendOpenMarker('nodes built')
+    const safeGraph = buildFaqBuilderGraphSafe(
+      sanity.bundle,
+      sanity.canvasSnapshot,
+      safeRuntimeState.validation,
+      { mode: safeMode ? 'safe' : 'default' },
+    )
+    safeRuntimeState.flowGraph = {
+      nodes: safeGraph.graph.nodes.map((node) => ({
+        ...node,
+        draggable: false,
+        selectable: false,
+        data: {
+          ...node.data,
+          readOnly: true,
+        },
+      })),
+      edges: safeGraph.graph.edges.map((edge) => ({
+        ...edge,
+        markerEnd: MarkerType.ArrowClosed,
+      })),
+    }
+    appendOpenMarker('edges built')
+
+    appendOpenMarker('preview started')
+    const preview = buildFaqBuilderPreviewJourneySafe(
+      sanity.bundle,
+      '',
+      { mode: safeMode ? 'safe' : 'default' },
+    )
+    safeRuntimeState.previewRuntime = preview
+    appendOpenMarker('preview finished')
+
+    appendOpenMarker('layout started')
+    appendOpenMarker('layout finished')
+    appendOpenMarker('fitView started')
+    appendOpenMarker('fitView finished')
+    appendOpenMarker('builder ready')
+  } catch (error) {
+    openState.failed = true
+    openState.issueCode = 'builder_open_failed'
+    openState.issueMessage = String(error?.message || 'Falha ao abrir fluxo no builder.')
+    appendOpenMarker('builder failed with reason', openState.issueMessage)
+  } finally {
+    openState.isLoading = false
+  }
+}
+
 watch(
   () => workspace.value,
   (value) => {
-    if (!value || !currentBundleEntry.value) return
-    currentBundleEntry.value.updatedAt = value.lockContext?.lastTouchedAt || new Date().toISOString()
-    currentBundleEntry.value.updatedBy = value.lockContext?.editorName || currentEditorName.value
-    saveFaqBuilderBundleLibraryLocal(library)
+    if (!value) {
+      return
+    }
+    publishForm.publishMode = value.publishConfig?.publishMode || 'immediate'
+    publishForm.effectiveStartAt = value.publishConfig?.effectiveStartAt || ''
+    publishForm.effectiveEndAt = value.publishConfig?.effectiveEndAt || ''
+    publishForm.priority = Number(value.publishConfig?.priority || 50)
+    publishForm.displayRank = Number(value.publishConfig?.displayRank || 50)
+    publishForm.isFeatured = Boolean(value.publishConfig?.isFeatured)
+    publishForm.conditions = value.publishConfig?.conditions || ''
   },
-  { deep: true },
+  { immediate: true },
 )
-watch(selectedNode, (node) => {
-  ui.parentTargetId = selectedNodeParentLink.value?.parent_node_id || ''
-  if (node && responseEditorRef.value) responseEditorRef.value.innerHTML = node.resposta || ''
-})
 
-function setFeedback(type = '', message = '') { feedback.type = type; feedback.message = message }
-function goToLibrary() { router.push('/admin/faq') }
-function switchMode(mode = 'visual') { ui.mode = mode; router.replace({ path: route.path, query: { ...route.query, mode } }) }
-function touch() { if (workspace.value) touchFaqBuilderWorkspace(workspace.value, currentEditorName.value) }
-function syncEdges() { if (workspace.value) syncCanvasSnapshotEdges(workspace.value.canvasSnapshot, workspace.value.draftBundle) }
+watch(
+  () => route.query.safe,
+  (safeQuery) => {
+    const nextValue = String(safeQuery || '') === '1'
+    if (openState.safeMode === nextValue) {
+      return
+    }
+    openState.safeMode = nextValue
+  },
+  { immediate: true },
+)
 
-function quickAddChild(parentNodeId, nodeMode) {
-  if (!workspace.value) return
-  const node = addFaqBuilderChildNode(workspace.value.draftBundle, parentNodeId, { nodeMode })
-  if (!node) return setFeedback('error', 'Nao foi possivel criar o no filho.')
-  const parent = workspace.value.canvasSnapshot.nodePositions?.[parentNodeId] || { x: 80, y: 80 }
-  updateCanvasSnapshotNodePosition(workspace.value.canvasSnapshot, node.id, { x: parent.x + 340, y: parent.y + 160 })
-  syncEdges(); touch(); ui.selectedNodeId = node.id
+watch(
+  () => [bundleId.value, workspace.value, openState.safeMode],
+  () => {
+    resolveBundleRuntime({
+      safeMode: openState.safeMode,
+    })
+  },
+  { immediate: true },
+)
+
+watch(
+  () => route.query.tester,
+  (testerMode) => {
+    if (!workspace.value || !testerMode || openState.failed) {
+      return
+    }
+    const mode =
+      String(testerMode).toLowerCase() === 'published' ? 'published' : 'draft'
+    startTester(mode)
+    const nextQuery = { ...route.query }
+    delete nextQuery.tester
+    router.replace({
+      path: route.path,
+      query: nextQuery,
+    })
+  },
+  { immediate: true },
+)
+
+function setFeedback(type = '', message = '') {
+  feedback.type = type
+  feedback.message = message
 }
-function onNodeDragStop(_, node) { if (workspace.value) { updateCanvasSnapshotNodePosition(workspace.value.canvasSnapshot, node.id, node.position); touch() } }
-function onFlowConnect(connection) {
-  if (!workspace.value) return
-  const result = connectFaqBuilderNodes(workspace.value.draftBundle, { sourceId: connection.source, targetId: connection.target })
-  if (!result.ok) return setFeedback('error', result.message)
-  syncEdges(); touch()
-}
-function applyAutoLayout() { if (workspace.value) { workspace.value.canvasSnapshot = buildAutoLayoutSnapshot(workspace.value.draftBundle, workspace.value.canvasSnapshot); touch() } }
-function updateNodeField(field, value) { if (selectedNode.value && workspace.value) { setFaqBuilderNodeField(workspace.value.draftBundle, selectedNode.value.id, field, value); touch() } }
-function updateNodeTags(value) { if (selectedNode.value && workspace.value) { setFaqBuilderNodeListField(workspace.value.draftBundle, selectedNode.value.id, 'tags', value); touch() } }
-function updateNodeMode(mode) { updateNodeField('node_kind', mode === 'final' ? 'leaf' : selectedNodeParentLink.value ? 'branch' : 'theme'); updateNodeField('acao', mode === 'final' ? 'mostrar_resposta' : 'ir_para_subniveis') }
-function moveNodeParent() { if (selectedNode.value && workspace.value && ui.parentTargetId) { const result = moveFaqBuilderNode(workspace.value.draftBundle, selectedNode.value.id, ui.parentTargetId); if (!result.ok) return setFeedback('error', result.message); syncEdges(); touch() } }
-function applyEditorCommand(command) {
-  if (!responseEditorRef.value) return
-  responseEditorRef.value.focus()
-  if (command === 'link') {
-    const url = window.prompt('Informe a URL do link:')
-    if (!url) return
-    document.execCommand('createLink', false, url)
+
+function setSafeMode(enabled = true, { rerun = false } = {}) {
+  openState.safeMode = Boolean(enabled)
+  const nextQuery = { ...route.query }
+  if (openState.safeMode) {
+    nextQuery.safe = '1'
   } else {
-    document.execCommand(command, false, null)
+    delete nextQuery.safe
   }
-  if (selectedNode.value) updateNodeField('resposta', responseEditorRef.value.innerHTML)
-}
-async function onSpreadsheetSelected(event) {
-  const file = event.target.files?.[0] || null
-  if (!file || !workspace.value || !currentBundleEntry.value) return
-  importState.fileName = file.name; importState.isLoading = true
-  try {
-    importState.result = await readFaqBuilderSpreadsheet(file, { faqType: currentBundleEntry.value.faqType, baseBundle: workspace.value.draftBundle })
-  } catch (error) {
-    setFeedback('error', error?.message || 'Falha no dry-run.')
-  } finally {
-    importState.isLoading = false
+  router.replace({
+    path: route.path,
+    query: nextQuery,
+  })
+  if (rerun) {
+    resolveBundleRuntime({ safeMode: openState.safeMode })
   }
 }
-function applySpreadsheetImport() { if (workspace.value && importState.result?.ok && importState.result.draftBundle && importState.result.canvasSnapshot) { workspace.value.draftBundle = importState.result.draftBundle; workspace.value.canvasSnapshot = importState.result.canvasSnapshot; workspace.value.workflowStatus = 'Draft'; touch() } }
-async function downloadTemplate() { if (currentBundleEntry.value) await downloadFaqBuilderTemplateXlsx({ faqType: currentBundleEntry.value.faqType }) }
-function workflowTransition(nextStatus) { if (workspace.value) { const result = transitionFaqBuilderWorkflow(workspace.value, { nextStatus, actorName: currentEditorName.value, summary: ui.governanceSummary }); if (!result.ok) return setFeedback('error', result.message); touch() } }
-function publishWorkspace() { if (workspace.value) { const result = publishFaqBuilderWorkspace(workspace.value, { actorName: currentEditorName.value, summary: ui.governanceSummary || 'Publicacao via FAQ Builder.' }); if (!result.ok) return setFeedback('error', result.message); touch() } }
-function startPreview() { previewState.activeNodeId = previewRuntime.value.startId }
-function stepPreview(nodeId = '') { if (nodeId) previewState.activeNodeId = nodeId }
+
+function retryOpenBundle() {
+  resolveBundleRuntime({ safeMode: openState.safeMode })
+}
+
+function recoverByIgnoringSnapshot() {
+  if (!workspace.value) {
+    return
+  }
+  workspace.value.canvasSnapshot = rebuildFaqBuilderCanvasSnapshot(
+    workspace.value.draftBundle,
+    {},
+  )
+  persistLibrary()
+  setFeedback('success', 'Snapshot visual reconstruido em modo seguro.')
+  resolveBundleRuntime({ safeMode: true })
+}
+
+function openBundleInSafeMode() {
+  setSafeMode(true, { rerun: true })
+}
+
+function toggleOverflow() {
+  ui.showOverflow = !ui.showOverflow
+}
+
+function goToLibrary() {
+  router.push('/admin/faq')
+}
+
+function goToEditor(mode = 'visual') {
+  const query = {
+    fullscreen: '1',
+    safe: '1',
+  }
+  if (mode !== 'visual') {
+    query.mode = mode
+  }
+  router.push({
+    path: `/admin/faq/${encodeURIComponent(bundleId.value)}/editor`,
+    query,
+  })
+}
+
+function persistLibrary() {
+  saveFaqBuilderBundleLibraryLocal(library)
+}
+
+function syncPublishConfigToWorkspace() {
+  if (!workspace.value) {
+    return
+  }
+  workspace.value.publishConfig = {
+    publishMode: publishForm.publishMode,
+    effectiveStartAt: publishForm.effectiveStartAt || null,
+    effectiveEndAt: publishForm.effectiveEndAt || null,
+    priority: Number(publishForm.priority || 50),
+    displayRank: Number(publishForm.displayRank || 50),
+    isFeatured: Boolean(publishForm.isFeatured),
+    conditions: String(publishForm.conditions || '').trim(),
+  }
+}
+
+function saveDraft() {
+  if (!workspace.value) return
+  syncPublishConfigToWorkspace()
+  saveFaqBuilderDraftWorkspace(workspace.value, {
+    actorName: currentEditorName.value,
+    summary: publishForm.summary || 'Rascunho salvo pela visao do fluxo.',
+  })
+  persistLibrary()
+  setFeedback('success', 'Rascunho salvo sem impactar a versao publicada.')
+}
+
+function sendToReview() {
+  if (!workspace.value) return
+  const result = transitionFaqBuilderWorkflow(workspace.value, {
+    nextStatus: 'In Review',
+    actorName: currentEditorName.value,
+    summary: publishForm.summary || 'Fluxo enviado para revisao.',
+  })
+  if (!result.ok) {
+    setFeedback('error', result.message)
+    return
+  }
+  persistLibrary()
+  setFeedback('success', 'Fluxo enviado para revisao.')
+}
+
+function openPublishModal() {
+  ui.publishConfirm = false
+  ui.showPublishModal = true
+}
+
+function confirmPublish() {
+  if (!workspace.value) return
+  if (!ui.publishConfirm) {
+    setFeedback('error', 'Confirme a publicacao para continuar.')
+    return
+  }
+  syncPublishConfigToWorkspace()
+  const result = publishFaqBuilderWorkspace(workspace.value, {
+    actorName: currentEditorName.value,
+    summary: publishForm.summary || 'Publicacao aprovada pela visao do fluxo.',
+    publishConfig: workspace.value.publishConfig,
+  })
+  if (!result.ok) {
+    setFeedback('error', result.message)
+    return
+  }
+  persistLibrary()
+  ui.showPublishModal = false
+  setFeedback('success', 'Fluxo publicado com governanca de vigencia e precedencia.')
+}
+
+function startTester(mode = 'draft') {
+  if (!workspace.value) return
+  ui.testerMode = mode
+  const session = startFaqBuilderStudentSession(workspace.value, {
+    actor: currentEditorName.value,
+    mode,
+  })
+  ui.testerPath = [`Sessao ${session.bundleVersionId}`]
+  ui.testerCurrentNodeId = ''
+  ui.showTesterModal = true
+}
+
+function chooseTesterNode(node) {
+  if (!node) return
+  ui.testerCurrentNodeId = node.id
+  ui.testerPath.push(node.titulo_exibido || node.id)
+}
+
+function restartTester() {
+  ui.testerPath = []
+  ui.testerCurrentNodeId = ''
+}
+
+function handleOutsideClick(event) {
+  if (!overflowRef.value || overflowRef.value.contains(event.target)) {
+    return
+  }
+  ui.showOverflow = false
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleOutsideClick)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleOutsideClick)
+})
 </script>
 
 <template>
-  <div class="grid gap-5">
-    <SectionPanel
-      eyebrow="Admin / FAQ Builder / Fluxo dedicado"
-      :title="currentBundleEntry ? currentBundleEntry.title : 'Fluxo nao encontrado'"
-      description="Editor focado em um unico fluxo. O canvas mostra somente o bundle selecionado."
-    >
-      <template v-if="currentBundleEntry">
-        <div class="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-start">
-          <div class="grid gap-2 text-xs text-slate-600 md:grid-cols-4">
-            <p><strong>Bundle:</strong> {{ currentBundleEntry.bundleId }}</p>
-            <p><strong>Tipo:</strong> {{ currentBundleEntry.faqType }}</p>
-            <p><strong>Status:</strong> {{ workspace.workflowStatus }}</p>
-            <p><strong>Ultima edicao:</strong> {{ workspace.lockContext.lastTouchedAt }}</p>
-          </div>
-          <div class="flex flex-wrap justify-end gap-2">
-            <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Voltar biblioteca</button>
-            <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="applyAutoLayout">Auto-layout</button>
-            <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="startPreview">Testar fluxo</button>
-            <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="workflowTransition('Draft')">Salvar rascunho</button>
-            <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="workflowTransition('In Review')">Enviar revisao</button>
-            <button type="button" class="rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="publishWorkspace">Publicar fluxo</button>
-          </div>
-        </div>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <button v-for="tab in modeTabs" :key="tab.key" type="button" class="rounded-full border px-3 py-2 text-xs font-semibold transition" :class="ui.mode === tab.key ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="switchMode(tab.key)">
-            {{ tab.label }}
-          </button>
-          <StatusBadge :label="`Workflow: ${workspace.workflowStatus}`" />
-          <StatusBadge :label="validation.hasBlockingPublishError ? 'Com erros estruturais' : 'Apto para publicar'" />
-        </div>
-      </template>
-    </SectionPanel>
-
+  <div class="grid gap-4">
     <section
-      v-if="feedback.message"
-      class="rounded-[14px] border px-4 py-3 text-sm"
-      :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'"
+      v-if="openState.isLoading"
+      class="rounded-[16px] border border-slate-200 bg-white p-4"
     >
-      {{ feedback.message }}
+      <p class="text-sm font-semibold text-slate-900">Abrindo fluxo...</p>
+      <p class="mt-2 text-xs text-slate-600">
+        Preparando bundle, validacao, preview e canvas em modo seguro.
+      </p>
     </section>
 
-    <section v-if="isMissingBundle" class="rounded-[18px] border border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] p-6">
-      <h2 class="text-base font-semibold text-[var(--color-danger)]">Fluxo nao encontrado</h2>
-      <button type="button" class="mt-4 rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="goToLibrary">Voltar para biblioteca</button>
+    <section v-else-if="isMissingBundle" class="rounded-[16px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.8)] p-4">
+      <p class="text-sm font-semibold text-[var(--color-danger)]">Fluxo nao encontrado.</p>
+      <button type="button" class="mt-3 rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="goToLibrary">Voltar para biblioteca</button>
     </section>
 
-    <template v-else-if="ui.mode === 'visual'">
-      <section class="grid gap-4 xl:grid-cols-[1fr_420px]">
-        <article class="rounded-[18px] border border-slate-200 bg-white p-4">
-          <div class="h-[760px] rounded-[14px] border border-slate-200 bg-slate-50">
-            <VueFlow :nodes="flowNodes" :edges="flowEdges" :node-types="{ faqBuilderNode: FaqCanvasNode }" fit-view-on-init class="faq-builder-flow" @connect="onFlowConnect" @node-drag-stop="onNodeDragStop">
-              <Background pattern-color="#d4dbe4" :gap="26" />
-              <Controls />
+    <template v-else>
+      <section class="rounded-[16px] border border-slate-200 bg-white p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.08em] text-slate-500">FAQ Builder / Visao do fluxo</p>
+            <h1 class="mt-1 text-lg font-semibold text-slate-950">{{ currentBundleEntry.title }}</h1>
+            <p class="mt-1 text-xs text-slate-500">{{ currentBundleEntry.bundleId }}</p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <StatusBadge :label="`Workflow: ${workspace.workflowStatus}`" />
+              <StatusBadge :label="validation.hasBlockingPublishError ? 'Com bloqueio estrutural' : 'Apto para publicar'" />
+              <StatusBadge :label="activePublished ? `Versao ativa: ${activePublished.bundleVersionId}` : 'Sem versao ativa'" />
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Biblioteca</button>
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="startTester('draft')">Testar fluxo</button>
+            <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="openPublishModal">Publicar</button>
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Editar</button>
+            <div ref="overflowRef" class="relative">
+              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
+              <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg">
+                <button type="button" class="faq-overflow-btn" @click="sendToReview">Enviar para revisao</button>
+                <button type="button" class="faq-overflow-btn" @click="goToEditor('import')">Abrir importacao</button>
+                <button type="button" class="faq-overflow-btn" @click="goToEditor('governance')">Abrir governanca</button>
+                <button type="button" class="faq-overflow-btn" @click="startTester('published')">Testar publicado</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        v-if="openState.safeMode || safeRuntimeState.sanity.warnings.length || openState.failed"
+        class="rounded-[14px] border border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.72)] p-4"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#0b6e8c]">
+              Estabilizacao de abertura
+            </p>
+            <p class="mt-1 text-sm font-semibold text-slate-900">
+              {{
+                openState.failed
+                  ? 'Falha na abertura do fluxo.'
+                  : openState.safeMode
+                    ? 'Modo seguro ativo para evitar travamento.'
+                    : 'Fluxo aberto com ajustes defensivos.'
+              }}
+            </p>
+            <p v-if="openState.issueMessage" class="mt-1 text-xs text-slate-700">
+              {{ openState.issueMessage }}
+            </p>
+            <p
+              v-else-if="safeRuntimeState.sanity.warnings.length"
+              class="mt-1 text-xs text-slate-700"
+            >
+              {{
+                `${safeRuntimeState.sanity.warnings.length} ajuste(s) aplicados para manter o builder estavel.`
+              }}
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              @click="retryOpenBundle"
+            >
+              Tentar novamente
+            </button>
+            <button
+              v-if="!openState.safeMode"
+              type="button"
+              class="rounded-[10px] border border-[#0b6e8c] bg-white px-3 py-2 text-xs font-semibold text-[#0b6e8c]"
+              @click="openBundleInSafeMode"
+            >
+              Abrir em modo seguro
+            </button>
+            <button
+              type="button"
+              class="rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              @click="recoverByIgnoringSnapshot"
+            >
+              Ignorar snapshot e reconstruir layout
+            </button>
+          </div>
+        </div>
+        <details
+          v-if="openState.markers.length"
+          class="mt-3 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+        >
+          <summary class="cursor-pointer font-semibold text-slate-700">
+            Ver etapas de abertura (debug)
+          </summary>
+          <ol class="mt-2 grid gap-1">
+            <li v-for="marker in openState.markers" :key="`${marker.at}-${marker.stage}`">
+              {{ marker.at }} · {{ marker.stage }} <span v-if="marker.details">· {{ marker.details }}</span>
+            </li>
+          </ol>
+        </details>
+      </section>
+
+      <section v-if="feedback.message" class="rounded-[14px] border px-4 py-3 text-sm" :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'">{{ feedback.message }}</section>
+
+      <section v-if="!openState.failed" class="grid gap-3 xl:grid-cols-[1fr_360px]">
+        <article class="rounded-[16px] border border-slate-200 bg-white p-3">
+          <p class="text-xs text-slate-600">Visualizacao resumida do fluxo. Para edicao estrutural use o modo editor.</p>
+          <div class="mt-2 h-[560px] rounded-[12px] border border-slate-200 bg-slate-50">
+            <VueFlow :nodes="flowGraph.nodes" :edges="flowGraph.edges" :node-types="{ faqBuilderNode: FaqCanvasNode }" fit-view-on-init :nodes-draggable="false" :nodes-connectable="false" :elements-selectable="false" class="faq-flow-preview">
+              <Background pattern-color="#d4dbe4" :gap="30" />
+              <Controls :show-interactive="false" />
             </VueFlow>
           </div>
         </article>
-        <article class="grid gap-4">
-          <section class="rounded-[18px] border border-slate-200 bg-white p-4">
-            <p class="text-sm font-semibold text-slate-900">No selecionado</p>
-            <div v-if="selectedNode" class="mt-3 grid gap-3">
-              <input :value="selectedNode.titulo_exibido" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm" @input="updateNodeField('titulo_exibido', $event.target.value)" />
-              <select :value="selectedNodeMode" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm" @change="updateNodeMode($event.target.value)">
-                <option value="path">Caminho</option><option value="final">Resposta final</option>
-              </select>
-              <select v-model="ui.parentTargetId" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Mover para...</option><option v-for="option in parentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-              </select>
-              <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="moveNodeParent">Aplicar movimento</button>
-              <select :value="selectedNode.acao" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm" @change="updateNodeField('acao', $event.target.value)">
-                <option v-for="option in catalogs.actions" :key="option.value" :value="option.value">{{ option.label }}</option>
-              </select>
-              <div v-if="selectedNodeMode === 'final'" class="grid gap-2 rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-                <div class="flex gap-2">
-                  <button type="button" class="rounded-[10px] border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700" @click="applyEditorCommand('bold')">Negrito</button>
-                  <button type="button" class="rounded-[10px] border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700" @click="applyEditorCommand('insertUnorderedList')">Lista</button>
-                  <button type="button" class="rounded-[10px] border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700" @click="applyEditorCommand('link')">Link</button>
-                </div>
-                <div ref="responseEditorRef" contenteditable="true" class="min-h-[130px] rounded-[12px] border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-700" @input="updateNodeField('resposta', $event.target.innerHTML)"></div>
-              </div>
-              <input :value="(selectedNode.tags || []).join(', ')" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm" @input="updateNodeTags($event.target.value)" />
-            </div>
-            <p v-else class="mt-3 text-sm text-slate-600">Selecione um no no canvas para abrir a edicao.</p>
-          </section>
-
-          <details class="rounded-[18px] border border-slate-200 bg-white p-4">
-            <summary class="cursor-pointer text-sm font-semibold text-slate-900">Validacao estrutural ({{ validation.errors.length }} erro(s))</summary>
-            <div class="mt-3 grid gap-2 max-h-[220px] overflow-auto">
-              <div v-for="(issue, index) in validation.issues" :key="`${issue.code}-${index}`" class="rounded-[12px] border px-3 py-2 text-xs" :class="issue.severity === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.75)] text-[#8a5200]'">
-                <strong>{{ issue.code }}</strong> | {{ issue.message }}
-              </div>
-            </div>
-          </details>
-
-          <details class="rounded-[18px] border border-slate-200 bg-white p-4">
-            <summary class="cursor-pointer text-sm font-semibold text-slate-900">Preview da jornada</summary>
-            <div class="mt-3 grid gap-2">
-              <p class="text-sm font-semibold text-slate-900">{{ previewNode?.titulo_exibido || 'Sem no ativo' }}</p>
-              <button v-for="choice in previewChoices" :key="choice.id" type="button" class="rounded-[12px] border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-700" @click="stepPreview(choice.id)">
-                {{ choice.titulo_exibido }}
-              </button>
-            </div>
-          </details>
+        <article class="rounded-[16px] border border-slate-200 bg-white p-4">
+          <p class="text-sm font-semibold text-slate-900">Publicacao e vigencia</p>
+          <div class="mt-3 grid gap-2 text-xs">
+            <label class="grid gap-1"><span class="font-semibold text-slate-600">Modo de publicacao</span><select v-model="publishForm.publishMode" class="faq-input"><option value="immediate">Publicar imediatamente</option><option value="scheduled">Publicar em data futura</option></select></label>
+            <label class="grid gap-1"><span class="font-semibold text-slate-600">Inicio de vigencia</span><input v-model="publishForm.effectiveStartAt" type="datetime-local" class="faq-input" /></label>
+            <label class="grid gap-1"><span class="font-semibold text-slate-600">Fim de vigencia (opcional)</span><input v-model="publishForm.effectiveEndAt" type="datetime-local" class="faq-input" /></label>
+            <label class="grid gap-1"><span class="font-semibold text-slate-600">Prioridade</span><input v-model.number="publishForm.priority" type="number" min="0" max="1000" class="faq-input" /></label>
+            <label class="grid gap-1"><span class="font-semibold text-slate-600">Rank de exibicao</span><input v-model.number="publishForm.displayRank" type="number" min="0" max="1000" class="faq-input" /></label>
+            <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input v-model="publishForm.isFeatured" type="checkbox" /> Destacar este fluxo</label>
+            <label class="grid gap-1"><span class="font-semibold text-slate-600">Condicao especial (opcional)</span><input v-model="publishForm.conditions" type="text" class="faq-input" placeholder="Ex.: periodo rematricula ativo" /></label>
+            <label class="grid gap-1"><span class="font-semibold text-slate-600">Resumo da mudanca</span><textarea v-model="publishForm.summary" rows="3" class="faq-input"></textarea></label>
+          </div>
+          <div class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            <p><strong>Proxima versao:</strong> {{ publicationPreview?.nextVersionId || '-' }}</p>
+            <p><strong>Versao que sera substituida:</strong> {{ publicationPreview?.currentPublishedVersion || 'Nenhuma' }}</p>
+            <p><strong>Inicio planejado:</strong> {{ formatDate(publicationPreview?.effectiveStartAt) }}</p>
+            <p><strong>Fim planejado:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</p>
+          </div>
         </article>
+      </section>
+
+      <section
+        v-else
+        class="rounded-[16px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-4 text-sm text-[var(--color-danger)]"
+      >
+        O fluxo nao pode ser renderizado neste momento. Use o modo seguro ou reconstrua o snapshot para recuperar.
       </section>
     </template>
 
-    <template v-else-if="ui.mode === 'import'">
-      <section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <article class="rounded-[18px] border border-slate-200 bg-white p-4">
-          <p class="text-sm font-semibold text-slate-900">Importacao de planilha para este fluxo</p>
-          <div class="mt-3 flex gap-2">
-            <button type="button" class="rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="downloadTemplate">Baixar template</button>
-          </div>
-          <input type="file" accept=".xlsx,.xls" class="mt-4 rounded-[12px] border border-slate-300 px-3 py-2 text-sm" @change="onSpreadsheetSelected" />
-          <p class="mt-2 text-xs text-slate-500">{{ importState.fileName || 'Nenhum arquivo selecionado' }}</p>
-        </article>
-        <article class="rounded-[18px] border border-slate-200 bg-white p-4">
-          <p class="text-sm font-semibold text-slate-900">Resultado do dry-run</p>
-          <p v-if="importState.isLoading" class="mt-2 text-sm text-slate-600">Processando...</p>
-          <template v-else-if="importState.result">
-            <p class="mt-2 text-xs text-slate-600">Linhas: {{ importState.result.summary?.totalRows || 0 }} | Nos: {{ importState.result.summary?.totalNodes || 0 }} | Links: {{ importState.result.summary?.totalLinks || 0 }}</p>
-            <div class="mt-3 max-h-[280px] overflow-auto rounded-[12px] border border-slate-200">
-              <table class="w-full text-left text-xs">
-                <thead class="bg-slate-100 text-slate-600">
-                  <tr>
-                    <th class="px-2 py-2">Linha</th>
-                    <th class="px-2 py-2">Campo</th>
-                    <th class="px-2 py-2">Codigo</th>
-                    <th class="px-2 py-2">Mensagem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(error, index) in importState.result.errors" :key="`${error.code}-${index}`" class="border-t border-slate-200">
-                    <td class="px-2 py-2">{{ error.row ?? '-' }}</td>
-                    <td class="px-2 py-2">{{ error.field }}</td>
-                    <td class="px-2 py-2">{{ error.code }}</td>
-                    <td class="px-2 py-2">{{ error.message }}</td>
-                  </tr>
-                  <tr v-if="!importState.result.errors.length" class="border-t border-slate-200">
-                    <td colspan="4" class="px-2 py-3 text-[var(--color-success)]">Sem erros bloqueadores.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <button type="button" class="mt-3 rounded-[12px] border px-3 py-2 text-xs font-semibold" :class="importState.result.ok ? 'border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.8)] text-[var(--color-success)]' : 'border-slate-300 bg-slate-100 text-slate-500'" :disabled="!importState.result.ok" @click="applySpreadsheetImport">Importar neste fluxo</button>
-          </template>
-        </article>
-      </section>
-    </template>
+    <div v-if="ui.showPublishModal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/55 p-4">
+      <div class="w-full max-w-[620px] rounded-[16px] border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold text-slate-900">Confirmar publicacao</h2>
+        <p class="mt-2 text-sm text-slate-600">Esta acao ativa uma nova versao do fluxo e nao interrompe jornadas ja iniciadas (politica sticky_version).</p>
+        <ul class="mt-3 grid gap-1 text-xs text-slate-700">
+          <li><strong>Fluxo:</strong> {{ currentBundleEntry?.title }}</li>
+          <li><strong>Nova versao:</strong> {{ publicationPreview?.nextVersionId }}</li>
+          <li><strong>Inicio:</strong> {{ formatDate(publicationPreview?.effectiveStartAt) }}</li>
+          <li><strong>Fim:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</li>
+          <li><strong>Prioridade:</strong> {{ publicationPreview?.priority }}</li>
+        </ul>
+        <label class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input v-model="ui.publishConfirm" type="checkbox" /> Confirmo o impacto da publicacao</label>
+        <div class="mt-4 flex justify-end gap-2">
+          <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="ui.showPublishModal = false">Cancelar</button>
+          <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="confirmPublish">Confirmar publicacao</button>
+        </div>
+      </div>
+    </div>
 
-    <template v-else>
-      <section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <article class="rounded-[18px] border border-slate-200 bg-white p-4">
-          <p class="text-sm font-semibold text-slate-900">Governanca e publicacao do fluxo</p>
-          <textarea v-model="ui.governanceSummary" rows="3" class="mt-3 rounded-[12px] border border-slate-300 px-3 py-2 text-sm"></textarea>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="workflowTransition('Draft')">Draft</button>
-            <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="workflowTransition('In Review')">Review</button>
-            <button type="button" class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="workflowTransition('Archived')">Arquivar</button>
-            <button type="button" class="rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="publishWorkspace">Publicar</button>
+    <div v-if="ui.showTesterModal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/55 p-4">
+      <div class="w-full max-w-[760px] rounded-[16px] border border-slate-200 bg-white p-4">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-base font-semibold text-slate-900">Teste da jornada do aluno</h2>
+          <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700" @click="ui.showTesterModal = false">Fechar</button>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button type="button" class="rounded-full border px-3 py-1 text-xs font-semibold" :class="ui.testerMode === 'draft' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="startTester('draft')">Testar draft</button>
+          <button type="button" class="rounded-full border px-3 py-1 text-xs font-semibold" :class="ui.testerMode === 'published' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="startTester('published')">Testar publicado</button>
+          <StatusBadge :label="`Modo: ${ui.testerMode}`" />
+        </div>
+        <div class="mt-3 rounded-[14px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-xs text-slate-500">Caminho percorrido</p>
+          <p class="mt-1 text-sm text-slate-700">{{ ui.testerPath.join(' > ') || 'Inicio da jornada' }}</p>
+        </div>
+        <div class="mt-3 rounded-[14px] border border-slate-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Pergunta atual</p>
+          <p class="mt-1 text-base font-semibold text-slate-950">{{ testerNode?.titulo_exibido || 'Fluxo sem no inicial' }}</p>
+          <p v-if="testerNode?.resposta" class="mt-2 text-sm text-slate-700">{{ testerNode.resposta.replace(/<[^>]+>/g, ' ').trim() }}</p>
+          <div class="mt-3 grid gap-2">
+            <button v-for="choice in testerChoices" :key="choice.id" type="button" class="rounded-[12px] border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-700 hover:border-slate-400" @click="chooseTesterNode(choice)">
+              {{ choice.titulo_exibido }}
+            </button>
+            <p v-if="!testerChoices.length" class="text-xs text-slate-500">Fim da jornada. Acao final: {{ testerNode?.acao || 'n/a' }}</p>
           </div>
-        </article>
-        <article class="rounded-[18px] border border-slate-200 bg-white p-4">
-          <p class="text-sm font-semibold text-slate-900">Diff do bundle atual</p>
-          <div class="mt-3 grid gap-1 text-xs text-slate-600">
-            <p>Nos criados: {{ bundleDiff.summary.createdNodes }}</p>
-            <p>Nos removidos: {{ bundleDiff.summary.removedNodes }}</p>
-            <p>Nos alterados: {{ bundleDiff.summary.updatedNodes }}</p>
-          </div>
-          <details class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 p-3">
-            <summary class="cursor-pointer text-xs font-semibold text-slate-700">Preview do payload</summary>
-            <pre class="mt-2 max-h-[220px] overflow-auto text-[11px] leading-5 text-slate-600">{{ JSON.stringify(upsertPreview, null, 2) }}</pre>
-          </details>
-        </article>
-      </section>
-      <section class="rounded-[18px] border border-slate-200 bg-white p-4">
-        <p class="text-sm font-semibold text-slate-900">Readiness backend/Frappe</p>
-        <p class="mt-1 text-xs text-slate-600">
-          upsert: {{ backendReadiness.hasServerUpsert ? 'sim' : 'nao' }} | dry-run server: {{ backendReadiness.hasServerDryRun ? 'sim' : 'nao' }} | lock server: {{ backendReadiness.hasServerLock ? 'sim' : 'nao' }}
-        </p>
-      </section>
-    </template>
+        </div>
+        <div class="mt-3 flex justify-end gap-2">
+          <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="restartTester">Reiniciar teste</button>
+          <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Abrir editor completo</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.faq-builder-flow {
+.faq-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.65rem;
+  padding: 0.48rem 0.6rem;
+  font-size: 0.78rem;
+  color: #1e293b;
+  background: #fff;
+}
+
+.faq-overflow-btn {
+  text-align: left;
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.faq-overflow-btn:hover {
+  background: #f1f5f9;
+}
+
+.faq-flow-preview {
   --vf-node-bg: transparent;
   --vf-node-text: #0f172a;
   --vf-connection-path: #0b6e8c;

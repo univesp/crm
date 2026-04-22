@@ -421,6 +421,22 @@ function rowSurfaceClass(entry) {
   return bucketDefinitions.find((item) => item.id === bucket)?.surfaceClass || 'bg-white'
 }
 
+function resolveOwnershipStateLabel(entry = {}) {
+  if (entry?.operationalOwnerStateLabel) {
+    return entry.operationalOwnerStateLabel
+  }
+
+  return entry?.hasOperationalOwnerError ? 'Owner operacional ausente' : 'Owner operacional resolvido'
+}
+
+function ownershipToneClass(entry = {}) {
+  if (entry?.hasOperationalOwnerError) {
+    return 'border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.72)] text-[var(--color-danger)]'
+  }
+
+  return 'border-[rgba(26,111,67,0.2)] bg-[rgba(220,252,231,0.7)] text-[var(--color-success)]'
+}
+
 function sectionToneClass(bucketId) {
   return bucketDefinitions.find((item) => item.id === bucketId)?.sectionClass || 'bg-slate-50 text-slate-700'
 }
@@ -793,9 +809,22 @@ onUnmounted(() => {
                     </div>
                     <div class="min-w-0" role="cell" :aria-labelledby="headerId('pending')">
                       <p class="line-clamp-2 text-sm leading-5 text-slate-900">{{ item.pendingLabel }}</p>
+                      <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span
+                          :class="[
+                            'rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.05em]',
+                            ownershipToneClass(item),
+                          ]"
+                        >
+                          {{ resolveOwnershipStateLabel(item) }}
+                        </span>
+                      </div>
                     </div>
                     <div class="min-w-0" role="cell" :aria-labelledby="headerId('protocol')">
                       <p class="truncate text-xs font-medium leading-5 text-slate-600">{{ item.id }}</p>
+                      <p class="mt-1 text-[0.7rem] leading-5 text-slate-500">
+                        Owner: {{ item.operationalOwnerLabel || 'Nao resolvido' }}
+                      </p>
                     </div>
                     <div class="min-w-0" role="cell" :aria-labelledby="headerId('status')">
                       <StatusBadge :label="resolveOperationalStatus(item)" />
@@ -830,6 +859,17 @@ onUnmounted(() => {
                     </div>
 
                     <p class="text-sm leading-5 text-slate-900">{{ item.pendingLabel }}</p>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span
+                        :class="[
+                          'rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.05em]',
+                          ownershipToneClass(item),
+                        ]"
+                      >
+                        {{ resolveOwnershipStateLabel(item) }}
+                      </span>
+                      <span class="text-[0.72rem] text-slate-500">Owner: {{ item.operationalOwnerLabel || 'Nao resolvido' }}</span>
+                    </div>
 
                     <div class="flex flex-wrap items-center gap-2">
                       <StatusBadge :label="resolveOperationalStatus(item)" />
@@ -888,10 +928,23 @@ onUnmounted(() => {
 
               <div class="min-w-0" role="cell" :aria-labelledby="headerId('pending')">
                 <p class="line-clamp-2 text-sm leading-5 text-slate-900">{{ item.pendingLabel }}</p>
+                <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span
+                    :class="[
+                      'rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.05em]',
+                      ownershipToneClass(item),
+                    ]"
+                  >
+                    {{ resolveOwnershipStateLabel(item) }}
+                  </span>
+                </div>
               </div>
 
               <div class="min-w-0" role="cell" :aria-labelledby="headerId('protocol')">
                 <p class="truncate text-xs font-medium leading-5 text-slate-600">{{ item.id }}</p>
+                <p class="mt-1 text-[0.7rem] leading-5 text-slate-500">
+                  Owner: {{ item.operationalOwnerLabel || 'Nao resolvido' }}
+                </p>
               </div>
 
               <div class="min-w-0" role="cell" :aria-labelledby="headerId('status')">
@@ -929,6 +982,17 @@ onUnmounted(() => {
               </div>
 
               <p class="text-sm leading-5 text-slate-900">{{ item.pendingLabel }}</p>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span
+                  :class="[
+                    'rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.05em]',
+                    ownershipToneClass(item),
+                  ]"
+                >
+                  {{ resolveOwnershipStateLabel(item) }}
+                </span>
+                <span class="text-[0.72rem] text-slate-500">Owner: {{ item.operationalOwnerLabel || 'Nao resolvido' }}</span>
+              </div>
 
               <div class="flex flex-wrap items-center gap-2">
                 <StatusBadge :label="resolveOperationalStatus(item)" />

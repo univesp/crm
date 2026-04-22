@@ -1,5 +1,6 @@
 import { buildAdminVersioningRuntime } from '@/services/adminVersioningRuntime'
 import { buildAreaQueueQuery, runAreaQueueQuery } from '@/services/areaQueueRuntime'
+import { buildOperationalOwnershipBackendReadinessSummary } from '@/contracts/operationalOwnershipBackendContract'
 
 export function createRuntimeRepositories(studentSupportStore) {
   return {
@@ -88,6 +89,14 @@ export function createRuntimeRepositories(studentSupportStore) {
       },
       upsertAvailability(payload = {}) {
         return studentSupportStore.upsertUserAvailability(payload)
+      },
+    },
+    ownership: {
+      backendReadiness() {
+        return buildOperationalOwnershipBackendReadinessSummary()
+      },
+      legacyAudit() {
+        return studentSupportStore.ownershipLegacyAudit
       },
     },
   }

@@ -1,11 +1,13 @@
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
   archiveFaqBuilderBundleEntry,
+  clearFaqBuilderBundleLibraryLocal,
+  createFaqBuilderBundleLibrary,
   createFaqBuilderBundleEntry,
   duplicateFaqBuilderBundleEntry,
   getFaqBuilderCatalogOptions,
@@ -23,7 +25,26 @@ const currentEditorName = computed(
   () => auth.displayName || auth.mockContext?.userName || 'Admin local',
 )
 
-const library = reactive(loadFaqBuilderBundleLibraryLocal(currentEditorName.value))
+const runtimeError = ref('')
+
+function safeRuntimeCall(executor, fallbackValue) {
+  try {
+    return executor()
+  } catch (error) {
+    runtimeError.value = String(
+      error?.message || 'Falha ao carregar dados locais da biblioteca de FAQ.',
+    )
+    console.error(error)
+    return fallbackValue
+  }
+}
+
+const library = reactive(
+  safeRuntimeCall(
+    () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
+    createFaqBuilderBundleLibrary(currentEditorName.value),
+  ),
+)
 
 const filters = reactive({
   search: '',
@@ -43,19 +64,29 @@ const feedback = reactive({
 })
 
 const allRows = computed(() =>
-  listFaqBuilderBundles(library, {
-    search: '',
-    status: 'all',
-    faqType: 'all',
-  }),
+  safeRuntimeCall(
+    () =>
+      listFaqBuilderBundles(library, {
+        search: '',
+        status: 'all',
+        faqType: 'all',
+        includeValidation: true,
+      }),
+    [],
+  ),
 )
 
 const rows = computed(() =>
-  listFaqBuilderBundles(library, {
-    search: filters.search,
-    status: filters.status,
-    faqType: filters.faqType,
-  }),
+  safeRuntimeCall(
+    () =>
+      listFaqBuilderBundles(library, {
+        search: filters.search,
+        status: filters.status,
+        faqType: filters.faqType,
+        includeValidation: true,
+      }),
+    [],
+  ),
 )
 
 const summary = computed(() => {
@@ -84,9 +115,27 @@ function setFeedback(type = '', message = '') {
   feedback.message = message
 }
 
+function resetLibraryState() {
+  clearFaqBuilderBundleLibraryLocal()
+  const restored = safeRuntimeCall(
+    () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
+    createFaqBuilderBundleLibrary(currentEditorName.value),
+  )
+  Object.assign(library, restored)
+  runtimeError.value = ''
+  setFeedback('success', 'Biblioteca local reinicializada com sucesso.')
+}
+
 function openBundle(bundleId = '', query = {}) {
   router.push({
     path: `/admin/faq/${encodeURIComponent(bundleId)}`,
+    query,
+  })
+}
+
+function openBundleEditor(bundleId = '', query = {}) {
+  router.push({
+    path: `/admin/faq/${encodeURIComponent(bundleId)}/editor`,
     query,
   })
 }
@@ -124,6 +173,12 @@ function duplicateFlow(bundleId = '') {
 }
 
 function archiveFlow(bundleId = '') {
+  const confirmed = window.confirm(
+    'Arquivar este fluxo? A versao atual nao sera removida, mas o fluxo ficara fora da operacao ativa.',
+  )
+  if (!confirmed) {
+    return
+  }
   const result = archiveFaqBuilderBundleEntry(
     library,
     bundleId,
@@ -140,6 +195,21 @@ function archiveFlow(bundleId = '') {
 
 <template>
   <div class="grid gap-5">
+    <section
+      v-if="runtimeError"
+      class="rounded-[14px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
+    >
+      <p class="font-semibold">Nao foi possivel carregar a biblioteca local.</p>
+      <p class="mt-1">{{ runtimeError }}</p>
+      <button
+        type="button"
+        class="mt-3 rounded-[10px] border border-[rgba(166,31,40,0.28)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
+        @click="resetLibraryState"
+      >
+        Reinicializar dados locais do FAQ Builder
+      </button>
+    </section>
+
     <SectionPanel
       eyebrow="Admin / FAQ Builder"
       title="Biblioteca de fluxos da base de conhecimento"
@@ -230,15 +300,17 @@ function archiveFlow(bundleId = '') {
     </section>
 
     <section class="rounded-[18px] border border-slate-200 bg-white p-4">
-      <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis para edicao</p>
+      <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
       <div class="mt-3 overflow-auto rounded-[12px] border border-slate-200">
-        <table class="w-full min-w-[1120px] text-left text-xs">
+        <table class="w-full min-w-[1260px] text-left text-xs">
           <thead class="bg-slate-100 text-slate-600">
             <tr>
               <th class="px-3 py-2">Fluxo</th>
               <th class="px-3 py-2">Tipo</th>
               <th class="px-3 py-2">Status</th>
               <th class="px-3 py-2">Nos</th>
+              <th class="px-3 py-2">Owner padrao</th>
+              <th class="px-3 py-2">Cobertura owner</th>
               <th class="px-3 py-2">Integridade</th>
               <th class="px-3 py-2">Ultima edicao</th>
               <th class="px-3 py-2">Acoes</th>
@@ -257,6 +329,28 @@ function archiveFlow(bundleId = '') {
               </td>
               <td class="px-3 py-3">{{ row.nodeCount }}</td>
               <td class="px-3 py-3">
+                <p class="font-semibold text-slate-900">{{ row.bundleOwnerLabel || '-' }}</p>
+                <p class="mt-1 text-slate-600">{{ row.bundleOwnerType }}</p>
+              </td>
+              <td class="px-3 py-3">
+                <p
+                  :class="
+                    row.hasOwnershipGap
+                      ? 'text-[var(--color-danger)] font-semibold'
+                      : 'text-[var(--color-success)] font-semibold'
+                  "
+                >
+                  {{ row.ownershipCoverageLabel }}
+                </p>
+                <p class="mt-1 text-slate-600">
+                  {{
+                    row.hasOwnershipGap
+                      ? `${row.ownershipMissingFinalNodes} final(is) sem owner efetivo`
+                      : 'Sem gaps de ownership'
+                  }}
+                </p>
+              </td>
+              <td class="px-3 py-3">
                 <p :class="row.hasBlockingError ? 'text-[var(--color-danger)] font-semibold' : 'text-[var(--color-success)] font-semibold'">
                   {{ row.hasBlockingError ? `${row.validationErrors} erro(s)` : 'Sem erro bloqueador' }}
                 </p>
@@ -269,9 +363,12 @@ function archiveFlow(bundleId = '') {
               <td class="px-3 py-3">
                 <div class="flex flex-wrap gap-2">
                   <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="openBundle(row.bundleId)">
-                    Editar fluxo
+                    Ver fluxo
                   </button>
-                  <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="openBundle(row.bundleId, { mode: 'import' })">
+                  <button type="button" class="rounded-[10px] bg-slate-900 px-2 py-1 font-semibold text-white" @click="openBundleEditor(row.bundleId)">
+                    Editar
+                  </button>
+                  <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="openBundleEditor(row.bundleId, { mode: 'import' })">
                     Importar
                   </button>
                   <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="duplicateFlow(row.bundleId)">
@@ -284,7 +381,7 @@ function archiveFlow(bundleId = '') {
               </td>
             </tr>
             <tr v-if="!rows.length" class="border-t border-slate-200">
-              <td colspan="7" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
+              <td colspan="9" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
             </tr>
           </tbody>
         </table>

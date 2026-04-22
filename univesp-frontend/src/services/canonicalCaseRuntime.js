@@ -7,6 +7,10 @@ import {
   findKnowledgeDefinitionBySubject,
   normalizeCanonicalText,
 } from '@/services/canonicalFoundationRuntime'
+import {
+  buildOperationalOwnerIntegrity,
+  resolveOperationalOwnerFromProtocol,
+} from '@/services/operationalOwnershipRuntime'
 
 const CLOSED_CASE_STATUSES = new Set([CASE_PROTOCOL_STATUSES.RESOLVED, CASE_PROTOCOL_STATUSES.CLOSED])
 
@@ -23,6 +27,10 @@ function formatDate(date) {
 function addHours(dateValue, hours = 0) {
   const baseDate = normalizeDate(dateValue)
   return new Date(baseDate.getTime() + Number(hours || 0) * 60 * 60 * 1000)
+}
+
+function normalizeSourceBindingValue(value = '') {
+  return String(value || '').trim()
 }
 
 export function parseLegacySlaMinutes(slaLabel = '') {
@@ -397,6 +405,47 @@ export function buildCanonicalProtocolFromSeed(seedItem = {}, currentDate = new 
           preferLegacyLabel: true,
         })
 
+  const ownershipSnapshot = resolveOperationalOwnerFromProtocol(
+    {
+      ownerType: seedItem.ownerType || 'area',
+      ownerKey: seedItem.ownerKey || '',
+      ownerQueue: seedItem.ownerQueue || '',
+      ownerArea: seedItem.ownerArea || seedItem.queue || '',
+      ownerRole: seedItem.ownerRole || '',
+      ownerRoutingHint: seedItem.ownerRoutingHint || '',
+      ownerSource: seedItem.ownerSource || 'seed_legacy',
+      queueLabel: seedItem.queue || '',
+      currentAreaLabel: seedItem.queue || '',
+      lastMileAreaLabel: seedItem.queue || '',
+    },
+    {
+      fallbackQueue: seedItem.queue || '',
+      fallbackArea: seedItem.queue || '',
+      source: seedItem.ownerSource || 'seed_legacy',
+    },
+  )
+  const ownershipIntegrity = buildOperationalOwnerIntegrity(ownershipSnapshot)
+  const sourceBundleId = normalizeSourceBindingValue(
+    seedItem.sourceBundleId ||
+      knowledgeDefinition.studentNode?.bundleId ||
+      knowledgeDefinition.operatorNode?.bundleId ||
+      (themeKey ? `legacy-bundle:${themeKey}` : ''),
+  )
+  const sourceBundleVersionId = normalizeSourceBindingValue(
+    seedItem.sourceBundleVersionId ||
+      knowledgeDefinition.studentNode?.bundleVersionId ||
+      knowledgeDefinition.operatorNode?.bundleVersionId ||
+      (sourceBundleId ? 'legacy' : ''),
+  )
+  const sourceNodeId = normalizeSourceBindingValue(
+    seedItem.sourceNodeId ||
+      seedItem.currentNodeId ||
+      knowledgeDefinition.studentNode?.id ||
+      knowledgeDefinition.operatorNode?.id ||
+      (seedItem.id ? `legacy-node:${seedItem.id}` : ''),
+  )
+  const hasSourceBinding = Boolean(sourceBundleId && sourceNodeId)
+
   return {
     id: seedItem.id,
     protocolNumber: seedItem.id,
@@ -417,6 +466,22 @@ export function buildCanonicalProtocolFromSeed(seedItem = {}, currentDate = new 
     queueLabel: seedItem.queue,
     currentAreaLabel: seedItem.queue,
     lastMileAreaLabel: seedItem.queue,
+    ownerType: ownershipSnapshot.ownerType || '',
+    ownerKey: ownershipSnapshot.ownerKey || '',
+    ownerQueue: ownershipSnapshot.ownerQueue || '',
+    ownerArea: ownershipSnapshot.ownerArea || '',
+    ownerRole: ownershipSnapshot.ownerRole || '',
+    ownerSource: ownershipSnapshot.source || '',
+    ownerRoutingHint: ownershipSnapshot.routingHint || '',
+    hasOperationalOwner: Boolean(ownershipSnapshot.hasOwner),
+    ownershipStateCode: ownershipSnapshot.stateCode || '',
+    ownershipIntegrityMessage: ownershipIntegrity.message || '',
+    operationalOwnerSnapshot: { ...ownershipSnapshot },
+    sourceBundleId,
+    sourceBundleVersionId,
+    sourceNodeId,
+    hasSourceBinding,
+    sourceBindingStateCode: hasSourceBinding ? 'source_binding_resolved' : 'source_binding_missing',
     routingMode: 'standard',
     exceptionReason: '',
     openedChannel: seedItem.source || 'portal_aluno',
@@ -467,6 +532,42 @@ export function buildCanonicalProtocolFromLocalProtocol(protocol = {}, currentDa
           legacyLabel: protocol.slaLabel || protocol.context?.sla || '',
         })
 
+  const ownershipSnapshot = resolveOperationalOwnerFromProtocol(
+    {
+      ...protocol,
+      ownerType: protocol.ownerType || '',
+      ownerKey: protocol.ownerKey || '',
+      ownerQueue: protocol.ownerQueue || '',
+      ownerArea: protocol.ownerArea || '',
+      ownerRole: protocol.ownerRole || '',
+      ownerRoutingHint: protocol.ownerRoutingHint || protocol.routingHint || '',
+      ownerSource: protocol.ownerSource || protocol.context?.ownership?.source || '',
+      queueLabel: protocol.queueLabel || protocol.context?.routing?.currentQueueLabel || '',
+      currentAreaLabel: protocol.currentAreaLabel || '',
+      lastMileAreaLabel:
+        protocol.lastMileAreaLabel || protocol.context?.routing?.targetAreaLabel || '',
+      context: protocol.context || {},
+    },
+    {
+      fallbackQueue:
+        protocol.queueLabel || protocol.context?.routing?.currentQueueLabel || protocol.context?.queueDestination || '',
+      fallbackArea:
+        protocol.lastMileAreaLabel || protocol.context?.routing?.targetAreaLabel || protocol.currentAreaLabel || '',
+      source: protocol.ownerSource || 'local_protocol',
+    },
+  )
+  const ownershipIntegrity = buildOperationalOwnerIntegrity(ownershipSnapshot)
+  const sourceBundleId = normalizeSourceBindingValue(
+    protocol.sourceBundleId || protocol.context?.finalNode?.bundleId || '',
+  )
+  const sourceBundleVersionId = normalizeSourceBindingValue(
+    protocol.sourceBundleVersionId || protocol.context?.finalNode?.bundleVersionId || '',
+  )
+  const sourceNodeId = normalizeSourceBindingValue(
+    protocol.sourceNodeId || protocol.currentNodeId || protocol.context?.finalNode?.id || '',
+  )
+  const hasSourceBinding = Boolean(sourceBundleId && sourceNodeId)
+
   return {
     id: protocol.protocolNumber,
     protocolNumber: protocol.protocolNumber,
@@ -487,6 +588,22 @@ export function buildCanonicalProtocolFromLocalProtocol(protocol = {}, currentDa
     queueLabel: protocol.queueLabel || protocol.context?.routing?.currentQueueLabel || '',
     currentAreaLabel: protocol.lastMileAreaLabel || protocol.context?.routing?.targetAreaLabel || '',
     lastMileAreaLabel: protocol.lastMileAreaLabel || protocol.context?.routing?.targetAreaLabel || '',
+    ownerType: ownershipSnapshot.ownerType || '',
+    ownerKey: ownershipSnapshot.ownerKey || '',
+    ownerQueue: ownershipSnapshot.ownerQueue || '',
+    ownerArea: ownershipSnapshot.ownerArea || '',
+    ownerRole: ownershipSnapshot.ownerRole || '',
+    ownerSource: ownershipSnapshot.source || '',
+    ownerRoutingHint: ownershipSnapshot.routingHint || '',
+    hasOperationalOwner: Boolean(ownershipSnapshot.hasOwner),
+    ownershipStateCode: ownershipSnapshot.stateCode || '',
+    ownershipIntegrityMessage: ownershipIntegrity.message || '',
+    operationalOwnerSnapshot: { ...ownershipSnapshot },
+    sourceBundleId,
+    sourceBundleVersionId,
+    sourceNodeId,
+    hasSourceBinding,
+    sourceBindingStateCode: hasSourceBinding ? 'source_binding_resolved' : 'source_binding_missing',
     routingMode: protocol.routingMode || 'standard',
     exceptionReason: protocol.context?.routing?.exceptionReason || '',
     openedChannel: protocol.operatorIntake?.channel || protocol.source || 'portal_aluno',

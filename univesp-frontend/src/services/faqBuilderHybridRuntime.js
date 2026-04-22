@@ -11,6 +11,12 @@ import {
   getCatalogKeys,
   hasCatalogValue,
 } from '@/services/faqCatalogs'
+import {
+  buildOperationalOwnershipReferenceCatalog,
+  hasOperationalOwnershipReference,
+  normalizeOperationalOwnershipReferenceCatalog,
+} from '@/services/operationalOwnershipReferences'
+import { validateBundleOwnershipCoverageForServer } from '@/services/operationalOwnershipServerRuntime'
 
 const FAQ_PACKAGE_MAP = {
   aluno: faqAluno,
@@ -36,10 +42,26 @@ const NODE_MODE_MAP = Object.freeze({
   final: 'final',
 })
 
-const DEFAULT_NODE_WIDTH = 250
-const DEFAULT_NODE_HEIGHT = 126
+const OPERATIONAL_OWNER_TYPE = Object.freeze({
+  queue: 'queue',
+  area: 'area',
+  role: 'role',
+})
+
+const OPERATIONAL_OWNER_INHERIT_TRUE_VALUES = new Set(['1', 'true', 'sim', 'yes', 'y'])
+const OPERATIONAL_OWNER_INHERIT_FALSE_VALUES = new Set(['0', 'false', 'nao', 'não', 'no', 'n'])
+
+const DEFAULT_NODE_WIDTH = 278
+const DEFAULT_NODE_HEIGHT = 132
 const FAQ_BUILDER_LOCAL_STORAGE_PREFIX = 'univesp:faq-builder:workspace'
 const FAQ_BUILDER_LIBRARY_STORAGE_KEY = 'univesp:faq-builder:library:v1'
+const FAQ_BUILDER_LIBRARY_MAX_SIZE_BYTES = 1_500_000
+export const FAQ_BUILDER_RUNTIME_GUARDS = Object.freeze({
+  maxRenderNodes: 450,
+  maxRenderEdges: 900,
+  maxValidationNodes: 1200,
+  maxValidationEdges: 2400,
+})
 const DEFAULT_CANVAS_SNAPSHOT = Object.freeze({
   viewport: {
     x: 0,
@@ -93,6 +115,32 @@ const HEADER_ALIAS_MAP = Object.freeze({
   sla: 'sla',
   slug: 'slug',
   tags: 'tags',
+  owner_type: 'owner_type',
+  tipo_responsavel: 'owner_type',
+  owner_queue: 'owner_queue',
+  fila_responsavel: 'owner_queue',
+  owner_area: 'owner_area',
+  area_responsavel: 'owner_area',
+  owner_role: 'owner_role',
+  perfil_responsavel: 'owner_role',
+  owner_inherit: 'owner_inherit',
+  herda_responsavel: 'owner_inherit',
+  owner_routing_policy: 'owner_routing_policy',
+  politica_roteamento: 'owner_routing_policy',
+  owner_fallback_note: 'owner_fallback_note',
+  observacao_operacional: 'owner_fallback_note',
+  bundle_owner_type: 'bundle_owner_type',
+  bundle_tipo_responsavel: 'bundle_owner_type',
+  bundle_owner_queue: 'bundle_owner_queue',
+  bundle_fila_responsavel: 'bundle_owner_queue',
+  bundle_owner_area: 'bundle_owner_area',
+  bundle_area_responsavel: 'bundle_owner_area',
+  bundle_owner_role: 'bundle_owner_role',
+  bundle_perfil_responsavel: 'bundle_owner_role',
+  bundle_owner_routing_policy: 'bundle_owner_routing_policy',
+  bundle_politica_roteamento: 'bundle_owner_routing_policy',
+  bundle_owner_fallback_note: 'bundle_owner_fallback_note',
+  bundle_observacao_operacional: 'bundle_owner_fallback_note',
 })
 
 let xlsxModulePromise = null
@@ -128,12 +176,63 @@ export const FAQ_BUILDER_SPREADSHEET_COLUMNS = Object.freeze([
   { key: 'queue_destination', label: 'queue_destination', required: false, description: 'Destino padrao da fila.' },
   { key: 'criticality', label: 'criticality', required: false, description: 'baixa, media, alta, critica.' },
   { key: 'sla', label: 'sla', required: false, description: '4h, 8h, 24h, 48h ou 72h.' },
+  { key: 'owner_inherit', label: 'owner_inherit', required: false, description: 'sim/nao para herdar responsavel operacional.' },
+  { key: 'owner_type', label: 'owner_type', required: false, description: "queue, area ou role (quando owner_inherit='nao')." },
+  { key: 'owner_area', label: 'owner_area', required: false, description: 'Area responsavel quando owner_type=area.' },
+  { key: 'owner_queue', label: 'owner_queue', required: false, description: 'Fila responsavel quando owner_type=queue.' },
+  { key: 'owner_role', label: 'owner_role', required: false, description: 'Perfil/role responsavel quando owner_type=role.' },
+  { key: 'owner_routing_policy', label: 'owner_routing_policy', required: false, description: 'Politica de roteamento do no (opcional).' },
+  { key: 'owner_fallback_note', label: 'owner_fallback_note', required: false, description: 'Observacao operacional do no (opcional).' },
+  { key: 'bundle_owner_type', label: 'bundle_owner_type', required: false, description: 'Responsavel padrao do bundle: queue, area ou role.' },
+  { key: 'bundle_owner_area', label: 'bundle_owner_area', required: false, description: 'Area responsavel padrao do bundle.' },
+  { key: 'bundle_owner_queue', label: 'bundle_owner_queue', required: false, description: 'Fila responsavel padrao do bundle.' },
+  { key: 'bundle_owner_role', label: 'bundle_owner_role', required: false, description: 'Role responsavel padrao do bundle.' },
+  { key: 'bundle_owner_routing_policy', label: 'bundle_owner_routing_policy', required: false, description: 'Politica de roteamento padrao do bundle.' },
+  { key: 'bundle_owner_fallback_note', label: 'bundle_owner_fallback_note', required: false, description: 'Observacao operacional padrao do bundle.' },
   { key: 'slug', label: 'slug', required: false, description: 'Chave opcional para busca e referencia.' },
   { key: 'tags', label: 'tags', required: false, description: 'Tags separadas por virgula.' },
 ])
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value))
+}
+
+function readLocalStorageItem(key = '') {
+  if (typeof window === 'undefined' || !key) {
+    return null
+  }
+
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeLocalStorageItem(key = '', value = '') {
+  if (typeof window === 'undefined' || !key) {
+    return false
+  }
+
+  try {
+    window.localStorage.setItem(key, value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function removeLocalStorageItem(key = '') {
+  if (typeof window === 'undefined' || !key) {
+    return false
+  }
+
+  try {
+    window.localStorage.removeItem(key)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function nowIso(currentDate = new Date()) {
@@ -215,14 +314,632 @@ function buildCatalogOptions(catalog) {
   }))
 }
 
+function sanitizeOwnershipBoolean(rawValue, fallback = true) {
+  if (typeof rawValue === 'boolean') {
+    return rawValue
+  }
+
+  const normalized = normalizeText(rawValue)
+  if (!normalized) {
+    return fallback
+  }
+  if (OPERATIONAL_OWNER_INHERIT_TRUE_VALUES.has(normalized)) {
+    return true
+  }
+  if (OPERATIONAL_OWNER_INHERIT_FALSE_VALUES.has(normalized)) {
+    return false
+  }
+  return fallback
+}
+
+function normalizeOwnershipType(rawType = '') {
+  const normalized = normalizeText(rawType)
+  if (
+    normalized === OPERATIONAL_OWNER_TYPE.queue ||
+    normalized === OPERATIONAL_OWNER_TYPE.area ||
+    normalized === OPERATIONAL_OWNER_TYPE.role
+  ) {
+    return normalized
+  }
+  return OPERATIONAL_OWNER_TYPE.queue
+}
+
+function resolveDefaultQueueByFaqType(faqType = 'aluno') {
+  return faqType === 'op' ? 'op' : 'sra'
+}
+
+function resolveOwnerKey(owner = {}) {
+  const ownerType = normalizeOwnershipType(owner.ownerType || owner.owner_type)
+  if (ownerType === OPERATIONAL_OWNER_TYPE.area) {
+    return `area:${String(owner.areaLabel || owner.owner_area || '').trim()}`
+  }
+  if (ownerType === OPERATIONAL_OWNER_TYPE.role) {
+    return `role:${String(owner.roleKey || owner.owner_role || '').trim()}`
+  }
+  return `queue:${String(owner.queueKey || owner.owner_queue || '').trim()}`
+}
+
+function normalizeOperationalOwner(rawOwner = {}, options = {}) {
+  const fallbackQueue = options.fallbackQueue || resolveDefaultQueueByFaqType(options.faqType)
+  const ownerType = normalizeOwnershipType(
+    rawOwner.ownerType ||
+      rawOwner.owner_type ||
+      options.fallbackType ||
+      OPERATIONAL_OWNER_TYPE.queue,
+  )
+  const queueKey = String(
+    rawOwner.queueKey ||
+      rawOwner.queue_key ||
+      rawOwner.owner_queue ||
+      rawOwner.queueDestination ||
+      fallbackQueue ||
+      '',
+  ).trim()
+  const areaLabel = String(
+    rawOwner.areaLabel || rawOwner.area_label || rawOwner.owner_area || '',
+  ).trim()
+  const roleKey = String(rawOwner.roleKey || rawOwner.role_key || rawOwner.owner_role || '').trim()
+  const queueLabel = hasCatalogValue(QUEUE_DESTINATION_CATALOG, queueKey)
+    ? QUEUE_DESTINATION_CATALOG[queueKey].label
+    : ''
+  const normalizedOwner = {
+    ownerType,
+    queueKey,
+    queueLabel,
+    areaLabel,
+    roleKey,
+    routingPolicy: String(
+      rawOwner.routingPolicy ||
+        rawOwner.routing_policy ||
+        rawOwner.owner_routing_policy ||
+        '',
+    ).trim(),
+    fallbackNote: String(
+      rawOwner.fallbackNote ||
+        rawOwner.fallback_note ||
+        rawOwner.owner_fallback_note ||
+        '',
+      ).trim(),
+  }
+  const providedOwnerKey = String(rawOwner.ownerKey || rawOwner.owner_key || '').trim()
+  const expectedOwnerKeyPrefix = `${ownerType}:`
+  const normalizedProvidedOwnerKey =
+    providedOwnerKey && providedOwnerKey.startsWith(expectedOwnerKeyPrefix)
+      ? providedOwnerKey
+      : ''
+  normalizedOwner.ownerKey = normalizedProvidedOwnerKey || resolveOwnerKey(normalizedOwner)
+  return normalizedOwner
+}
+
+function hasOperationalOwnerValue(owner = {}) {
+  const ownerType = normalizeOwnershipType(owner.ownerType || owner.owner_type)
+  if (ownerType === OPERATIONAL_OWNER_TYPE.area) {
+    return Boolean(String(owner.areaLabel || owner.owner_area || '').trim())
+  }
+  if (ownerType === OPERATIONAL_OWNER_TYPE.role) {
+    return Boolean(String(owner.roleKey || owner.owner_role || '').trim())
+  }
+  const queueKey = String(owner.queueKey || owner.owner_queue || '').trim()
+  return hasCatalogValue(QUEUE_DESTINATION_CATALOG, queueKey) && queueKey !== 'nao_aplicavel'
+}
+
+function buildFaqBuilderOwnershipReferenceCatalog(bundle = {}, options = {}) {
+  const hasExplicitAreas = Array.isArray(options.operationalAreas)
+  const hasBundleAreas = Array.isArray(bundle.operationalAreas) && bundle.operationalAreas.length > 0
+  const hasMetadataAreas =
+    Array.isArray(bundle.metadata?.operationalAreas) &&
+    bundle.metadata.operationalAreas.length > 0
+  const hasExplicitProfiles = Array.isArray(options.profiles) && options.profiles.length > 0
+  const hasBundleProfiles = Array.isArray(bundle.profiles) && bundle.profiles.length > 0
+
+  return buildOperationalOwnershipReferenceCatalog({
+    operationalAreas: hasExplicitAreas
+      ? options.operationalAreas
+      : hasBundleAreas
+        ? bundle.operationalAreas
+        : hasMetadataAreas
+          ? bundle.metadata.operationalAreas
+          : null,
+    profiles: hasExplicitProfiles
+      ? options.profiles
+      : hasBundleProfiles
+        ? bundle.profiles
+        : null,
+  })
+}
+
+function resolveOperationalOwnerReferenceIssue(owner = {}, referenceCatalog = null) {
+  const ownerType = normalizeOwnershipType(owner.ownerType || owner.owner_type)
+  const normalizedCatalog = normalizeOperationalOwnershipReferenceCatalog(referenceCatalog || {})
+
+  if (ownerType === OPERATIONAL_OWNER_TYPE.area) {
+    const areaLabel = String(owner.areaLabel || owner.owner_area || '').trim()
+    if (
+      areaLabel &&
+      !hasOperationalOwnershipReference(normalizedCatalog.areaSet, areaLabel)
+    ) {
+      return {
+        code: 'owner_area_reference_invalid',
+        field: 'owner_area',
+        message: `Area referenciada no ownership nao existe: ${areaLabel}.`,
+      }
+    }
+    return null
+  }
+
+  if (ownerType === OPERATIONAL_OWNER_TYPE.role) {
+    const roleKey = String(owner.roleKey || owner.owner_role || '').trim()
+    if (
+      roleKey &&
+      !hasOperationalOwnershipReference(normalizedCatalog.roleSet, roleKey)
+    ) {
+      return {
+        code: 'owner_role_reference_invalid',
+        field: 'owner_role',
+        message: `Role referenciada no ownership nao existe: ${roleKey}.`,
+      }
+    }
+    return null
+  }
+
+  const queueKey = String(owner.queueKey || owner.owner_queue || '').trim()
+  if (
+    queueKey &&
+    !hasOperationalOwnershipReference(normalizedCatalog.queueSet, queueKey)
+  ) {
+    return {
+      code: 'owner_queue_reference_invalid',
+      field: 'owner_queue',
+      message: `Fila referenciada no ownership nao existe: ${queueKey}.`,
+    }
+  }
+  return null
+}
+
+function formatOperationalOwnerLabel(owner = {}) {
+  const normalizedOwner = normalizeOperationalOwner(owner)
+  if (normalizedOwner.ownerType === OPERATIONAL_OWNER_TYPE.area) {
+    return normalizedOwner.areaLabel || 'Area nao informada'
+  }
+  if (normalizedOwner.ownerType === OPERATIONAL_OWNER_TYPE.role) {
+    return normalizedOwner.roleKey || 'Role nao informada'
+  }
+  return normalizedOwner.queueLabel || normalizedOwner.queueKey || 'Fila nao informada'
+}
+
+function buildNodeParentMap(bundle = {}) {
+  const parentMap = new Map()
+  for (const link of bundle.links || []) {
+    if (!link || link.ativo === false) {
+      continue
+    }
+    if (!parentMap.has(link.child_node_id)) {
+      parentMap.set(link.child_node_id, link.parent_node_id)
+    }
+  }
+  return parentMap
+}
+
+function getNodeOwnershipConfig(node = {}, options = {}) {
+  const rawOwnership = node.ownership && typeof node.ownership === 'object' ? node.ownership : {}
+  const hasLegacyOverride =
+    String(
+      rawOwnership.ownerType ||
+        node.owner_type ||
+        rawOwnership.areaLabel ||
+        node.owner_area ||
+        rawOwnership.queueKey ||
+        node.owner_queue ||
+        rawOwnership.roleKey ||
+        node.owner_role ||
+        '',
+    ).trim().length > 0
+  const inherit = sanitizeOwnershipBoolean(
+    rawOwnership.inherit ?? node.owner_inherit,
+    options.defaultInherit ?? !hasLegacyOverride,
+  )
+  const normalizationOptions = {
+    ...options,
+  }
+  if (!inherit) {
+    normalizationOptions.fallbackQueue = ''
+    normalizationOptions.fallbackArea = ''
+    normalizationOptions.fallbackRole = ''
+  }
+  const operationalOwner = normalizeOperationalOwner(
+    {
+      ...rawOwnership,
+      owner_type: rawOwnership.ownerType || node.owner_type,
+      owner_queue:
+        rawOwnership.queueKey ||
+        node.owner_queue ||
+        (inherit ? node.fila_destino : ''),
+      owner_area: rawOwnership.areaLabel || node.owner_area || '',
+      owner_role: rawOwnership.roleKey || node.owner_role || '',
+      owner_routing_policy:
+        rawOwnership.routingPolicy || node.owner_routing_policy || '',
+      owner_fallback_note:
+        rawOwnership.fallbackNote || node.owner_fallback_note || '',
+    },
+    normalizationOptions,
+  )
+  return {
+    inherit,
+    operationalOwner,
+  }
+}
+
+function syncNodeOwnershipFields(node = {}, ownershipConfig = null) {
+  if (!node || typeof node !== 'object' || !ownershipConfig) {
+    return
+  }
+  const owner = ownershipConfig.operationalOwner
+  node.ownership = {
+    inherit: ownershipConfig.inherit,
+    ownerType: owner.ownerType,
+    queueKey: owner.queueKey,
+    areaLabel: owner.areaLabel,
+    roleKey: owner.roleKey,
+    routingPolicy: owner.routingPolicy,
+    fallbackNote: owner.fallbackNote,
+    ownerKey: owner.ownerKey,
+  }
+  node.owner_inherit = ownershipConfig.inherit
+  node.owner_type = owner.ownerType
+  node.owner_queue = owner.queueKey
+  node.owner_area = owner.areaLabel
+  node.owner_role = owner.roleKey
+  node.owner_routing_policy = owner.routingPolicy
+  node.owner_fallback_note = owner.fallbackNote
+  node.owner_key = owner.ownerKey
+}
+
+function ensureBundleOperationalOwner(bundle = {}) {
+  const fallbackQueueFromNodes =
+    (bundle.nodes || [])
+      .map((node) => String(node?.fila_destino || '').trim())
+      .find(
+        (queue) =>
+          hasCatalogValue(QUEUE_DESTINATION_CATALOG, queue) && queue !== 'nao_aplicavel',
+      ) || resolveDefaultQueueByFaqType(bundle.tipo_faq)
+
+  const normalizedOwner = normalizeOperationalOwner(
+    bundle.operational_owner ||
+      bundle.metadata?.operational_owner || {
+        owner_type: OPERATIONAL_OWNER_TYPE.queue,
+        owner_queue: fallbackQueueFromNodes,
+      },
+    {
+      faqType: bundle.tipo_faq,
+      fallbackQueue: fallbackQueueFromNodes,
+    },
+  )
+
+  bundle.operational_owner = {
+    ownerType: normalizedOwner.ownerType,
+    queueKey: normalizedOwner.queueKey,
+    queueLabel: normalizedOwner.queueLabel,
+    areaLabel: normalizedOwner.areaLabel,
+    roleKey: normalizedOwner.roleKey,
+    ownerKey: normalizedOwner.ownerKey,
+    routingPolicy: normalizedOwner.routingPolicy,
+    fallbackNote: normalizedOwner.fallbackNote,
+  }
+  bundle.metadata = bundle.metadata || {}
+  bundle.metadata.operational_owner = cloneJson(bundle.operational_owner)
+}
+
+function resolveNodeEffectiveOwner(nodeId = '', nodeById = new Map(), parentMap = new Map(), bundleOwner = {}) {
+  const visited = new Set()
+  let cursorId = nodeId
+
+  while (cursorId && !visited.has(cursorId)) {
+    visited.add(cursorId)
+    const node = nodeById.get(cursorId)
+    if (!node) {
+      break
+    }
+    const ownershipConfig = getNodeOwnershipConfig(node, {
+      fallbackQueue: bundleOwner.queueKey,
+      faqType: node.tipo_faq,
+    })
+    if (!ownershipConfig.inherit && hasOperationalOwnerValue(ownershipConfig.operationalOwner)) {
+      return {
+        owner: ownershipConfig.operationalOwner,
+        source: 'node_override',
+        sourceNodeId: cursorId,
+      }
+    }
+    cursorId = parentMap.get(cursorId) || ''
+  }
+
+  if (hasOperationalOwnerValue(bundleOwner)) {
+    return {
+      owner: bundleOwner,
+      source: 'bundle_default',
+      sourceNodeId: '',
+    }
+  }
+
+  return {
+    owner: null,
+    source: 'missing',
+    sourceNodeId: '',
+  }
+}
+
 function ensureBundleCollections(bundle = {}) {
-  bundle.nodes = Array.isArray(bundle.nodes) ? bundle.nodes : []
-  bundle.links = Array.isArray(bundle.links) ? bundle.links : []
+  if (!Array.isArray(bundle.nodes)) {
+    bundle.nodes = []
+  } else if (bundle.nodes.some((node) => !node || typeof node !== 'object')) {
+    bundle.nodes = bundle.nodes.filter((node) => node && typeof node === 'object')
+  }
+
+  if (!Array.isArray(bundle.links)) {
+    bundle.links = []
+  } else if (bundle.links.some((link) => !link || typeof link !== 'object')) {
+    bundle.links = bundle.links.filter((link) => link && typeof link === 'object')
+  }
+
   bundle.calendar_highlights = Array.isArray(bundle.calendar_highlights) ? bundle.calendar_highlights : []
   bundle.metadata = bundle.metadata || {}
-  bundle.versioning = bundle.versioning || {}
-  bundle.publication = bundle.publication || {}
+  if (!bundle.publication || typeof bundle.publication !== 'object') {
+    bundle.publication = {}
+  }
+  if (!bundle.versioning || typeof bundle.versioning !== 'object') {
+    bundle.versioning = {}
+  }
+
+  if (bundle.publication.can_publish === undefined) bundle.publication.can_publish = true
+  if (bundle.publication.last_published_at === undefined) bundle.publication.last_published_at = null
+  if (bundle.publication.last_published_by === undefined) bundle.publication.last_published_by = ''
+  if (bundle.publication.next_review_at === undefined) bundle.publication.next_review_at = null
+  if (bundle.publication.effective_start_at === undefined) bundle.publication.effective_start_at = null
+  if (bundle.publication.effective_end_at === undefined) bundle.publication.effective_end_at = null
+  if (bundle.publication.priority === undefined) bundle.publication.priority = 50
+  if (bundle.publication.display_rank === undefined) bundle.publication.display_rank = 50
+  if (bundle.publication.is_featured === undefined) bundle.publication.is_featured = false
+  if (bundle.publication.conditions === undefined) bundle.publication.conditions = ''
+  if (bundle.publication.active_bundle_version_id === undefined) {
+    bundle.publication.active_bundle_version_id = ''
+  }
+  if (bundle.publication.supersedes_version_id === undefined) {
+    bundle.publication.supersedes_version_id = ''
+  }
+
+  bundle.versioning.draft_version = bundle.versioning.draft_version || 'draft-local'
+  bundle.versioning.published_version = bundle.versioning.published_version || ''
+  bundle.versioning.publication_status = bundle.versioning.publication_status || 'draft'
+  bundle.versioning.change_summary = bundle.versioning.change_summary || ''
+  bundle.versioning.import_source = bundle.versioning.import_source || 'builder'
+  bundle.versioning.base_version = bundle.versioning.base_version || ''
+  bundle.versioning.draft_revision = Number(bundle.versioning.draft_revision || 1)
+
+  ensureBundleOperationalOwner(bundle)
+  const fallbackQueue = bundle.operational_owner?.queueKey || resolveDefaultQueueByFaqType(bundle.tipo_faq)
+  for (const node of bundle.nodes) {
+    const ownershipConfig = getNodeOwnershipConfig(node, {
+      faqType: bundle.tipo_faq,
+      fallbackQueue,
+    })
+    syncNodeOwnershipFields(node, ownershipConfig)
+  }
+
   return bundle
+}
+
+function sanitizeNumericValue(value, fallback = 0) {
+  const normalized = Number(value)
+  return Number.isFinite(normalized) ? normalized : fallback
+}
+
+function sanitizeFaqBuilderBundleForRuntime(bundle = {}, options = {}) {
+  const maxNodes = Number(options.maxNodes || FAQ_BUILDER_RUNTIME_GUARDS.maxRenderNodes)
+  const maxEdges = Number(options.maxEdges || FAQ_BUILDER_RUNTIME_GUARDS.maxRenderEdges)
+  const mode = options.mode || 'default'
+
+  const sanitizedBundle = ensureBundleCollections(cloneJson(bundle || {}))
+  const warnings = []
+  const errors = []
+
+  const inputNodes = Array.isArray(sanitizedBundle.nodes) ? sanitizedBundle.nodes : []
+  const inputLinks = Array.isArray(sanitizedBundle.links) ? sanitizedBundle.links : []
+  const nodeIds = new Set()
+  const normalizedNodes = []
+
+  for (const node of inputNodes) {
+    const nodeId = String(node?.id || '').trim()
+    if (!nodeId) {
+      warnings.push({
+        code: 'runtime_node_without_id',
+        message: 'No sem ID foi ignorado durante abertura do builder.',
+      })
+      continue
+    }
+
+    if (nodeIds.has(nodeId)) {
+      warnings.push({
+        code: 'runtime_duplicate_node_id',
+        message: `ID duplicado (${nodeId}) foi ignorado durante abertura do builder.`,
+      })
+      continue
+    }
+
+    nodeIds.add(nodeId)
+    normalizedNodes.push({
+      ...node,
+      id: nodeId,
+    })
+
+    if (normalizedNodes.length >= maxNodes) {
+      errors.push({
+        code: 'runtime_nodes_limit_exceeded',
+        message: `Fluxo acima do limite seguro de renderizacao (${maxNodes} nos).`,
+      })
+      break
+    }
+  }
+
+  const validNodeIds = new Set(normalizedNodes.map((node) => node.id))
+  const normalizedLinks = []
+  const linkIds = new Set()
+  const linkPairs = new Set()
+
+  for (const link of inputLinks) {
+    const sourceId = String(link?.parent_node_id || '').trim()
+    const targetId = String(link?.child_node_id || '').trim()
+    const active = link?.ativo !== false
+
+    if (!active) {
+      continue
+    }
+
+    if (!sourceId || !targetId) {
+      warnings.push({
+        code: 'runtime_link_without_source_or_target',
+        message: 'Link invalido (origem/destino vazio) foi ignorado.',
+      })
+      continue
+    }
+
+    if (!validNodeIds.has(sourceId) || !validNodeIds.has(targetId)) {
+      warnings.push({
+        code: 'runtime_link_missing_node',
+        message: `Link ${sourceId} -> ${targetId} aponta para no inexistente e foi ignorado.`,
+      })
+      continue
+    }
+
+    if (sourceId === targetId) {
+      warnings.push({
+        code: 'runtime_self_loop_dropped',
+        message: `Auto-referencia em ${sourceId} foi ignorada no render.`,
+      })
+      continue
+    }
+
+    const normalizedLinkId = String(link?.link_id || '').trim() || buildLinkId(sourceId, targetId)
+    const pairKey = `${sourceId}=>${targetId}`
+    if (linkIds.has(normalizedLinkId) || linkPairs.has(pairKey)) {
+      warnings.push({
+        code: 'runtime_duplicate_link',
+        message: `Link duplicado (${sourceId} -> ${targetId}) foi ignorado.`,
+      })
+      continue
+    }
+
+    linkIds.add(normalizedLinkId)
+    linkPairs.add(pairKey)
+    normalizedLinks.push({
+      ...link,
+      link_id: normalizedLinkId,
+      parent_node_id: sourceId,
+      child_node_id: targetId,
+      ativo: true,
+    })
+
+    if (normalizedLinks.length >= maxEdges) {
+      errors.push({
+        code: 'runtime_edges_limit_exceeded',
+        message: `Fluxo acima do limite seguro de conexoes (${maxEdges} links).`,
+      })
+      break
+    }
+  }
+
+  sanitizedBundle.nodes = normalizedNodes
+  sanitizedBundle.links = normalizedLinks
+  sanitizedBundle.metadata = {
+    ...(sanitizedBundle.metadata || {}),
+    runtime_mode: mode,
+  }
+
+  return {
+    bundle: sanitizedBundle,
+    warnings,
+    errors,
+  }
+}
+
+function sanitizeFaqBuilderCanvasSnapshot(snapshot = {}, bundle = {}) {
+  const safeSnapshot = {
+    ...cloneJson(DEFAULT_CANVAS_SNAPSHOT),
+    ...(snapshot && typeof snapshot === 'object' ? cloneJson(snapshot) : {}),
+  }
+  const nodePositions = safeSnapshot.nodePositions && typeof safeSnapshot.nodePositions === 'object'
+    ? safeSnapshot.nodePositions
+    : {}
+
+  safeSnapshot.nodePositions = {}
+  safeSnapshot.edges = []
+  safeSnapshot.viewport = {
+    x: sanitizeNumericValue(safeSnapshot.viewport?.x, 0),
+    y: sanitizeNumericValue(safeSnapshot.viewport?.y, 0),
+    zoom: sanitizeNumericValue(safeSnapshot.viewport?.zoom, 1),
+  }
+
+  const nodes = Array.isArray(bundle?.nodes) ? bundle.nodes : []
+  nodes.forEach((node, index) => {
+    const savedPosition = nodePositions[node.id] || {}
+    const row = Math.floor(index / 4)
+    const col = index % 4
+    safeSnapshot.nodePositions[node.id] = {
+      x: Math.round(sanitizeNumericValue(savedPosition.x, 80 + col * 320)),
+      y: Math.round(sanitizeNumericValue(savedPosition.y, 80 + row * 180)),
+    }
+  })
+
+  const links = Array.isArray(bundle?.links) ? bundle.links : []
+  safeSnapshot.edges = links
+    .filter((link) => link.ativo !== false)
+    .map((link) => ({
+      id: String(link.link_id || '').trim() || buildLinkId(link.parent_node_id, link.child_node_id),
+      source: String(link.parent_node_id || '').trim(),
+      target: String(link.child_node_id || '').trim(),
+    }))
+
+  safeSnapshot.updatedAt = nowIso()
+  return safeSnapshot
+}
+
+export function runFaqBuilderBundleSanityCheck(
+  bundle = {},
+  canvasSnapshot = {},
+  options = {},
+) {
+  try {
+    const sanitized = sanitizeFaqBuilderBundleForRuntime(bundle, options)
+    const snapshot = sanitizeFaqBuilderCanvasSnapshot(canvasSnapshot, sanitized.bundle)
+    const blockingErrors = sanitized.errors.filter((issue) =>
+      ['runtime_nodes_limit_exceeded', 'runtime_edges_limit_exceeded'].includes(issue.code),
+    )
+    return {
+      ok: blockingErrors.length === 0,
+      bundle: sanitized.bundle,
+      canvasSnapshot: snapshot,
+      errors: sanitized.errors,
+      warnings: sanitized.warnings,
+      shouldUseSafeMode: blockingErrors.length > 0,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      bundle: ensureBundleCollections({
+        ...(cloneJson(bundle || {})),
+        nodes: [],
+        links: [],
+      }),
+      canvasSnapshot: cloneJson(DEFAULT_CANVAS_SNAPSHOT),
+      errors: [
+        {
+          code: 'runtime_sanity_failed',
+          message: String(error?.message || 'Falha ao sanitizar o fluxo.'),
+        },
+      ],
+      warnings: [],
+      shouldUseSafeMode: true,
+    }
+  }
 }
 
 function buildIncomingMap(links = []) {
@@ -265,34 +982,49 @@ function buildAdjacency(nodes = [], links = []) {
 
 function detectCycles(nodes = [], links = []) {
   const adjacency = buildAdjacency(nodes, links)
-  const visitState = new Map()
+  const visitState = new Map() // idle | visiting | done
   const cycleNodeIds = new Set()
-
-  function visit(nodeId, stack = []) {
-    const state = visitState.get(nodeId)
-
-    if (state === 'visiting') {
-      cycleNodeIds.add(nodeId)
-      for (const item of stack) {
-        cycleNodeIds.add(item)
-      }
-      return
-    }
-
-    if (state === 'done') {
-      return
-    }
-
-    visitState.set(nodeId, 'visiting')
-    const nextNodes = adjacency.get(nodeId) || []
-    for (const childId of nextNodes) {
-      visit(childId, [...stack, nodeId])
-    }
-    visitState.set(nodeId, 'done')
-  }
+  const stack = []
 
   for (const node of nodes) {
-    visit(node.id)
+    if (visitState.get(node.id) === 'done') {
+      continue
+    }
+
+    stack.push({ nodeId: node.id, index: 0 })
+
+    while (stack.length) {
+      const current = stack[stack.length - 1]
+      const currentState = visitState.get(current.nodeId)
+      if (!currentState) {
+        visitState.set(current.nodeId, 'visiting')
+      }
+
+      const children = adjacency.get(current.nodeId) || []
+      if (current.index >= children.length) {
+        visitState.set(current.nodeId, 'done')
+        stack.pop()
+        continue
+      }
+
+      const childId = children[current.index]
+      current.index += 1
+      const childState = visitState.get(childId)
+
+      if (childState === 'visiting') {
+        cycleNodeIds.add(childId)
+        for (const item of stack) {
+          cycleNodeIds.add(item.nodeId)
+        }
+        continue
+      }
+
+      if (childState === 'done') {
+        continue
+      }
+
+      stack.push({ nodeId: childId, index: 0 })
+    }
   }
 
   return [...cycleNodeIds]
@@ -336,13 +1068,18 @@ function buildNodeValidationIssueSummary(issues = []) {
 }
 
 function collectDescendants(nodeId, outgoingMap, visited = new Set()) {
-  const outgoingLinks = outgoingMap.get(nodeId) || []
-  for (const link of outgoingLinks) {
-    if (visited.has(link.child_node_id)) {
-      continue
+  const queue = [nodeId]
+  while (queue.length) {
+    const current = queue.pop()
+    const outgoingLinks = outgoingMap.get(current) || []
+    for (const link of outgoingLinks) {
+      const childId = link.child_node_id
+      if (visited.has(childId)) {
+        continue
+      }
+      visited.add(childId)
+      queue.push(childId)
     }
-    visited.add(link.child_node_id)
-    collectDescendants(link.child_node_id, outgoingMap, visited)
   }
   return visited
 }
@@ -378,7 +1115,7 @@ function normalizeImportRow(rawRow = {}) {
 }
 
 function buildImportTemplateRows(faqType = 'aluno') {
-  const queueDefault = faqType === 'op' ? 'op' : 'nao_aplicavel'
+  const queueDefault = resolveDefaultQueueByFaqType(faqType)
 
   return [
     {
@@ -396,6 +1133,19 @@ function buildImportTemplateRows(faqType = 'aluno') {
       queue_destination: queueDefault,
       criticality: 'media',
       sla: '48h',
+      owner_inherit: 'sim',
+      owner_type: '',
+      owner_area: '',
+      owner_queue: '',
+      owner_role: '',
+      owner_routing_policy: '',
+      owner_fallback_note: '',
+      bundle_owner_type: 'queue',
+      bundle_owner_area: '',
+      bundle_owner_queue: queueDefault,
+      bundle_owner_role: '',
+      bundle_owner_routing_policy: 'balancear_por_carga',
+      bundle_owner_fallback_note: 'Responsavel padrao do fluxo.',
       slug: `assunto-principal-${faqType}`,
       tags: 'principal,onboarding',
     },
@@ -414,6 +1164,19 @@ function buildImportTemplateRows(faqType = 'aluno') {
       queue_destination: queueDefault,
       criticality: 'media',
       sla: '48h',
+      owner_inherit: 'sim',
+      owner_type: '',
+      owner_area: '',
+      owner_queue: '',
+      owner_role: '',
+      owner_routing_policy: '',
+      owner_fallback_note: '',
+      bundle_owner_type: '',
+      bundle_owner_area: '',
+      bundle_owner_queue: '',
+      bundle_owner_role: '',
+      bundle_owner_routing_policy: '',
+      bundle_owner_fallback_note: '',
       slug: `caminho-${faqType}`,
       tags: 'ramo',
     },
@@ -432,6 +1195,19 @@ function buildImportTemplateRows(faqType = 'aluno') {
       queue_destination: queueDefault,
       criticality: 'media',
       sla: '48h',
+      owner_inherit: 'sim',
+      owner_type: '',
+      owner_area: '',
+      owner_queue: '',
+      owner_role: '',
+      owner_routing_policy: '',
+      owner_fallback_note: '',
+      bundle_owner_type: '',
+      bundle_owner_area: '',
+      bundle_owner_queue: '',
+      bundle_owner_role: '',
+      bundle_owner_routing_policy: '',
+      bundle_owner_fallback_note: '',
       slug: `resposta-final-${faqType}`,
       tags: 'final,resposta',
     },
@@ -455,12 +1231,16 @@ function getWorkspaceStorageKey(faqType = 'aluno') {
 }
 
 export function getFaqBuilderCatalogOptions() {
+  const queues = buildCatalogOptions(QUEUE_DESTINATION_CATALOG)
+  const slas = buildCatalogOptions(SLA_CATALOG)
   return {
     faqTypes: buildCatalogOptions(FAQ_TYPE_CATALOG),
     actions: buildCatalogOptions(ACTION_CATALOG),
-    queues: buildCatalogOptions(QUEUE_DESTINATION_CATALOG),
+    queues,
+    queueDestinations: queues,
     criticalities: buildCatalogOptions(CRITICALITY_CATALOG),
-    slas: buildCatalogOptions(SLA_CATALOG),
+    slas,
+    slaOptions: slas,
     nodeModes: [
       { value: NODE_MODE_MAP.path, label: 'Caminho / roteamento' },
       { value: NODE_MODE_MAP.final, label: 'Resposta final' },
@@ -469,6 +1249,196 @@ export function getFaqBuilderCatalogOptions() {
       value: status,
       label: status,
     })),
+    operationalOwnerTypes: [
+      { value: OPERATIONAL_OWNER_TYPE.queue, label: 'Fila operacional' },
+      { value: OPERATIONAL_OWNER_TYPE.area, label: 'Area operacional' },
+      { value: OPERATIONAL_OWNER_TYPE.role, label: 'Perfil operacional' },
+    ],
+  }
+}
+
+export function setFaqBuilderBundleOperationalOwner(bundle = {}, payload = {}) {
+  ensureBundleCollections(bundle)
+  const nextOwner = normalizeOperationalOwner(
+    {
+      ...(bundle.operational_owner || {}),
+      ...payload,
+    },
+    {
+      faqType: bundle.tipo_faq,
+      fallbackQueue:
+        bundle.operational_owner?.queueKey || resolveDefaultQueueByFaqType(bundle.tipo_faq),
+    },
+  )
+  bundle.operational_owner = {
+    ownerType: nextOwner.ownerType,
+    queueKey: nextOwner.queueKey,
+    queueLabel: nextOwner.queueLabel,
+    areaLabel: nextOwner.areaLabel,
+    roleKey: nextOwner.roleKey,
+    ownerKey: nextOwner.ownerKey,
+    routingPolicy: nextOwner.routingPolicy,
+    fallbackNote: nextOwner.fallbackNote,
+  }
+  bundle.metadata = bundle.metadata || {}
+  bundle.metadata.operational_owner = cloneJson(bundle.operational_owner)
+  return bundle.operational_owner
+}
+
+export function setFaqBuilderNodeOwnership(bundle = {}, nodeId = '', payload = {}) {
+  ensureBundleCollections(bundle)
+  const node = getFaqBuilderNode(bundle, nodeId)
+  if (!node) {
+    return null
+  }
+
+  const currentConfig = getNodeOwnershipConfig(node, {
+    faqType: bundle.tipo_faq,
+    fallbackQueue: bundle.operational_owner?.queueKey,
+  })
+  const nextConfig = {
+    inherit:
+      payload.inherit === undefined
+        ? currentConfig.inherit
+        : sanitizeOwnershipBoolean(payload.inherit, currentConfig.inherit),
+  }
+  const ownerNormalizationOptions = {
+    faqType: bundle.tipo_faq,
+    fallbackQueue:
+      bundle.operational_owner?.queueKey || currentConfig.operationalOwner.queueKey,
+  }
+  if (!nextConfig.inherit) {
+    ownerNormalizationOptions.fallbackQueue = ''
+    ownerNormalizationOptions.fallbackArea = ''
+    ownerNormalizationOptions.fallbackRole = ''
+  }
+  nextConfig.operationalOwner = normalizeOperationalOwner(
+    {
+      ...currentConfig.operationalOwner,
+      ...payload,
+    },
+    ownerNormalizationOptions,
+  )
+  syncNodeOwnershipFields(node, nextConfig)
+  return node.ownership
+}
+
+export function resolveFaqBuilderNodeEffectiveOwner(bundle = {}, nodeId = '') {
+  ensureBundleCollections(bundle)
+  const nodeById = new Map((bundle.nodes || []).map((node) => [node.id, node]))
+  const parentMap = buildNodeParentMap(bundle)
+  return resolveNodeEffectiveOwner(
+    nodeId,
+    nodeById,
+    parentMap,
+    bundle.operational_owner || {},
+  )
+}
+
+export function resolveFaqNodeOperationalOwner({
+  node = {},
+  lineage = [],
+  bundleOwner = null,
+  faqType = '',
+} = {}) {
+  const safeLineage = Array.isArray(lineage)
+    ? lineage.filter(
+        (entry) => entry && typeof entry === 'object' && String(entry.id || '').trim(),
+      )
+    : []
+  const resolvedFaqType = faqType || node.tipo_faq || safeLineage.at(-1)?.tipo_faq || 'aluno'
+  const defaultBundleOwner = normalizeOperationalOwner(
+    bundleOwner ||
+      node.bundle_operational_owner ||
+      node.metadata?.operational_owner ||
+      {},
+    {
+      faqType: resolvedFaqType,
+      fallbackQueue:
+        resolveDefaultQueueByFaqType(resolvedFaqType),
+    },
+  )
+
+  const fallbackOwner = normalizeOperationalOwner(
+    {
+      owner_type: OPERATIONAL_OWNER_TYPE.queue,
+      owner_queue:
+        String(node.owner_queue || node.fila_destino || '').trim() ||
+        defaultBundleOwner.queueKey ||
+        resolveDefaultQueueByFaqType(resolvedFaqType),
+    },
+    {
+      faqType: resolvedFaqType,
+      fallbackQueue: defaultBundleOwner.queueKey || resolveDefaultQueueByFaqType(resolvedFaqType),
+    },
+  )
+
+  const lineageToCheck = safeLineage.length
+    ? [...safeLineage].reverse()
+    : [node]
+
+  for (const lineageNode of lineageToCheck) {
+    const ownershipConfig = getNodeOwnershipConfig(lineageNode, {
+      faqType: resolvedFaqType,
+      fallbackQueue: defaultBundleOwner.queueKey || fallbackOwner.queueKey,
+    })
+    if (!ownershipConfig.inherit && hasOperationalOwnerValue(ownershipConfig.operationalOwner)) {
+      return {
+        hasOwner: true,
+        source: lineageNode.id === node.id ? 'node_override' : 'ancestor_override',
+        sourceNodeId: lineageNode.id,
+        ownerType: ownershipConfig.operationalOwner.ownerType,
+        ownerKey: ownershipConfig.operationalOwner.ownerKey,
+        areaLabel: ownershipConfig.operationalOwner.areaLabel,
+        queueKey: ownershipConfig.operationalOwner.queueKey,
+        queueLabel: ownershipConfig.operationalOwner.queueLabel,
+        roleKey: ownershipConfig.operationalOwner.roleKey,
+        routingPolicy: ownershipConfig.operationalOwner.routingPolicy,
+      }
+    }
+  }
+
+  if (hasOperationalOwnerValue(defaultBundleOwner)) {
+    return {
+      hasOwner: true,
+      source: 'bundle_default',
+      sourceNodeId: '',
+      ownerType: defaultBundleOwner.ownerType,
+      ownerKey: defaultBundleOwner.ownerKey,
+      areaLabel: defaultBundleOwner.areaLabel,
+      queueKey: defaultBundleOwner.queueKey,
+      queueLabel: defaultBundleOwner.queueLabel,
+      roleKey: defaultBundleOwner.roleKey,
+      routingPolicy: defaultBundleOwner.routingPolicy,
+    }
+  }
+
+  if (hasOperationalOwnerValue(fallbackOwner)) {
+    return {
+      hasOwner: true,
+      source: 'node_queue_fallback',
+      sourceNodeId: node.id || '',
+      ownerType: fallbackOwner.ownerType,
+      ownerKey: fallbackOwner.ownerKey,
+      areaLabel: fallbackOwner.areaLabel,
+      queueKey: fallbackOwner.queueKey,
+      queueLabel: fallbackOwner.queueLabel,
+      roleKey: fallbackOwner.roleKey,
+      routingPolicy: fallbackOwner.routingPolicy,
+    }
+  }
+
+  return {
+    hasOwner: false,
+    source: 'missing',
+    sourceNodeId: '',
+    ownerType: '',
+    ownerKey: '',
+    areaLabel: '',
+    queueKey: '',
+    queueLabel: '',
+    roleKey: '',
+    routingPolicy: '',
   }
 }
 
@@ -481,14 +1451,101 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
   ensureBundleCollections(bundle)
   const nodes = bundle.nodes || []
   const links = bundle.links || []
+  const maxValidationNodes = Number(
+    options.maxValidationNodes || FAQ_BUILDER_RUNTIME_GUARDS.maxValidationNodes,
+  )
+  const maxValidationEdges = Number(
+    options.maxValidationEdges || FAQ_BUILDER_RUNTIME_GUARDS.maxValidationEdges,
+  )
   const issues = []
+  if (nodes.length > maxValidationNodes) {
+    issues.push({
+      severity: 'error',
+      code: 'validation_nodes_limit_exceeded',
+      nodeId: '',
+      message: `Fluxo excede limite seguro de validacao (${maxValidationNodes} nos).`,
+      blocksImport: true,
+      blocksPublish: true,
+    })
+  }
+  if (links.length > maxValidationEdges) {
+    issues.push({
+      severity: 'error',
+      code: 'validation_edges_limit_exceeded',
+      nodeId: '',
+      message: `Fluxo excede limite seguro de validacao (${maxValidationEdges} links).`,
+      blocksImport: true,
+      blocksPublish: true,
+    })
+  }
+
+  const workingNodes =
+    nodes.length > maxValidationNodes ? nodes.slice(0, maxValidationNodes) : nodes
+  const workingLinks =
+    links.length > maxValidationEdges ? links.slice(0, maxValidationEdges) : links
+
   const seenNodeIds = new Set()
   const seenLinkIds = new Set()
-  const nodeById = new Map(nodes.map((node) => [node.id, node]))
-  const incomingMap = buildIncomingMap(links)
-  const outgoingMap = buildOutgoingMap(links)
+  const nodeById = new Map()
+  const incomingMap = buildIncomingMap(workingLinks)
+  const outgoingMap = buildOutgoingMap(workingLinks)
+  const parentMap = buildNodeParentMap({
+    nodes: workingNodes,
+    links: workingLinks,
+  })
+  const bundleOwner = normalizeOperationalOwner(bundle.operational_owner || bundle.metadata?.operational_owner || {}, {
+    faqType: bundle.tipo_faq,
+    fallbackQueue: resolveDefaultQueueByFaqType(bundle.tipo_faq),
+  })
+  const ownershipReferenceCatalog = buildFaqBuilderOwnershipReferenceCatalog(bundle, options)
+  const bundleOwnerReferenceIssue = resolveOperationalOwnerReferenceIssue(
+    bundleOwner,
+    ownershipReferenceCatalog,
+  )
+  const bundleHasOwner = hasOperationalOwnerValue(bundleOwner)
+  const ownershipCoverage = {
+    bundleDefaultConfigured: bundleHasOwner,
+    totalFinalNodes: 0,
+    effectiveFinalNodes: 0,
+    missingFinalNodes: 0,
+    invalidOverrides: 0,
+  }
 
-  for (const node of nodes) {
+  if (!bundleHasOwner) {
+    issues.push({
+      severity: 'error',
+      code: 'bundle_without_default_owner',
+      nodeId: '',
+      message: 'Bundle sem responsavel operacional padrao.',
+      blocksImport: true,
+      blocksPublish: true,
+    })
+  }
+
+  if (bundleOwnerReferenceIssue) {
+    issues.push({
+      severity: 'error',
+      code: 'bundle_invalid_owner_reference',
+      nodeId: '',
+      field: bundleOwnerReferenceIssue.field,
+      message: bundleOwnerReferenceIssue.message,
+      blocksImport: true,
+      blocksPublish: true,
+    })
+  }
+
+  for (const node of workingNodes) {
+    if (!node || typeof node !== 'object') {
+      issues.push({
+        severity: 'error',
+        code: 'invalid_node_entry',
+        nodeId: '',
+        message: 'Entrada de no invalida no bundle.',
+        blocksImport: true,
+        blocksPublish: true,
+      })
+      continue
+    }
     if (!node.id || !String(node.id).trim()) {
       issues.push({
         severity: 'error',
@@ -499,6 +1556,10 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
         blocksPublish: true,
       })
       continue
+    }
+
+    if (!nodeById.has(node.id)) {
+      nodeById.set(node.id, node)
     }
 
     if (seenNodeIds.has(node.id)) {
@@ -582,6 +1643,11 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
     const nodeMode = inferNodeMode(node)
     const outgoingCount = (outgoingMap.get(node.id) || []).length
     const incomingCount = (incomingMap.get(node.id) || []).length
+    const ownershipConfig = getNodeOwnershipConfig(node, {
+      faqType: bundle.tipo_faq,
+      fallbackQueue: bundleOwner.queueKey,
+    })
+    syncNodeOwnershipFields(node, ownershipConfig)
 
     if (nodeMode === NODE_MODE_MAP.final && !String(node.resposta || '').trim()) {
       issues.push({
@@ -626,9 +1692,52 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
         blocksPublish: true,
       })
     }
+
+    if (!ownershipConfig.inherit && !hasOperationalOwnerValue(ownershipConfig.operationalOwner)) {
+      ownershipCoverage.invalidOverrides += 1
+      issues.push({
+        severity: 'error',
+        code: 'invalid_owner_override',
+        nodeId: node.id,
+        message:
+          'Override de ownership invalido. Informe fila, area ou role valido, ou volte para heranca.',
+        blocksImport: true,
+        blocksPublish: true,
+      })
+    }
+
+    if (!ownershipConfig.inherit) {
+      const ownerReferenceIssue = resolveOperationalOwnerReferenceIssue(
+        ownershipConfig.operationalOwner,
+        ownershipReferenceCatalog,
+      )
+      if (ownerReferenceIssue) {
+        ownershipCoverage.invalidOverrides += 1
+        issues.push({
+          severity: 'error',
+          code: 'invalid_owner_reference',
+          nodeId: node.id,
+          field: ownerReferenceIssue.field,
+          message: ownerReferenceIssue.message,
+          blocksImport: true,
+          blocksPublish: true,
+        })
+      }
+    }
   }
 
-  for (const link of links) {
+  for (const link of workingLinks) {
+    if (!link || typeof link !== 'object') {
+      issues.push({
+        severity: 'error',
+        code: 'invalid_link_entry',
+        nodeId: '',
+        message: 'Entrada de link invalida no bundle.',
+        blocksImport: true,
+        blocksPublish: true,
+      })
+      continue
+    }
     if (!link.link_id || !String(link.link_id).trim()) {
       issues.push({
         severity: 'error',
@@ -700,7 +1809,7 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
     }
   }
 
-  const cycleNodeIds = detectCycles(nodes, links)
+  const cycleNodeIds = detectCycles(workingNodes, workingLinks)
   if (cycleNodeIds.length) {
     for (const nodeId of cycleNodeIds) {
       issues.push({
@@ -714,7 +1823,7 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
     }
   }
 
-  if (!nodes.length) {
+  if (!workingNodes.length) {
     issues.push({
       severity: 'error',
       code: 'empty_bundle',
@@ -723,6 +1832,59 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
       blocksImport: mode === 'import',
       blocksPublish: true,
     })
+  }
+
+  for (const node of workingNodes) {
+    if (inferNodeMode(node) !== NODE_MODE_MAP.final) {
+      continue
+    }
+    ownershipCoverage.totalFinalNodes += 1
+    const effectiveOwner = resolveNodeEffectiveOwner(
+      node.id,
+      nodeById,
+      parentMap,
+      bundleOwner,
+    )
+    if (!effectiveOwner.owner || !hasOperationalOwnerValue(effectiveOwner.owner)) {
+      ownershipCoverage.missingFinalNodes += 1
+      issues.push({
+        severity: 'error',
+        code: 'final_without_effective_owner',
+        nodeId: node.id,
+        message:
+          'No final sem responsavel operacional efetivo (bundle + heranca + override).',
+        blocksImport: true,
+        blocksPublish: true,
+      })
+    } else {
+      const effectiveOwnerReferenceIssue = resolveOperationalOwnerReferenceIssue(
+        effectiveOwner.owner,
+        ownershipReferenceCatalog,
+      )
+      if (effectiveOwnerReferenceIssue) {
+        ownershipCoverage.missingFinalNodes += 1
+        issues.push({
+          severity: 'error',
+          code: 'final_with_invalid_owner_reference',
+          nodeId: node.id,
+          field: effectiveOwnerReferenceIssue.field,
+          message: `${effectiveOwnerReferenceIssue.message} Corrija bundle/heranca/override antes de publicar.`,
+          blocksImport: true,
+          blocksPublish: true,
+        })
+        continue
+      }
+      ownershipCoverage.effectiveFinalNodes += 1
+      node.effective_owner = {
+        source: effectiveOwner.source,
+        sourceNodeId: effectiveOwner.sourceNodeId,
+        ownerType: effectiveOwner.owner.ownerType,
+        queueKey: effectiveOwner.owner.queueKey,
+        areaLabel: effectiveOwner.owner.areaLabel,
+        roleKey: effectiveOwner.owner.roleKey,
+        ownerKey: effectiveOwner.owner.ownerKey,
+      }
+    }
   }
 
   const errors = issues.filter((issue) => issue.severity === 'error')
@@ -736,6 +1898,7 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
     errors,
     warnings,
     nodeIssueSummary,
+    ownershipCoverage,
     hasBlockingImportError,
     hasBlockingPublishError,
   }
@@ -743,6 +1906,16 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
 
 export function buildAutoLayoutSnapshot(bundle = {}, existingSnapshot = {}, options = {}) {
   ensureBundleCollections(bundle)
+  const safeNodes = (bundle.nodes || []).filter(
+    (node) => node && typeof node === 'object' && String(node.id || '').trim(),
+  )
+  const safeLinks = (bundle.links || []).filter(
+    (link) =>
+      link &&
+      typeof link === 'object' &&
+      String(link.parent_node_id || '').trim() &&
+      String(link.child_node_id || '').trim(),
+  )
   const rankdir = options.direction || 'TB'
   const graph = new dagre.graphlib.Graph()
   graph.setGraph({
@@ -754,14 +1927,14 @@ export function buildAutoLayoutSnapshot(bundle = {}, existingSnapshot = {}, opti
   })
   graph.setDefaultEdgeLabel(() => ({}))
 
-  for (const node of bundle.nodes) {
+  for (const node of safeNodes) {
     graph.setNode(node.id, {
       width: DEFAULT_NODE_WIDTH,
       height: DEFAULT_NODE_HEIGHT,
     })
   }
 
-  for (const link of bundle.links) {
+  for (const link of safeLinks) {
     if (link.ativo === false) {
       continue
     }
@@ -774,7 +1947,7 @@ export function buildAutoLayoutSnapshot(bundle = {}, existingSnapshot = {}, opti
   dagre.layout(graph)
 
   const nodePositions = {}
-  for (const node of bundle.nodes) {
+  for (const node of safeNodes) {
     const layoutNode = graph.node(node.id)
     if (layoutNode) {
       nodePositions[node.id] = {
@@ -793,7 +1966,7 @@ export function buildAutoLayoutSnapshot(bundle = {}, existingSnapshot = {}, opti
     ...cloneJson(DEFAULT_CANVAS_SNAPSHOT),
     ...(existingSnapshot || {}),
     nodePositions,
-    edges: bundle.links
+    edges: safeLinks
       .filter((link) => link.ativo !== false)
       .map((link) => ({
         id: link.link_id,
@@ -806,9 +1979,19 @@ export function buildAutoLayoutSnapshot(bundle = {}, existingSnapshot = {}, opti
 
 export function buildFaqBuilderGraph(bundle = {}, canvasSnapshot = {}, validation = null) {
   ensureBundleCollections(bundle)
+  const safeNodes = (bundle.nodes || []).filter(
+    (node) => node && typeof node === 'object' && String(node.id || '').trim(),
+  )
+  const safeLinks = (bundle.links || []).filter(
+    (link) =>
+      link &&
+      typeof link === 'object' &&
+      String(link.parent_node_id || '').trim() &&
+      String(link.child_node_id || '').trim(),
+  )
   const issueSummary = validation?.nodeIssueSummary || new Map()
   const snapshotPositions = canvasSnapshot?.nodePositions || {}
-  const nodes = bundle.nodes.map((node) => {
+  const nodes = safeNodes.map((node) => {
     const summary = issueSummary.get(node.id) || null
     const nodeMode = inferNodeMode(node)
 
@@ -824,6 +2007,10 @@ export function buildFaqBuilderGraph(bundle = {}, canvasSnapshot = {}, validatio
         nodeMode,
         action: node.acao,
         queueDestination: node.fila_destino,
+        ownershipMode: node.owner_inherit ? 'inherit' : 'override',
+        ownerQueue: node.owner_queue || node.effective_owner?.queueKey || '',
+        ownerArea: node.owner_area || node.effective_owner?.areaLabel || '',
+        ownerRole: node.owner_role || node.effective_owner?.roleKey || '',
         status: node.publication_status || 'draft',
         issueCount: summary?.count || 0,
         issueSeverity: summary?.hasError ? 'error' : summary?.hasWarning ? 'warning' : 'none',
@@ -832,7 +2019,7 @@ export function buildFaqBuilderGraph(bundle = {}, canvasSnapshot = {}, validatio
     }
   })
 
-  const edges = bundle.links
+  const edges = safeLinks
     .filter((link) => link.ativo !== false)
     .map((link) => ({
       id: link.link_id,
@@ -849,6 +2036,42 @@ export function buildFaqBuilderGraph(bundle = {}, canvasSnapshot = {}, validatio
   return {
     nodes,
     edges,
+  }
+}
+
+export function buildFaqBuilderGraphSafe(
+  bundle = {},
+  canvasSnapshot = {},
+  validation = null,
+  options = {},
+) {
+  const sanity = runFaqBuilderBundleSanityCheck(bundle, canvasSnapshot, options)
+  try {
+    const graph = buildFaqBuilderGraph(
+      sanity.bundle,
+      sanity.canvasSnapshot,
+      validation,
+    )
+    return {
+      graph,
+      sanity,
+      fallbackUsed: false,
+    }
+  } catch (error) {
+    return {
+      graph: { nodes: [], edges: [] },
+      sanity: {
+        ...sanity,
+        errors: [
+          ...(sanity.errors || []),
+          {
+            code: 'runtime_graph_build_failed',
+            message: String(error?.message || 'Falha ao montar o canvas.'),
+          },
+        ],
+      },
+      fallbackUsed: true,
+    }
   }
 }
 
@@ -880,6 +2103,18 @@ export function createFaqBuilderWorkspace(faqType = 'aluno', editorName = 'Admin
       },
     ],
     versionCounter: 1,
+    draftRevisionCounter: 1,
+    publishConfig: {
+      publishMode: 'immediate',
+      effectiveStartAt: null,
+      effectiveEndAt: null,
+      priority: Number(draftBundle.publication?.priority || 50),
+      displayRank: Number(draftBundle.publication?.display_rank || 50),
+      isFeatured: Boolean(draftBundle.publication?.is_featured),
+      conditions: draftBundle.publication?.conditions || '',
+    },
+    publishedHistory: [],
+    activePublishedVersionId: '',
   }
 }
 
@@ -898,6 +2133,36 @@ export function createFaqBuilderWorkspaceFromBundle(
     : buildAutoLayoutSnapshot(publishedBundle)
   const draftStatus =
     WORKFLOW_STATUS_MAP[draftBundle.versioning?.publication_status || 'draft'] || 'Draft'
+  const publishConfig = {
+    publishMode: options.publishConfig?.publishMode || 'immediate',
+    effectiveStartAt:
+      options.publishConfig?.effectiveStartAt ??
+      draftBundle.publication?.effective_start_at ??
+      null,
+    effectiveEndAt:
+      options.publishConfig?.effectiveEndAt ??
+      draftBundle.publication?.effective_end_at ??
+      null,
+    priority: Number(
+      options.publishConfig?.priority ??
+        draftBundle.publication?.priority ??
+        50,
+    ),
+    displayRank: Number(
+      options.publishConfig?.displayRank ??
+        draftBundle.publication?.display_rank ??
+        50,
+    ),
+    isFeatured: Boolean(
+      options.publishConfig?.isFeatured ??
+        draftBundle.publication?.is_featured ??
+        false,
+    ),
+    conditions:
+      options.publishConfig?.conditions ??
+      draftBundle.publication?.conditions ??
+      '',
+  }
 
   return {
     faqType: draftBundle.tipo_faq || options.faqType || 'aluno',
@@ -924,6 +2189,15 @@ export function createFaqBuilderWorkspaceFromBundle(
           },
         ],
     versionCounter: Number(options.versionCounter || 1),
+    draftRevisionCounter: Number(options.draftRevisionCounter || 1),
+    publishConfig,
+    publishedHistory: Array.isArray(options.publishedHistory)
+      ? cloneJson(options.publishedHistory)
+      : [],
+    activePublishedVersionId:
+      options.activePublishedVersionId ||
+      draftBundle.publication?.active_bundle_version_id ||
+      '',
   }
 }
 
@@ -1061,6 +2335,10 @@ function normalizeLibraryPayload(payload = {}, editorName = 'Admin local') {
             lockContext: entry.workspace?.lockContext || {},
             changeLog: entry.workspace?.changeLog || [],
             versionCounter: entry.workspace?.versionCounter || 1,
+            draftRevisionCounter: entry.workspace?.draftRevisionCounter || 1,
+            publishConfig: entry.workspace?.publishConfig || null,
+            publishedHistory: entry.workspace?.publishedHistory || [],
+            activePublishedVersionId: entry.workspace?.activePublishedVersionId || '',
           },
         )
 
@@ -1097,10 +2375,23 @@ export function loadFaqBuilderBundleLibraryLocal(editorName = 'Admin local') {
     return createFaqBuilderBundleLibrary(editorName)
   }
 
-  const rawValue = window.localStorage.getItem(FAQ_BUILDER_LIBRARY_STORAGE_KEY)
+  const rawValue = readLocalStorageItem(FAQ_BUILDER_LIBRARY_STORAGE_KEY)
   if (!rawValue) {
     const seeded = createFaqBuilderBundleLibrary(editorName)
     saveFaqBuilderBundleLibraryLocal(seeded)
+    return seeded
+  }
+
+  if (rawValue.length > FAQ_BUILDER_LIBRARY_MAX_SIZE_BYTES) {
+    const seeded = createFaqBuilderBundleLibrary(editorName)
+    saveFaqBuilderBundleLibraryLocal(seeded)
+    console.warn(
+      '[faq-builder] Biblioteca local excedeu limite seguro e foi reinicializada.',
+      {
+        rawSizeBytes: rawValue.length,
+        maxAllowedBytes: FAQ_BUILDER_LIBRARY_MAX_SIZE_BYTES,
+      },
+    )
     return seeded
   }
 
@@ -1113,13 +2404,45 @@ export function loadFaqBuilderBundleLibraryLocal(editorName = 'Admin local') {
   }
 }
 
-export function saveFaqBuilderBundleLibraryLocal(library = {}) {
+export function saveFaqBuilderBundleLibraryLocal(library = {}, options = {}) {
   if (typeof window === 'undefined') {
     return
   }
-  const payload = normalizeLibraryPayload(library, library?.bundles?.[0]?.updatedBy || 'Admin local')
-  payload.updatedAt = nowIso()
-  window.localStorage.setItem(FAQ_BUILDER_LIBRARY_STORAGE_KEY, JSON.stringify(payload))
+
+  try {
+    const payload = options.skipNormalize
+      ? cloneJson(library || {})
+      : normalizeLibraryPayload(
+          library,
+          library?.bundles?.[0]?.updatedBy || 'Admin local',
+        )
+
+    payload.schemaVersion = payload.schemaVersion || 'faq-builder-library-v1'
+    payload.bundles = Array.isArray(payload.bundles) ? payload.bundles : []
+    payload.updatedAt = nowIso()
+
+    const serialized = JSON.stringify(payload)
+    if (serialized.length > FAQ_BUILDER_LIBRARY_MAX_SIZE_BYTES) {
+      console.warn(
+        '[faq-builder] Salvamento local ignorado por exceder limite seguro.',
+        {
+          payloadSizeBytes: serialized.length,
+          maxAllowedBytes: FAQ_BUILDER_LIBRARY_MAX_SIZE_BYTES,
+        },
+      )
+      return
+    }
+    writeLocalStorageItem(FAQ_BUILDER_LIBRARY_STORAGE_KEY, serialized)
+  } catch (error) {
+    console.warn('[faq-builder] Falha ao persistir biblioteca local.', error)
+  }
+}
+
+export function clearFaqBuilderBundleLibraryLocal() {
+  if (typeof window === 'undefined') {
+    return
+  }
+  removeLocalStorageItem(FAQ_BUILDER_LIBRARY_STORAGE_KEY)
 }
 
 export function getFaqBuilderBundleById(library = {}, bundleId = '') {
@@ -1128,38 +2451,101 @@ export function getFaqBuilderBundleById(library = {}, bundleId = '') {
 
 export function listFaqBuilderBundles(
   library = {},
-  { search = '', status = 'all', faqType = 'all' } = {},
+  { search = '', status = 'all', faqType = 'all', includeValidation = true } = {},
 ) {
   const query = normalizeText(search)
   const statusQuery = normalizeText(status)
   const faqTypeQuery = normalizeText(faqType)
   return (library.bundles || [])
     .map((entry) => {
-      const validation = validateFaqBuilderBundle(entry.workspace?.draftBundle || {})
-      const workflowStatus = entry.workspace?.workflowStatus || 'Draft'
-      const statusKey = normalizeText(workflowStatus)
-      const nodeCount = entry.workspace?.draftBundle?.nodes?.length || 0
-      return {
-        bundleId: entry.bundleId,
-        title: entry.title,
-        description: entry.description,
-        faqType: entry.faqType,
-        subjectKey: entry.subjectKey,
-        workflowStatus,
-        statusKey,
-        nodeCount,
-        linkCount: entry.workspace?.draftBundle?.links?.length || 0,
-        updatedAt: entry.workspace?.lockContext?.lastTouchedAt || entry.updatedAt,
-        updatedBy: entry.workspace?.lockContext?.editorName || entry.updatedBy,
-        publishedVersion:
-          entry.workspace?.draftBundle?.versioning?.published_version ||
-          entry.workspace?.publishedBundle?.versioning?.published_version ||
-          '-',
-        validationErrors: validation.errors.length,
-        validationWarnings: validation.warnings.length,
-        hasBlockingError: validation.hasBlockingPublishError,
+      try {
+        const cachedValidation = entry?.workspace?.validationSnapshot || {}
+        const validation = includeValidation
+          ? validateFaqBuilderBundle(entry?.workspace?.draftBundle || {})
+          : {
+              errors: [],
+              warnings: [],
+              hasBlockingPublishError: Boolean(cachedValidation.hasBlockingPublishError),
+              ownershipCoverage: cachedValidation.ownershipCoverage || {
+                bundleDefaultConfigured: false,
+                totalFinalNodes: 0,
+                effectiveFinalNodes: 0,
+                missingFinalNodes: 0,
+                invalidOverrides: 0,
+              },
+              ...cachedValidation,
+            }
+        const bundleOwner = normalizeOperationalOwner(
+          entry?.workspace?.draftBundle?.operational_owner ||
+            entry?.workspace?.draftBundle?.metadata?.operational_owner ||
+            {},
+          {
+            faqType: entry?.workspace?.draftBundle?.tipo_faq || entry?.faqType || 'aluno',
+          },
+        )
+        const ownershipCoverage = validation.ownershipCoverage || {
+          bundleDefaultConfigured: false,
+          totalFinalNodes: 0,
+          effectiveFinalNodes: 0,
+          missingFinalNodes: 0,
+          invalidOverrides: 0,
+        }
+        const workflowStatus = entry?.workspace?.workflowStatus || 'Draft'
+        const statusKey = normalizeText(workflowStatus)
+        const nodeCount = entry?.workspace?.draftBundle?.nodes?.length || 0
+        return {
+          bundleId: entry?.bundleId || '',
+          title: entry?.title || 'Fluxo sem titulo',
+          description: entry?.description || '',
+          faqType: entry?.faqType || 'aluno',
+          subjectKey: entry?.subjectKey || 'geral',
+          workflowStatus,
+          statusKey,
+          nodeCount,
+          linkCount: entry?.workspace?.draftBundle?.links?.length || 0,
+          updatedAt: entry?.workspace?.lockContext?.lastTouchedAt || entry?.updatedAt || nowIso(),
+          updatedBy: entry?.workspace?.lockContext?.editorName || entry?.updatedBy || 'Admin local',
+          publishedVersion:
+            entry?.workspace?.draftBundle?.versioning?.published_version ||
+            entry?.workspace?.publishedBundle?.versioning?.published_version ||
+            '-',
+          validationErrors: validation.errors.length,
+          validationWarnings: validation.warnings.length,
+          hasBlockingError: validation.hasBlockingPublishError,
+          priority:
+            Number(entry?.workspace?.publishConfig?.priority ?? entry?.workspace?.draftBundle?.publication?.priority ?? 50),
+          isFeatured:
+            Boolean(entry?.workspace?.publishConfig?.isFeatured ?? entry?.workspace?.draftBundle?.publication?.is_featured),
+          effectiveStartAt:
+            entry?.workspace?.publishConfig?.effectiveStartAt ??
+            entry?.workspace?.draftBundle?.publication?.effective_start_at ??
+            null,
+          effectiveEndAt:
+            entry?.workspace?.publishConfig?.effectiveEndAt ??
+            entry?.workspace?.draftBundle?.publication?.effective_end_at ??
+            null,
+          activePublishedVersionId:
+            entry?.workspace?.activePublishedVersionId ||
+            entry?.workspace?.draftBundle?.publication?.active_bundle_version_id ||
+            '',
+          bundleOwnerType: bundleOwner.ownerType,
+          bundleOwnerLabel: formatOperationalOwnerLabel(bundleOwner),
+          ownershipCoverageLabel:
+            ownershipCoverage.totalFinalNodes > 0
+              ? `${ownershipCoverage.effectiveFinalNodes}/${ownershipCoverage.totalFinalNodes}`
+              : '0/0',
+          ownershipMissingFinalNodes: Number(ownershipCoverage.missingFinalNodes || 0),
+          ownershipInvalidOverrides: Number(ownershipCoverage.invalidOverrides || 0),
+          hasOwnershipGap:
+            !ownershipCoverage.bundleDefaultConfigured ||
+            Number(ownershipCoverage.missingFinalNodes || 0) > 0 ||
+            Number(ownershipCoverage.invalidOverrides || 0) > 0,
+        }
+      } catch {
+        return null
       }
     })
+    .filter(Boolean)
     .filter((entry) => {
       if (faqTypeQuery !== 'all' && normalizeText(entry.faqType) !== faqTypeQuery) {
         return false
@@ -1187,6 +2573,7 @@ function buildBundleSkeletonPackage({ faqType = 'aluno', subjectKey = '', title 
   const rootId = `${bundleFaqId}-tema`
   const leafId = `${bundleFaqId}-resposta`
   const nowVersion = `draft-${Date.now()}`
+  const defaultOwnerQueue = resolveDefaultQueueByFaqType(faqType)
 
   return ensureBundleCollections({
     schema_version: '2.0.0',
@@ -1213,6 +2600,23 @@ function buildBundleSkeletonPackage({ faqType = 'aluno', subjectKey = '', title 
       last_published_at: null,
       last_published_by: '',
       next_review_at: null,
+      effective_start_at: null,
+      effective_end_at: null,
+      priority: 50,
+      display_rank: 50,
+      is_featured: false,
+      conditions: '',
+      active_bundle_version_id: '',
+      supersedes_version_id: '',
+    },
+    operational_owner: {
+      ownerType: OPERATIONAL_OWNER_TYPE.queue,
+      queueKey: defaultOwnerQueue,
+      areaLabel: '',
+      roleKey: '',
+      routingPolicy: 'balancear_por_carga',
+      fallbackNote: '',
+      ownerKey: `queue:${defaultOwnerQueue}`,
     },
     nodes: [
       {
@@ -1228,7 +2632,7 @@ function buildBundleSkeletonPackage({ faqType = 'aluno', subjectKey = '', title 
         resposta: '',
         acao: 'ir_para_subniveis',
         abre_atendimento: false,
-        fila_destino: faqType === 'op' ? 'op' : 'nao_aplicavel',
+        fila_destino: defaultOwnerQueue,
         criticidade_padrao: 'media',
         sla_padrao: '48h',
         ativo: true,
@@ -1243,6 +2647,16 @@ function buildBundleSkeletonPackage({ faqType = 'aluno', subjectKey = '', title 
         prioridade_dinamica: 50,
         builder_editable: true,
         spreadsheet_editable: true,
+        ownership: {
+          inherit: true,
+          ownerType: OPERATIONAL_OWNER_TYPE.queue,
+          queueKey: '',
+          areaLabel: '',
+          roleKey: '',
+          routingPolicy: '',
+          fallbackNote: '',
+          ownerKey: '',
+        },
       },
       {
         id: leafId,
@@ -1257,7 +2671,7 @@ function buildBundleSkeletonPackage({ faqType = 'aluno', subjectKey = '', title 
         resposta: 'Edite esta resposta para publicar o fluxo.',
         acao: 'mostrar_resposta',
         abre_atendimento: false,
-        fila_destino: faqType === 'op' ? 'op' : 'nao_aplicavel',
+        fila_destino: defaultOwnerQueue,
         criticidade_padrao: 'media',
         sla_padrao: '48h',
         ativo: true,
@@ -1272,6 +2686,16 @@ function buildBundleSkeletonPackage({ faqType = 'aluno', subjectKey = '', title 
         prioridade_dinamica: 50,
         builder_editable: true,
         spreadsheet_editable: true,
+        ownership: {
+          inherit: true,
+          ownerType: OPERATIONAL_OWNER_TYPE.queue,
+          queueKey: '',
+          areaLabel: '',
+          roleKey: '',
+          routingPolicy: '',
+          fallbackNote: '',
+          ownerKey: '',
+        },
       },
     ],
     links: [
@@ -1364,6 +2788,15 @@ export function duplicateFaqBuilderBundleEntry(
   draftBundle.versioning = draftBundle.versioning || {}
   draftBundle.versioning.publication_status = 'draft'
   draftBundle.versioning.draft_version = `draft-${Date.now()}`
+  draftBundle.versioning.published_version = ''
+  draftBundle.versioning.bundle_version_id = ''
+  draftBundle.publication = {
+    ...(draftBundle.publication || {}),
+    last_published_at: null,
+    last_published_by: '',
+    active_bundle_version_id: '',
+    supersedes_version_id: '',
+  }
 
   const now = nowIso()
   const duplicateEntry = {
@@ -1429,7 +2862,7 @@ export function loadFaqBuilderWorkspaceLocal(faqType = 'aluno', editorName = 'Ad
   }
 
   const storageKey = getWorkspaceStorageKey(faqType)
-  const rawValue = window.localStorage.getItem(storageKey)
+  const rawValue = readLocalStorageItem(storageKey)
   if (!rawValue) {
     return createFaqBuilderWorkspace(faqType, editorName)
   }
@@ -1454,6 +2887,23 @@ export function loadFaqBuilderWorkspaceLocal(faqType = 'aluno', editorName = 'Ad
     }
     workspace.changeLog = Array.isArray(workspace.changeLog) ? workspace.changeLog : []
     workspace.versionCounter = Number(workspace.versionCounter || 1)
+    workspace.draftRevisionCounter = Number(workspace.draftRevisionCounter || 1)
+    workspace.publishConfig = workspace.publishConfig || {
+      publishMode: 'immediate',
+      effectiveStartAt: workspace.draftBundle?.publication?.effective_start_at || null,
+      effectiveEndAt: workspace.draftBundle?.publication?.effective_end_at || null,
+      priority: Number(workspace.draftBundle?.publication?.priority || 50),
+      displayRank: Number(workspace.draftBundle?.publication?.display_rank || 50),
+      isFeatured: Boolean(workspace.draftBundle?.publication?.is_featured),
+      conditions: workspace.draftBundle?.publication?.conditions || '',
+    }
+    workspace.publishedHistory = Array.isArray(workspace.publishedHistory)
+      ? workspace.publishedHistory
+      : []
+    workspace.activePublishedVersionId =
+      workspace.activePublishedVersionId ||
+      workspace.draftBundle?.publication?.active_bundle_version_id ||
+      ''
 
     if (!workspace.lockContext.editorName) {
       workspace.lockContext.editorName = editorName
@@ -1485,16 +2935,20 @@ export function saveFaqBuilderWorkspaceLocal(faqType = 'aluno', workspace = null
     lockContext: workspace.lockContext,
     changeLog: workspace.changeLog,
     versionCounter: workspace.versionCounter,
+    draftRevisionCounter: workspace.draftRevisionCounter,
+    publishConfig: workspace.publishConfig,
+    publishedHistory: workspace.publishedHistory,
+    activePublishedVersionId: workspace.activePublishedVersionId,
   })
 
-  window.localStorage.setItem(storageKey, JSON.stringify(payload))
+  writeLocalStorageItem(storageKey, JSON.stringify(payload))
 }
 
 export function clearFaqBuilderWorkspaceLocal(faqType = 'aluno') {
   if (typeof window === 'undefined') {
     return
   }
-  window.localStorage.removeItem(getWorkspaceStorageKey(faqType))
+  removeLocalStorageItem(getWorkspaceStorageKey(faqType))
 }
 
 export function touchFaqBuilderWorkspace(workspace, actorName = 'Admin local') {
@@ -1506,8 +2960,19 @@ export function touchFaqBuilderWorkspace(workspace, actorName = 'Admin local') {
 }
 
 export function getFaqBuilderNode(bundle = {}, nodeId = '') {
-  ensureBundleCollections(bundle)
-  return bundle.nodes.find((node) => node.id === nodeId) || null
+  const nodes = Array.isArray(bundle?.nodes) ? bundle.nodes : []
+  const normalizedNodeId = String(nodeId || '').trim()
+  if (!normalizedNodeId) {
+    return null
+  }
+  return (
+    nodes.find(
+      (node) =>
+        node &&
+        typeof node === 'object' &&
+        String(node.id || '').trim() === normalizedNodeId,
+    ) || null
+  )
 }
 
 export function setFaqBuilderNodeField(bundle = {}, nodeId = '', field = '', value = '') {
@@ -1593,7 +3058,10 @@ export function addFaqBuilderChildNode(bundle = {}, parentNodeId = '', options =
     resposta: nodeMode === NODE_MODE_MAP.final ? 'Descreva a resposta final.' : '',
     acao: nodeMode === NODE_MODE_MAP.final ? 'mostrar_resposta' : 'ir_para_subniveis',
     abre_atendimento: false,
-    fila_destino: parentNode.fila_destino || (bundle.tipo_faq === 'op' ? 'op' : 'nao_aplicavel'),
+    fila_destino:
+      parentNode.fila_destino && parentNode.fila_destino !== 'nao_aplicavel'
+        ? parentNode.fila_destino
+        : bundle.operational_owner?.queueKey || resolveDefaultQueueByFaqType(bundle.tipo_faq),
     criticidade_padrao: parentNode.criticidade_padrao || 'media',
     sla_padrao: parentNode.sla_padrao || '48h',
     ativo: true,
@@ -1609,6 +3077,16 @@ export function addFaqBuilderChildNode(bundle = {}, parentNodeId = '', options =
     builder_editable: true,
     spreadsheet_editable: true,
     slug: '',
+    ownership: {
+      inherit: true,
+      ownerType: OPERATIONAL_OWNER_TYPE.queue,
+      queueKey: '',
+      areaLabel: '',
+      roleKey: '',
+      routingPolicy: '',
+      fallbackNote: '',
+      ownerKey: '',
+    },
   }
 
   if (bundle.tipo_faq === 'op') {
@@ -1619,6 +3097,14 @@ export function addFaqBuilderChildNode(bundle = {}, parentNodeId = '', options =
     newNode.criterio_de_escalonamento = ''
     newNode.motivo_escalonamento_sugerido = ''
   }
+
+  syncNodeOwnershipFields(
+    newNode,
+    getNodeOwnershipConfig(newNode, {
+      faqType: bundle.tipo_faq,
+      fallbackQueue: bundle.operational_owner?.queueKey || newNode.fila_destino,
+    }),
+  )
 
   const newLink = {
     link_id: buildLinkId(parentNode.id, newNode.id),
@@ -1837,34 +3323,188 @@ export function transitionFaqBuilderWorkflow(workspace = {}, { nextStatus = 'Dra
   }
 }
 
-export function publishFaqBuilderWorkspace(workspace = {}, { actorName = 'Admin local', summary = '' } = {}) {
+export function saveFaqBuilderDraftWorkspace(
+  workspace = {},
+  { actorName = 'Admin local', summary = '' } = {},
+) {
+  workspace.workflowStatus = 'Draft'
+  workspace.draftBundle.versioning = workspace.draftBundle.versioning || {}
+  workspace.draftRevisionCounter = Number(workspace.draftRevisionCounter || 1) + 1
+  workspace.draftBundle.versioning.publication_status = 'draft'
+  workspace.draftBundle.versioning.draft_revision = workspace.draftRevisionCounter
+  workspace.draftBundle.versioning.change_summary =
+    summary || workspace.draftBundle.versioning.change_summary || ''
+  workspace.changeLog = Array.isArray(workspace.changeLog) ? workspace.changeLog : []
+  workspace.changeLog.unshift({
+    id: `save-draft-${Date.now()}`,
+    actor: actorName,
+    action: 'save_draft',
+    at: nowIso(),
+    details: summary || 'Rascunho salvo no editor.',
+  })
+  touchFaqBuilderWorkspace(workspace, actorName)
+  return {
+    ok: true,
+    draftRevision: workspace.draftRevisionCounter,
+  }
+}
+
+function normalizePublishConfig(publishConfig = {}, currentDate = new Date()) {
+  const effectiveStartAt =
+    publishConfig.publishMode === 'scheduled'
+      ? publishConfig.effectiveStartAt || null
+      : nowIso(currentDate)
+  const effectiveEndAt =
+    publishConfig.publishMode === 'scheduled'
+      ? publishConfig.effectiveEndAt || null
+      : publishConfig.effectiveEndAt || null
+  return {
+    publishMode: publishConfig.publishMode || 'immediate',
+    effectiveStartAt,
+    effectiveEndAt,
+    priority: Number.isFinite(Number(publishConfig.priority))
+      ? Number(publishConfig.priority)
+      : 50,
+    displayRank: Number.isFinite(Number(publishConfig.displayRank))
+      ? Number(publishConfig.displayRank)
+      : 50,
+    isFeatured: Boolean(publishConfig.isFeatured),
+    conditions: String(publishConfig.conditions || '').trim(),
+  }
+}
+
+function validatePublishConfig(config = {}) {
+  const startDate = config.effectiveStartAt
+    ? new Date(config.effectiveStartAt)
+    : null
+  const endDate = config.effectiveEndAt ? new Date(config.effectiveEndAt) : null
+  if (startDate && Number.isNaN(startDate.getTime())) {
+    return 'Data de inicio de vigencia invalida.'
+  }
+  if (endDate && Number.isNaN(endDate.getTime())) {
+    return 'Data de encerramento invalida.'
+  }
+  if (startDate && endDate && endDate.getTime() <= startDate.getTime()) {
+    return 'A data de encerramento deve ser maior que a data de inicio.'
+  }
+  return ''
+}
+
+export function buildFaqBuilderPublicationPreview(
+  workspace = {},
+  { actorName = 'Admin local', currentDate = new Date(), publishConfig = null } = {},
+) {
+  const config = normalizePublishConfig(
+    publishConfig || workspace.publishConfig || {},
+    currentDate,
+  )
+  const currentPublishedVersion =
+    workspace.activePublishedVersionId ||
+    workspace.draftBundle?.publication?.active_bundle_version_id ||
+    ''
+  const nextVersionNumber = Number(workspace.versionCounter || 1) + 1
+  const nextVersionId = `v${nextVersionNumber}.0`
+  return {
+    actorName,
+    currentPublishedVersion,
+    nextVersionId,
+    willSupersede: Boolean(currentPublishedVersion),
+    ...config,
+  }
+}
+
+export function publishFaqBuilderWorkspace(
+  workspace = {},
+  { actorName = 'Admin local', summary = '', publishConfig = null, currentDate = new Date() } = {},
+) {
   const validation = validateFaqBuilderBundle(workspace.draftBundle)
+  const serverCoverageValidation = validateBundleOwnershipCoverageForServer(validation)
   if (validation.hasBlockingPublishError) {
+    const ownershipBlocked = validation.errors.some((issue) =>
+      [
+        'bundle_without_default_owner',
+        'bundle_invalid_owner_reference',
+        'final_without_effective_owner',
+        'final_with_invalid_owner_reference',
+        'invalid_owner_override',
+        'invalid_owner_reference',
+      ].includes(issue.code),
+    )
     return {
       ok: false,
-      message: 'Publicacao bloqueada: existem erros estruturais.',
+      errorCode: ownershipBlocked
+        ? 'PUBLISH_BLOCKED_BY_OWNERSHIP_COVERAGE'
+        : serverCoverageValidation.primaryError?.code || 'BUNDLE_VALIDATION_FAILED',
+      message: ownershipBlocked
+        ? 'Publicacao bloqueada: existe resposta final sem owner operacional efetivo.'
+        : 'Publicacao bloqueada: existem erros estruturais.',
+      validation,
+      backendValidation: serverCoverageValidation,
+    }
+  }
+
+  const normalizedPublishConfig = normalizePublishConfig(
+    publishConfig || workspace.publishConfig || {},
+    currentDate,
+  )
+  const publishConfigError = validatePublishConfig(normalizedPublishConfig)
+  if (publishConfigError) {
+    return {
+      ok: false,
+      message: publishConfigError,
       validation,
     }
   }
 
+  const currentPublishedVersion =
+    workspace.activePublishedVersionId ||
+    workspace.draftBundle?.publication?.active_bundle_version_id ||
+    ''
   workspace.publishedBundle = cloneJson(workspace.draftBundle)
   workspace.publishedCanvasSnapshot = cloneJson(workspace.canvasSnapshot || {})
   workspace.workflowStatus = 'Published'
   workspace.versionCounter = Number(workspace.versionCounter || 1) + 1
   workspace.draftBundle.versioning = workspace.draftBundle.versioning || {}
   workspace.draftBundle.publication = workspace.draftBundle.publication || {}
+  workspace.publishConfig = normalizedPublishConfig
   workspace.draftBundle.versioning.publication_status = 'published'
   workspace.draftBundle.versioning.published_version = `v${workspace.versionCounter}.0`
+  workspace.draftBundle.versioning.bundle_version_id = workspace.draftBundle.versioning.published_version
   workspace.draftBundle.versioning.change_summary = summary || workspace.draftBundle.versioning.change_summary || ''
-  workspace.draftBundle.publication.last_published_at = nowIso()
+  workspace.draftBundle.publication.last_published_at = nowIso(currentDate)
   workspace.draftBundle.publication.last_published_by = actorName
   workspace.draftBundle.publication.can_publish = true
+  workspace.draftBundle.publication.effective_start_at = normalizedPublishConfig.effectiveStartAt
+  workspace.draftBundle.publication.effective_end_at = normalizedPublishConfig.effectiveEndAt
+  workspace.draftBundle.publication.priority = normalizedPublishConfig.priority
+  workspace.draftBundle.publication.display_rank = normalizedPublishConfig.displayRank
+  workspace.draftBundle.publication.is_featured = normalizedPublishConfig.isFeatured
+  workspace.draftBundle.publication.conditions = normalizedPublishConfig.conditions
+  workspace.draftBundle.publication.active_bundle_version_id = workspace.draftBundle.versioning.bundle_version_id
+  workspace.draftBundle.publication.supersedes_version_id = currentPublishedVersion || ''
+  workspace.activePublishedVersionId = workspace.draftBundle.versioning.bundle_version_id
+  workspace.publishedHistory = Array.isArray(workspace.publishedHistory)
+    ? workspace.publishedHistory
+    : []
+  workspace.publishedHistory.unshift({
+    bundleVersionId: workspace.draftBundle.versioning.bundle_version_id,
+    publishedAt: nowIso(currentDate),
+    publishedBy: actorName,
+    effectiveStartAt: normalizedPublishConfig.effectiveStartAt,
+    effectiveEndAt: normalizedPublishConfig.effectiveEndAt,
+    priority: normalizedPublishConfig.priority,
+    displayRank: normalizedPublishConfig.displayRank,
+    isFeatured: normalizedPublishConfig.isFeatured,
+    conditions: normalizedPublishConfig.conditions,
+    supersedesVersionId: currentPublishedVersion || '',
+    changeSummary: summary || workspace.draftBundle.versioning.change_summary || '',
+  })
   workspace.changeLog = Array.isArray(workspace.changeLog) ? workspace.changeLog : []
   workspace.changeLog.unshift({
     id: `publish-${Date.now()}`,
     actor: actorName,
     action: 'published',
-    at: nowIso(),
+    at: nowIso(currentDate),
     details: summary || 'Publicacao manual pelo Builder.',
   })
   touchFaqBuilderWorkspace(workspace, actorName)
@@ -1872,15 +3512,96 @@ export function publishFaqBuilderWorkspace(workspace = {}, { actorName = 'Admin 
   return {
     ok: true,
     validation,
+    publication: workspace.publishedHistory[0],
+    backendValidation: serverCoverageValidation,
+  }
+}
+
+export function resolveFaqBuilderActivePublishedVersion(
+  workspace = {},
+  { currentDate = new Date() } = {},
+) {
+  const publishedHistory = Array.isArray(workspace.publishedHistory)
+    ? workspace.publishedHistory
+    : []
+  if (!publishedHistory.length) {
+    return null
+  }
+
+  const now = currentDate.getTime()
+  const activeCandidates = publishedHistory.filter((item) => {
+    const start = item.effectiveStartAt ? new Date(item.effectiveStartAt).getTime() : null
+    const end = item.effectiveEndAt ? new Date(item.effectiveEndAt).getTime() : null
+    const startOk = start === null || !Number.isNaN(start) ? start === null || start <= now : false
+    const endOk = end === null || !Number.isNaN(end) ? end === null || now < end : false
+    return startOk && endOk
+  })
+
+  if (!activeCandidates.length) {
+    return publishedHistory[0]
+  }
+
+  return activeCandidates.sort((left, right) => {
+    if (Boolean(left.isFeatured) !== Boolean(right.isFeatured)) {
+      return left.isFeatured ? -1 : 1
+    }
+    if (Number(left.priority || 0) !== Number(right.priority || 0)) {
+      return Number(right.priority || 0) - Number(left.priority || 0)
+    }
+    if (Number(left.displayRank || 0) !== Number(right.displayRank || 0)) {
+      return Number(left.displayRank || 0) - Number(right.displayRank || 0)
+    }
+    return new Date(right.publishedAt || 0).getTime() - new Date(left.publishedAt || 0).getTime()
+  })[0]
+}
+
+export function startFaqBuilderStudentSession(
+  workspace = {},
+  {
+    actor = 'admin_tester',
+    mode = 'draft',
+    currentDate = new Date(),
+  } = {},
+) {
+  const activePublished = resolveFaqBuilderActivePublishedVersion(workspace, {
+    currentDate,
+  })
+  const useDraft = mode === 'draft' || !activePublished
+  const bundleVersionId = useDraft
+    ? workspace.draftBundle?.versioning?.draft_version || 'draft-local'
+    : activePublished?.bundleVersionId || workspace.activePublishedVersionId || 'published-unknown'
+
+  return {
+    sessionId: `faq-session-${Date.now().toString(36)}`,
+    actor,
+    mode: useDraft ? 'draft' : 'published',
+    bundleVersionId,
+    startedAt: nowIso(currentDate),
+    bindPolicy: 'sticky_version',
+    nonInterruptiveSwitch: true,
   }
 }
 
 export function buildFaqBuilderPreviewJourney(bundle = {}, startNodeId = '') {
-  ensureBundleCollections(bundle)
-  const nodeById = new Map(bundle.nodes.map((node) => [node.id, node]))
-  const outgoingMap = buildOutgoingMap(bundle.links)
-  const incomingMap = buildIncomingMap(bundle.links)
-  const rootIds = inferRootIds(bundle.nodes, incomingMap)
+  const nodes = Array.isArray(bundle?.nodes)
+    ? bundle.nodes.filter(
+        (node) => node && typeof node === 'object' && String(node.id || '').trim(),
+      )
+    : []
+  const links = Array.isArray(bundle?.links)
+    ? bundle.links.filter(
+        (link) =>
+          link &&
+          typeof link === 'object' &&
+          String(link.parent_node_id || '').trim() &&
+          String(link.child_node_id || '').trim(),
+      )
+    : []
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const outgoingMap = buildOutgoingMap(links)
+  const incomingMap = buildIncomingMap(links)
+  const rootIds = inferRootIds(nodes, incomingMap)
   const startId = startNodeId && nodeById.has(startNodeId) ? startNodeId : rootIds[0] || ''
 
   return {
@@ -1888,6 +3609,55 @@ export function buildFaqBuilderPreviewJourney(bundle = {}, startNodeId = '') {
     startId,
     nodeById,
     outgoingMap,
+  }
+}
+
+export function buildFaqBuilderPreviewJourneySafe(
+  bundle = {},
+  startNodeId = '',
+  options = {},
+) {
+  const sanity = runFaqBuilderBundleSanityCheck(
+    bundle,
+    { nodePositions: {}, edges: [] },
+    options,
+  )
+  try {
+    const preview = buildFaqBuilderPreviewJourney(sanity.bundle, startNodeId)
+    return {
+      ...preview,
+      sanity,
+      fallbackUsed: false,
+    }
+  } catch (error) {
+    return {
+      rootIds: [],
+      startId: '',
+      nodeById: new Map(),
+      outgoingMap: new Map(),
+      sanity: {
+        ...sanity,
+        errors: [
+          ...(sanity.errors || []),
+          {
+            code: 'runtime_preview_build_failed',
+            message: String(error?.message || 'Falha ao preparar preview.'),
+          },
+        ],
+      },
+      fallbackUsed: true,
+    }
+  }
+}
+
+export function rebuildFaqBuilderCanvasSnapshot(bundle = {}, currentSnapshot = {}) {
+  const sanity = runFaqBuilderBundleSanityCheck(bundle, currentSnapshot, {
+    mode: 'rebuild_snapshot',
+  })
+  try {
+    return buildAutoLayoutSnapshot(sanity.bundle, sanity.canvasSnapshot)
+  } catch {
+    return sanitizeFaqBuilderCanvasSnapshot(sanity.canvasSnapshot, sanity.bundle)
   }
 }
 
@@ -1926,8 +3696,19 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
   const errors = []
   const warnings = []
   const normalizedRows = rawRows.map((row) => normalizeImportRow(row))
+  const ownershipReferenceCatalog = buildFaqBuilderOwnershipReferenceCatalog(baseBundle || {}, {
+    faqType,
+  })
   const nodeRows = []
   const nodeIds = new Set()
+  const bundleOwnerHint = {
+    owner_type: '',
+    owner_queue: '',
+    owner_area: '',
+    owner_role: '',
+    owner_routing_policy: '',
+    owner_fallback_note: '',
+  }
 
   if (!normalizedRows.length) {
     errors.push(
@@ -1989,6 +3770,81 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
       errors.push(buildImportIssue({ row: rowNumber, field: 'sla', code: 'invalid_sla', message: `SLA invalido: ${sla}.`, suggestion: `Use: ${getCatalogKeys(SLA_CATALOG).join(', ')}` }))
     }
 
+    const ownerInherit = sanitizeOwnershipBoolean(
+      row.owner_inherit,
+      !String(row.owner_type || row.owner_queue || row.owner_area || row.owner_role || '').trim(),
+    )
+    const ownerType = normalizeOwnershipType(row.owner_type || '')
+    const ownerQueue = String(row.owner_queue || '').trim()
+    const ownerArea = String(row.owner_area || '').trim()
+    const ownerRole = String(row.owner_role || '').trim()
+    const ownerRoutingPolicy = String(row.owner_routing_policy || '').trim()
+    const ownerFallbackNote = String(row.owner_fallback_note || '').trim()
+
+    if (!ownerInherit) {
+      const overrideOwner = normalizeOperationalOwner(
+        {
+          owner_type: ownerType,
+          owner_queue: ownerQueue,
+          owner_area: ownerArea,
+          owner_role: ownerRole,
+          owner_routing_policy: ownerRoutingPolicy,
+          owner_fallback_note: ownerFallbackNote,
+        },
+        {
+          faqType,
+          fallbackQueue: resolveDefaultQueueByFaqType(faqType),
+        },
+      )
+      if (!hasOperationalOwnerValue(overrideOwner)) {
+        errors.push(
+          buildImportIssue({
+            row: rowNumber,
+            field: 'owner_type',
+            code: 'invalid_owner_override',
+            message:
+              'Override de ownership invalido. Informe fila, area ou role valido, ou marque owner_inherit=sim.',
+            suggestion: 'Use owner_queue valido, owner_area preenchida ou owner_role preenchido.',
+          }),
+        )
+      } else {
+        const ownerReferenceIssue = resolveOperationalOwnerReferenceIssue(
+          overrideOwner,
+          ownershipReferenceCatalog,
+        )
+        if (ownerReferenceIssue) {
+          errors.push(
+            buildImportIssue({
+              row: rowNumber,
+              field: ownerReferenceIssue.field,
+              code: ownerReferenceIssue.code,
+              message: ownerReferenceIssue.message,
+              suggestion: 'Corrija a referencia de ownership para fila, area ou role existente.',
+            }),
+          )
+        }
+      }
+    }
+
+    if (!bundleOwnerHint.owner_type && row.bundle_owner_type) {
+      bundleOwnerHint.owner_type = String(row.bundle_owner_type || '').trim()
+    }
+    if (!bundleOwnerHint.owner_queue && row.bundle_owner_queue) {
+      bundleOwnerHint.owner_queue = String(row.bundle_owner_queue || '').trim()
+    }
+    if (!bundleOwnerHint.owner_area && row.bundle_owner_area) {
+      bundleOwnerHint.owner_area = String(row.bundle_owner_area || '').trim()
+    }
+    if (!bundleOwnerHint.owner_role && row.bundle_owner_role) {
+      bundleOwnerHint.owner_role = String(row.bundle_owner_role || '').trim()
+    }
+    if (!bundleOwnerHint.owner_routing_policy && row.bundle_owner_routing_policy) {
+      bundleOwnerHint.owner_routing_policy = String(row.bundle_owner_routing_policy || '').trim()
+    }
+    if (!bundleOwnerHint.owner_fallback_note && row.bundle_owner_fallback_note) {
+      bundleOwnerHint.owner_fallback_note = String(row.bundle_owner_fallback_note || '').trim()
+    }
+
     if (nodeMode === NODE_MODE_MAP.final && !String(row.response_content || '').trim()) {
       errors.push(buildImportIssue({ row: rowNumber, field: 'response_content', code: 'final_without_response', message: 'No final sem conteudo de resposta.', suggestion: 'Preencha response_content.' }))
     }
@@ -2009,6 +3865,13 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
       queueDestination,
       criticality,
       sla,
+      ownerInherit,
+      ownerType,
+      ownerQueue,
+      ownerArea,
+      ownerRole,
+      ownerRoutingPolicy,
+      ownerFallbackNote,
       slug: String(row.slug || '').trim(),
       tags: String(row.tags || '').split(',').map((item) => item.trim()).filter(Boolean),
     })
@@ -2039,8 +3902,68 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
   }
 
   const template = ensureBundleCollections(cloneJson(baseBundle || cloneFaqBuilderPackage(faqType)))
+  const normalizedBundleOwner = normalizeOperationalOwner(
+    {
+      ...(template.operational_owner || template.metadata?.operational_owner || {}),
+      ...bundleOwnerHint,
+      owner_type:
+        bundleOwnerHint.owner_type ||
+        template.operational_owner?.ownerType ||
+        template.metadata?.operational_owner?.ownerType ||
+        OPERATIONAL_OWNER_TYPE.queue,
+      owner_queue:
+        bundleOwnerHint.owner_queue ||
+        template.operational_owner?.queueKey ||
+        resolveDefaultQueueByFaqType(faqType),
+    },
+    {
+      faqType,
+      fallbackQueue:
+        bundleOwnerHint.owner_queue ||
+        template.operational_owner?.queueKey ||
+        resolveDefaultQueueByFaqType(faqType),
+    },
+  )
+  const bundleOwnerReferenceIssue = resolveOperationalOwnerReferenceIssue(
+    normalizedBundleOwner,
+    ownershipReferenceCatalog,
+  )
+  if (bundleOwnerReferenceIssue) {
+    errors.push(
+      buildImportIssue({
+        row: null,
+        field: bundleOwnerReferenceIssue.field,
+        code: 'bundle_invalid_owner_reference',
+        message: bundleOwnerReferenceIssue.message,
+        suggestion: 'Ajuste bundle_owner_* para um destino operacional existente.',
+      }),
+    )
+  }
+  template.operational_owner = {
+    ownerType: normalizedBundleOwner.ownerType,
+    queueKey: normalizedBundleOwner.queueKey,
+    queueLabel: normalizedBundleOwner.queueLabel,
+    areaLabel: normalizedBundleOwner.areaLabel,
+    roleKey: normalizedBundleOwner.roleKey,
+    ownerKey: normalizedBundleOwner.ownerKey,
+    routingPolicy: normalizedBundleOwner.routingPolicy,
+    fallbackNote: normalizedBundleOwner.fallbackNote,
+  }
+  template.metadata = template.metadata || {}
+  template.metadata.operational_owner = cloneJson(template.operational_owner)
   const nodes = nodeRows.map((row) => {
     const nodeKind = normalizeNodeKindByMode(row.nodeMode, Boolean(row.parentId))
+    const ownership = {
+      inherit: row.ownerInherit,
+      ownerType: row.ownerType || OPERATIONAL_OWNER_TYPE.queue,
+      queueKey: row.ownerQueue || '',
+      areaLabel: row.ownerArea || '',
+      roleKey: row.ownerRole || '',
+      routingPolicy: row.ownerRoutingPolicy || '',
+      fallbackNote: row.ownerFallbackNote || '',
+      ownerKey: '',
+    }
+    ownership.ownerKey = resolveOwnerKey(ownership)
     const node = {
       id: row.nodeId,
       tipo_faq: faqType,
@@ -2070,6 +3993,15 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
       builder_editable: true,
       spreadsheet_editable: true,
       slug: row.slug,
+      ownership,
+      owner_inherit: ownership.inherit,
+      owner_type: ownership.ownerType,
+      owner_queue: ownership.queueKey,
+      owner_area: ownership.areaLabel,
+      owner_role: ownership.roleKey,
+      owner_routing_policy: ownership.routingPolicy,
+      owner_fallback_note: ownership.fallbackNote,
+      owner_key: ownership.ownerKey,
     }
     if (faqType === 'op') {
       node.checklist_op = []
@@ -2102,6 +4034,7 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
   template.versioning.change_summary = 'Importacao em massa por planilha com dry-run validado.'
 
   const validation = validateFaqBuilderBundle(template, { mode: 'import' })
+  const serverCoverageValidation = validateBundleOwnershipCoverageForServer(validation)
   if (validation.errors.length) {
     for (const issue of validation.errors) {
       errors.push(buildImportIssue({ row: null, field: issue.code, code: issue.code, message: issue.message, suggestion: 'Corrija a estrutura e rode o dry-run novamente.', severity: issue.severity }))
@@ -2120,6 +4053,7 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
       draftBundle: null,
       canvasSnapshot: null,
       normalizedRows: nodeRows,
+      backendValidation: serverCoverageValidation,
     }
   }
 
@@ -2140,6 +4074,7 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
     draftBundle: template,
     canvasSnapshot,
     normalizedRows: nodeRows,
+    backendValidation: serverCoverageValidation,
   }
 }
 
