@@ -15,6 +15,7 @@ import {
   loadFaqBuilderBundleLibraryLocal,
   saveFaqBuilderBundleLibraryLocal,
 } from '@/services/faqBuilderHybridRuntime'
+import { getPublicAppPath } from '@/services/ssoClient'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -27,7 +28,7 @@ const currentEditorName = computed(
 
 const runtimeError = ref('')
 
-function safeRuntimeCall(executor, fallbackValue) {
+function safeRuntimeCall(executor, fallbackFactory = () => null) {
   try {
     return executor()
   } catch (error) {
@@ -35,15 +36,20 @@ function safeRuntimeCall(executor, fallbackValue) {
       error?.message || 'Falha ao carregar dados locais da biblioteca de FAQ.',
     )
     console.error(error)
-    return fallbackValue
+    try {
+      return fallbackFactory()
+    } catch (fallbackError) {
+      console.error(fallbackError)
+      return null
+    }
   }
 }
 
 const library = reactive(
   safeRuntimeCall(
     () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
-    createFaqBuilderBundleLibrary(currentEditorName.value),
-  ),
+    () => createFaqBuilderBundleLibrary(currentEditorName.value),
+  ) || createFaqBuilderBundleLibrary(currentEditorName.value),
 )
 
 const filters = reactive({
@@ -70,9 +76,9 @@ const allRows = computed(() =>
         search: '',
         status: 'all',
         faqType: 'all',
-        includeValidation: true,
+        includeValidation: false,
       }),
-    [],
+    () => [],
   ),
 )
 
@@ -83,9 +89,9 @@ const rows = computed(() =>
         search: filters.search,
         status: filters.status,
         faqType: filters.faqType,
-        includeValidation: true,
+        includeValidation: false,
       }),
-    [],
+    () => [],
   ),
 )
 
@@ -119,25 +125,99 @@ function resetLibraryState() {
   clearFaqBuilderBundleLibraryLocal()
   const restored = safeRuntimeCall(
     () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
-    createFaqBuilderBundleLibrary(currentEditorName.value),
+    () => createFaqBuilderBundleLibrary(currentEditorName.value),
   )
-  Object.assign(library, restored)
+  Object.assign(library, restored || createFaqBuilderBundleLibrary(currentEditorName.value))
   runtimeError.value = ''
   setFeedback('success', 'Biblioteca local reinicializada com sucesso.')
 }
 
 function openBundle(bundleId = '', query = {}) {
+  const normalizedBundleId = String(bundleId || '')
+    .split('?')[0]
+    .split('#')[0]
+    .split('/')[0]
+    .trim()
+  if (!normalizedBundleId) {
+    setFeedback('error', 'Fluxo invalido: identificador ausente.')
+    return
+  }
+  const encodedBundleId = encodeURIComponent(normalizedBundleId)
   router.push({
-    path: `/admin/faq/${encodeURIComponent(bundleId)}`,
+    path: `/admin/faq/${encodedBundleId}`,
     query,
   })
 }
 
-function openBundleEditor(bundleId = '', query = {}) {
-  router.push({
-    path: `/admin/faq/${encodeURIComponent(bundleId)}/editor`,
-    query,
-  })
+async function openBundleEditor(bundleId = '', query = {}) {
+  const normalizedBundleId = (() => {
+    try {
+      return decodeURIComponent(
+        String(bundleId || '')
+          .split('?')[0]
+          .split('#')[0]
+          .split('/')[0]
+          .trim(),
+      )
+    } catch {
+      return String(bundleId || '')
+        .split('?')[0]
+        .split('#')[0]
+        .split('/')[0]
+        .trim()
+    }
+  })()
+  if (!normalizedBundleId) {
+    setFeedback('error', 'Fluxo invalido: identificador ausente.')
+    return
+  }
+  const nextQuery = {
+    fullscreen: '1',
+    safe: '1',
+    ...query,
+  }
+  const targetRoute = {
+    name: 'admin-faq-builder',
+    params: {
+      bundleId: normalizedBundleId,
+    },
+    query: nextQuery,
+  }
+  const hardReloadHref = getPublicAppPath(
+    router.resolve({
+      ...targetRoute,
+      query: {
+        ...nextQuery,
+        reload: String(Date.now()),
+      },
+    }).href,
+  )
+
+  try {
+    await router.push(targetRoute)
+    if (
+      router.currentRoute.value.name === 'admin-faq-builder' &&
+      String(router.currentRoute.value.params?.bundleId || '')
+        .split('?')[0]
+        .split('#')[0]
+        .split('/')[0]
+        .trim() === normalizedBundleId
+    ) {
+      return
+    }
+    window.location.assign(hardReloadHref)
+    setFeedback(
+      'error',
+      'Navegacao SPA nao confirmou o editor. Tentando abertura protegida.',
+    )
+  } catch (error) {
+    console.error('[faq-library][open-editor-failed]', error)
+    window.location.assign(hardReloadHref)
+    setFeedback(
+      'error',
+      'Falha de navegacao para o editor. Tentando abertura protegida.',
+    )
+  }
 }
 
 function createFlow() {

@@ -1,3 +1,27 @@
+import AdminFaqEditorPage from '@/pages/admin/AdminFaqEditorPage.vue'
+
+function normalizeFaqBuilderBundleId(rawValue = '') {
+  let decoded = ''
+  try {
+    decoded = decodeURIComponent(String(rawValue || ''))
+  } catch {
+    decoded = String(rawValue || '')
+  }
+
+  const normalized = String(decoded || '')
+    .split('?')[0]
+    .split('#')[0]
+    .trim()
+
+  if (!normalized) {
+    return ''
+  }
+
+  return normalized
+    .split('/')
+    .filter(Boolean)[0] || ''
+}
+
 const routes = [
   {
     path: '/acesso-local/:profileKey?',
@@ -316,12 +340,19 @@ const routes = [
     },
   },
   {
-    path: '/admin/faq/:bundleId',
-    name: 'admin-faq-flow',
-    component: () => import('@/pages/admin/AdminFaqPage.vue'),
+    path: '/admin/faq-editor',
+    redirect: () => ({
+      name: 'admin-faq',
+    }),
+  },
+  {
+    path: '/admin/faq-editor/:bundleId',
+    name: 'admin-faq-builder',
+    component: AdminFaqEditorPage,
     meta: {
-      title: 'Visao do fluxo FAQ',
+      title: 'Builder de fluxo FAQ',
       stage: 'admin-faq',
+      layout: 'auth',
       requiresAuth: true,
       shellKey: 'governance',
       allowedProfiles: ['admin_central'],
@@ -330,12 +361,40 @@ const routes = [
   },
   {
     path: '/admin/faq/:bundleId/editor',
-    name: 'admin-faq-builder',
-    component: () => import('@/pages/admin/AdminFaqEditorPage.vue'),
+    redirect: (to) => ({
+      name: 'admin-faq-builder',
+      params: {
+        bundleId: normalizeFaqBuilderBundleId(to.params.bundleId),
+      },
+      query: { ...to.query },
+    }),
+  },
+  {
+    path: '/admin/faq-editor/:bundleId/editor',
+    redirect: (to) => {
+      const normalizedBundleId = normalizeFaqBuilderBundleId(to.params.bundleId)
+      if (!normalizedBundleId) {
+        return {
+          name: 'admin-faq',
+          query: { ...to.query },
+        }
+      }
+      return {
+        name: 'admin-faq-builder',
+        params: {
+          bundleId: normalizedBundleId,
+        },
+        query: { ...to.query },
+      }
+    },
+  },
+  {
+    path: '/admin/faq/:bundleId',
+    name: 'admin-faq-flow',
+    component: () => import('@/pages/admin/AdminFaqPage.vue'),
     meta: {
-      title: 'Builder de fluxo FAQ',
+      title: 'Visao do fluxo FAQ',
       stage: 'admin-faq',
-      layout: 'auth',
       requiresAuth: true,
       shellKey: 'governance',
       allowedProfiles: ['admin_central'],

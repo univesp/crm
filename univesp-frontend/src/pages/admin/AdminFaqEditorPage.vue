@@ -1,6 +1,7 @@
 <script setup>
 import {
   computed,
+  defineAsyncComponent,
   onErrorCaptured,
   onBeforeUnmount,
   onMounted,
@@ -10,17 +11,11 @@ import {
   watchEffect,
 } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
-import { MarkerType, VueFlow } from '@vue-flow/core'
-import '@vue-flow/core/dist/style.css'
-import '@vue-flow/core/dist/theme-default.css'
 
 import {
   buildFaqBuilderBackendReadiness,
   buildFaqBuilderUpsertPayload,
 } from '@/contracts/faqBuilderContract'
-import FaqCanvasNode from '@/components/admin/faq-builder/FaqCanvasNode.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
   addFaqBuilderChildNode,
@@ -28,7 +23,9 @@ import {
   buildFaqBuilderDiff,
   buildFaqBuilderGraphSafe,
   buildFaqBuilderPreviewJourneySafe,
+  clearFaqBuilderBundleLibraryLocal,
   connectFaqBuilderNodes,
+  createFaqBuilderBundleLibrary,
   downloadFaqBuilderTemplateXlsx,
   getFaqBuilderBundleById,
   getFaqBuilderCatalogOptions,
@@ -61,11 +58,25 @@ const EDITOR_MODES = Object.freeze([
 ])
 
 function decodeBundleParam(value = '') {
+  let decoded = ''
   try {
-    return decodeURIComponent(String(value || ''))
+    decoded = decodeURIComponent(String(value || ''))
   } catch {
-    return String(value || '')
+    decoded = String(value || '')
   }
+  return String(decoded || '')
+    .split('?')[0]
+    .split('#')[0]
+    .split('/')[0]
+    .trim()
+}
+
+function sanitizeBundleId(value = '') {
+  return String(value || '')
+    .split('?')[0]
+    .split('#')[0]
+    .split('/')[0]
+    .trim()
 }
 
 function normalizeMode(rawMode = 'visual') {
@@ -73,15 +84,71 @@ function normalizeMode(rawMode = 'visual') {
   return EDITOR_MODES.some((mode) => mode.key === value) ? value : 'visual'
 }
 
+function parseSafeModeQuery(rawValue = '') {
+  const normalized = String(rawValue || '').trim().toLowerCase()
+  if (!normalized) {
+    return true
+  }
+  return ['1', 'true', 'sim', 'yes', 'y'].includes(normalized)
+}
+
+function parseFullscreenQuery(rawValue = '') {
+  const normalized = String(rawValue || '').trim().toLowerCase()
+  if (!normalized) {
+    return true
+  }
+  return !['0', 'false', 'nao', 'não', 'no', 'n'].includes(normalized)
+}
+
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const catalogs = getFaqBuilderCatalogOptions()
 
+const VueFlowCanvas = defineAsyncComponent({
+  loader: async () => {
+    await Promise.all([
+      import('@vue-flow/core/dist/style.css'),
+      import('@vue-flow/core/dist/theme-default.css'),
+    ])
+    const module = await import('@vue-flow/core')
+    return module.VueFlow
+  },
+  delay: 120,
+  timeout: 20000,
+})
+
+const FaqCanvasNodeAsync = defineAsyncComponent({
+  loader: async () => {
+    const module = await import('@/components/admin/faq-builder/FaqCanvasNode.vue')
+    return module.default
+  },
+  delay: 120,
+  timeout: 15000,
+})
+
+const VueFlowBackground = defineAsyncComponent({
+  loader: async () => {
+    const module = await import('@vue-flow/background')
+    return module.Background
+  },
+  delay: 120,
+  timeout: 15000,
+})
+
+const VueFlowControls = defineAsyncComponent({
+  loader: async () => {
+    const module = await import('@vue-flow/controls')
+    return module.Controls
+  },
+  delay: 120,
+  timeout: 15000,
+})
+
 const ui = reactive({
   mode: normalizeMode(route.query.mode),
-  safeMode: String(route.query.safe || '') === '1',
-  isFullscreen: String(route.query.fullscreen || '1') !== '0',
+  safeMode: parseSafeModeQuery(route.query.safe),
+  isFullscreen: parseFullscreenQuery(route.query.fullscreen),
   selectedNodeId: '',
   parentTargetId: '',
   governanceSummary: '',
@@ -122,11 +189,38 @@ const backendReadiness = buildFaqBuilderBackendReadiness({
   hasServerDryRun: false,
   hasServerLock: false,
 })
+const runtimeLoadError = ref('')
+
+function loadLibraryWithFallback(editorName = 'Admin local') {
+  try {
+    return loadFaqBuilderBundleLibraryLocal(editorName)
+  } catch (error) {
+    runtimeLoadError.value = String(
+      error?.message || 'Falha ao carregar dados locais do builder.',
+    )
+    console.error('[faq-builder][editor-library-load-failed]', error)
+    try {
+      clearFaqBuilderBundleLibraryLocal()
+    } catch (clearError) {
+      console.error('[faq-builder][editor-library-clear-failed]', clearError)
+    }
+    const seeded = createFaqBuilderBundleLibrary(editorName)
+    try {
+      saveFaqBuilderBundleLibraryLocal(seeded)
+    } catch (saveError) {
+      console.error('[faq-builder][editor-library-seed-save-failed]', saveError)
+    }
+    return seeded
+  }
+}
 
 const currentEditorName = computed(
   () => auth.displayName || auth.mockContext?.userName || 'Admin local',
 )
-const library = reactive(loadFaqBuilderBundleLibraryLocal(currentEditorName.value))
+const library = reactive(
+  loadLibraryWithFallback(currentEditorName.value) ||
+    createFaqBuilderBundleLibrary(currentEditorName.value),
+)
 const bundleId = computed(() => decodeBundleParam(route.params.bundleId))
 const currentBundleEntry = computed(() =>
   getFaqBuilderBundleById(library, bundleId.value),
@@ -217,10 +311,18 @@ const selectedNodeEffectiveOwner = computed(() => {
   if (!workspace.value || !selectedNode.value?.id) {
     return null
   }
-  return resolveFaqBuilderNodeEffectiveOwner(
-    workspace.value.draftBundle,
-    selectedNode.value.id,
-  )
+  try {
+    return resolveFaqBuilderNodeEffectiveOwner(
+      workspace.value.draftBundle,
+      selectedNode.value.id,
+    )
+  } catch (error) {
+    console.warn(
+      '[faq-builder][effective-owner-failed]',
+      String(error?.message || 'Falha ao resolver ownership do no selecionado.'),
+    )
+    return null
+  }
 })
 
 const parentOptions = computed(() =>
@@ -315,7 +417,6 @@ function appendOpenMarker(stage = '', details = '') {
 }
 
 let isPreparingWorkspace = false
-let hasPendingPrepare = false
 
 function markEntryAsTouched() {
   if (!currentBundleEntry.value || !workspace.value) return
@@ -323,6 +424,72 @@ function markEntryAsTouched() {
     workspace.value.lockContext?.lastTouchedAt || new Date().toISOString()
   currentBundleEntry.value.updatedBy =
     workspace.value.lockContext?.editorName || currentEditorName.value
+}
+
+function buildSafeFlowNodes(nodes = []) {
+  const safeNodes = Array.isArray(nodes) ? nodes : []
+  const seenIds = new Set()
+  const normalized = []
+
+  for (const node of safeNodes) {
+    if (!node || typeof node !== 'object') {
+      continue
+    }
+    const nodeId = String(node.id || '').trim()
+    if (!nodeId || seenIds.has(nodeId)) {
+      continue
+    }
+    seenIds.add(nodeId)
+    normalized.push({
+      ...node,
+      id: nodeId,
+      type: String(node.type || 'faqBuilderNode').trim() || 'faqBuilderNode',
+      position:
+        node.position && typeof node.position === 'object'
+          ? {
+              x: Number(node.position.x || 0),
+              y: Number(node.position.y || 0),
+            }
+          : { x: 0, y: 0 },
+    })
+  }
+
+  return normalized
+}
+
+function buildSafeFlowEdges(edges = [], nodeIds = new Set()) {
+  const safeEdges = Array.isArray(edges) ? edges : []
+  const seenIds = new Set()
+  const normalized = []
+  let sequence = 1
+
+  for (const edge of safeEdges) {
+    if (!edge || typeof edge !== 'object') {
+      continue
+    }
+    const source = String(edge.source || '').trim()
+    const target = String(edge.target || '').trim()
+    if (!source || !target || !nodeIds.has(source) || !nodeIds.has(target)) {
+      continue
+    }
+
+    let edgeId =
+      String(edge.id || '').trim() || `${source}->${target}`
+    if (seenIds.has(edgeId)) {
+      edgeId = `${edgeId}#${sequence}`
+    }
+    sequence += 1
+    seenIds.add(edgeId)
+
+    normalized.push({
+      ...edge,
+      id: edgeId,
+      source,
+      target,
+    })
+  }
+
+  return normalized
 }
 
 function rebuildRenderArtifacts({ safeMode = false } = {}) {
@@ -390,20 +557,12 @@ function rebuildRenderArtifacts({ safeMode = false } = {}) {
       String(error?.message || 'Falha ao montar preview.'),
     )
   }
-  const safeGraphNodes = Array.isArray(graphRuntime?.graph?.nodes)
-    ? graphRuntime.graph.nodes.filter(
-        (node) => node && typeof node === 'object' && String(node.id || '').trim(),
-      )
-    : []
-  const safeGraphEdges = Array.isArray(graphRuntime?.graph?.edges)
-    ? graphRuntime.graph.edges.filter(
-        (edge) =>
-          edge &&
-          typeof edge === 'object' &&
-          String(edge.source || '').trim() &&
-          String(edge.target || '').trim(),
-      )
-    : []
+  const safeGraphNodes = buildSafeFlowNodes(graphRuntime?.graph?.nodes || [])
+  const safeNodeIds = new Set(safeGraphNodes.map((node) => String(node.id || '').trim()))
+  const safeGraphEdges = buildSafeFlowEdges(
+    graphRuntime?.graph?.edges || [],
+    safeNodeIds,
+  )
 
   renderState.validation = nextValidation
   renderState.flowNodes = safeGraphNodes.map((node) => ({
@@ -419,7 +578,6 @@ function rebuildRenderArtifacts({ safeMode = false } = {}) {
   }))
   renderState.flowEdges = safeGraphEdges.map((edge) => ({
     ...edge,
-    markerEnd: MarkerType.ArrowClosed,
   }))
   renderState.previewRuntime = nextPreviewRuntime
 }
@@ -452,7 +610,7 @@ function setSafeMode(enabled = true) {
   } else {
     delete nextQuery.safe
   }
-  const currentSafe = String(route.query.safe || '') === '1'
+  const currentSafe = parseSafeModeQuery(route.query.safe)
   if (currentSafe !== ui.safeMode) {
     router.replace({
       path: route.path,
@@ -464,7 +622,7 @@ function setSafeMode(enabled = true) {
 function setEditorFullscreen(enabled = true) {
   const nextValue = Boolean(enabled)
   ui.isFullscreen = nextValue
-  const currentValue = String(route.query.fullscreen || '1') !== '0'
+  const currentValue = parseFullscreenQuery(route.query.fullscreen)
   if (currentValue === nextValue) {
     return
   }
@@ -482,7 +640,6 @@ function setEditorFullscreen(enabled = true) {
 
 function prepareWorkspaceForRender({ safeMode = false } = {}) {
   if (isPreparingWorkspace) {
-    hasPendingPrepare = true
     return
   }
 
@@ -517,7 +674,6 @@ function prepareWorkspaceForRender({ safeMode = false } = {}) {
     if (sanity.shouldUseSafeMode && !safeMode) {
       appendOpenMarker('builder failed with reason runtime_limit_requires_safe_mode')
       setSafeMode(true)
-      hasPendingPrepare = true
       return
     }
 
@@ -539,7 +695,6 @@ function prepareWorkspaceForRender({ safeMode = false } = {}) {
     appendOpenMarker('layout finished')
     appendOpenMarker('fitView started')
     appendOpenMarker('fitView finished')
-    scheduleLibraryPersist()
     appendOpenMarker('builder ready')
   } catch (error) {
     const failureMessage = String(error?.message || 'Falha ao abrir o editor do fluxo.')
@@ -548,7 +703,6 @@ function prepareWorkspaceForRender({ safeMode = false } = {}) {
     if (!safeMode) {
       appendOpenMarker('fallback to safe mode', 'retrying in safe mode after runtime failure')
       setSafeMode(true)
-      hasPendingPrepare = true
       return
     }
 
@@ -558,10 +712,6 @@ function prepareWorkspaceForRender({ safeMode = false } = {}) {
   } finally {
     isPreparingWorkspace = false
     openState.isLoading = false
-    if (hasPendingPrepare) {
-      hasPendingPrepare = false
-      prepareWorkspaceForRender({ safeMode: ui.safeMode })
-    }
   }
 }
 
@@ -577,7 +727,7 @@ onErrorCaptured((error, instance, info) => {
     `${openState.issueMessage} | ${String(info || '')}`.trim(),
   )
   console.error('[faq-builder][editor-runtime-error]', error, info, instance)
-  return false
+  return true
 })
 
 function retryOpenBundle() {
@@ -618,7 +768,7 @@ watch(
 watch(
   () => route.query.safe,
   (safeQuery) => {
-    const nextValue = String(safeQuery || '') === '1'
+    const nextValue = parseSafeModeQuery(safeQuery)
     if (ui.safeMode === nextValue) {
       return
     }
@@ -630,7 +780,7 @@ watch(
 watch(
   () => route.query.fullscreen,
   (fullscreenQuery) => {
-    const nextValue = String(fullscreenQuery || '1') !== '0'
+    const nextValue = parseFullscreenQuery(fullscreenQuery)
     if (ui.isFullscreen === nextValue) {
       return
     }
@@ -692,25 +842,39 @@ function stripHtml(value = '') {
 }
 
 function goToFlowOverview() {
+  const normalizedBundleId = sanitizeBundleId(
+    currentBundleEntry.value?.bundleId || bundleId.value || '',
+  )
+  if (!normalizedBundleId) {
+    goToLibrary()
+    return
+  }
   const query = {}
   if (ui.safeMode) {
     query.safe = '1'
   }
   router.push({
-    path: `/admin/faq/${encodeURIComponent(bundleId.value)}`,
+    name: 'admin-faq-flow',
+    params: {
+      bundleId: normalizedBundleId,
+    },
     query,
   })
 }
 
 function goToLibrary() {
-  router.push('/admin/faq')
+  router.push({ name: 'admin-faq' })
 }
 
 function switchMode(mode = 'visual') {
-  ui.mode = normalizeMode(mode)
+  const nextMode = normalizeMode(mode)
+  if (ui.mode === nextMode && String(route.query.mode || '') === nextMode) {
+    return
+  }
+  ui.mode = nextMode
   router.replace({
     path: route.path,
-    query: { ...route.query, mode: ui.mode },
+    query: { ...route.query, mode: nextMode },
   })
 }
 
@@ -760,8 +924,12 @@ function quickAddChild(parentNodeId = '', nodeMode = 'path') {
   ui.selectedNodeId = node.id
 }
 
-function onNodeDragStop(_, node) {
+function onNodeDragStop(payloadOrEvent, maybeNode) {
   if (!workspace.value) return
+  const node =
+    maybeNode ||
+    payloadOrEvent?.node ||
+    payloadOrEvent
   if (!node || typeof node !== 'object' || !String(node.id || '').trim()) {
     return
   }
@@ -947,12 +1115,22 @@ function publishWorkspace() {
 }
 
 function openPreview() {
+  const normalizedBundleId = sanitizeBundleId(
+    currentBundleEntry.value?.bundleId || bundleId.value || '',
+  )
+  if (!normalizedBundleId) {
+    setFeedback('error', 'Fluxo invalido para abrir visualizacao de teste.')
+    return
+  }
   const query = { tester: 'draft' }
   if (ui.safeMode) {
     query.safe = '1'
   }
   router.push({
-    path: `/admin/faq/${encodeURIComponent(bundleId.value)}`,
+    name: 'admin-faq-flow',
+    params: {
+      bundleId: normalizedBundleId,
+    },
     query,
   })
 }
@@ -1113,6 +1291,14 @@ function applySpreadsheetImport() {
         </div>
       </div>
     </header>
+
+    <section
+      v-if="runtimeLoadError"
+      class="mt-3 rounded-[14px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
+    >
+      <p class="font-semibold">Dados locais antigos do builder foram reinicializados.</p>
+      <p class="mt-1">{{ runtimeLoadError }}</p>
+    </section>
 
     <section
       v-if="openState.isLoading"
@@ -1285,26 +1471,74 @@ function applySpreadsheetImport() {
                 <p class="text-xs text-slate-600">
                   Edite a estrutura no canvas. Clique no no para abrir detalhes.
                 </p>
-                <button
-                  type="button"
-                  class="rounded-[10px] border border-slate-300 px-3 py-1.5 text-[11px] font-semibold text-slate-700"
-                  @click="applyAutoLayout"
-                >
-                  Auto-layout
-                </button>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="rounded-[10px] border border-slate-300 px-3 py-1.5 text-[11px] font-semibold text-slate-700"
+                    @click="applyAutoLayout"
+                  >
+                    Auto-layout
+                  </button>
+                  <button
+                    v-if="ui.safeMode"
+                    type="button"
+                    class="rounded-[10px] border border-[#0b6e8c] px-3 py-1.5 text-[11px] font-semibold text-[#0b6e8c]"
+                    @click="setSafeMode(false)"
+                  >
+                    Tentar canvas interativo
+                  </button>
+                </div>
               </div>
               <div class="faq-canvas-shell__stage">
-                <VueFlow
+                <div
+                  v-if="ui.safeMode"
+                  class="flex h-full min-h-[420px] flex-col rounded-[14px] border border-slate-200 bg-slate-50 p-3"
+                >
+                  <p class="text-xs font-semibold text-slate-800">
+                    Modo seguro ativo: canvas interativo desativado para evitar travamento.
+                  </p>
+                  <p class="mt-1 text-xs text-slate-600">
+                    Selecione um no abaixo para editar no painel lateral.
+                  </p>
+                  <div class="mt-3 grid max-h-[360px] gap-1 overflow-auto pr-1">
+                    <button
+                      v-for="node in flowNodes"
+                      :key="`safe-node-${node.id}`"
+                      type="button"
+                      class="rounded-[10px] border px-3 py-2 text-left text-xs transition"
+                      :class="
+                        ui.selectedNodeId === node.id
+                          ? 'border-[#0b6e8c] bg-[rgba(224,242,254,0.85)] text-[#0b6e8c]'
+                          : 'border-slate-300 bg-white text-slate-700'
+                      "
+                      @click="ui.selectedNodeId = node.id"
+                    >
+                      <span class="block font-semibold">{{ node.data?.title || node.id }}</span>
+                      <span class="mt-0.5 block text-[11px] text-slate-500">
+                        {{ node.data?.nodeMode === 'final' ? 'Resposta final' : 'Caminho' }}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <VueFlowCanvas
+                  v-else-if="flowNodes.length"
+                  :key="`${bundleId}-${ui.safeMode ? 'safe' : 'default'}-${flowNodes.length}-${flowEdges.length}`"
                   :nodes="flowNodes"
                   :edges="flowEdges"
-                  :node-types="{ faqBuilderNode: FaqCanvasNode }"
+                  :node-types="{ faqBuilderNode: FaqCanvasNodeAsync }"
                   class="faq-builder-flow"
                   @connect="onFlowConnect"
                   @node-drag-stop="onNodeDragStop"
                 >
-                  <Background pattern-color="#d4dbe4" :gap="28" />
-                  <Controls />
-                </VueFlow>
+                  <VueFlowBackground pattern-color="#d4dbe4" :gap="28" />
+                  <VueFlowControls />
+                </VueFlowCanvas>
+                <div
+                  v-else
+                  class="flex h-full min-h-[420px] items-center justify-center rounded-[14px] border border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm text-slate-600"
+                >
+                  Nenhum no valido para renderizar no canvas. Use o modo seguro ou reconstrua o snapshot.
+                </div>
               </div>
             </article>
 

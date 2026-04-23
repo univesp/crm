@@ -77,8 +77,12 @@ const ownershipServerRuntime = await loadModule('/src/services/operationalOwners
 const studentSupportModule = await loadModule('/src/stores/studentSupport.js')
 const mockContextModule = await loadModule('/src/services/mockContextRuntime.js')
 const authModule = await loadModule('/src/stores/auth.js')
+const adminFaqLibraryModule = await loadModule('/src/pages/admin/AdminFaqLibraryPage.vue')
+const adminFaqFlowModule = await loadModule('/src/pages/admin/AdminFaqPage.vue')
+const adminFaqEditorModule = await loadModule('/src/pages/admin/AdminFaqEditorPage.vue')
 const areaCaseDetailModule = await loadModule('/src/pages/area/AreaCaseDetailPage.vue')
 const operatorCaseDetailModule = await loadModule('/src/pages/operator/OperatorCaseDetailPage.vue')
+const appRoutesModule = await loadModule('/src/router.js')
 
 const {
   CASE_ASSIGNMENT_STATUSES,
@@ -91,10 +95,13 @@ const {
   buildSubjectCode,
 } = foundationRuntime
 const {
+  buildFaqBuilderDiff,
+  buildFaqBuilderGraphSafe,
   cloneFaqBuilderPackage,
   createFaqBuilderWorkspace,
   dryRunFaqBuilderImport,
   publishFaqBuilderWorkspace,
+  resolveFaqBuilderNodeEffectiveOwner,
   setFaqBuilderBundleOperationalOwner,
   setFaqBuilderNodeOwnership,
   validateFaqBuilderBundle,
@@ -117,8 +124,12 @@ const {
 const { useStudentSupportStore } = studentSupportModule
 const { buildMockAccessContext } = mockContextModule
 const { useAuthStore } = authModule
+const AdminFaqLibraryPage = adminFaqLibraryModule.default
+const AdminFaqPage = adminFaqFlowModule.default
+const AdminFaqEditorPage = adminFaqEditorModule.default
 const AreaCaseDetailPage = areaCaseDetailModule.default
 const OperatorCaseDetailPage = operatorCaseDetailModule.default
+const appRoutes = appRoutesModule.default || []
 
 function getMockContext(profileKey) {
   return buildMockAccessContext({
@@ -256,6 +267,107 @@ async function renderOperatorCaseDetailCase({ caseId, profileKey = 'op', poloLab
   }
 }
 
+async function renderAdminFaqLibrary() {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const authStore = useAuthStore(pinia)
+
+  authStore.status = 'authenticated'
+  authStore.user = {
+    displayName: 'Patricia Oliveira',
+    raw: { profileKey: 'admin_central' },
+  }
+
+  const router = createRouter({
+    history: createMemoryHistory('/crm/'),
+    routes: [
+      {
+        path: '/admin/faq',
+        component: AdminFaqLibraryPage,
+      },
+    ],
+  })
+
+  const app = createSSRApp(AdminFaqLibraryPage)
+  app.use(pinia)
+  app.use(router)
+
+  await router.push('/admin/faq')
+  await router.isReady()
+
+  return renderToString(app)
+}
+
+async function renderAdminFaqFlow(flowPath = '/admin/faq/bundle:op:estagio') {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const authStore = useAuthStore(pinia)
+
+  authStore.status = 'authenticated'
+  authStore.user = {
+    displayName: 'Patricia Oliveira',
+    raw: { profileKey: 'admin_central' },
+  }
+
+  const router = createRouter({
+    history: createMemoryHistory('/crm/'),
+    routes: [
+      {
+        path: '/admin/faq/:bundleId',
+        component: AdminFaqPage,
+      },
+    ],
+  })
+
+  const app = createSSRApp(AdminFaqPage)
+  app.use(pinia)
+  app.use(router)
+
+  await router.push(flowPath)
+  await router.isReady()
+
+  return renderToString(app)
+}
+
+async function renderAdminFaqEditor(editorPath = '/admin/faq-editor/bundle:op:estagio?fullscreen=1&safe=1') {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const authStore = useAuthStore(pinia)
+
+  authStore.status = 'authenticated'
+  authStore.user = {
+    displayName: 'Patricia Oliveira',
+    raw: { profileKey: 'admin_central' },
+  }
+
+  const router = createRouter({
+    history: createMemoryHistory('/crm/'),
+    routes: [
+      {
+        path: '/admin/faq-editor/:bundleId',
+        component: AdminFaqEditorPage,
+      },
+      {
+        path: '/admin/faq/:bundleId/editor',
+        component: AdminFaqEditorPage,
+      },
+      {
+        path: '/admin/faq',
+        component: { template: '<div>faq-library</div>' },
+      },
+    ],
+  })
+
+  const app = createSSRApp(AdminFaqEditorPage)
+  app.use(pinia)
+  app.use(router)
+
+  await router.push(editorPath)
+  await router.isReady()
+
+  return renderToString(app)
+}
+
 const tests = []
 
 function test(name, fn) {
@@ -263,6 +375,68 @@ function test(name, fn) {
 }
 
 const now = new Date('2026-04-08T10:00:00-03:00')
+
+test('rota do editor FAQ resolve corretamente sem cair na visao resumida', async () => {
+  const router = createRouter({
+    history: createMemoryHistory('/crm/'),
+    routes: appRoutes,
+  })
+
+  const resolved = router.resolve('/admin/faq-editor/bundle%3Aop%3Aestagio?fullscreen=1&safe=1')
+  assert.equal(resolved.name, 'admin-faq-builder')
+  assert.equal(resolved.meta?.layout, 'auth')
+
+  const resolvedRaw = router.resolve('/admin/faq-editor/bundle:op:estagio?fullscreen=1&safe=1')
+  assert.equal(resolvedRaw.name, 'admin-faq-builder')
+  assert.equal(resolvedRaw.meta?.layout, 'auth')
+
+  const legacyResolved = router.resolve('/admin/faq/bundle:op:estagio/editor?fullscreen=1&safe=1')
+  assert.ok(legacyResolved.matched.length >= 1)
+  assert.ok(
+    legacyResolved.name === 'admin-faq-builder' ||
+      legacyResolved.matched.some((record) => record.path === '/admin/faq/:bundleId/editor'),
+  )
+
+  const malformedEditorResolved = router.resolve(
+    '/admin/faq-editor/bundle%3Aop%3Aestagio/editor?fullscreen=1&safe=1',
+  )
+  assert.ok(malformedEditorResolved.matched.length >= 1)
+
+  await router.push('/admin/faq/bundle:op:estagio/editor?fullscreen=1&safe=1')
+  assert.equal(router.currentRoute.value.name, 'admin-faq-builder')
+  assert.ok(String(router.currentRoute.value.path || '').startsWith('/admin/faq-editor/'))
+  assert.equal(router.currentRoute.value.meta?.layout, 'auth')
+
+  await router.push('/admin/faq-editor/bundle%3Aop%3Aestagio/editor?fullscreen=1&safe=1')
+  assert.equal(router.currentRoute.value.name, 'admin-faq-builder')
+  assert.ok(String(router.currentRoute.value.path || '').startsWith('/admin/faq-editor/'))
+  assert.equal(router.currentRoute.value.meta?.layout, 'auth')
+})
+
+test('visualizacao do fluxo FAQ renderiza conexoes no modo resumido', async () => {
+  const html = await renderAdminFaqFlow('/admin/faq/bundle:op:estagio')
+  assert.match(html, /faq-flow-arrow/)
+  assert.match(html, /<line/)
+  assert.match(html, /marker-end="url\(#faq-flow-arrow\)"/)
+  assert.match(html, /conexao\(oes\)/)
+})
+
+test('editor FAQ abre em rota canonica com safe/fullscreen sem cair em tela indisponivel', async () => {
+  const html = await renderAdminFaqEditor(
+    '/admin/faq-editor/bundle%3Aop%3Aestagio?fullscreen=1&safe=1&reload=1',
+  )
+  assert.match(html, /faq-editor-page/)
+  assert.match(html, /Voltar para visao do fluxo/)
+  assert.match(html, /Estabilidade do builder/)
+  assert.doesNotMatch(html, /Tela indisponivel/)
+})
+
+test('editor FAQ abre em rota legada sem travar navegacao', async () => {
+  const html = await renderAdminFaqEditor('/admin/faq/bundle:op:estagio/editor?fullscreen=1&safe=1')
+  assert.match(html, /faq-editor-page/)
+  assert.match(html, /Voltar para visao do fluxo/)
+  assert.doesNotMatch(html, /Tela indisponivel/)
+})
 
 test('distribuicao ignora assignments completed na carga ativa', async () => {
   const foundation = cloneCanonicalFoundationSeeds()
@@ -416,6 +590,109 @@ test('override invalido de owner no no bloqueia publicacao', async () => {
   const validation = validateFaqBuilderBundle(bundle)
   assert.equal(validation.hasBlockingPublishError, true)
   assert.ok(validation.errors.some((issue) => issue.code === 'invalid_owner_override'))
+})
+
+test('validacao do builder nao muta o bundle de entrada por padrao', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  const finalNode = bundle.nodes.find((node) => node.node_kind === 'leaf')
+  assert.ok(finalNode)
+
+  delete finalNode.ownership
+  delete finalNode.owner_inherit
+  delete finalNode.owner_type
+  delete finalNode.owner_queue
+  delete finalNode.owner_area
+  delete finalNode.owner_role
+
+  const snapshotBefore = JSON.stringify(finalNode)
+  const validation = validateFaqBuilderBundle(bundle)
+  const snapshotAfter = JSON.stringify(finalNode)
+
+  assert.ok(validation.errors.length >= 0)
+  assert.equal(snapshotAfter, snapshotBefore)
+})
+
+test('validacao do builder resiste a bundle com entradas invalidas sem travar', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  bundle.nodes = [
+    ...(Array.isArray(bundle.nodes) ? bundle.nodes.slice(0, 1) : []),
+    null,
+    undefined,
+    { id: '', node_kind: 'leaf', titulo_exibido: '' },
+  ]
+  bundle.links = [
+    ...(Array.isArray(bundle.links) ? bundle.links.slice(0, 1) : []),
+    null,
+    { parent_node_id: 'x', child_node_id: '', ativo: true },
+    {},
+  ]
+
+  const validation = validateFaqBuilderBundle(bundle)
+  assert.ok(validation)
+  assert.ok(Array.isArray(validation.errors))
+  assert.ok(
+    validation.errors.some((issue) =>
+      ['invalid_node_entry', 'missing_node_id', 'invalid_link_entry'].includes(issue.code),
+    ),
+  )
+})
+
+test('graph safe gera ids de edge fallback e nao quebra com snapshot ruim', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  if (Array.isArray(bundle.links) && bundle.links[0]) {
+    delete bundle.links[0].link_id
+  }
+
+  const graph = buildFaqBuilderGraphSafe(
+    bundle,
+    {
+      nodePositions: null,
+      edges: [{ id: '', source: '', target: '' }],
+    },
+    validateFaqBuilderBundle(bundle),
+  )
+
+  assert.ok(graph?.graph)
+  assert.ok(Array.isArray(graph.graph.edges))
+  assert.ok(
+    graph.graph.edges.every(
+      (edge) =>
+        typeof edge.id === 'string' &&
+        edge.id.length > 0 &&
+        typeof edge.source === 'string' &&
+        edge.source.length > 0 &&
+        typeof edge.target === 'string' &&
+        edge.target.length > 0,
+    ),
+  )
+})
+
+test('diff do builder ignora entradas invalidas sem estourar runtime', async () => {
+  const draftBundle = cloneFaqBuilderPackage('aluno')
+  const publishedBundle = cloneFaqBuilderPackage('aluno')
+  draftBundle.nodes = [...(draftBundle.nodes || []), null, undefined]
+  publishedBundle.links = [...(publishedBundle.links || []), null, {}]
+
+  const diff = buildFaqBuilderDiff({ draftBundle, publishedBundle })
+  assert.ok(diff?.summary)
+  assert.equal(typeof diff.summary.createdNodes, 'number')
+})
+
+test('resolucao de ownership do no nao quebra com bundle legado parcialmente corrompido', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  const firstNodeId = bundle.nodes?.find((node) => node?.id)?.id || ''
+  assert.ok(firstNodeId)
+
+  bundle.nodes = [
+    undefined,
+    null,
+    ...(Array.isArray(bundle.nodes) ? bundle.nodes : []),
+    { random: true },
+  ]
+
+  const resolvedOwner = resolveFaqBuilderNodeEffectiveOwner(bundle, firstNodeId)
+  assert.ok(resolvedOwner)
+  assert.equal(typeof resolvedOwner.source, 'string')
 })
 
 test('importacao dry-run bloqueia fluxo sem ownership efetivo', async () => {
@@ -1549,6 +1826,12 @@ test('home gerencial da area carrega visao consolidada com backlog e distribuica
   assert.ok(Array.isArray(overview.loadByAnalyst))
   assert.ok(Array.isArray(overview.subjectBottlenecks))
   assert.ok(Array.isArray(overview.redistributionSuggestions))
+})
+
+test('biblioteca do FAQ Builder renderiza sem loop reativo e sem tela vazia', async () => {
+  const html = await renderAdminFaqLibrary()
+  assert.ok(html.includes('Biblioteca de fluxos da base de conhecimento'))
+  assert.ok(html.includes('Filtros da biblioteca'))
 })
 
 let failures = 0

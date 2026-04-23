@@ -8,16 +8,9 @@ import {
   watch,
 } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
-import { MarkerType, VueFlow } from '@vue-flow/core'
-import '@vue-flow/core/dist/style.css'
-import '@vue-flow/core/dist/theme-default.css'
 
-import FaqCanvasNode from '@/components/admin/faq-builder/FaqCanvasNode.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
-  buildFaqBuilderGraphSafe,
   buildFaqBuilderPreviewJourneySafe,
   buildFaqBuilderPublicationPreview,
   rebuildFaqBuilderCanvasSnapshot,
@@ -32,14 +25,29 @@ import {
   transitionFaqBuilderWorkflow,
   validateFaqBuilderBundle,
 } from '@/services/faqBuilderHybridRuntime'
+import { getPublicAppPath } from '@/services/ssoClient'
 import { useAuthStore } from '@/stores/auth'
 
 function decodeBundleParam(value = '') {
+  let decoded = ''
   try {
-    return decodeURIComponent(String(value || ''))
+    decoded = decodeURIComponent(String(value || ''))
   } catch {
-    return String(value || '')
+    decoded = String(value || '')
   }
+  return String(decoded || '')
+    .split('?')[0]
+    .split('#')[0]
+    .split('/')[0]
+    .trim()
+}
+
+function sanitizeBundleId(value = '') {
+  return String(value || '')
+    .split('?')[0]
+    .split('#')[0]
+    .split('/')[0]
+    .trim()
 }
 
 function formatDate(value = '') {
@@ -123,6 +131,11 @@ const safeRuntimeState = reactive({
   flowGraph: {
     nodes: [],
     edges: [],
+    edgeCount: 0,
+    canvasWidth: 980,
+    canvasHeight: 560,
+    nodeWidth: 248,
+    nodeHeight: 98,
   },
   previewRuntime: {
     startId: '',
@@ -198,6 +211,114 @@ function appendOpenMarker(stage = '', details = '') {
   console.info('[faq-builder][open-flow]', marker)
 }
 
+function buildFlowGraphModel(bundle = {}, previewRuntime = {}, canvasSnapshot = {}) {
+  const rawNodes = Array.isArray(bundle?.nodes)
+    ? bundle.nodes.filter(
+        (node) => node && typeof node === 'object' && String(node.id || '').trim(),
+      )
+    : []
+  const limitedNodes = rawNodes.slice(0, 180)
+  const outgoingMap = previewRuntime?.outgoingMap || new Map()
+  const nodeWidth = 248
+  const nodeHeight = 98
+
+  const nodes = limitedNodes.map((node, index) => {
+    const nodeId = String(node.id || '').trim()
+    const fallbackRow = Math.floor(index / 4)
+    const fallbackCol = index % 4
+    const savedPosition = canvasSnapshot?.nodePositions?.[nodeId] || {}
+    const x = Number.isFinite(Number(savedPosition.x))
+      ? Number(savedPosition.x)
+      : 80 + fallbackCol * (nodeWidth + 34)
+    const y = Number.isFinite(Number(savedPosition.y))
+      ? Number(savedPosition.y)
+      : 80 + fallbackRow * (nodeHeight + 64)
+    const isFinal = node.node_kind === 'leaf'
+    return {
+      id: nodeId,
+      title: String(node.titulo_exibido || nodeId).trim(),
+      subtitle: `${String(node.tema || '').trim()} / ${String(node.subtema || '').trim()}`,
+      nodeModeLabel: isFinal ? 'Resposta final' : 'Caminho',
+      actionLabel: String(node.acao || '').trim() || 'acao_nao_definida',
+      outgoingCount: Array.isArray(outgoingMap.get(nodeId))
+        ? outgoingMap.get(nodeId).length
+        : 0,
+      x,
+      y,
+    }
+  })
+
+  if (!nodes.length) {
+    return {
+      nodes: [],
+      edges: [],
+      edgeCount: 0,
+      canvasWidth: 980,
+      canvasHeight: 560,
+      nodeWidth,
+      nodeHeight,
+    }
+  }
+
+  const nodeIdSet = new Set(nodes.map((node) => node.id))
+  const rawEdges = Array.isArray(bundle?.links)
+    ? bundle.links.filter(
+        (link) =>
+          link &&
+          typeof link === 'object' &&
+          link.ativo !== false &&
+          nodeIdSet.has(String(link.parent_node_id || '').trim()) &&
+          nodeIdSet.has(String(link.child_node_id || '').trim()),
+      )
+    : []
+
+  const xs = nodes.map((node) => node.x)
+  const ys = nodes.map((node) => node.y)
+  const minX = Math.min(...xs)
+  const minY = Math.min(...ys)
+  const maxX = Math.max(...xs)
+  const maxY = Math.max(...ys)
+  const padX = 44
+  const padY = 44
+  const offsetX = padX - minX
+  const offsetY = padY - minY
+  const canvasWidth = Math.max(980, maxX - minX + nodeWidth + padX * 2)
+  const canvasHeight = Math.max(560, maxY - minY + nodeHeight + padY * 2)
+
+  const normalizedNodes = nodes.map((node) => ({
+    ...node,
+    drawX: Math.round(node.x + offsetX),
+    drawY: Math.round(node.y + offsetY),
+  }))
+  const normalizedLookup = new Map(normalizedNodes.map((node) => [node.id, node]))
+  const edges = rawEdges.map((link, index) => {
+    const sourceId = String(link.parent_node_id || '').trim()
+    const targetId = String(link.child_node_id || '').trim()
+    const sourceNode = normalizedLookup.get(sourceId)
+    const targetNode = normalizedLookup.get(targetId)
+    return {
+      id: String(link.link_id || '').trim() || `${sourceId}->${targetId}#${index + 1}`,
+      sourceId,
+      targetId,
+      sourceX: Math.round(sourceNode.drawX + nodeWidth / 2),
+      sourceY: Math.round(sourceNode.drawY + nodeHeight),
+      targetX: Math.round(targetNode.drawX + nodeWidth / 2),
+      targetY: Math.round(targetNode.drawY),
+      order: Number(link.ordem || 0),
+    }
+  })
+
+  return {
+    nodes: normalizedNodes,
+    edges,
+    edgeCount: edges.length,
+    canvasWidth,
+    canvasHeight,
+    nodeWidth,
+    nodeHeight,
+  }
+}
+
 function resolveBundleRuntime({ safeMode = false } = {}) {
   if (!workspace.value) {
     openState.failed = true
@@ -239,30 +360,6 @@ function resolveBundleRuntime({ safeMode = false } = {}) {
     )
     appendOpenMarker('validation finished')
 
-    appendOpenMarker('nodes built')
-    const safeGraph = buildFaqBuilderGraphSafe(
-      sanity.bundle,
-      sanity.canvasSnapshot,
-      safeRuntimeState.validation,
-      { mode: safeMode ? 'safe' : 'default' },
-    )
-    safeRuntimeState.flowGraph = {
-      nodes: safeGraph.graph.nodes.map((node) => ({
-        ...node,
-        draggable: false,
-        selectable: false,
-        data: {
-          ...node.data,
-          readOnly: true,
-        },
-      })),
-      edges: safeGraph.graph.edges.map((edge) => ({
-        ...edge,
-        markerEnd: MarkerType.ArrowClosed,
-      })),
-    }
-    appendOpenMarker('edges built')
-
     appendOpenMarker('preview started')
     const preview = buildFaqBuilderPreviewJourneySafe(
       sanity.bundle,
@@ -271,6 +368,14 @@ function resolveBundleRuntime({ safeMode = false } = {}) {
     )
     safeRuntimeState.previewRuntime = preview
     appendOpenMarker('preview finished')
+
+    appendOpenMarker('nodes built')
+    safeRuntimeState.flowGraph = buildFlowGraphModel(
+      sanity.bundle,
+      preview,
+      sanity.canvasSnapshot,
+    )
+    appendOpenMarker('edges built')
 
     appendOpenMarker('layout started')
     appendOpenMarker('layout finished')
@@ -393,10 +498,24 @@ function toggleOverflow() {
 }
 
 function goToLibrary() {
-  router.push('/admin/faq')
+  router.push({ name: 'admin-faq' })
 }
 
-function goToEditor(mode = 'visual') {
+async function goToEditor(mode = 'visual') {
+  const normalizedBundleId = (() => {
+    const rawValue = sanitizeBundleId(
+      currentBundleEntry.value?.bundleId || bundleId.value || '',
+    )
+    try {
+      return decodeURIComponent(rawValue)
+    } catch {
+      return rawValue
+    }
+  })()
+  if (!normalizedBundleId) {
+    setFeedback('error', 'Fluxo invalido para abrir no editor.')
+    return
+  }
   const query = {
     fullscreen: '1',
     safe: '1',
@@ -404,10 +523,45 @@ function goToEditor(mode = 'visual') {
   if (mode !== 'visual') {
     query.mode = mode
   }
-  router.push({
-    path: `/admin/faq/${encodeURIComponent(bundleId.value)}/editor`,
+  const targetRoute = {
+    name: 'admin-faq-builder',
+    params: {
+      bundleId: normalizedBundleId,
+    },
     query,
-  })
+  }
+  const hardReloadHref = getPublicAppPath(
+    router.resolve({
+      ...targetRoute,
+      query: {
+        ...query,
+        reload: String(Date.now()),
+      },
+    }).href,
+  )
+
+  try {
+    await router.push(targetRoute)
+    if (
+      router.currentRoute.value.name === 'admin-faq-builder' &&
+      sanitizeBundleId(router.currentRoute.value.params?.bundleId || '') ===
+        normalizedBundleId
+    ) {
+      return
+    }
+    window.location.assign(hardReloadHref)
+    setFeedback(
+      'error',
+      'Navegacao SPA nao confirmou o editor. Tentando abertura protegida.',
+    )
+  } catch (error) {
+    console.error('[faq-flow][go-to-editor-failed]', error)
+    window.location.assign(hardReloadHref)
+    setFeedback(
+      'error',
+      'Falha ao redirecionar para o editor completo. Tentando abertura protegida.',
+    )
+  }
 }
 
 function persistLibrary() {
@@ -643,11 +797,94 @@ onBeforeUnmount(() => {
       <section v-if="!openState.failed" class="grid gap-3 xl:grid-cols-[1fr_360px]">
         <article class="rounded-[16px] border border-slate-200 bg-white p-3">
           <p class="text-xs text-slate-600">Visualizacao resumida do fluxo. Para edicao estrutural use o modo editor.</p>
-          <div class="mt-2 h-[560px] rounded-[12px] border border-slate-200 bg-slate-50">
-            <VueFlow :nodes="flowGraph.nodes" :edges="flowGraph.edges" :node-types="{ faqBuilderNode: FaqCanvasNode }" fit-view-on-init :nodes-draggable="false" :nodes-connectable="false" :elements-selectable="false" class="faq-flow-preview">
-              <Background pattern-color="#d4dbe4" :gap="30" />
-              <Controls :show-interactive="false" />
-            </VueFlow>
+          <p class="mt-2 text-xs text-slate-500">
+            {{ flowGraph.nodes.length }} no(s) visiveis • {{ flowGraph.edgeCount }} conexao(oes)
+          </p>
+          <div class="mt-2 h-[560px] overflow-auto rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+            <div
+              class="relative rounded-[12px] border border-slate-200 bg-white"
+              :style="{
+                width: `${flowGraph.canvasWidth}px`,
+                height: `${flowGraph.canvasHeight}px`,
+              }"
+            >
+              <svg
+                class="pointer-events-none absolute inset-0 h-full w-full"
+                :viewBox="`0 0 ${flowGraph.canvasWidth} ${flowGraph.canvasHeight}`"
+                preserveAspectRatio="xMinYMin meet"
+              >
+                <defs>
+                  <marker
+                    id="faq-flow-arrow"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="4"
+                    orient="auto"
+                    markerUnits="strokeWidth"
+                  >
+                    <path d="M0,0 L8,4 L0,8 z" fill="#94a3b8" />
+                  </marker>
+                </defs>
+                <g v-for="edge in flowGraph.edges" :key="`flow-edge-${edge.id}`">
+                  <line
+                    :x1="edge.sourceX"
+                    :y1="edge.sourceY"
+                    :x2="edge.targetX"
+                    :y2="edge.targetY"
+                    stroke="#94a3b8"
+                    stroke-width="1.5"
+                    marker-end="url(#faq-flow-arrow)"
+                  />
+                  <text
+                    v-if="edge.order > 0"
+                    :x="(edge.sourceX + edge.targetX) / 2"
+                    :y="(edge.sourceY + edge.targetY) / 2 - 5"
+                    fill="#64748b"
+                    font-size="10"
+                    text-anchor="middle"
+                  >
+                    {{ edge.order }}
+                  </text>
+                </g>
+              </svg>
+
+              <article
+                v-for="node in flowGraph.nodes"
+                :key="`flow-node-${node.id}`"
+                class="absolute rounded-[12px] border px-3 py-2 shadow-sm"
+                :class="
+                  node.nodeModeLabel === 'Resposta final'
+                    ? 'border-[rgba(8,115,145,0.25)] bg-[rgba(224,242,254,0.92)]'
+                    : 'border-slate-200 bg-white'
+                "
+                :style="{
+                  width: `${flowGraph.nodeWidth}px`,
+                  minHeight: `${flowGraph.nodeHeight}px`,
+                  left: `${node.drawX}px`,
+                  top: `${node.drawY}px`,
+                }"
+              >
+                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  {{ node.nodeModeLabel }}
+                </p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">
+                  {{ node.title }}
+                </p>
+                <p class="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
+                  {{ node.subtitle }}
+                </p>
+                <p class="mt-1 text-[11px] text-slate-600">
+                  Acao: {{ node.actionLabel }}
+                </p>
+                <p class="text-[11px] text-slate-600">
+                  Saidas: {{ node.outgoingCount }}
+                </p>
+              </article>
+            </div>
+            <p v-if="!flowGraph.nodes.length" class="py-6 text-center text-sm text-slate-500">
+              Nenhum no valido para visualizacao resumida.
+            </p>
           </div>
         </article>
         <article class="rounded-[16px] border border-slate-200 bg-white p-4">
@@ -756,9 +993,4 @@ onBeforeUnmount(() => {
   background: #f1f5f9;
 }
 
-.faq-flow-preview {
-  --vf-node-bg: transparent;
-  --vf-node-text: #0f172a;
-  --vf-connection-path: #0b6e8c;
-}
 </style>

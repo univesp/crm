@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onErrorCaptured, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import AppSidebar from '@/components/AppSidebar.vue'
 import MockContextBar from '@/components/MockContextBar.vue'
@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const journey = useJourneyStore()
 
@@ -112,6 +113,13 @@ const operationalAreaModel = computed({
 })
 
 const routeRenderError = ref('')
+const routeRecoveryAttemptedFor = ref('')
+const routeRecoveryHardReloadFor = ref('')
+const routerBasePath = String(
+  import.meta.env.VITE_ROUTER_BASE || import.meta.env.VITE_APP_BASE || '/',
+)
+  .trim()
+  .replace(/\/+$/, '')
 
 const fallbackRoute = computed(() => {
   if (auth.mockContext.isOperationalShell) {
@@ -125,6 +133,173 @@ const fallbackRoute = computed(() => {
 
 function clearRouteRenderError() {
   routeRenderError.value = ''
+}
+
+function extractBundleIdFromPath(path = '') {
+  const normalized = String(path || '')
+    .split('?')[0]
+    .split('#')[0]
+    .trim()
+
+  if (!normalized) {
+    return ''
+  }
+
+  const editorMatch = normalized.match(/\/admin\/faq-editor\/([^/?#]+)/i)
+  if (editorMatch?.[1]) {
+    try {
+      return decodeURIComponent(editorMatch[1])
+    } catch {
+      return String(editorMatch[1] || '').trim()
+    }
+  }
+
+  const legacyMatch = normalized.match(/\/admin\/faq\/([^/?#]+)\/editor/i)
+  if (legacyMatch?.[1]) {
+    try {
+      return decodeURIComponent(legacyMatch[1])
+    } catch {
+      return String(legacyMatch[1] || '').trim()
+    }
+  }
+
+  return ''
+}
+
+function normalizeBrowserPath(pathname = '') {
+  const rawPath = String(pathname || '').trim() || '/'
+  const base = routerBasePath && routerBasePath !== '/' ? routerBasePath : ''
+  if (!base) {
+    return rawPath
+  }
+  if (rawPath === base) {
+    return '/'
+  }
+  if (rawPath.startsWith(`${base}/`)) {
+    return rawPath.slice(base.length) || '/'
+  }
+  return rawPath
+}
+
+function readBrowserQueryObject() {
+  if (typeof window === 'undefined') {
+    return {}
+  }
+  try {
+    return Object.fromEntries(new URLSearchParams(window.location.search || '').entries())
+  } catch {
+    return {}
+  }
+}
+
+function recoverFaqBuilderRouteIfNeeded() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const normalizedPathname = normalizeBrowserPath(window.location.pathname || '/')
+  const currentHrefPath = `${normalizedPathname}${window.location.search || ''}`
+  if (!currentHrefPath) {
+    return
+  }
+
+  const decodedPath = (() => {
+    try {
+      return decodeURIComponent(currentHrefPath)
+    } catch {
+      return currentHrefPath
+    }
+  })()
+  const isFaqEditorPath = /\/admin\/faq-editor\/[^/?#]+/i.test(decodedPath)
+  const isFaqLegacyEditorPath = /\/admin\/faq\/[^/?#]+\/editor/i.test(decodedPath)
+  const shouldAttemptRecovery =
+    (isFaqEditorPath || isFaqLegacyEditorPath) &&
+    (route.matched.length === 0 || route.name !== 'admin-faq-builder')
+
+  if (!shouldAttemptRecovery) {
+    return
+  }
+
+  const recoveryKey = `${currentHrefPath}::${String(route.name || 'unknown')}`
+  if (routeRecoveryAttemptedFor.value === recoveryKey) {
+    return
+  }
+  routeRecoveryAttemptedFor.value = recoveryKey
+
+  const bundleId = extractBundleIdFromPath(decodedPath)
+  if (!bundleId) {
+    console.warn('[app][faq-route-recovery-skipped]', {
+      reason: 'bundle_id_missing',
+      browserPath: currentHrefPath,
+    })
+    return
+  }
+
+  const browserQuery = readBrowserQueryObject()
+  const recoveryQuery = {
+    ...browserQuery,
+    safe: String(browserQuery.safe || route.query.safe || '1'),
+    fullscreen: String(browserQuery.fullscreen || route.query.fullscreen || '1'),
+  }
+  const recoveryTarget = {
+    name: 'admin-faq-builder',
+    params: {
+      bundleId,
+    },
+    query: recoveryQuery,
+  }
+  const hardReloadHref = router.resolve({
+    ...recoveryTarget,
+    query: {
+      ...recoveryQuery,
+      recover: String(browserQuery.recover || '1'),
+      reload: String(Date.now()),
+    },
+  }).href
+
+  router
+    .replace(recoveryTarget)
+    .then(() => {
+      const shouldHardRecover =
+        route.name !== 'admin-faq-builder' &&
+        routeRecoveryHardReloadFor.value !== recoveryKey &&
+        String(browserQuery.recover || '') !== '1'
+
+      if (!shouldHardRecover) {
+        return
+      }
+
+      routeRecoveryHardReloadFor.value = recoveryKey
+      window.location.assign(hardReloadHref)
+    })
+    .catch((error) => {
+      console.error('[app][faq-route-recovery-failed]', error)
+      if (
+        routeRecoveryHardReloadFor.value !== recoveryKey &&
+        String(browserQuery.recover || '') !== '1'
+      ) {
+        routeRecoveryHardReloadFor.value = recoveryKey
+        window.location.assign(hardReloadHref)
+      }
+    })
+}
+
+function forceRouteReload() {
+  if (typeof window === 'undefined') {
+    return
+  }
+  const targetPath =
+    route.matched.length > 0
+      ? route.path || route.fullPath || fallbackRoute.value
+      : fallbackRoute.value
+  const nextHref = router.resolve({
+    path: targetPath,
+    query: {
+      ...route.query,
+      reload: String(Date.now()),
+    },
+  }).href
+  window.location.assign(nextHref)
 }
 
 watch(
@@ -141,7 +316,9 @@ watch(
   () => route.fullPath,
   () => {
     routeRenderError.value = ''
+    recoverFaqBuilderRouteIfNeeded()
   },
+  { immediate: true },
 )
 
 onErrorCaptured((error) => {
@@ -309,7 +486,7 @@ onErrorCaptured((error) => {
         <RouterView v-slot="{ Component }">
           <Transition name="route" mode="out-in">
             <section
-              v-if="routeRenderError || !Component"
+              v-if="routeRenderError || (!Component && route.matched.length === 0)"
               class="rounded-[18px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-5 text-slate-800"
             >
               <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-danger)]">
@@ -332,6 +509,13 @@ onErrorCaptured((error) => {
                 >
                   Tentar novamente
                 </button>
+                <button
+                  type="button"
+                  class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  @click="forceRouteReload"
+                >
+                  Recarregar app
+                </button>
                 <RouterLink
                   :to="fallbackRoute"
                   class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
@@ -343,6 +527,35 @@ onErrorCaptured((error) => {
                   class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   Ir para acesso local
+                </RouterLink>
+              </div>
+            </section>
+            <section
+              v-else-if="!Component"
+              class="rounded-[18px] border border-slate-200 bg-white p-5 text-slate-700"
+            >
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Carregando modulo
+              </p>
+              <h2 class="mt-2 text-lg font-semibold text-slate-950">
+                Preparando a tela selecionada
+              </h2>
+              <p class="mt-2 text-sm leading-6">
+                Aguarde alguns segundos. Se o carregamento nao concluir, use "Recarregar app".
+              </p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  @click="forceRouteReload"
+                >
+                  Recarregar app
+                </button>
+                <RouterLink
+                  :to="fallbackRoute"
+                  class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Voltar para modulo seguro
                 </RouterLink>
               </div>
             </section>

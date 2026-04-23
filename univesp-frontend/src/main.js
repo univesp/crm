@@ -6,7 +6,11 @@ import App from '@/App.vue'
 import '@/index.css'
 import routes from '@/router'
 import { canAccessRouteWithMockContext } from '@/services/mockContextRuntime'
-import { getDefaultAuthenticatedRoute, normalizeInternalRouteTarget } from '@/services/ssoClient'
+import {
+  getDefaultAuthenticatedRoute,
+  getPublicAppPath,
+  normalizeInternalRouteTarget,
+} from '@/services/ssoClient'
 import { useAuthStore } from '@/stores/auth'
 
 const app = createApp(App)
@@ -89,7 +93,17 @@ router.onError((error, to) => {
   const isChunkLoadError =
     message.includes('Failed to fetch dynamically imported module') ||
     message.includes('Importing a module script failed') ||
+    message.includes('Async component timed out') ||
     message.toLowerCase().includes('dynamically imported')
+
+  const fallbackCurrentHref = `${window.location.pathname || '/'}${window.location.search || ''}${window.location.hash || ''}`
+  const targetFullPath =
+    typeof to?.fullPath === 'string' && to.fullPath.trim().length > 0
+      ? to.fullPath
+      : fallbackCurrentHref
+  const fallbackRoute = getDefaultAuthenticatedRoute()
+  const targetInternalPath = normalizeInternalRouteTarget(targetFullPath, fallbackRoute)
+  const targetPublicHref = getPublicAppPath(targetInternalPath)
 
   if (!isChunkLoadError) {
     console.error(error)
@@ -105,7 +119,7 @@ router.onError((error, to) => {
   }
 
   window.sessionStorage?.setItem(CHUNK_RELOAD_GUARD_KEY, '1')
-  window.location.assign(to.fullPath)
+  window.location.assign(targetPublicHref)
 })
 
 app.use(pinia)

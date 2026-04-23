@@ -520,6 +520,12 @@ function buildNodeParentMap(bundle = {}) {
   return parentMap
 }
 
+function collectValidNodes(nodes = []) {
+  return (Array.isArray(nodes) ? nodes : []).filter(
+    (node) => node && typeof node === 'object' && String(node.id || '').trim(),
+  )
+}
+
 function getNodeOwnershipConfig(node = {}, options = {}) {
   const rawOwnership = node.ownership && typeof node.ownership === 'object' ? node.ownership : {}
   const hasLegacyOverride =
@@ -675,10 +681,50 @@ function ensureBundleCollections(bundle = {}) {
     bundle.nodes = bundle.nodes.filter((node) => node && typeof node === 'object')
   }
 
+  for (const node of bundle.nodes) {
+    if (!node || typeof node !== 'object') {
+      continue
+    }
+    const normalizedNodeId = String(node.id || node.node_id || node.nodeId || '').trim()
+    if (normalizedNodeId) {
+      node.id = normalizedNodeId
+    }
+  }
+
   if (!Array.isArray(bundle.links)) {
     bundle.links = []
   } else if (bundle.links.some((link) => !link || typeof link !== 'object')) {
     bundle.links = bundle.links.filter((link) => link && typeof link === 'object')
+  }
+
+  for (const link of bundle.links) {
+    if (!link || typeof link !== 'object') {
+      continue
+    }
+    const normalizedSourceId = String(
+      link.parent_node_id || link.source || link.source_id || link.from || '',
+    ).trim()
+    const normalizedTargetId = String(
+      link.child_node_id || link.target || link.target_id || link.to || '',
+    ).trim()
+    if (normalizedSourceId) {
+      link.parent_node_id = normalizedSourceId
+      link.source = normalizedSourceId
+    }
+    if (normalizedTargetId) {
+      link.child_node_id = normalizedTargetId
+      link.target = normalizedTargetId
+    }
+    if (!String(link.link_id || '').trim()) {
+      const fallbackLinkId =
+        String(link.id || link.edge_id || '').trim() ||
+        (normalizedSourceId && normalizedTargetId
+          ? buildLinkId(normalizedSourceId, normalizedTargetId)
+          : '')
+      if (fallbackLinkId) {
+        link.link_id = fallbackLinkId
+      }
+    }
   }
 
   bundle.calendar_highlights = Array.isArray(bundle.calendar_highlights) ? bundle.calendar_highlights : []
@@ -748,7 +794,7 @@ function sanitizeFaqBuilderBundleForRuntime(bundle = {}, options = {}) {
   const normalizedNodes = []
 
   for (const node of inputNodes) {
-    const nodeId = String(node?.id || '').trim()
+    const nodeId = String(node?.id || node?.node_id || node?.nodeId || '').trim()
     if (!nodeId) {
       warnings.push({
         code: 'runtime_node_without_id',
@@ -769,6 +815,7 @@ function sanitizeFaqBuilderBundleForRuntime(bundle = {}, options = {}) {
     normalizedNodes.push({
       ...node,
       id: nodeId,
+      node_id: nodeId,
     })
 
     if (normalizedNodes.length >= maxNodes) {
@@ -786,8 +833,12 @@ function sanitizeFaqBuilderBundleForRuntime(bundle = {}, options = {}) {
   const linkPairs = new Set()
 
   for (const link of inputLinks) {
-    const sourceId = String(link?.parent_node_id || '').trim()
-    const targetId = String(link?.child_node_id || '').trim()
+    const sourceId = String(
+      link?.parent_node_id || link?.source || link?.source_id || link?.from || '',
+    ).trim()
+    const targetId = String(
+      link?.child_node_id || link?.target || link?.target_id || link?.to || '',
+    ).trim()
     const active = link?.ativo !== false
 
     if (!active) {
@@ -835,6 +886,8 @@ function sanitizeFaqBuilderBundleForRuntime(bundle = {}, options = {}) {
       link_id: normalizedLinkId,
       parent_node_id: sourceId,
       child_node_id: targetId,
+      source: sourceId,
+      target: targetId,
       ativo: true,
     })
 
@@ -880,10 +933,14 @@ function sanitizeFaqBuilderCanvasSnapshot(snapshot = {}, bundle = {}) {
 
   const nodes = Array.isArray(bundle?.nodes) ? bundle.nodes : []
   nodes.forEach((node, index) => {
-    const savedPosition = nodePositions[node.id] || {}
+    const nodeId = String(node?.id || '').trim()
+    if (!nodeId) {
+      return
+    }
+    const savedPosition = nodePositions[nodeId] || {}
     const row = Math.floor(index / 4)
     const col = index % 4
-    safeSnapshot.nodePositions[node.id] = {
+    safeSnapshot.nodePositions[nodeId] = {
       x: Math.round(sanitizeNumericValue(savedPosition.x, 80 + col * 320)),
       y: Math.round(sanitizeNumericValue(savedPosition.y, 80 + row * 180)),
     }
@@ -893,7 +950,12 @@ function sanitizeFaqBuilderCanvasSnapshot(snapshot = {}, bundle = {}) {
   safeSnapshot.edges = links
     .filter((link) => link.ativo !== false)
     .map((link) => ({
-      id: String(link.link_id || '').trim() || buildLinkId(link.parent_node_id, link.child_node_id),
+      id:
+        String(link.link_id || '').trim() ||
+        buildLinkId(
+          String(link.parent_node_id || '').trim(),
+          String(link.child_node_id || '').trim(),
+        ),
       source: String(link.parent_node_id || '').trim(),
       target: String(link.child_node_id || '').trim(),
     }))
@@ -944,38 +1006,64 @@ export function runFaqBuilderBundleSanityCheck(
 
 function buildIncomingMap(links = []) {
   const map = new Map()
-  for (const link of links) {
-    if (link.ativo === false) {
+  const safeLinks = Array.isArray(links) ? links : []
+  for (const link of safeLinks) {
+    if (!link || typeof link !== 'object' || link.ativo === false) {
       continue
     }
-    const current = map.get(link.child_node_id) || []
-    map.set(link.child_node_id, [...current, link])
+    const childId = String(link.child_node_id || '').trim()
+    if (!childId) {
+      continue
+    }
+    const current = map.get(childId) || []
+    map.set(childId, [...current, link])
   }
   return map
 }
 
 function buildOutgoingMap(links = []) {
   const map = new Map()
-  for (const link of links) {
-    if (link.ativo === false) {
+  const safeLinks = Array.isArray(links) ? links : []
+  for (const link of safeLinks) {
+    if (!link || typeof link !== 'object' || link.ativo === false) {
       continue
     }
-    const current = map.get(link.parent_node_id) || []
-    map.set(link.parent_node_id, [...current, link])
+    const parentId = String(link.parent_node_id || '').trim()
+    if (!parentId) {
+      continue
+    }
+    const current = map.get(parentId) || []
+    map.set(parentId, [...current, link])
   }
   return map
 }
 
 function buildAdjacency(nodes = [], links = []) {
   const adjacency = new Map()
-  for (const node of nodes) {
-    adjacency.set(node.id, [])
-  }
-  for (const link of links) {
-    if (link.ativo === false || !adjacency.has(link.parent_node_id) || !adjacency.has(link.child_node_id)) {
+  const safeNodes = Array.isArray(nodes) ? nodes : []
+  const safeLinks = Array.isArray(links) ? links : []
+
+  for (const node of safeNodes) {
+    if (!node || typeof node !== 'object') {
       continue
     }
-    adjacency.get(link.parent_node_id).push(link.child_node_id)
+    const nodeId = String(node.id || '').trim()
+    if (!nodeId || adjacency.has(nodeId)) {
+      continue
+    }
+    adjacency.set(nodeId, [])
+  }
+
+  for (const link of safeLinks) {
+    if (!link || typeof link !== 'object' || link.ativo === false) {
+      continue
+    }
+    const parentId = String(link.parent_node_id || '').trim()
+    const childId = String(link.child_node_id || '').trim()
+    if (!parentId || !childId || !adjacency.has(parentId) || !adjacency.has(childId)) {
+      continue
+    }
+    adjacency.get(parentId).push(childId)
   }
   return adjacency
 }
@@ -986,12 +1074,17 @@ function detectCycles(nodes = [], links = []) {
   const cycleNodeIds = new Set()
   const stack = []
 
-  for (const node of nodes) {
-    if (visitState.get(node.id) === 'done') {
+  const safeNodes = Array.isArray(nodes) ? nodes : []
+  for (const node of safeNodes) {
+    if (!node || typeof node !== 'object') {
+      continue
+    }
+    const nodeId = String(node.id || '').trim()
+    if (!nodeId || !adjacency.has(nodeId) || visitState.get(nodeId) === 'done') {
       continue
     }
 
-    stack.push({ nodeId: node.id, index: 0 })
+    stack.push({ nodeId, index: 0 })
 
     while (stack.length) {
       const current = stack[stack.length - 1]
@@ -1085,7 +1178,10 @@ function collectDescendants(nodeId, outgoingMap, visited = new Set()) {
 }
 
 function inferRootIds(nodes = [], incomingMap = new Map()) {
-  return nodes.filter((node) => !(incomingMap.get(node.id) || []).length).map((node) => node.id)
+  const safeNodes = collectValidNodes(nodes)
+  return safeNodes
+    .filter((node) => !(incomingMap.get(String(node.id || '').trim()) || []).length)
+    .map((node) => String(node.id || '').trim())
 }
 
 function buildImportIssue({ row = null, field = '', code = '', message = '', suggestion = '', severity = 'error' }) {
@@ -1325,7 +1421,9 @@ export function setFaqBuilderNodeOwnership(bundle = {}, nodeId = '', payload = {
 
 export function resolveFaqBuilderNodeEffectiveOwner(bundle = {}, nodeId = '') {
   ensureBundleCollections(bundle)
-  const nodeById = new Map((bundle.nodes || []).map((node) => [node.id, node]))
+  const nodeById = new Map(
+    collectValidNodes(bundle.nodes).map((node) => [String(node.id || '').trim(), node]),
+  )
   const parentMap = buildNodeParentMap(bundle)
   return resolveNodeEffectiveOwner(
     nodeId,
@@ -1448,9 +1546,12 @@ export function cloneFaqBuilderPackage(faqType = 'aluno') {
 
 export function validateFaqBuilderBundle(bundle = {}, options = {}) {
   const mode = options.mode || 'edit'
-  ensureBundleCollections(bundle)
-  const nodes = bundle.nodes || []
-  const links = bundle.links || []
+  const mutateInput = options.mutateInput === true
+  const targetBundle = mutateInput
+    ? ensureBundleCollections(bundle || {})
+    : ensureBundleCollections(cloneJson(bundle || {}))
+  const nodes = targetBundle.nodes || []
+  const links = targetBundle.links || []
   const maxValidationNodes = Number(
     options.maxValidationNodes || FAQ_BUILDER_RUNTIME_GUARDS.maxValidationNodes,
   )
@@ -1483,6 +1584,12 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
     nodes.length > maxValidationNodes ? nodes.slice(0, maxValidationNodes) : nodes
   const workingLinks =
     links.length > maxValidationEdges ? links.slice(0, maxValidationEdges) : links
+  const validWorkingNodes = workingNodes.filter(
+    (node) =>
+      node &&
+      typeof node === 'object' &&
+      String(node.id || '').trim(),
+  )
 
   const seenNodeIds = new Set()
   const seenLinkIds = new Set()
@@ -1490,14 +1597,14 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
   const incomingMap = buildIncomingMap(workingLinks)
   const outgoingMap = buildOutgoingMap(workingLinks)
   const parentMap = buildNodeParentMap({
-    nodes: workingNodes,
+    nodes: validWorkingNodes,
     links: workingLinks,
   })
-  const bundleOwner = normalizeOperationalOwner(bundle.operational_owner || bundle.metadata?.operational_owner || {}, {
-    faqType: bundle.tipo_faq,
-    fallbackQueue: resolveDefaultQueueByFaqType(bundle.tipo_faq),
+  const bundleOwner = normalizeOperationalOwner(targetBundle.operational_owner || targetBundle.metadata?.operational_owner || {}, {
+    faqType: targetBundle.tipo_faq,
+    fallbackQueue: resolveDefaultQueueByFaqType(targetBundle.tipo_faq),
   })
-  const ownershipReferenceCatalog = buildFaqBuilderOwnershipReferenceCatalog(bundle, options)
+  const ownershipReferenceCatalog = buildFaqBuilderOwnershipReferenceCatalog(targetBundle, options)
   const bundleOwnerReferenceIssue = resolveOperationalOwnerReferenceIssue(
     bundleOwner,
     ownershipReferenceCatalog,
@@ -1644,7 +1751,7 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
     const outgoingCount = (outgoingMap.get(node.id) || []).length
     const incomingCount = (incomingMap.get(node.id) || []).length
     const ownershipConfig = getNodeOwnershipConfig(node, {
-      faqType: bundle.tipo_faq,
+      faqType: targetBundle.tipo_faq,
       fallbackQueue: bundleOwner.queueKey,
     })
     syncNodeOwnershipFields(node, ownershipConfig)
@@ -1809,7 +1916,7 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
     }
   }
 
-  const cycleNodeIds = detectCycles(workingNodes, workingLinks)
+  const cycleNodeIds = detectCycles(validWorkingNodes, workingLinks)
   if (cycleNodeIds.length) {
     for (const nodeId of cycleNodeIds) {
       issues.push({
@@ -1834,7 +1941,7 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
     })
   }
 
-  for (const node of workingNodes) {
+  for (const node of validWorkingNodes) {
     if (inferNodeMode(node) !== NODE_MODE_MAP.final) {
       continue
     }
@@ -1969,9 +2076,14 @@ export function buildAutoLayoutSnapshot(bundle = {}, existingSnapshot = {}, opti
     edges: safeLinks
       .filter((link) => link.ativo !== false)
       .map((link) => ({
-        id: link.link_id,
-        source: link.parent_node_id,
-        target: link.child_node_id,
+        id:
+          String(link.link_id || '').trim() ||
+          buildLinkId(
+            String(link.parent_node_id || '').trim(),
+            String(link.child_node_id || '').trim(),
+          ),
+        source: String(link.parent_node_id || '').trim(),
+        target: String(link.child_node_id || '').trim(),
       })),
     updatedAt: nowIso(),
   }
@@ -2022,9 +2134,14 @@ export function buildFaqBuilderGraph(bundle = {}, canvasSnapshot = {}, validatio
   const edges = safeLinks
     .filter((link) => link.ativo !== false)
     .map((link) => ({
-      id: link.link_id,
-      source: link.parent_node_id,
-      target: link.child_node_id,
+      id:
+        String(link.link_id || '').trim() ||
+        buildLinkId(
+          String(link.parent_node_id || '').trim(),
+          String(link.child_node_id || '').trim(),
+        ),
+      source: String(link.parent_node_id || '').trim(),
+      target: String(link.child_node_id || '').trim(),
       label: String(link.ordem || ''),
       type: 'smoothstep',
       animated: false,
@@ -2125,12 +2242,22 @@ export function createFaqBuilderWorkspaceFromBundle(
 ) {
   const draftBundle = ensureBundleCollections(cloneJson(bundle || {}))
   const publishedBundle = ensureBundleCollections(cloneJson(options.publishedBundle || bundle || {}))
+  const draftWithinRenderLimits =
+    (draftBundle.nodes?.length || 0) <= FAQ_BUILDER_RUNTIME_GUARDS.maxRenderNodes &&
+    (draftBundle.links?.length || 0) <= FAQ_BUILDER_RUNTIME_GUARDS.maxRenderEdges
+  const publishedWithinRenderLimits =
+    (publishedBundle.nodes?.length || 0) <= FAQ_BUILDER_RUNTIME_GUARDS.maxRenderNodes &&
+    (publishedBundle.links?.length || 0) <= FAQ_BUILDER_RUNTIME_GUARDS.maxRenderEdges
   const canvasSnapshot = options.canvasSnapshot
     ? cloneJson(options.canvasSnapshot)
-    : buildAutoLayoutSnapshot(draftBundle)
+    : draftWithinRenderLimits
+      ? buildAutoLayoutSnapshot(draftBundle)
+      : sanitizeFaqBuilderCanvasSnapshot({}, draftBundle)
   const publishedCanvasSnapshot = options.publishedCanvasSnapshot
     ? cloneJson(options.publishedCanvasSnapshot)
-    : buildAutoLayoutSnapshot(publishedBundle)
+    : publishedWithinRenderLimits
+      ? buildAutoLayoutSnapshot(publishedBundle)
+      : sanitizeFaqBuilderCanvasSnapshot({}, publishedBundle)
   const draftStatus =
     WORKFLOW_STATUS_MAP[draftBundle.versioning?.publication_status || 'draft'] || 'Draft'
   const publishConfig = {
@@ -2301,7 +2428,7 @@ function buildSeedBundleEntries() {
   const entries = []
   for (const faqType of ['aluno', 'op']) {
     const faqPackage = cloneFaqBuilderPackage(faqType)
-    const roots = (faqPackage.nodes || []).filter(
+    const roots = collectValidNodes(faqPackage.nodes).filter(
       (node) => node.node_kind === 'theme' && node.ativo !== false,
     )
 
@@ -2461,7 +2588,9 @@ export function listFaqBuilderBundles(
       try {
         const cachedValidation = entry?.workspace?.validationSnapshot || {}
         const validation = includeValidation
-          ? validateFaqBuilderBundle(entry?.workspace?.draftBundle || {})
+          ? validateFaqBuilderBundle(entry?.workspace?.draftBundle || {}, {
+              mutateInput: false,
+            })
           : {
               errors: [],
               warnings: [],
@@ -3012,11 +3141,23 @@ export function updateCanvasSnapshotNodePosition(snapshot = {}, nodeId = '', pos
 export function syncCanvasSnapshotEdges(snapshot = {}, bundle = {}) {
   ensureBundleCollections(bundle)
   snapshot.edges = bundle.links
-    .filter((link) => link.ativo !== false)
+    .filter(
+      (link) =>
+        link &&
+        typeof link === 'object' &&
+        link.ativo !== false &&
+        String(link.parent_node_id || '').trim() &&
+        String(link.child_node_id || '').trim(),
+    )
     .map((link) => ({
-      id: link.link_id,
-      source: link.parent_node_id,
-      target: link.child_node_id,
+      id:
+        String(link.link_id || '').trim() ||
+        buildLinkId(
+          String(link.parent_node_id || '').trim(),
+          String(link.child_node_id || '').trim(),
+        ),
+      source: String(link.parent_node_id || '').trim(),
+      target: String(link.child_node_id || '').trim(),
     }))
   snapshot.updatedAt = nowIso()
 }
@@ -3031,7 +3172,9 @@ export function addFaqBuilderChildNode(bundle = {}, parentNodeId = '', options =
   const nodeMode = options.nodeMode || NODE_MODE_MAP.path
   const incomingMap = buildIncomingMap(bundle.links)
   const outgoingMap = buildOutgoingMap(bundle.links)
-  const existingIds = new Set(bundle.nodes.map((node) => node.id))
+  const existingIds = new Set(
+    collectValidNodes(bundle.nodes).map((node) => String(node.id || '').trim()),
+  )
   let sequence = 1
   let candidateId = ''
 
@@ -3237,13 +3380,36 @@ export function moveFaqBuilderNode(bundle = {}, nodeId = '', parentId = '') {
 export function buildFaqBuilderDiff({ draftBundle = {}, publishedBundle = {} } = {}) {
   ensureBundleCollections(draftBundle)
   ensureBundleCollections(publishedBundle)
-  const draftNodesById = new Map(draftBundle.nodes.map((node) => [node.id, node]))
-  const publishedNodesById = new Map(publishedBundle.nodes.map((node) => [node.id, node]))
+  const safeDraftNodes = (draftBundle.nodes || []).filter(
+    (node) => node && typeof node === 'object' && String(node.id || '').trim(),
+  )
+  const safePublishedNodes = (publishedBundle.nodes || []).filter(
+    (node) => node && typeof node === 'object' && String(node.id || '').trim(),
+  )
+  const safeDraftLinks = (draftBundle.links || []).filter(
+    (link) =>
+      link &&
+      typeof link === 'object' &&
+      link.ativo !== false &&
+      String(link.parent_node_id || '').trim() &&
+      String(link.child_node_id || '').trim(),
+  )
+  const safePublishedLinks = (publishedBundle.links || []).filter(
+    (link) =>
+      link &&
+      typeof link === 'object' &&
+      link.ativo !== false &&
+      String(link.parent_node_id || '').trim() &&
+      String(link.child_node_id || '').trim(),
+  )
+
+  const draftNodesById = new Map(safeDraftNodes.map((node) => [node.id, node]))
+  const publishedNodesById = new Map(safePublishedNodes.map((node) => [node.id, node]))
   const createdNodes = []
   const removedNodes = []
   const updatedNodes = []
 
-  for (const draftNode of draftBundle.nodes) {
+  for (const draftNode of safeDraftNodes) {
     const publishedNode = publishedNodesById.get(draftNode.id)
     if (!publishedNode) {
       createdNodes.push(draftNode)
@@ -3266,17 +3432,21 @@ export function buildFaqBuilderDiff({ draftBundle = {}, publishedBundle = {} } =
     }
   }
 
-  for (const publishedNode of publishedBundle.nodes) {
+  for (const publishedNode of safePublishedNodes) {
     if (!draftNodesById.has(publishedNode.id)) {
       removedNodes.push(publishedNode)
     }
   }
 
   const draftLinks = new Set(
-    draftBundle.links.filter((link) => link.ativo !== false).map((link) => `${link.parent_node_id}->${link.child_node_id}`),
+    safeDraftLinks.map(
+      (link) => `${link.parent_node_id}->${link.child_node_id}`,
+    ),
   )
   const publishedLinks = new Set(
-    publishedBundle.links.filter((link) => link.ativo !== false).map((link) => `${link.parent_node_id}->${link.child_node_id}`),
+    safePublishedLinks.map(
+      (link) => `${link.parent_node_id}->${link.child_node_id}`,
+    ),
   )
   const createdLinks = [...draftLinks].filter((item) => !publishedLinks.has(item))
   const removedLinks = [...publishedLinks].filter((item) => !draftLinks.has(item))
