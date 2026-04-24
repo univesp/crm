@@ -130,6 +130,13 @@ const fallbackRoute = computed(() => {
   }
   return '/admin/dashboard'
 })
+const routeViewRenderKey = computed(() => {
+  const routeName = String(route.name || 'unknown')
+  if (routeName === 'admin-faq-flow' || routeName === 'admin-faq-builder') {
+    return `faq:${routeName}:${route.fullPath}`
+  }
+  return routeName
+})
 
 function clearRouteRenderError() {
   routeRenderError.value = ''
@@ -238,8 +245,21 @@ function recoverFaqBuilderRouteIfNeeded() {
   const browserQuery = readBrowserQueryObject()
   const recoveryQuery = {
     ...browserQuery,
-    safe: String(browserQuery.safe || route.query.safe || '1'),
-    fullscreen: String(browserQuery.fullscreen || route.query.fullscreen || '1'),
+  }
+  const safeQueryValue =
+    browserQuery.safe !== undefined ? browserQuery.safe : route.query.safe
+  if (safeQueryValue !== undefined && String(safeQueryValue).trim() !== '') {
+    recoveryQuery.safe = String(safeQueryValue)
+  }
+  const fullscreenQueryValue =
+    browserQuery.fullscreen !== undefined
+      ? browserQuery.fullscreen
+      : route.query.fullscreen
+  if (
+    fullscreenQueryValue !== undefined &&
+    String(fullscreenQueryValue).trim() !== ''
+  ) {
+    recoveryQuery.fullscreen = String(fullscreenQueryValue)
   }
   const recoveryTarget = {
     name: 'admin-faq-builder',
@@ -559,10 +579,15 @@ onErrorCaptured((error) => {
                 </RouterLink>
               </div>
             </section>
-            <component :is="Component" v-else />
+            <component :is="Component" v-else :key="routeViewRenderKey" />
           </Transition>
         </RouterView>
       </main>
     </div>
+  </div>
+
+  <div class="pointer-events-none fixed bottom-3 left-3 z-[260] rounded-[10px] border border-slate-300 bg-white/95 px-3 py-2 text-[11px] text-slate-700 shadow">
+    <p><span class="font-semibold">route.name:</span> {{ String(route.name || 'undefined') }}</p>
+    <p><span class="font-semibold">route.fullPath:</span> {{ route.fullPath }}</p>
   </div>
 </template>

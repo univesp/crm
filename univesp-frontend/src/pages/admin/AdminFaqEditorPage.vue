@@ -56,6 +56,7 @@ const EDITOR_MODES = Object.freeze([
   { key: 'import', label: 'Importacao' },
   { key: 'governance', label: 'Governanca' },
 ])
+const BLOCK_ROUTE_PROMOTION_DURING_MOUNT = true
 
 function decodeBundleParam(value = '') {
   let decoded = ''
@@ -87,7 +88,7 @@ function normalizeMode(rawMode = 'visual') {
 function parseSafeModeQuery(rawValue = '') {
   const normalized = String(rawValue || '').trim().toLowerCase()
   if (!normalized) {
-    return true
+    return false
   }
   return ['1', 'true', 'sim', 'yes', 'y'].includes(normalized)
 }
@@ -95,7 +96,7 @@ function parseSafeModeQuery(rawValue = '') {
 function parseFullscreenQuery(rawValue = '') {
   const normalized = String(rawValue || '').trim().toLowerCase()
   if (!normalized) {
-    return true
+    return false
   }
   return !['0', 'false', 'nao', 'não', 'no', 'n'].includes(normalized)
 }
@@ -183,6 +184,7 @@ const responseEditorRef = ref(null)
 const overflowMenuRef = ref(null)
 let persistLibraryTimer = null
 let rebuildArtifactsTimer = null
+let hasMountedEditor = false
 
 const backendReadiness = buildFaqBuilderBackendReadiness({
   hasServerUpsert: false,
@@ -413,7 +415,6 @@ function appendOpenMarker(stage = '', details = '') {
   if (openState.markers.length > 30) {
     openState.markers.shift()
   }
-  console.info('[faq-builder][editor-open]', marker)
 }
 
 let isPreparingWorkspace = false
@@ -602,7 +603,25 @@ function scheduleRebuildArtifacts() {
   }, 120)
 }
 
-function setSafeMode(enabled = true) {
+function canMutateRouteQueryFlag(key = 'safe', source = 'auto') {
+  const normalizedSource = String(source || 'auto').trim().toLowerCase()
+  if (normalizedSource === 'user') {
+    return true
+  }
+  const routeValue = route.query?.[key]
+  const routeHasExplicitValue =
+    routeValue !== undefined && String(routeValue).trim() !== ''
+  if (routeHasExplicitValue) {
+    return true
+  }
+  if (BLOCK_ROUTE_PROMOTION_DURING_MOUNT) {
+    return false
+  }
+  return hasMountedEditor
+}
+
+function setSafeMode(enabled = true, options = {}) {
+  const source = String(options?.source || 'auto')
   ui.safeMode = Boolean(enabled)
   const nextQuery = { ...route.query }
   if (ui.safeMode) {
@@ -611,7 +630,8 @@ function setSafeMode(enabled = true) {
     delete nextQuery.safe
   }
   const currentSafe = parseSafeModeQuery(route.query.safe)
-  if (currentSafe !== ui.safeMode) {
+  const allowQueryMutation = canMutateRouteQueryFlag('safe', source)
+  if (currentSafe !== ui.safeMode && allowQueryMutation) {
     router.replace({
       path: route.path,
       query: nextQuery,
@@ -619,11 +639,13 @@ function setSafeMode(enabled = true) {
   }
 }
 
-function setEditorFullscreen(enabled = true) {
+function setEditorFullscreen(enabled = true, options = {}) {
+  const source = String(options?.source || 'auto')
   const nextValue = Boolean(enabled)
   ui.isFullscreen = nextValue
   const currentValue = parseFullscreenQuery(route.query.fullscreen)
-  if (currentValue === nextValue) {
+  const allowQueryMutation = canMutateRouteQueryFlag('fullscreen', source)
+  if (currentValue === nextValue || !allowQueryMutation) {
     return
   }
   const nextQuery = { ...route.query }
@@ -673,7 +695,7 @@ function prepareWorkspaceForRender({ safeMode = false } = {}) {
 
     if (sanity.shouldUseSafeMode && !safeMode) {
       appendOpenMarker('builder failed with reason runtime_limit_requires_safe_mode')
-      setSafeMode(true)
+      setSafeMode(true, { source: 'auto' })
       return
     }
 
@@ -702,7 +724,7 @@ function prepareWorkspaceForRender({ safeMode = false } = {}) {
 
     if (!safeMode) {
       appendOpenMarker('fallback to safe mode', 'retrying in safe mode after runtime failure')
-      setSafeMode(true)
+      setSafeMode(true, { source: 'auto' })
       return
     }
 
@@ -814,6 +836,7 @@ function handleGlobalPointerDown(event) {
 }
 
 onMounted(() => {
+  hasMountedEditor = true
   document.addEventListener('pointerdown', handleGlobalPointerDown)
 })
 
@@ -1206,6 +1229,9 @@ function applySpreadsheetImport() {
       'faq-editor-page--fullscreen': ui.isFullscreen,
     }"
   >
+    <div class="fixed right-4 top-4 z-[220] rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-emerald-900">
+      EDITOR PAGE
+    </div>
     <header
       v-if="!isMissingBundle"
       class="faq-editor-header rounded-[18px] border border-slate-200 bg-white px-4 py-3"
@@ -1235,7 +1261,7 @@ function applySpreadsheetImport() {
         <button
           type="button"
           class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
-          @click="setEditorFullscreen(!ui.isFullscreen)"
+          @click="setEditorFullscreen(!ui.isFullscreen, { source: 'user' })"
         >
           {{ ui.isFullscreen ? 'Sair da tela cheia' : 'Abrir em tela cheia' }}
         </button>
@@ -1347,7 +1373,7 @@ function applySpreadsheetImport() {
             v-if="!ui.safeMode"
             type="button"
             class="rounded-[10px] border border-[#0b6e8c] bg-white px-3 py-2 text-xs font-semibold text-[#0b6e8c]"
-            @click="setSafeMode(true)"
+            @click="setSafeMode(true, { source: 'user' })"
           >
             Abrir em modo seguro
           </button>
@@ -1365,7 +1391,7 @@ function applySpreadsheetImport() {
         class="mt-3 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
       >
         <summary class="cursor-pointer font-semibold text-slate-700">
-          Ver etapas de abertura (debug)
+          Ver etapas de abertura
         </summary>
         <ol class="mt-2 grid gap-1">
           <li v-for="marker in openState.markers" :key="`${marker.at}-${marker.stage}`">
@@ -1423,7 +1449,7 @@ function applySpreadsheetImport() {
           <button
             type="button"
             class="rounded-[10px] border border-[rgba(166,31,40,0.35)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
-            @click="setSafeMode(true)"
+            @click="setSafeMode(true, { source: 'user' })"
           >
             Forcar modo seguro
           </button>
@@ -1483,7 +1509,7 @@ function applySpreadsheetImport() {
                     v-if="ui.safeMode"
                     type="button"
                     class="rounded-[10px] border border-[#0b6e8c] px-3 py-1.5 text-[11px] font-semibold text-[#0b6e8c]"
-                    @click="setSafeMode(false)"
+                    @click="setSafeMode(false, { source: 'user' })"
                   >
                     Tentar canvas interativo
                   </button>

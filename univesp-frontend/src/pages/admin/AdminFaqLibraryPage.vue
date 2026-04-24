@@ -15,7 +15,6 @@ import {
   loadFaqBuilderBundleLibraryLocal,
   saveFaqBuilderBundleLibraryLocal,
 } from '@/services/faqBuilderHybridRuntime'
-import { getPublicAppPath } from '@/services/ssoClient'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -171,28 +170,14 @@ async function openBundleEditor(bundleId = '', query = {}) {
     setFeedback('error', 'Fluxo invalido: identificador ausente.')
     return
   }
-  const nextQuery = {
-    fullscreen: '1',
-    safe: '1',
-    ...query,
-  }
+  const nextQuery = { ...query }
   const targetRoute = {
     name: 'admin-faq-builder',
     params: {
       bundleId: normalizedBundleId,
     },
-    query: nextQuery,
+    ...(Object.keys(nextQuery).length ? { query: nextQuery } : {}),
   }
-  const hardReloadHref = getPublicAppPath(
-    router.resolve({
-      ...targetRoute,
-      query: {
-        ...nextQuery,
-        reload: String(Date.now()),
-      },
-    }).href,
-  )
-
   try {
     await router.push(targetRoute)
     if (
@@ -205,17 +190,26 @@ async function openBundleEditor(bundleId = '', query = {}) {
     ) {
       return
     }
-    window.location.assign(hardReloadHref)
+    console.error('[faq-library][open-editor-route-mismatch]', {
+      expectedBundleId: normalizedBundleId,
+      currentRoute: {
+        name: router.currentRoute.value.name,
+        bundleId: String(router.currentRoute.value.params?.bundleId || '')
+          .split('?')[0]
+          .split('#')[0]
+          .split('/')[0]
+          .trim(),
+      },
+    })
     setFeedback(
       'error',
-      'Navegacao SPA nao confirmou o editor. Tentando abertura protegida.',
+      'Navegacao nao confirmou a abertura do editor.',
     )
   } catch (error) {
     console.error('[faq-library][open-editor-failed]', error)
-    window.location.assign(hardReloadHref)
     setFeedback(
       'error',
-      'Falha de navegacao para o editor. Tentando abertura protegida.',
+      'Falha de navegacao para o editor.',
     )
   }
 }

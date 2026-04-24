@@ -25,7 +25,6 @@ import {
   transitionFaqBuilderWorkflow,
   validateFaqBuilderBundle,
 } from '@/services/faqBuilderHybridRuntime'
-import { getPublicAppPath } from '@/services/ssoClient'
 import { useAuthStore } from '@/stores/auth'
 
 function decodeBundleParam(value = '') {
@@ -516,10 +515,7 @@ async function goToEditor(mode = 'visual') {
     setFeedback('error', 'Fluxo invalido para abrir no editor.')
     return
   }
-  const query = {
-    fullscreen: '1',
-    safe: '1',
-  }
+  const query = {}
   if (mode !== 'visual') {
     query.mode = mode
   }
@@ -528,17 +524,8 @@ async function goToEditor(mode = 'visual') {
     params: {
       bundleId: normalizedBundleId,
     },
-    query,
+    ...(Object.keys(query).length ? { query } : {}),
   }
-  const hardReloadHref = getPublicAppPath(
-    router.resolve({
-      ...targetRoute,
-      query: {
-        ...query,
-        reload: String(Date.now()),
-      },
-    }).href,
-  )
 
   try {
     await router.push(targetRoute)
@@ -549,17 +536,24 @@ async function goToEditor(mode = 'visual') {
     ) {
       return
     }
-    window.location.assign(hardReloadHref)
+    console.error('[faq-flow][go-to-editor-route-mismatch]', {
+      expectedBundleId: normalizedBundleId,
+      currentRoute: {
+        name: router.currentRoute.value.name,
+        bundleId: sanitizeBundleId(
+          router.currentRoute.value.params?.bundleId || '',
+        ),
+      },
+    })
     setFeedback(
       'error',
-      'Navegacao SPA nao confirmou o editor. Tentando abertura protegida.',
+      'Navegacao nao confirmou a abertura do editor.',
     )
   } catch (error) {
     console.error('[faq-flow][go-to-editor-failed]', error)
-    window.location.assign(hardReloadHref)
     setFeedback(
       'error',
-      'Falha ao redirecionar para o editor completo. Tentando abertura protegida.',
+      'Falha ao redirecionar para o editor completo.',
     )
   }
 }
@@ -675,6 +669,9 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="grid gap-4">
+    <div class="fixed right-4 top-4 z-[220] rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-amber-900">
+      FLOW PAGE
+    </div>
     <section
       v-if="openState.isLoading"
       class="rounded-[16px] border border-slate-200 bg-white p-4"
