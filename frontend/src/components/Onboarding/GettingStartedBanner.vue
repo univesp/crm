@@ -25,7 +25,11 @@
             {{ __('You are all set') }}
           </div>
         </div>
-        <FeatherIcon name="x" class="h-4 cursor-pointer" @click="openHelpCenter" />
+        <FeatherIcon
+          name="x"
+          class="h-4 cursor-pointer"
+          @click="openHelpCenter"
+        />
       </div>
       <div class="text-p-sm text-ink-gray-7">
         {{ __('All steps are completed successfully') }}

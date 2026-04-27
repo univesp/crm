@@ -2,6 +2,7 @@
 import {
   computed,
   defineAsyncComponent,
+  markRaw,
   onErrorCaptured,
   onBeforeUnmount,
   onMounted,
@@ -119,13 +120,16 @@ const VueFlowCanvas = defineAsyncComponent({
   timeout: 20000,
 })
 
-const FaqCanvasNodeAsync = defineAsyncComponent({
+const FaqCanvasNodeAsync = markRaw(defineAsyncComponent({
   loader: async () => {
     const module = await import('@/components/admin/faq-builder/FaqCanvasNode.vue')
     return module.default
   },
   delay: 120,
   timeout: 15000,
+}))
+const vueFlowNodeTypes = markRaw({
+  faqBuilderNode: FaqCanvasNodeAsync,
 })
 
 const VueFlowBackground = defineAsyncComponent({
@@ -157,6 +161,18 @@ const ui = reactive({
   showPreviewModal: false,
   showOverflowMenu: false,
 })
+const BUNDLE_OWNER_EDITABLE_FIELDS = Object.freeze([
+  'ownerType',
+  'queueKey',
+  'areaLabel',
+  'roleKey',
+])
+const bundleOwnerDraft = ref({
+  ownerType: 'queue',
+  queueKey: '',
+  areaLabel: '',
+  roleKey: '',
+})
 const feedback = reactive({
   type: '',
   message: '',
@@ -185,6 +201,7 @@ const overflowMenuRef = ref(null)
 let persistLibraryTimer = null
 let rebuildArtifactsTimer = null
 let hasMountedEditor = false
+let isUpdatingBundleOperationalOwner = false
 
 const backendReadiness = buildFaqBuilderBackendReadiness({
   hasServerUpsert: false,
@@ -291,10 +308,6 @@ const selectedNode = computed(() =>
     : null,
 )
 
-const bundleOperationalOwner = computed(() =>
-  workspace.value?.draftBundle?.operational_owner || null,
-)
-
 const selectedNodeParentLink = computed(() => {
   if (!workspace.value) return null
   return (
@@ -355,8 +368,10 @@ const previewChoices = computed(() => {
 const bundleDiff = computed(() =>
   workspace.value
     ? buildFaqBuilderDiff({
-        draftBundle: workspace.value.draftBundle,
-        publishedBundle: workspace.value.publishedBundle,
+        // buildFaqBuilderDiff normalizes with ensureBundleCollections (mutates input).
+        // Use snapshots so governance render does not mutate reactive workspace state.
+        draftBundle: cloneBundleForOwnershipPatch(workspace.value.draftBundle) || {},
+        publishedBundle: cloneBundleForOwnershipPatch(workspace.value.publishedBundle) || {},
       })
     : {
         summary: {
@@ -821,6 +836,16 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => [bundleId.value, workspace.value?.draftBundle],
+  () => {
+    syncBundleOwnerDraftFromWorkspace({
+      source: 'watch bundleId/draftBundle',
+    })
+  },
+  { immediate: true },
+)
+
 watch(selectedNode, (node) => {
   ui.parentTargetId = selectedNodeParentLink.value?.parent_node_id || ''
   if (node && responseEditorRef.value) {
@@ -862,6 +887,89 @@ function stripHtml(value = '') {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function cloneBundleForOwnershipPatch(bundle = null) {
+  if (!bundle || typeof bundle !== 'object') {
+    return null
+  }
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(bundle)
+    } catch {
+      // fallback below
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify(bundle))
+  } catch {
+    return null
+  }
+}
+
+function readEventValue(eventOrValue = '') {
+  if (
+    eventOrValue &&
+    typeof eventOrValue === 'object' &&
+    eventOrValue.target &&
+    typeof eventOrValue.target === 'object'
+  ) {
+    return String(eventOrValue.target.value || '')
+  }
+  return String(eventOrValue || '')
+}
+
+function getCurrentBundleOwnerFieldValue(field = '') {
+  const currentOwner = workspace.value?.draftBundle?.operational_owner || {}
+  if (field === 'ownerType') {
+    return String(currentOwner.ownerType || 'queue')
+  }
+  return String(currentOwner[field] || '')
+}
+
+function normalizeBundleOwnerFieldValue(field = '', eventOrValue = '') {
+  const rawValue = readEventValue(eventOrValue)
+  if (field === 'ownerType') {
+    const normalized = rawValue.trim().toLowerCase()
+    return ['queue', 'area', 'role'].includes(normalized) ? normalized : 'queue'
+  }
+  if (field === 'queueKey') {
+    return rawValue.trim()
+  }
+  return rawValue
+}
+
+function getCurrentBundleOwnerDraftFieldValue(field = '') {
+  if (field === 'ownerType') {
+    return String(bundleOwnerDraft.value.ownerType || 'queue')
+  }
+  return String(bundleOwnerDraft.value[field] || '')
+}
+
+function syncBundleOwnerDraftFromWorkspace(options = {}) {
+  const source = String(options.source || 'unknown')
+  if (isUpdatingBundleOperationalOwner && !options.force) {
+    return
+  }
+
+  const owner = workspace.value?.draftBundle?.operational_owner || {}
+  const nextDraft = {
+    ownerType: normalizeBundleOwnerFieldValue('ownerType', owner.ownerType || 'queue'),
+    queueKey: normalizeBundleOwnerFieldValue('queueKey', owner.queueKey || ''),
+    areaLabel: String(owner.areaLabel || ''),
+    roleKey: String(owner.roleKey || ''),
+  }
+  const currentDraft = bundleOwnerDraft.value
+  const isSameDraft =
+    String(currentDraft.ownerType || '') === nextDraft.ownerType &&
+    String(currentDraft.queueKey || '') === nextDraft.queueKey &&
+    String(currentDraft.areaLabel || '') === nextDraft.areaLabel &&
+    String(currentDraft.roleKey || '') === nextDraft.roleKey
+  if (isSameDraft) {
+    return
+  }
+
+  bundleOwnerDraft.value = nextDraft
 }
 
 function goToFlowOverview() {
@@ -1037,11 +1145,105 @@ function updateNodeMode(mode = 'path') {
 }
 
 function updateBundleOperationalOwner(field = '', value = '') {
-  if (!workspace.value || !field) return
-  setFaqBuilderBundleOperationalOwner(workspace.value.draftBundle, {
-    [field]: value,
-  })
-  touchWorkspace({ rebuild: 'immediate' })
+  if (!workspace.value || !field || isUpdatingBundleOperationalOwner) return
+
+  const fieldKey = String(field || '').trim()
+  if (!BUNDLE_OWNER_EDITABLE_FIELDS.includes(fieldKey)) {
+    return
+  }
+  const currentValue = getCurrentBundleOwnerFieldValue(fieldKey)
+  const nextValue = normalizeBundleOwnerFieldValue(fieldKey, value)
+  if (currentValue === nextValue) {
+    syncBundleOwnerDraftFromWorkspace({
+      source: 'updateBundleOperationalOwner unchanged',
+    })
+    return
+  }
+
+  const draftBundleClone = cloneBundleForOwnershipPatch(workspace.value.draftBundle)
+  if (!draftBundleClone) {
+    return
+  }
+
+  isUpdatingBundleOperationalOwner = true
+  try {
+    const nextOwner = setFaqBuilderBundleOperationalOwner(draftBundleClone, {
+      [fieldKey]: nextValue,
+    })
+    const nextEffectiveValue =
+      fieldKey === 'ownerType'
+        ? String(nextOwner?.ownerType || 'queue')
+        : String(nextOwner?.[fieldKey] || '')
+    if (nextEffectiveValue === currentValue) {
+      syncBundleOwnerDraftFromWorkspace({
+        source: 'updateBundleOperationalOwner normalized-unchanged',
+      })
+      return
+    }
+    workspace.value.draftBundle = draftBundleClone
+    touchWorkspace()
+    syncBundleOwnerDraftFromWorkspace({
+      source: 'updateBundleOperationalOwner touched',
+    })
+  } finally {
+    isUpdatingBundleOperationalOwner = false
+    syncBundleOwnerDraftFromWorkspace({
+      source: 'updateBundleOperationalOwner finally',
+      force: true,
+    })
+  }
+}
+
+function handleBundleOwnerTypeChange(eventOrValue = '') {
+  const nextValue = normalizeBundleOwnerFieldValue('ownerType', eventOrValue)
+  const previousDraftValue = getCurrentBundleOwnerDraftFieldValue('ownerType')
+  bundleOwnerDraft.value = {
+    ...bundleOwnerDraft.value,
+    ownerType: nextValue,
+  }
+  if (nextValue === previousDraftValue) {
+    return
+  }
+  updateBundleOperationalOwner('ownerType', nextValue)
+}
+
+function handleBundleOwnerQueueChange(eventOrValue = '') {
+  const nextValue = normalizeBundleOwnerFieldValue('queueKey', eventOrValue)
+  const previousDraftValue = getCurrentBundleOwnerDraftFieldValue('queueKey')
+  bundleOwnerDraft.value = {
+    ...bundleOwnerDraft.value,
+    queueKey: nextValue,
+  }
+  if (nextValue === previousDraftValue) {
+    return
+  }
+  updateBundleOperationalOwner('queueKey', nextValue)
+}
+
+function handleBundleOwnerAreaChange(eventOrValue = '') {
+  const nextValue = normalizeBundleOwnerFieldValue('areaLabel', eventOrValue)
+  const previousDraftValue = getCurrentBundleOwnerDraftFieldValue('areaLabel')
+  bundleOwnerDraft.value = {
+    ...bundleOwnerDraft.value,
+    areaLabel: nextValue,
+  }
+  if (nextValue === previousDraftValue) {
+    return
+  }
+  updateBundleOperationalOwner('areaLabel', nextValue)
+}
+
+function handleBundleOwnerRoleChange(eventOrValue = '') {
+  const nextValue = normalizeBundleOwnerFieldValue('roleKey', eventOrValue)
+  const previousDraftValue = getCurrentBundleOwnerDraftFieldValue('roleKey')
+  bundleOwnerDraft.value = {
+    ...bundleOwnerDraft.value,
+    roleKey: nextValue,
+  }
+  if (nextValue === previousDraftValue) {
+    return
+  }
+  updateBundleOperationalOwner('roleKey', nextValue)
 }
 
 function updateNodeOwnershipField(field = '', value = '') {
@@ -1551,7 +1753,7 @@ function applySpreadsheetImport() {
                   :key="`${bundleId}-${ui.safeMode ? 'safe' : 'default'}-${flowNodes.length}-${flowEdges.length}`"
                   :nodes="flowNodes"
                   :edges="flowEdges"
-                  :node-types="{ faqBuilderNode: FaqCanvasNodeAsync }"
+                  :node-types="vueFlowNodeTypes"
                   class="faq-builder-flow"
                   @connect="onFlowConnect"
                   @node-drag-stop="onNodeDragStop"
@@ -1582,9 +1784,9 @@ function applySpreadsheetImport() {
                   <label class="faq-field">
                     <span>Tipo</span>
                     <select
-                      :value="bundleOperationalOwner?.ownerType || 'queue'"
+                      :value="bundleOwnerDraft.ownerType"
                       class="faq-input"
-                      @change="updateBundleOperationalOwner('ownerType', $event.target.value)"
+                      @change="handleBundleOwnerTypeChange"
                     >
                       <option
                         v-for="option in catalogs.operationalOwnerTypes"
@@ -1596,14 +1798,14 @@ function applySpreadsheetImport() {
                     </select>
                   </label>
                   <label
-                    v-if="(bundleOperationalOwner?.ownerType || 'queue') === 'queue'"
+                    v-if="bundleOwnerDraft.ownerType === 'queue'"
                     class="faq-field"
                   >
                     <span>Fila responsavel</span>
                     <select
-                      :value="bundleOperationalOwner?.queueKey || ''"
+                      :value="bundleOwnerDraft.queueKey"
                       class="faq-input"
-                      @change="updateBundleOperationalOwner('queueKey', $event.target.value)"
+                      @change="handleBundleOwnerQueueChange"
                     >
                       <option
                         v-for="option in catalogs.queueDestinations"
@@ -1615,24 +1817,24 @@ function applySpreadsheetImport() {
                     </select>
                   </label>
                   <label
-                    v-else-if="bundleOperationalOwner?.ownerType === 'area'"
+                    v-else-if="bundleOwnerDraft.ownerType === 'area'"
                     class="faq-field"
                   >
                     <span>Area responsavel</span>
                     <input
-                      :value="bundleOperationalOwner?.areaLabel || ''"
+                      :value="bundleOwnerDraft.areaLabel"
                       class="faq-input"
                       placeholder="Ex.: Secretaria Academica"
-                      @input="updateBundleOperationalOwner('areaLabel', $event.target.value)"
+                      @change="handleBundleOwnerAreaChange"
                     />
                   </label>
                   <label v-else class="faq-field">
                     <span>Perfil responsavel</span>
                     <input
-                      :value="bundleOperationalOwner?.roleKey || ''"
+                      :value="bundleOwnerDraft.roleKey"
                       class="faq-input"
                       placeholder="Ex.: analista_area"
-                      @input="updateBundleOperationalOwner('roleKey', $event.target.value)"
+                      @change="handleBundleOwnerRoleChange"
                     />
                   </label>
                 </div>

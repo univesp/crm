@@ -148,7 +148,7 @@ function openBundle(bundleId = '', query = {}) {
   })
 }
 
-async function openBundleEditor(bundleId = '', query = {}) {
+function openBundleEditor(bundleId = '', query = {}) {
   const normalizedBundleId = (() => {
     try {
       return decodeURIComponent(
@@ -179,32 +179,8 @@ async function openBundleEditor(bundleId = '', query = {}) {
     ...(Object.keys(nextQuery).length ? { query: nextQuery } : {}),
   }
   try {
-    await router.push(targetRoute)
-    if (
-      router.currentRoute.value.name === 'admin-faq-builder' &&
-      String(router.currentRoute.value.params?.bundleId || '')
-        .split('?')[0]
-        .split('#')[0]
-        .split('/')[0]
-        .trim() === normalizedBundleId
-    ) {
-      return
-    }
-    console.error('[faq-library][open-editor-route-mismatch]', {
-      expectedBundleId: normalizedBundleId,
-      currentRoute: {
-        name: router.currentRoute.value.name,
-        bundleId: String(router.currentRoute.value.params?.bundleId || '')
-          .split('?')[0]
-          .split('#')[0]
-          .split('/')[0]
-          .trim(),
-      },
-    })
-    setFeedback(
-      'error',
-      'Navegacao nao confirmou a abertura do editor.',
-    )
+    const resolved = router.resolve(targetRoute)
+    window.location.assign(resolved.href)
   } catch (error) {
     console.error('[faq-library][open-editor-failed]', error)
     setFeedback(
