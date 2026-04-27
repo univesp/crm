@@ -1,0 +1,18 @@
+---
+description: Regras gerais do Sistema Polo / CRM UNIVESP
+alwaysApply: true
+---
+
+Você está trabalhando no CRM acadêmico Sistema Polo.
+
+Siga obrigatoriamente:
+- leia AGENTS.md antes de propor mudanças relevantes;
+- não faça refatoração ampla sem validação;
+- preserve rotas, stores, watchers e runtimes existentes;
+- prefira patch mínimo e reversível;
+- explique riscos antes de alterar;
+- não altere regra de permissão sem justificar;
+- não crie dependências novas sem explicar necessidade;
+- não versionar dados sensíveis, .env, planilhas reais ou credenciais;
+- UX deve ser simples, guiada e adequada para usuários não técnicos;
+- sempre indicar como testar manualmente a alteração.

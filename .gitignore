@@ -11,3 +11,35 @@ crm/www/crm.html
 build
 
 .vscode
+# Local debug/export artifacts
+*.zip
+**/tmp-dom-*.html
+**/.chrome-capture-*/
+**/.chrome-check-*/
+**/.chrome-direct-test/
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Local data / outputs
+data/
+input/
+output/
+historico/
+backups/
+*.xlsx
+*.xls
+*.csv
+
+# Python virtual environments
+.venv/
+venv/
+
+# n8n local
+.n8n/
