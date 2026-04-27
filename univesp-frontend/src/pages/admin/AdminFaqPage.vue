@@ -63,6 +63,25 @@ function formatDate(value = '') {
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+let isFlowPageMounted = true
+let flowRunSequence = 0
+let activeFlowRunId = 0
+
+function isFlowRouteActive() {
+  const routeName = String(route.name || '').trim()
+  if (!routeName) {
+    return true
+  }
+  return routeName === 'admin-faq-flow'
+}
+
+function isFlowRunActive(runId = 0) {
+  return isFlowPageMounted && isFlowRouteActive() && Number(runId) === Number(activeFlowRunId)
+}
+
+function invalidateFlowRun() {
+  activeFlowRunId = flowRunSequence + 1
+}
 
 const ui = reactive({
   showOverflow: false,
@@ -198,6 +217,9 @@ const testerChoices = computed(() => {
 })
 
 function appendOpenMarker(stage = '', details = '') {
+  if (!isFlowPageMounted || !isFlowRouteActive()) {
+    return
+  }
   const marker = {
     at: new Date().toISOString(),
     stage,
@@ -319,7 +341,16 @@ function buildFlowGraphModel(bundle = {}, previewRuntime = {}, canvasSnapshot = 
 }
 
 function resolveBundleRuntime({ safeMode = false } = {}) {
+  const runId = ++flowRunSequence
+  activeFlowRunId = runId
+  if (!isFlowRunActive(runId)) {
+    return
+  }
+
   if (!workspace.value) {
+    if (!isFlowRunActive(runId)) {
+      return
+    }
     openState.failed = true
     openState.issueCode = 'bundle_not_found'
     openState.issueMessage = 'Bundle inexistente ou sem workspace.'
@@ -331,10 +362,16 @@ function resolveBundleRuntime({ safeMode = false } = {}) {
   openState.issueCode = ''
   openState.issueMessage = ''
   openState.markers = []
+  if (!isFlowRunActive(runId)) {
+    return
+  }
   appendOpenMarker('open bundle started', bundleId.value)
   appendOpenMarker('bundle resolved', currentBundleEntry.value?.title || bundleId.value)
 
   try {
+    if (!isFlowRunActive(runId)) {
+      return
+    }
     appendOpenMarker('bundle payload loaded', `nodes=${workspace.value.draftBundle?.nodes?.length || 0}`)
     const sanity = runFaqBuilderBundleSanityCheck(
       workspace.value.draftBundle,
@@ -343,20 +380,30 @@ function resolveBundleRuntime({ safeMode = false } = {}) {
         mode: safeMode ? 'safe' : 'default',
       },
     )
+    if (!isFlowRunActive(runId)) {
+      return
+    }
     safeRuntimeState.sanity = sanity
     appendOpenMarker('snapshot loaded', `warnings=${sanity.warnings.length}`)
 
     if (sanity.shouldUseSafeMode && !safeMode) {
+      if (!isFlowRunActive(runId)) {
+        return
+      }
       appendOpenMarker('builder failed with reason runtime_limit_requires_safe_mode')
       setSafeMode(true, { rerun: true })
       return
     }
 
     appendOpenMarker('validation started')
-    safeRuntimeState.validation = validateFaqBuilderBundle(
+    const nextValidation = validateFaqBuilderBundle(
       sanity.bundle,
       { mode: 'edit' },
     )
+    if (!isFlowRunActive(runId)) {
+      return
+    }
+    safeRuntimeState.validation = nextValidation
     appendOpenMarker('validation finished')
 
     appendOpenMarker('preview started')
@@ -365,15 +412,22 @@ function resolveBundleRuntime({ safeMode = false } = {}) {
       '',
       { mode: safeMode ? 'safe' : 'default' },
     )
+    if (!isFlowRunActive(runId)) {
+      return
+    }
     safeRuntimeState.previewRuntime = preview
     appendOpenMarker('preview finished')
 
     appendOpenMarker('nodes built')
-    safeRuntimeState.flowGraph = buildFlowGraphModel(
+    const nextFlowGraph = buildFlowGraphModel(
       sanity.bundle,
       preview,
       sanity.canvasSnapshot,
     )
+    if (!isFlowRunActive(runId)) {
+      return
+    }
+    safeRuntimeState.flowGraph = nextFlowGraph
     appendOpenMarker('edges built')
 
     appendOpenMarker('layout started')
@@ -382,18 +436,26 @@ function resolveBundleRuntime({ safeMode = false } = {}) {
     appendOpenMarker('fitView finished')
     appendOpenMarker('builder ready')
   } catch (error) {
+    if (!isFlowRunActive(runId)) {
+      return
+    }
     openState.failed = true
     openState.issueCode = 'builder_open_failed'
     openState.issueMessage = String(error?.message || 'Falha ao abrir fluxo no builder.')
     appendOpenMarker('builder failed with reason', openState.issueMessage)
   } finally {
-    openState.isLoading = false
+    if (isFlowRunActive(runId)) {
+      openState.isLoading = false
+    }
   }
 }
 
 watch(
   () => workspace.value,
   (value) => {
+    if (!isFlowRouteActive()) {
+      return
+    }
     if (!value) {
       return
     }
@@ -411,6 +473,9 @@ watch(
 watch(
   () => route.query.safe,
   (safeQuery) => {
+    if (!isFlowRouteActive()) {
+      return
+    }
     const nextValue = String(safeQuery || '') === '1'
     if (openState.safeMode === nextValue) {
       return
@@ -423,6 +488,9 @@ watch(
 watch(
   () => [bundleId.value, workspace.value, openState.safeMode],
   () => {
+    if (!isFlowRouteActive()) {
+      return
+    }
     resolveBundleRuntime({
       safeMode: openState.safeMode,
     })
@@ -433,6 +501,9 @@ watch(
 watch(
   () => route.query.tester,
   (testerMode) => {
+    if (!isFlowRouteActive()) {
+      return
+    }
     if (!workspace.value || !testerMode || openState.failed) {
       return
     }
@@ -455,6 +526,9 @@ function setFeedback(type = '', message = '') {
 }
 
 function setSafeMode(enabled = true, { rerun = false } = {}) {
+  if (!isFlowRouteActive()) {
+    return
+  }
   openState.safeMode = Boolean(enabled)
   const nextQuery = { ...route.query }
   if (openState.safeMode) {
@@ -500,7 +574,7 @@ function goToLibrary() {
   router.push({ name: 'admin-faq' })
 }
 
-async function goToEditor(mode = 'visual') {
+function goToEditor(mode = 'visual') {
   const normalizedBundleId = (() => {
     const rawValue = sanitizeBundleId(
       currentBundleEntry.value?.bundleId || bundleId.value || '',
@@ -527,28 +601,11 @@ async function goToEditor(mode = 'visual') {
     ...(Object.keys(query).length ? { query } : {}),
   }
 
+  // Navegacao completa (hard navigation): evita dessincronismo URL x estado interno do
+  // Vue Router quando router.push resolve com falha silenciosa (NavigationFailure).
   try {
-    await router.push(targetRoute)
-    if (
-      router.currentRoute.value.name === 'admin-faq-builder' &&
-      sanitizeBundleId(router.currentRoute.value.params?.bundleId || '') ===
-        normalizedBundleId
-    ) {
-      return
-    }
-    console.error('[faq-flow][go-to-editor-route-mismatch]', {
-      expectedBundleId: normalizedBundleId,
-      currentRoute: {
-        name: router.currentRoute.value.name,
-        bundleId: sanitizeBundleId(
-          router.currentRoute.value.params?.bundleId || '',
-        ),
-      },
-    })
-    setFeedback(
-      'error',
-      'Navegacao nao confirmou a abertura do editor.',
-    )
+    const resolved = router.resolve(targetRoute)
+    window.location.assign(resolved.href)
   } catch (error) {
     console.error('[faq-flow][go-to-editor-failed]', error)
     setFeedback(
@@ -660,11 +717,23 @@ function handleOutsideClick(event) {
 }
 
 onMounted(() => {
+  isFlowPageMounted = true
   document.addEventListener('pointerdown', handleOutsideClick)
 })
 onBeforeUnmount(() => {
+  isFlowPageMounted = false
+  invalidateFlowRun()
   document.removeEventListener('pointerdown', handleOutsideClick)
 })
+
+watch(
+  () => route.name,
+  (nextName) => {
+    if (String(nextName || '').trim() !== 'admin-faq-flow') {
+      invalidateFlowRun()
+    }
+  },
+)
 </script>
 
 <template>

@@ -121,6 +121,8 @@ const routerBasePath = String(
   .trim()
   .replace(/\/+$/, '')
 
+let isRecoveringFaqBuilderRoute = false
+
 const fallbackRoute = computed(() => {
   if (auth.mockContext.isOperationalShell) {
     return auth.mockContext.profileKey === 'gestor_area' ? '/area/operacao' : '/op/fila'
@@ -133,7 +135,8 @@ const fallbackRoute = computed(() => {
 const routeViewRenderKey = computed(() => {
   const routeName = String(route.name || 'unknown')
   if (routeName === 'admin-faq-flow' || routeName === 'admin-faq-builder') {
-    return `faq:${routeName}:${route.fullPath}`
+    const bundleId = String(route.params?.bundleId || '')
+    return `faq:${routeName}:${bundleId}`
   }
   return routeName
 })
@@ -204,6 +207,10 @@ function recoverFaqBuilderRouteIfNeeded() {
     return
   }
 
+  if (isRecoveringFaqBuilderRoute) {
+    return
+  }
+
   const normalizedPathname = normalizeBrowserPath(window.location.pathname || '/')
   const currentHrefPath = `${normalizedPathname}${window.location.search || ''}`
   if (!currentHrefPath) {
@@ -219,6 +226,16 @@ function recoverFaqBuilderRouteIfNeeded() {
   })()
   const isFaqEditorPath = /\/admin\/faq-editor\/[^/?#]+/i.test(decodedPath)
   const isFaqLegacyEditorPath = /\/admin\/faq\/[^/?#]+\/editor/i.test(decodedPath)
+
+  const bundleId = extractBundleIdFromPath(decodedPath)
+  if (
+    route.name === 'admin-faq-builder' &&
+    bundleId &&
+    String(route.params.bundleId || '') === String(bundleId)
+  ) {
+    return
+  }
+
   const shouldAttemptRecovery =
     (isFaqEditorPath || isFaqLegacyEditorPath) &&
     (route.matched.length === 0 || route.name !== 'admin-faq-builder')
@@ -233,7 +250,6 @@ function recoverFaqBuilderRouteIfNeeded() {
   }
   routeRecoveryAttemptedFor.value = recoveryKey
 
-  const bundleId = extractBundleIdFromPath(decodedPath)
   if (!bundleId) {
     console.warn('[app][faq-route-recovery-skipped]', {
       reason: 'bundle_id_missing',
@@ -268,6 +284,12 @@ function recoverFaqBuilderRouteIfNeeded() {
     },
     query: recoveryQuery,
   }
+
+  const resolvedForReplace = router.resolve(recoveryTarget)
+  if (resolvedForReplace.fullPath === route.fullPath) {
+    return
+  }
+
   const hardReloadHref = router.resolve({
     ...recoveryTarget,
     query: {
@@ -277,6 +299,7 @@ function recoverFaqBuilderRouteIfNeeded() {
     },
   }).href
 
+  isRecoveringFaqBuilderRoute = true
   router
     .replace(recoveryTarget)
     .then(() => {
@@ -301,6 +324,9 @@ function recoverFaqBuilderRouteIfNeeded() {
         routeRecoveryHardReloadFor.value = recoveryKey
         window.location.assign(hardReloadHref)
       }
+    })
+    .finally(() => {
+      isRecoveringFaqBuilderRoute = false
     })
 }
 
