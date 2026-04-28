@@ -224,7 +224,7 @@ function duplicateFlow(bundleId = '') {
 
 function archiveFlow(bundleId = '') {
   const confirmed = window.confirm(
-    'Arquivar este fluxo? A versao atual nao sera removida, mas o fluxo ficara fora da operacao ativa.',
+    'Arquivar este fluxo? Ele sai da lista de operacao ativa, mas a versao atual e o historico permanecem preservados.',
   )
   if (!confirmed) {
     return
@@ -363,7 +363,7 @@ function archiveFlow(bundleId = '') {
               <th class="px-3 py-2">Cobertura owner</th>
               <th class="px-3 py-2">Integridade</th>
               <th class="px-3 py-2">Ultima edicao</th>
-              <th class="px-3 py-2">Acoes</th>
+              <th class="px-3 py-2">Proximo passo</th>
             </tr>
           </thead>
           <tbody>
@@ -411,22 +411,29 @@ function archiveFlow(bundleId = '') {
                 <p class="mt-1 text-slate-600">{{ row.updatedBy }}</p>
               </td>
               <td class="px-3 py-3">
-                <div class="flex flex-wrap gap-2">
-                  <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="openBundle(row.bundleId)">
+                <div class="grid gap-2">
+                  <div class="flex flex-wrap gap-2">
+                    <button type="button" class="rounded-[10px] bg-slate-900 px-2 py-1 font-semibold text-white" @click="openBundle(row.bundleId)">
                     Ver fluxo
-                  </button>
-                  <button type="button" class="rounded-[10px] bg-slate-900 px-2 py-1 font-semibold text-white" @click="openBundleEditor(row.bundleId)">
-                    Editar
-                  </button>
-                  <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="openBundleEditor(row.bundleId, { mode: 'import' })">
-                    Importar
-                  </button>
-                  <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="duplicateFlow(row.bundleId)">
-                    Duplicar
-                  </button>
-                  <button type="button" class="rounded-[10px] border border-[rgba(166,31,40,0.28)] px-2 py-1 font-semibold text-[var(--color-danger)]" @click="archiveFlow(row.bundleId)">
-                    Arquivar
-                  </button>
+                    </button>
+                    <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="openBundleEditor(row.bundleId)">
+                      Editar
+                    </button>
+                  </div>
+                  <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-2 py-2">
+                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Acoes avancadas</p>
+                    <div class="flex flex-wrap gap-1.5">
+                      <button type="button" class="rounded-[9px] border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-600" @click="openBundleEditor(row.bundleId, { mode: 'import' })">
+                        Importar
+                      </button>
+                      <button type="button" class="rounded-[9px] border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-600" @click="duplicateFlow(row.bundleId)">
+                        Duplicar
+                      </button>
+                      <button type="button" class="rounded-[9px] border border-[rgba(166,31,40,0.24)] bg-white px-2 py-1 font-semibold text-[var(--color-danger)]" @click="archiveFlow(row.bundleId)">
+                        Arquivar
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </td>
             </tr>

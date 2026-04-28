@@ -738,9 +738,6 @@ watch(
 
 <template>
   <div class="grid gap-4">
-    <div class="fixed right-4 top-4 z-[220] rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-amber-900">
-      FLOW PAGE
-    </div>
     <section
       v-if="openState.isLoading"
       class="rounded-[16px] border border-slate-200 bg-white p-4"
@@ -763,25 +760,31 @@ watch(
             <p class="text-xs uppercase tracking-[0.08em] text-slate-500">FAQ Builder / Visao do fluxo</p>
             <h1 class="mt-1 text-lg font-semibold text-slate-950">{{ currentBundleEntry.title }}</h1>
             <p class="mt-1 text-xs text-slate-500">{{ currentBundleEntry.bundleId }}</p>
+            <p class="mt-2 max-w-2xl text-xs leading-5 text-slate-600">
+              Revise o desenho do fluxo, teste a jornada e publique apenas quando a validacao estiver sem bloqueios.
+            </p>
             <div class="mt-2 flex flex-wrap gap-2">
               <StatusBadge :label="`Workflow: ${workspace.workflowStatus}`" />
               <StatusBadge :label="validation.hasBlockingPublishError ? 'Com bloqueio estrutural' : 'Apto para publicar'" />
               <StatusBadge :label="activePublished ? `Versao ativa: ${activePublished.bundleVersionId}` : 'Sem versao ativa'" />
             </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Biblioteca</button>
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="startTester('draft')">Testar fluxo</button>
-            <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="openPublishModal">Publicar</button>
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Editar</button>
-            <div ref="overflowRef" class="relative">
-              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
-              <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg">
-                <button type="button" class="faq-overflow-btn" @click="sendToReview">Enviar para revisao</button>
-                <button type="button" class="faq-overflow-btn" @click="goToEditor('import')">Abrir importacao</button>
-                <button type="button" class="faq-overflow-btn" @click="goToEditor('governance')">Abrir governanca</button>
-                <button type="button" class="faq-overflow-btn" @click="startTester('published')">Testar publicado</button>
+          <div class="grid gap-2 justify-items-end">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Acoes do fluxo</p>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="goToEditor()">Editar fluxo</button>
+              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="startTester('draft')">Testar jornada</button>
+              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Biblioteca</button>
+              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
+              <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar</button>
+              <div ref="overflowRef" class="relative">
+                <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
+                <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg">
+                  <button type="button" class="faq-overflow-btn" @click="sendToReview">Enviar para revisao</button>
+                  <button type="button" class="faq-overflow-btn" @click="goToEditor('import')">Abrir importacao</button>
+                  <button type="button" class="faq-overflow-btn" @click="goToEditor('governance')">Abrir governanca</button>
+                  <button type="button" class="faq-overflow-btn" @click="startTester('published')">Testar publicado</button>
+                </div>
               </div>
             </div>
           </div>
@@ -795,15 +798,15 @@ watch(
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#0b6e8c]">
-              Estabilizacao de abertura
+              Abertura protegida do fluxo
             </p>
             <p class="mt-1 text-sm font-semibold text-slate-900">
               {{
                 openState.failed
-                  ? 'Falha na abertura do fluxo.'
+                  ? 'Nao foi possivel preparar a visualizacao agora.'
                   : openState.safeMode
-                    ? 'Modo seguro ativo para evitar travamento.'
-                    : 'Fluxo aberto com ajustes defensivos.'
+                    ? 'Modo seguro ativo para manter a revisao disponivel.'
+                    : 'Fluxo aberto com ajustes automaticos de estabilidade.'
               }}
             </p>
             <p v-if="openState.issueMessage" class="mt-1 text-xs text-slate-700">
@@ -814,7 +817,7 @@ watch(
               class="mt-1 text-xs text-slate-700"
             >
               {{
-                `${safeRuntimeState.sanity.warnings.length} ajuste(s) aplicados para manter o builder estavel.`
+                `${safeRuntimeState.sanity.warnings.length} ajuste(s) aplicados para manter a visualizacao estavel.`
               }}
             </p>
           </div>
@@ -839,7 +842,7 @@ watch(
               class="rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
               @click="recoverByIgnoringSnapshot"
             >
-              Ignorar snapshot e reconstruir layout
+              Reconstruir layout visual
             </button>
           </div>
         </div>
@@ -848,7 +851,7 @@ watch(
           class="mt-3 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
         >
           <summary class="cursor-pointer font-semibold text-slate-700">
-            Ver etapas de abertura (debug)
+            Ver detalhes tecnicos da abertura
           </summary>
           <ol class="mt-2 grid gap-1">
             <li v-for="marker in openState.markers" :key="`${marker.at}-${marker.stage}`">
@@ -978,7 +981,7 @@ watch(
         v-else
         class="rounded-[16px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-4 text-sm text-[var(--color-danger)]"
       >
-        O fluxo nao pode ser renderizado neste momento. Use o modo seguro ou reconstrua o snapshot para recuperar.
+        O fluxo nao pode ser renderizado neste momento. Use o modo seguro ou reconstrua o layout visual para recuperar.
       </section>
     </template>
 

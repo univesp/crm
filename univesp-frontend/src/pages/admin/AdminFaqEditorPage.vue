@@ -1431,9 +1431,6 @@ function applySpreadsheetImport() {
       'faq-editor-page--fullscreen': ui.isFullscreen,
     }"
   >
-    <div class="fixed right-4 top-4 z-[220] rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-emerald-900">
-      EDITOR PAGE
-    </div>
     <header
       v-if="!isMissingBundle"
       class="faq-editor-header rounded-[18px] border border-slate-200 bg-white px-4 py-3"
@@ -1547,10 +1544,10 @@ function applySpreadsheetImport() {
           <p class="mt-1 text-sm font-semibold text-slate-900">
             {{
               openState.failed
-                ? 'Falha ao abrir o editor deste bundle.'
+                ? 'Nao foi possivel preparar o editor deste fluxo.'
                 : ui.safeMode
-                  ? 'Modo seguro ativo para evitar travamento.'
-                  : 'Abertura com ajustes defensivos aplicados.'
+                  ? 'Modo seguro ativo para continuar a edicao com menor risco.'
+                  : 'Abertura concluida com ajustes automaticos de estabilidade.'
             }}
           </p>
           <p v-if="openState.issueMessage" class="mt-1 text-xs text-slate-700">
@@ -1560,7 +1557,10 @@ function applySpreadsheetImport() {
             v-else-if="sanitizedState.warnings.length"
             class="mt-1 text-xs text-slate-700"
           >
-            {{ `${sanitizedState.warnings.length} ajuste(s) aplicados no bundle/snapshot para abertura segura.` }}
+            {{ `${sanitizedState.warnings.length} ajuste(s) aplicados para manter o fluxo editavel.` }}
+          </p>
+          <p class="mt-1 text-xs text-slate-600">
+            O modo seguro preserva a edicao e reduz o uso do canvas interativo. Reconstruir a organizacao visual refaz apenas a posicao dos nos.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -1584,7 +1584,7 @@ function applySpreadsheetImport() {
             class="rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
             @click="recoverIgnoringSnapshot"
           >
-            Ignorar snapshot e reconstruir
+            Reconstruir organizacao visual
           </button>
         </div>
       </div>
@@ -1593,7 +1593,7 @@ function applySpreadsheetImport() {
         class="mt-3 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
       >
         <summary class="cursor-pointer font-semibold text-slate-700">
-          Ver etapas de abertura
+          Ver detalhes tecnicos da abertura
         </summary>
         <ol class="mt-2 grid gap-1">
           <li v-for="marker in openState.markers" :key="`${marker.at}-${marker.stage}`">
