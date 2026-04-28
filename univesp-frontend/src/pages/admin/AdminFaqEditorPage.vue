@@ -167,11 +167,21 @@ const BUNDLE_OWNER_EDITABLE_FIELDS = Object.freeze([
   'areaLabel',
   'roleKey',
 ])
+const NODE_OWNERSHIP_TEXT_FIELDS = Object.freeze([
+  'owner_area',
+  'owner_role',
+  'owner_routing_policy',
+])
 const bundleOwnerDraft = ref({
   ownerType: 'queue',
   queueKey: '',
   areaLabel: '',
   roleKey: '',
+})
+const nodeOwnershipDraft = ref({
+  owner_area: '',
+  owner_role: '',
+  owner_routing_policy: '',
 })
 const feedback = reactive({
   type: '',
@@ -846,12 +856,17 @@ watch(
   { immediate: true },
 )
 
-watch(selectedNode, (node) => {
-  ui.parentTargetId = selectedNodeParentLink.value?.parent_node_id || ''
-  if (node && responseEditorRef.value) {
-    responseEditorRef.value.innerHTML = node.resposta || ''
-  }
-})
+watch(
+  selectedNode,
+  (node) => {
+    ui.parentTargetId = selectedNodeParentLink.value?.parent_node_id || ''
+    syncSelectedNodeOwnershipDraft(node)
+    if (node && responseEditorRef.value) {
+      responseEditorRef.value.innerHTML = node.resposta || ''
+    }
+  },
+  { immediate: true },
+)
 
 function handleGlobalPointerDown(event) {
   if (!overflowMenuRef.value) return
@@ -970,6 +985,51 @@ function syncBundleOwnerDraftFromWorkspace(options = {}) {
   }
 
   bundleOwnerDraft.value = nextDraft
+}
+
+function createSelectedNodeOwnershipDraft(node = null) {
+  return {
+    owner_area: String(node?.owner_area || ''),
+    owner_role: String(node?.owner_role || ''),
+    owner_routing_policy: String(node?.owner_routing_policy || ''),
+  }
+}
+
+function syncSelectedNodeOwnershipDraft(node = selectedNode.value) {
+  const nextDraft = createSelectedNodeOwnershipDraft(node)
+  const currentDraft = nodeOwnershipDraft.value
+  const isSameDraft = NODE_OWNERSHIP_TEXT_FIELDS.every(
+    (field) => String(currentDraft[field] || '') === nextDraft[field],
+  )
+  if (isSameDraft) {
+    return
+  }
+  nodeOwnershipDraft.value = nextDraft
+}
+
+function updateNodeOwnershipDraftField(field = '', eventOrValue = '') {
+  if (!NODE_OWNERSHIP_TEXT_FIELDS.includes(field)) return
+  nodeOwnershipDraft.value = {
+    ...nodeOwnershipDraft.value,
+    [field]: readEventValue(eventOrValue),
+  }
+}
+
+function commitNodeOwnershipDraftField(field = '', eventOrValue = null) {
+  if (!NODE_OWNERSHIP_TEXT_FIELDS.includes(field)) return
+  const nextValue =
+    eventOrValue === null
+      ? String(nodeOwnershipDraft.value[field] || '')
+      : readEventValue(eventOrValue)
+  nodeOwnershipDraft.value = {
+    ...nodeOwnershipDraft.value,
+    [field]: nextValue,
+  }
+  const currentValue = String(selectedNode.value?.[field] || '')
+  if (nextValue === currentValue) {
+    return
+  }
+  updateNodeOwnershipField(field, nextValue)
 }
 
 function goToFlowOverview() {
@@ -1776,70 +1836,6 @@ function applySpreadsheetImport() {
                 <p class="text-xs text-slate-500">Ajuste apenas o no selecionado.</p>
               </header>
 
-              <section class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
-                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  Responsavel padrao do fluxo
-                </p>
-                <div class="mt-2 grid gap-2">
-                  <label class="faq-field">
-                    <span>Tipo</span>
-                    <select
-                      :value="bundleOwnerDraft.ownerType"
-                      class="faq-input"
-                      @change="handleBundleOwnerTypeChange"
-                    >
-                      <option
-                        v-for="option in catalogs.operationalOwnerTypes"
-                        :key="option.value"
-                        :value="option.value"
-                      >
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </label>
-                  <label
-                    v-if="bundleOwnerDraft.ownerType === 'queue'"
-                    class="faq-field"
-                  >
-                    <span>Fila responsavel</span>
-                    <select
-                      :value="bundleOwnerDraft.queueKey"
-                      class="faq-input"
-                      @change="handleBundleOwnerQueueChange"
-                    >
-                      <option
-                        v-for="option in catalogs.queueDestinations"
-                        :key="option.value"
-                        :value="option.value"
-                      >
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </label>
-                  <label
-                    v-else-if="bundleOwnerDraft.ownerType === 'area'"
-                    class="faq-field"
-                  >
-                    <span>Area responsavel</span>
-                    <input
-                      :value="bundleOwnerDraft.areaLabel"
-                      class="faq-input"
-                      placeholder="Ex.: Secretaria Academica"
-                      @change="handleBundleOwnerAreaChange"
-                    />
-                  </label>
-                  <label v-else class="faq-field">
-                    <span>Perfil responsavel</span>
-                    <input
-                      :value="bundleOwnerDraft.roleKey"
-                      class="faq-input"
-                      placeholder="Ex.: analista_area"
-                      @change="handleBundleOwnerRoleChange"
-                    />
-                  </label>
-                </div>
-              </section>
-
               <div v-if="selectedNode" class="faq-node-drawer__content">
                 <label class="faq-field">
                   <span>Titulo curto</span>
@@ -1850,7 +1846,7 @@ function applySpreadsheetImport() {
                   />
                 </label>
 
-                <div class="grid gap-2 md:grid-cols-2">
+                <div class="grid gap-2">
                   <label class="faq-field">
                     <span>Tipo do no</span>
                     <select
@@ -1880,7 +1876,7 @@ function applySpreadsheetImport() {
                   </label>
                 </div>
 
-                <div class="grid gap-2 md:grid-cols-2">
+                <div class="grid gap-2">
                   <label class="faq-field">
                     <span>Destino da fila</span>
                     <select
@@ -1915,117 +1911,6 @@ function applySpreadsheetImport() {
                   </label>
                 </div>
 
-                <section class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
-                  <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    Ownership do no
-                  </p>
-                  <label class="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
-                    <input
-                      type="checkbox"
-                      :checked="selectedNode.owner_inherit !== false"
-                      @change="updateNodeOwnershipField('inherit', $event.target.checked)"
-                    />
-                    Usar responsavel herdado
-                  </label>
-                  <div v-if="selectedNode.owner_inherit === false" class="mt-2 grid gap-2">
-                    <label class="faq-field">
-                      <span>Tipo</span>
-                      <select
-                        :value="selectedNode.owner_type || 'queue'"
-                        class="faq-input"
-                        @change="updateNodeOwnershipField('ownerType', $event.target.value)"
-                      >
-                        <option
-                          v-for="option in catalogs.operationalOwnerTypes"
-                          :key="option.value"
-                          :value="option.value"
-                        >
-                          {{ option.label }}
-                        </option>
-                      </select>
-                    </label>
-                    <label
-                      v-if="(selectedNode.owner_type || 'queue') === 'queue'"
-                      class="faq-field"
-                    >
-                      <span>Fila responsavel</span>
-                      <select
-                        :value="selectedNode.owner_queue || ''"
-                        class="faq-input"
-                        @change="updateNodeOwnershipField('owner_queue', $event.target.value)"
-                      >
-                        <option
-                          v-for="option in catalogs.queueDestinations"
-                          :key="option.value"
-                          :value="option.value"
-                        >
-                          {{ option.label }}
-                        </option>
-                      </select>
-                    </label>
-                    <label
-                      v-else-if="selectedNode.owner_type === 'area'"
-                      class="faq-field"
-                    >
-                      <span>Area responsavel</span>
-                      <input
-                        :value="selectedNode.owner_area || ''"
-                        class="faq-input"
-                        placeholder="Ex.: Suporte Academico Digital"
-                        @input="updateNodeOwnershipField('owner_area', $event.target.value)"
-                      />
-                    </label>
-                    <label v-else class="faq-field">
-                      <span>Perfil responsavel</span>
-                      <input
-                        :value="selectedNode.owner_role || ''"
-                        class="faq-input"
-                        placeholder="Ex.: gestor_area"
-                        @input="updateNodeOwnershipField('owner_role', $event.target.value)"
-                      />
-                    </label>
-                    <label class="faq-field">
-                      <span>Politica de roteamento (opcional)</span>
-                      <input
-                        :value="selectedNode.owner_routing_policy || ''"
-                        class="faq-input"
-                        placeholder="Ex.: balancear_por_carga"
-                        @input="updateNodeOwnershipField('owner_routing_policy', $event.target.value)"
-                      />
-                    </label>
-                  </div>
-                  <p class="mt-2 text-[11px] text-slate-600">
-                    Responsavel efetivo:
-                    <strong>{{ selectedNodeEffectiveOwner?.owner?.queueLabel || selectedNodeEffectiveOwner?.owner?.areaLabel || selectedNodeEffectiveOwner?.owner?.roleKey || 'Nao resolvido' }}</strong>
-                    <span v-if="selectedNodeEffectiveOwner?.source" class="text-slate-500">
-                      ({{ selectedNodeEffectiveOwner.source }})
-                    </span>
-                  </p>
-                </section>
-
-                <div class="grid gap-2 md:grid-cols-[1fr_auto] md:items-end">
-                  <label class="faq-field">
-                    <span>Mover para outro pai</span>
-                    <select v-model="ui.parentTargetId" class="faq-input">
-                      <option value="">Escolha o novo pai</option>
-                      <option
-                        v-for="option in parentOptions"
-                        :key="option.value"
-                        :value="option.value"
-                      >
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
-                    @click="moveNodeParent"
-                  >
-                    Aplicar
-                  </button>
-                </div>
-
                 <section
                   v-if="selectedNodeMode === 'final'"
                   class="rounded-[14px] border border-slate-200 bg-slate-50 p-3"
@@ -2056,15 +1941,230 @@ function applySpreadsheetImport() {
                   ></div>
                 </section>
 
-                <label class="faq-field">
-                  <span>Tags</span>
-                  <input
-                    :value="(selectedNode.tags || []).join(', ')"
-                    class="faq-input"
-                    placeholder="ex.: prova,segunda chamada"
-                    @input="updateNodeTags($event.target.value)"
-                  />
-                </label>
+                <details class="faq-advanced-panel">
+                  <summary>Configuracoes avancadas</summary>
+
+                  <div class="mt-3 grid gap-3">
+                    <section class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+                      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        Responsavel e roteamento
+                      </p>
+                      <p class="mt-1 text-[11px] text-slate-600">
+                        Ajuste apenas quando este fluxo precisar sair do responsavel padrao.
+                      </p>
+
+                      <div class="mt-3 rounded-[10px] border border-slate-200 bg-white p-3">
+                        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          Responsavel padrao do fluxo
+                        </p>
+                        <div class="mt-2 grid gap-2">
+                          <label class="faq-field">
+                            <span>Tipo</span>
+                            <select
+                              :value="bundleOwnerDraft.ownerType"
+                              class="faq-input"
+                              @change="handleBundleOwnerTypeChange"
+                            >
+                              <option
+                                v-for="option in catalogs.operationalOwnerTypes"
+                                :key="option.value"
+                                :value="option.value"
+                              >
+                                {{ option.label }}
+                              </option>
+                            </select>
+                          </label>
+                          <label
+                            v-if="bundleOwnerDraft.ownerType === 'queue'"
+                            class="faq-field"
+                          >
+                            <span>Fila responsavel</span>
+                            <select
+                              :value="bundleOwnerDraft.queueKey"
+                              class="faq-input"
+                              @change="handleBundleOwnerQueueChange"
+                            >
+                              <option
+                                v-for="option in catalogs.queueDestinations"
+                                :key="option.value"
+                                :value="option.value"
+                              >
+                                {{ option.label }}
+                              </option>
+                            </select>
+                          </label>
+                          <label
+                            v-else-if="bundleOwnerDraft.ownerType === 'area'"
+                            class="faq-field"
+                          >
+                            <span>Area responsavel</span>
+                            <input
+                              :value="bundleOwnerDraft.areaLabel"
+                              class="faq-input"
+                              placeholder="Ex.: Secretaria Academica"
+                              @change="handleBundleOwnerAreaChange"
+                            />
+                          </label>
+                          <label v-else class="faq-field">
+                            <span>Perfil responsavel</span>
+                            <input
+                              :value="bundleOwnerDraft.roleKey"
+                              class="faq-input"
+                              placeholder="Ex.: analista_area"
+                              @change="handleBundleOwnerRoleChange"
+                            />
+                          </label>
+                          <p
+                            v-if="bundleOwnerDraft.ownerType !== 'queue'"
+                            class="text-[11px] text-slate-600"
+                          >
+                            Use apenas valores ja cadastrados. A publicacao valida estas referencias.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="mt-3 rounded-[10px] border border-slate-200 bg-white p-3">
+                        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          Responsavel deste no
+                        </p>
+                        <label class="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                          <input
+                            type="checkbox"
+                            :checked="selectedNode.owner_inherit !== false"
+                            @change="updateNodeOwnershipField('inherit', $event.target.checked)"
+                          />
+                          Usar responsavel herdado
+                        </label>
+                        <div v-if="selectedNode.owner_inherit === false" class="mt-2 grid gap-2">
+                          <label class="faq-field">
+                            <span>Tipo</span>
+                            <select
+                              :value="selectedNode.owner_type || 'queue'"
+                              class="faq-input"
+                              @change="updateNodeOwnershipField('ownerType', $event.target.value)"
+                            >
+                              <option
+                                v-for="option in catalogs.operationalOwnerTypes"
+                                :key="option.value"
+                                :value="option.value"
+                              >
+                                {{ option.label }}
+                              </option>
+                            </select>
+                          </label>
+                          <label
+                            v-if="(selectedNode.owner_type || 'queue') === 'queue'"
+                            class="faq-field"
+                          >
+                            <span>Fila responsavel</span>
+                            <select
+                              :value="selectedNode.owner_queue || ''"
+                              class="faq-input"
+                              @change="updateNodeOwnershipField('owner_queue', $event.target.value)"
+                            >
+                              <option
+                                v-for="option in catalogs.queueDestinations"
+                                :key="option.value"
+                                :value="option.value"
+                              >
+                                {{ option.label }}
+                              </option>
+                            </select>
+                          </label>
+                          <label
+                            v-else-if="selectedNode.owner_type === 'area'"
+                            class="faq-field"
+                          >
+                            <span>Area responsavel</span>
+                            <input
+                              :value="nodeOwnershipDraft.owner_area"
+                              class="faq-input"
+                              placeholder="Ex.: Suporte Academico Digital"
+                              @input="updateNodeOwnershipDraftField('owner_area', $event)"
+                              @blur="commitNodeOwnershipDraftField('owner_area')"
+                            />
+                          </label>
+                          <label v-else class="faq-field">
+                            <span>Perfil responsavel</span>
+                            <input
+                              :value="nodeOwnershipDraft.owner_role"
+                              class="faq-input"
+                              placeholder="Ex.: gestor_area"
+                              @input="updateNodeOwnershipDraftField('owner_role', $event)"
+                              @blur="commitNodeOwnershipDraftField('owner_role')"
+                            />
+                          </label>
+                          <p
+                            v-if="selectedNode.owner_type === 'area' || selectedNode.owner_type === 'role'"
+                            class="text-[11px] text-slate-600"
+                          >
+                            Use apenas valores ja cadastrados. A publicacao valida estas referencias.
+                          </p>
+                          <label class="faq-field">
+                            <span>Politica de roteamento (opcional)</span>
+                            <input
+                              :value="nodeOwnershipDraft.owner_routing_policy"
+                              class="faq-input"
+                              placeholder="Ex.: balancear_por_carga"
+                              @input="updateNodeOwnershipDraftField('owner_routing_policy', $event)"
+                              @blur="commitNodeOwnershipDraftField('owner_routing_policy')"
+                            />
+                          </label>
+                        </div>
+                        <p class="mt-2 text-[11px] text-slate-600">
+                          Responsavel efetivo:
+                          <strong>{{ selectedNodeEffectiveOwner?.owner?.queueLabel || selectedNodeEffectiveOwner?.owner?.areaLabel || selectedNodeEffectiveOwner?.owner?.roleKey || 'Nao resolvido' }}</strong>
+                          <span v-if="selectedNodeEffectiveOwner?.source" class="text-slate-500">
+                            ({{ selectedNodeEffectiveOwner.source }})
+                          </span>
+                        </p>
+                      </div>
+                    </section>
+
+                    <section class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+                      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        Estrutura do fluxo
+                      </p>
+                      <div class="mt-2 grid gap-2">
+                        <label class="faq-field">
+                          <span>Mover para outro pai</span>
+                          <select v-model="ui.parentTargetId" class="faq-input">
+                            <option value="">Escolha o novo pai</option>
+                            <option
+                              v-for="option in parentOptions"
+                              :key="option.value"
+                              :value="option.value"
+                            >
+                              {{ option.label }}
+                            </option>
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                          @click="moveNodeParent"
+                        >
+                          Aplicar
+                        </button>
+                      </div>
+                    </section>
+
+                    <section class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+                      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        Metadados
+                      </p>
+                      <label class="faq-field mt-2">
+                        <span>Tags</span>
+                        <input
+                          :value="(selectedNode.tags || []).join(', ')"
+                          class="faq-input"
+                          placeholder="ex.: prova,segunda chamada"
+                          @input="updateNodeTags($event.target.value)"
+                        />
+                      </label>
+                    </section>
+                  </div>
+                </details>
               </div>
 
               <div v-else class="faq-node-drawer__empty">
@@ -2485,6 +2585,7 @@ function applySpreadsheetImport() {
 .faq-field {
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .faq-field span {
@@ -2497,12 +2598,29 @@ function applySpreadsheetImport() {
 }
 
 .faq-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid #cbd5e1;
   border-radius: 0.7rem;
   padding: 0.52rem 0.68rem;
   font-size: 0.8rem;
   color: #1e293b;
   background: #fff;
+}
+
+.faq-advanced-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.85rem;
+  background: #fff;
+  padding: 0.85rem;
+}
+
+.faq-advanced-panel summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #334155;
 }
 
 .faq-editor-btn {
