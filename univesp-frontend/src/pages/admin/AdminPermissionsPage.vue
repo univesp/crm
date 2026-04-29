@@ -144,41 +144,56 @@ function savePermissionChanges() {
     <SectionPanel
       eyebrow="Admin"
       title="Permissoes e visibilidade por fila e area"
-      description="Defina quem enxerga cada fila, quem administra cada area e quais acoes ficam disponiveis."
+      description="Escolha um perfil, revise o escopo, confira as acoes criticas e salve somente depois de entender o impacto."
     >
-      <div class="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
-        <div class="grid gap-3 md:grid-cols-2">
-          <div class="inner-panel p-5">
-            <p class="text-sm font-semibold text-slate-500">Ator atual</p>
-            <p class="mt-3 text-lg font-semibold text-slate-950">{{ permissionsDraft.currentActor.name }}</p>
-            <p class="mt-2 text-sm text-slate-600">{{ permissionsDraft.currentActor.role }}</p>
-          </div>
-          <div class="inner-panel p-5">
-            <p class="text-sm font-semibold text-slate-500">Base de impacto</p>
-            <p class="mt-3 text-lg font-semibold text-slate-950">{{ dashboardData.activeCases.length }} casos ativos</p>
-            <p class="mt-2 text-sm text-slate-600">Leitura compartilhada com dashboard e fila do OP.</p>
+      <div class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div class="inner-panel p-5">
+          <p class="text-sm font-semibold text-slate-500">Proximo passo</p>
+          <div class="mt-4 grid gap-3 md:grid-cols-4">
+            <div class="rounded-[16px] bg-slate-50 px-4 py-3">
+              <p class="text-sm font-semibold text-slate-900">1. Escolha</p>
+              <p class="mt-1 text-xs leading-5 text-slate-600">Selecione a politica do perfil.</p>
+            </div>
+            <div class="rounded-[16px] bg-slate-50 px-4 py-3">
+              <p class="text-sm font-semibold text-slate-900">2. Revise</p>
+              <p class="mt-1 text-xs leading-5 text-slate-600">Confira escopo, filas e areas.</p>
+            </div>
+            <div class="rounded-[16px] bg-slate-50 px-4 py-3">
+              <p class="text-sm font-semibold text-slate-900">3. Confira</p>
+              <p class="mt-1 text-xs leading-5 text-slate-600">Veja acoes criticas antes de salvar.</p>
+            </div>
+            <div class="rounded-[16px] bg-slate-50 px-4 py-3">
+              <p class="text-sm font-semibold text-slate-900">4. Salve</p>
+              <p class="mt-1 text-xs leading-5 text-slate-600">Registre a mudanca com observacao.</p>
+            </div>
           </div>
         </div>
 
         <div class="inner-panel p-5">
-          <p class="text-sm font-semibold text-slate-500">Coerencia de acesso</p>
-          <p class="mt-3 text-lg font-semibold text-slate-950">Perfis, polos, filas e areas no mesmo eixo</p>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            A visibilidade acompanha a mesma base de casos e o mesmo roteamento por polo e fila.
+          <p class="text-sm font-semibold text-slate-500">Contexto desta matriz</p>
+          <p class="mt-3 text-lg font-semibold text-slate-950">{{ permissionsDraft.currentActor.name }}</p>
+          <p class="mt-1 text-sm text-slate-600">{{ permissionsDraft.currentActor.role }} - {{ dashboardData.activeCases.length }} casos ativos na base de impacto.</p>
+          <p class="mt-3 text-sm leading-6 text-slate-600">
+            As alteracoes nesta matriz orientam a governanca administrativa. A aplicacao efetiva das permissoes deve ser validada nas regras de acesso integradas.
           </p>
         </div>
       </div>
     </SectionPanel>
 
-    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <MetricCard
-        v-for="metric in runtime.metrics"
-        :key="metric.label"
-        :label="metric.label"
-        :value="metric.value"
-        :hint="metric.hint"
-      />
-    </section>
+    <details class="inner-panel p-5">
+      <summary class="cursor-pointer text-sm font-semibold text-slate-700">
+        Ver resumo da matriz
+      </summary>
+      <section class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          v-for="metric in runtime.metrics"
+          :key="metric.label"
+          :label="metric.label"
+          :value="metric.value"
+          :hint="metric.hint"
+        />
+      </section>
+    </details>
 
     <SectionPanel
       eyebrow="Impacto por perfil"
@@ -300,7 +315,17 @@ function savePermissionChanges() {
               Escopo {{ selectedPermissionImpact.impactScope }}: {{ selectedPermissionImpact.visibleQueueCount }} fila(s), {{ selectedPermissionImpact.visiblePolos.length }} polo(s), {{ selectedPermissionImpact.administeredAreas.length }} area(s) gerenciavel(is).
             </p>
             <p class="mt-1 text-xs text-slate-600">
-              Em backend real, o servidor deve rejeitar qualquer acao fora desse escopo mesmo que a UI seja alterada.
+              A autorizacao efetiva deve ser validada pelas regras de acesso integradas.
+            </p>
+          </div>
+
+          <div
+            v-if="form.scopeType === 'global' || form.allowedActions.publish_version || form.allowedActions.edit_parameters || form.allowedActions.edit_faq || form.allowedActions.view_audit || form.allowedActions.reassign"
+            class="rounded-[16px] border border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.62)] px-4 py-4"
+          >
+            <p class="text-sm font-semibold text-slate-900">Revise antes de salvar</p>
+            <p class="mt-2 text-sm leading-6 text-slate-700">
+              Esta politica inclui escopo amplo ou acao sensivel. Confira se o perfil realmente deve alterar fluxo, parametro, publicacao, auditoria ou reatribuicao.
             </p>
           </div>
 
@@ -449,24 +474,59 @@ function savePermissionChanges() {
             </div>
           </div>
 
-          <div class="grid gap-3">
-            <p class="text-sm font-semibold text-slate-600">Acoes permitidas</p>
-            <label
-              v-for="action in runtime.catalogs.actions"
-              :key="action.value"
-              class="inner-panel flex items-center justify-between gap-3 p-4"
-            >
+          <div class="grid gap-4">
+            <div>
+              <p class="text-sm font-semibold text-slate-600">Acoes permitidas</p>
+              <p class="mt-1 text-xs leading-5 text-slate-500">
+                Acoes de operacao ficam separadas das acoes de governanca para reduzir erro de concessao.
+              </p>
+            </div>
+
+            <section class="grid gap-3 rounded-[20px] border border-slate-200 bg-slate-50/75 p-4">
               <div>
-                <p class="text-sm font-semibold text-slate-900">{{ action.label }}</p>
-                <p class="mt-1 text-xs text-slate-500">
-                  {{ action.governance ? 'Acao de governanca' : 'Acao operacional' }}
-                </p>
+                <p class="text-sm font-semibold text-slate-900">Operacao</p>
+                <p class="mt-1 text-xs text-slate-500">Acoes do atendimento diario e da redistribuicao operacional.</p>
               </div>
-              <input
-                v-model="form.allowedActions[action.value]"
-                type="checkbox"
-              />
-            </label>
+              <label
+                v-for="action in runtime.catalogs.actions.filter((item) => !item.governance)"
+                :key="action.value"
+                class="inner-panel flex items-center justify-between gap-3 p-4"
+              >
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ action.label }}</p>
+                  <p class="mt-1 text-xs text-slate-500">Acao operacional</p>
+                </div>
+                <input
+                  v-model="form.allowedActions[action.value]"
+                  type="checkbox"
+                />
+              </label>
+            </section>
+
+            <details class="rounded-[20px] border border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.35)] p-4">
+              <summary class="cursor-pointer text-sm font-semibold text-slate-900">
+                Governanca avancada
+              </summary>
+              <p class="mt-2 text-xs leading-5 text-slate-600">
+                Use com cuidado: estas acoes podem afetar FAQ, parametros, publicacao, auditoria ou alcance administrativo.
+              </p>
+              <div class="mt-3 grid gap-3">
+                <label
+                  v-for="action in runtime.catalogs.actions.filter((item) => item.governance)"
+                  :key="action.value"
+                  class="inner-panel flex items-center justify-between gap-3 p-4"
+                >
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ action.label }}</p>
+                    <p class="mt-1 text-xs text-slate-500">Acao de governanca</p>
+                  </div>
+                  <input
+                    v-model="form.allowedActions[action.value]"
+                    type="checkbox"
+                  />
+                </label>
+              </div>
+            </details>
           </div>
 
           <label class="grid gap-2">
@@ -509,8 +569,12 @@ function savePermissionChanges() {
       </SectionPanel>
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+    <details class="inner-panel p-5">
+      <summary class="cursor-pointer text-sm font-semibold text-slate-700">
+        Ver filas visiveis por perfil
+      </summary>
       <SectionPanel
+        class="mt-4"
         eyebrow="Visibilidade"
         title="Filas visiveis por perfil"
         description="Veja quais perfis acompanham cada fila e quais assumem governanca sobre ela."
@@ -537,8 +601,14 @@ function savePermissionChanges() {
           </article>
         </div>
       </SectionPanel>
+    </details>
 
+    <details class="inner-panel p-5">
+      <summary class="cursor-pointer text-sm font-semibold text-slate-700">
+        Ver auditoria administrativa
+      </summary>
       <SectionPanel
+        class="mt-4"
         eyebrow="Auditoria admin"
         title="Mudancas de permissao"
         description="Cada alteracao registra ator, data e comparacao entre antes e depois."
@@ -585,6 +655,6 @@ function savePermissionChanges() {
           </article>
         </div>
       </SectionPanel>
-    </div>
+    </details>
   </div>
 </template>
