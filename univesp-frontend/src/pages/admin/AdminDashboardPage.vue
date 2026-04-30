@@ -562,6 +562,14 @@ const faqEscapeTrend = computed(() =>
     value: Math.max(8, Math.min(100, faqEscapeRate.value + (index - 2) * 3)),
   })),
 )
+const areaEscapeCount = computed(() => metricValue('Escalados para area interna'))
+const areaEscapeRate = computed(() => {
+  const total = Math.max(
+    selfServiceEscape.value.resolvedByFaq + selfServiceEscape.value.sentToOp + areaEscapeCount.value,
+    1,
+  )
+  return Math.round((areaEscapeCount.value / total) * 100)
+})
 const operationalAlerts = computed(() => {
   const alerts = []
   const mainCluster = topRiskItems.value[0]
@@ -826,23 +834,14 @@ function getRiskLabel(row) {
     <div class="grid gap-4 xl:grid-cols-[0.38fr_0.62fr]">
 
       <!-- Donut distribuicao -->
-      <div class="rounded-[16px] border border-slate-200 bg-white p-4">
-        <div class="flex items-start justify-between gap-2">
-          <div>
-            <p class="text-xs font-semibold text-slate-500">Fluxo</p>
-            <p class="text-sm font-semibold text-slate-950">Distribuicao da demanda</p>
-            <p class="mt-0.5 text-xs text-slate-400">Caminho dos atendimentos na visao atual.</p>
-          </div>
-          <button
-            type="button"
-            class="shrink-0 text-xs font-semibold text-[var(--color-primary)]"
-            @click="selectViewMode('faq')"
-          >
-            Ver detalhes &rarr;
-          </button>
+      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+        <div>
+          <p class="text-xs font-semibold text-slate-500">Fluxo</p>
+          <p class="text-sm font-semibold text-slate-950">Distribuicao da demanda</p>
+          <p class="mt-0.5 text-xs text-slate-400">Caminho dos atendimentos na visao atual.</p>
         </div>
 
-        <div class="mt-4 flex items-center gap-5">
+        <div class="mt-4 flex flex-1 items-center gap-5">
           <div class="relative h-[120px] w-[120px] shrink-0">
             <svg viewBox="0 0 42 42" class="h-full w-full -rotate-90" aria-label="Distribuicao da demanda">
               <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="#e2e8f0" stroke-width="5" />
@@ -882,10 +881,20 @@ function getRiskLabel(row) {
             </div>
           </div>
         </div>
+
+        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+          <button
+            type="button"
+            class="text-xs font-semibold text-[var(--color-primary)]"
+            @click="selectViewMode('faq')"
+          >
+            Ver detalhes &rarr;
+          </button>
+        </div>
       </div>
 
       <!-- Grafico de evolucao -->
-      <div class="rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-xs font-semibold text-slate-500">Tendencia</p>
@@ -945,26 +954,26 @@ function getRiskLabel(row) {
           <span v-for="entry in demandTrend" :key="entry.label" class="truncate">{{ entry.label }}</span>
         </div>
 
-        <button
-          type="button"
-          class="mt-2 text-xs font-semibold text-[var(--color-primary)]"
-          @click="selectViewMode('areas')"
-        >
-          Ver evolucao completa &rarr;
-        </button>
+        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+          <button
+            type="button"
+            class="text-xs font-semibold text-[var(--color-primary)]"
+            @click="selectViewMode('areas')"
+          >
+            Ver evolucao completa &rarr;
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- 4. AREAS INTERNAS + POLOS EM ATENCAO (tabelas compactas) -->
-    <div class="grid gap-4 xl:grid-cols-2">
+    <div class="grid gap-4 md:grid-cols-2">
 
       <!-- Areas internas em risco -->
-      <div class="rounded-[16px] border border-slate-200 bg-white p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold text-slate-500">Risco</p>
-            <p class="text-sm font-semibold text-slate-950">Areas internas em risco</p>
-          </div>
+      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+        <div>
+          <p class="text-xs font-semibold text-slate-500">Risco</p>
+          <p class="text-sm font-semibold text-slate-950">Areas internas em risco</p>
         </div>
 
         <div v-if="areaRiskRows.length" class="mt-3">
@@ -1017,22 +1026,22 @@ function getRiskLabel(row) {
           Ajuste os filtros para retomar a leitura por area.
         </div>
 
-        <button
-          type="button"
-          class="mt-3 text-xs font-semibold text-[var(--color-primary)]"
-          @click="selectViewMode('areas')"
-        >
-          Ver todas as areas internas &rarr;
-        </button>
+        <div class="mt-auto flex justify-end border-t border-slate-50 pt-3">
+          <button
+            type="button"
+            class="text-xs font-semibold text-[var(--color-primary)]"
+            @click="selectViewMode('areas')"
+          >
+            Ver todas as areas internas &rarr;
+          </button>
+        </div>
       </div>
 
       <!-- Polos em atencao -->
-      <div class="rounded-[16px] border border-slate-200 bg-white p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold text-slate-500">Polos</p>
-            <p class="text-sm font-semibold text-slate-950">Polos em atencao</p>
-          </div>
+      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+        <div>
+          <p class="text-xs font-semibold text-slate-500">Polos</p>
+          <p class="text-sm font-semibold text-slate-950">Polos em atencao</p>
         </div>
 
         <div v-if="poloRiskRows.length" class="mt-3">
@@ -1085,36 +1094,29 @@ function getRiskLabel(row) {
           Nenhum polo encontrado nos filtros atuais.
         </div>
 
-        <button
-          type="button"
-          class="mt-3 text-xs font-semibold text-[var(--color-primary)]"
-          @click="selectViewMode('polos')"
-        >
-          Ver todos os polos &rarr;
-        </button>
+        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+          <button
+            type="button"
+            class="text-xs font-semibold text-[var(--color-primary)]"
+            @click="selectViewMode('polos')"
+          >
+            Ver todos os polos &rarr;
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- 5. TEMAS + ACOES + ESCAPE DA FAQ -->
-    <div class="grid gap-4 xl:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 
       <!-- Temas em alta -->
-      <div class="rounded-[16px] border border-slate-200 bg-white p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold text-slate-500">Temas</p>
-            <p class="text-sm font-semibold text-slate-950">Temas em alta</p>
-          </div>
-          <button
-            type="button"
-            class="text-xs font-semibold text-[var(--color-primary)]"
-            @click="selectViewMode('temas')"
-          >
-            Ver todas
-          </button>
+      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+        <div>
+          <p class="text-xs font-semibold text-slate-500">Temas</p>
+          <p class="text-sm font-semibold text-slate-950">Temas em alta</p>
         </div>
 
-        <div v-if="themeRanking.length" class="mt-3 grid gap-2">
+        <div v-if="themeRanking.length" class="mt-3 flex-1 grid gap-2">
           <button
             v-for="theme in themeRanking"
             :key="theme.theme"
@@ -1136,28 +1138,29 @@ function getRiskLabel(row) {
           </button>
         </div>
 
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="mt-3 flex-1 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
           Sem temas ativos nos filtros atuais.
+        </div>
+
+        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+          <button
+            type="button"
+            class="text-xs font-semibold text-[var(--color-primary)]"
+            @click="selectViewMode('temas')"
+          >
+            Ver todos &rarr;
+          </button>
         </div>
       </div>
 
       <!-- Acoes recomendadas -->
-      <div class="rounded-[16px] border border-slate-200 bg-white p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold text-slate-500">Agora</p>
-            <p class="text-sm font-semibold text-slate-950">Acoes recomendadas</p>
-          </div>
-          <button
-            type="button"
-            class="text-xs font-semibold text-[var(--color-primary)]"
-            @click="selectViewMode('areas')"
-          >
-            Ver todas
-          </button>
+      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+        <div>
+          <p class="text-xs font-semibold text-slate-500">Agora</p>
+          <p class="text-sm font-semibold text-slate-950">Acoes recomendadas</p>
         </div>
 
-        <div class="mt-3 grid gap-2">
+        <div class="mt-3 flex-1 grid gap-2">
           <button
             v-for="action in recommendedActions"
             :key="action.title"
@@ -1193,34 +1196,48 @@ function getRiskLabel(row) {
             <span class="shrink-0 text-slate-400 text-sm">›</span>
           </button>
         </div>
+
+        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+          <button
+            type="button"
+            class="text-xs font-semibold text-[var(--color-primary)]"
+            @click="selectViewMode('areas')"
+          >
+            Ver todas &rarr;
+          </button>
+        </div>
       </div>
 
       <!-- Escape da FAQ -->
-      <div class="rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Escape da FAQ</p>
-          <p class="text-sm font-semibold text-slate-950">Foram para OP apos FAQ</p>
+          <p class="text-sm font-semibold text-slate-950">Saida apos FAQ</p>
         </div>
 
-        <div class="mt-3 flex items-end justify-between gap-3">
-          <div>
-            <p class="text-4xl font-semibold text-slate-950">{{ faqEscapeRate }}%</p>
-            <p class="mt-1 text-xs text-slate-500">no periodo</p>
+        <!-- Dois indicadores de escape lado a lado -->
+        <div class="mt-3 grid grid-cols-2 gap-2">
+          <div class="rounded-[12px] bg-slate-50 px-3 py-2 text-center">
+            <p class="text-2xl font-semibold text-slate-950">{{ faqEscapeRate }}%</p>
+            <p class="text-xs font-semibold text-slate-700">{{ selfServiceEscape.sentToOp }} casos</p>
+            <p class="mt-0.5 text-[10px] text-slate-400">OP apos FAQ</p>
           </div>
-          <div class="grid gap-1 text-right text-xs">
-            <div>
-              <p class="font-semibold text-slate-700">{{ selfServiceEscape.sentToOp }}</p>
-              <p class="text-[10px] text-slate-400">OP apos FAQ</p>
-            </div>
-            <div>
-              <p class="font-semibold text-slate-700">{{ selfServiceEscape.recurrence }}</p>
-              <p class="text-[10px] text-slate-400">reincidencias</p>
-            </div>
+          <div class="rounded-[12px] bg-amber-50 px-3 py-2 text-center">
+            <p class="text-2xl font-semibold text-slate-950">{{ areaEscapeRate }}%</p>
+            <p class="text-xs font-semibold text-slate-700">{{ areaEscapeCount }} casos</p>
+            <p class="mt-0.5 text-[10px] text-slate-400">Area interna</p>
           </div>
         </div>
 
-        <div class="relative mt-3 h-16">
-          <div class="absolute inset-x-0 bottom-5 flex items-end gap-1" style="height: 36px;">
+        <!-- Secundarios compactos -->
+        <div class="mt-2 flex items-center gap-4 text-xs text-slate-600">
+          <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.recurrence }}</strong> reincidencias</span>
+          <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.resolvedByFaq }}</strong> resolv. FAQ</span>
+        </div>
+
+        <!-- Mini grafico de evolucao -->
+        <div class="relative mt-3 h-14">
+          <div class="absolute inset-x-0 bottom-5 flex items-end gap-1" style="height: 32px;">
             <span
               v-for="entry in faqEscapeTrend"
               :key="entry.label"
@@ -1228,7 +1245,7 @@ function getRiskLabel(row) {
             >
               <span
                 class="w-full rounded-t-sm bg-[rgba(37,99,235,0.65)]"
-                :style="{ height: `${Math.max(6, Math.round(entry.value * 0.32))}px` }"
+                :style="{ height: `${Math.max(4, Math.round(entry.value * 0.28))}px` }"
               ></span>
             </span>
           </div>
@@ -1241,10 +1258,7 @@ function getRiskLabel(row) {
           </div>
         </div>
 
-        <div class="mt-2 flex items-center justify-between">
-          <p class="text-xs font-semibold text-slate-700">
-            {{ selfServiceEscape.resolvedByFaq }} resolvidos pela FAQ
-          </p>
+        <div class="mt-auto flex justify-end border-t border-slate-50 pt-3">
           <button
             type="button"
             class="text-xs font-semibold text-[var(--color-primary)]"
