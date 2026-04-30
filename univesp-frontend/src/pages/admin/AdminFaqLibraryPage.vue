@@ -241,6 +241,84 @@ function archiveFlow(bundleId = '') {
   saveFaqBuilderBundleLibraryLocal(library)
   setFeedback('success', 'Fluxo arquivado.')
 }
+
+function statusLabel(status = '') {
+  const normalized = String(status || '').toLowerCase()
+  const labels = {
+    draft: 'Rascunho',
+    published: 'Publicado',
+    'in review': 'Em revisao',
+    review: 'Em revisao',
+    archived: 'Arquivado',
+  }
+  return labels[normalized] || status || 'Nao informado'
+}
+
+function faqTypeLabel(type = '') {
+  const normalized = String(type || '').toLowerCase()
+  const labels = {
+    op: 'Orientador de Polo',
+    aluno: 'Aluno',
+    admin: 'Administrativo',
+  }
+  return labels[normalized] || type || 'Nao informado'
+}
+
+function formatDate(dateValue = '') {
+  if (!dateValue) {
+    return '-'
+  }
+
+  const date = new Date(dateValue)
+
+  if (Number.isNaN(date.getTime())) {
+    return String(dateValue).slice(0, 10) || '-'
+  }
+
+  return new Intl.DateTimeFormat('pt-BR').format(date)
+}
+
+function situationLabel(row = {}) {
+  if (row.hasBlockingError) {
+    return 'Bloqueado'
+  }
+
+  if (row.hasOwnershipGap || Number(row.validationWarnings || 0) > 0) {
+    return 'Atencao'
+  }
+
+  return 'OK'
+}
+
+function situationHint(row = {}) {
+  if (row.hasBlockingError) {
+    return 'Nao publicar'
+  }
+
+  if (row.hasOwnershipGap) {
+    return 'Revisar responsavel'
+  }
+
+  if (Number(row.validationWarnings || 0) > 0) {
+    return 'Revisar pendencias'
+  }
+
+  return 'Sem bloqueios'
+}
+
+function situationTone(row = {}) {
+  const label = situationLabel(row)
+
+  if (label === 'Bloqueado') {
+    return 'danger'
+  }
+
+  if (label === 'Atencao') {
+    return 'warning'
+  }
+
+  return 'success'
+}
 </script>
 
 <template>
@@ -271,7 +349,7 @@ function archiveFlow(bundleId = '') {
           <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.total }}</p>
         </div>
         <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Draft</p>
+          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Rascunhos</p>
           <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.draft }}</p>
         </div>
         <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
@@ -297,27 +375,27 @@ function archiveFlow(bundleId = '') {
       {{ feedback.message }}
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-      <article class="rounded-[18px] border border-slate-200 bg-white p-4">
+    <section class="grid gap-3">
+      <article class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
         <p class="text-sm font-semibold text-slate-900">Filtros da biblioteca</p>
-        <div class="mt-3 grid gap-3 md:grid-cols-3">
-          <label class="grid gap-1.5">
+        <div class="mt-2 grid gap-2 md:grid-cols-[minmax(220px,1fr)_minmax(150px,180px)_minmax(150px,180px)]">
+          <label class="grid min-w-0 gap-1">
             <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Buscar</span>
-            <input v-model="filters.search" type="text" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm" placeholder="Nome do fluxo, assunto ou tipo" />
+            <input v-model="filters.search" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Nome do fluxo, assunto ou tipo" />
           </label>
-          <label class="grid gap-1.5">
+          <label class="grid min-w-0 gap-1">
             <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Status</span>
-            <select v-model="filters.status" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm">
+            <select v-model="filters.status" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
               <option value="all">Todos</option>
-              <option value="draft">Draft</option>
-              <option value="in review">In Review</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
+              <option value="draft">Rascunho</option>
+              <option value="in review">Em revisao</option>
+              <option value="published">Publicado</option>
+              <option value="archived">Arquivado</option>
             </select>
           </label>
-          <label class="grid gap-1.5">
+          <label class="grid min-w-0 gap-1">
             <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo de FAQ</span>
-            <select v-model="filters.faqType" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm">
+            <select v-model="filters.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
               <option value="all">Todos</option>
               <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
@@ -325,120 +403,85 @@ function archiveFlow(bundleId = '') {
         </div>
       </article>
 
-      <article class="rounded-[18px] border border-slate-200 bg-white p-4">
-        <p class="text-sm font-semibold text-slate-900">Criar novo fluxo</p>
-        <div class="mt-3 grid gap-3">
-          <label class="grid gap-1.5">
+      <details class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-900">
+          Criar novo fluxo
+          <span class="ml-2 text-xs font-normal text-slate-500">Cadastre um novo fluxo quando nao houver fluxo equivalente.</span>
+        </summary>
+        <div class="mt-3 grid gap-2 md:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_140px] md:items-end">
+          <label class="grid min-w-0 gap-1">
             <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo</span>
-            <select v-model="createForm.faqType" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm">
+            <select v-model="createForm.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
               <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
-          <label class="grid gap-1.5">
+          <label class="grid min-w-0 gap-1">
             <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Nome do fluxo</span>
-            <input v-model="createForm.title" type="text" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm" placeholder="Ex.: Provas e segunda chamada" />
+            <input v-model="createForm.title" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: Provas e segunda chamada" />
           </label>
-          <label class="grid gap-1.5">
+          <label class="grid min-w-0 gap-1">
             <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Chave do assunto (opcional)</span>
-            <input v-model="createForm.subjectKey" type="text" class="rounded-[12px] border border-slate-300 px-3 py-2 text-sm" placeholder="Ex.: provas_segunda_chamada" />
+            <input v-model="createForm.subjectKey" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: provas_segunda_chamada" />
           </label>
-          <button type="button" class="rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="createFlow">
+          <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white" @click="createFlow">
             Criar fluxo
           </button>
         </div>
-      </article>
+      </details>
     </section>
 
     <section class="rounded-[18px] border border-slate-200 bg-white p-4">
       <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
-      <div class="mt-3 overflow-auto rounded-[12px] border border-slate-200">
-        <table class="w-full min-w-[1260px] text-left text-xs">
+        <div class="mt-3 overflow-auto rounded-[12px] border border-slate-200">
+        <table class="w-full min-w-[900px] text-left text-xs">
           <thead class="bg-slate-100 text-slate-600">
             <tr>
               <th class="px-3 py-2">Fluxo</th>
-              <th class="px-3 py-2">Tipo</th>
               <th class="px-3 py-2">Status</th>
-              <th class="px-3 py-2">Nos</th>
-              <th class="px-3 py-2">Owner padrao</th>
-              <th class="px-3 py-2">Cobertura owner</th>
-              <th class="px-3 py-2">Integridade</th>
-              <th class="px-3 py-2">Ultima edicao</th>
-              <th class="px-3 py-2">Proximo passo</th>
+              <th class="px-3 py-2">Area responsavel</th>
+              <th class="px-3 py-2">Situacao</th>
+              <th class="px-3 py-2">Atualizado em</th>
+              <th class="px-3 py-2">Acao</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.bundleId" class="border-t border-slate-200">
-              <td class="px-3 py-3">
+              <td class="px-3 py-2">
                 <p class="font-semibold text-slate-900">{{ row.title }}</p>
-                <p class="mt-1 text-slate-600">{{ row.subjectKey }}</p>
-                <p class="mt-1 text-slate-500">{{ row.bundleId }}</p>
               </td>
-              <td class="px-3 py-3">{{ row.faqType }}</td>
-              <td class="px-3 py-3">
-                <StatusBadge :label="row.workflowStatus" />
+              <td class="px-3 py-2">
+                <StatusBadge :label="statusLabel(row.statusKey || row.workflowStatus)" />
               </td>
-              <td class="px-3 py-3">{{ row.nodeCount }}</td>
-              <td class="px-3 py-3">
+              <td class="px-3 py-2">
                 <p class="font-semibold text-slate-900">{{ row.bundleOwnerLabel || '-' }}</p>
-                <p class="mt-1 text-slate-600">{{ row.bundleOwnerType }}</p>
               </td>
-              <td class="px-3 py-3">
+              <td class="px-3 py-2">
                 <p
                   :class="
-                    row.hasOwnershipGap
+                    situationTone(row) === 'danger'
                       ? 'text-[var(--color-danger)] font-semibold'
-                      : 'text-[var(--color-success)] font-semibold'
+                      : situationTone(row) === 'warning'
+                        ? 'text-amber-700 font-semibold'
+                        : 'text-[var(--color-success)] font-semibold'
                   "
                 >
-                  {{ row.ownershipCoverageLabel }}
+                  {{ situationLabel(row) }}
                 </p>
-                <p class="mt-1 text-slate-600">
-                  {{
-                    row.hasOwnershipGap
-                      ? `${row.ownershipMissingFinalNodes} final(is) sem owner efetivo`
-                      : 'Sem gaps de ownership'
-                  }}
-                </p>
+                <p class="mt-1 text-slate-600">{{ situationHint(row) }}</p>
               </td>
-              <td class="px-3 py-3">
-                <p :class="row.hasBlockingError ? 'text-[var(--color-danger)] font-semibold' : 'text-[var(--color-success)] font-semibold'">
-                  {{ row.hasBlockingError ? `${row.validationErrors} erro(s)` : 'Sem erro bloqueador' }}
-                </p>
-                <p class="mt-1 text-slate-600">{{ row.validationWarnings }} warning(s)</p>
+              <td class="px-3 py-2">
+                <p>{{ formatDate(row.updatedAt) }}</p>
               </td>
-              <td class="px-3 py-3">
-                <p>{{ row.updatedAt }}</p>
-                <p class="mt-1 text-slate-600">{{ row.updatedBy }}</p>
-              </td>
-              <td class="px-3 py-3">
-                <div class="grid gap-2">
-                  <div class="flex flex-wrap gap-2">
-                    <button type="button" class="rounded-[10px] bg-slate-900 px-2 py-1 font-semibold text-white" @click="openBundle(row.bundleId)">
+              <td class="px-3 py-2">
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
                     Ver fluxo
                     </button>
-                    <button type="button" class="rounded-[10px] border border-slate-300 px-2 py-1 font-semibold text-slate-700" @click="openBundleEditor(row.bundleId)">
-                      Editar
-                    </button>
-                  </div>
-                  <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-2 py-2">
-                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Acoes avancadas</p>
-                    <div class="flex flex-wrap gap-1.5">
-                      <button type="button" class="rounded-[9px] border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-600" @click="openBundleEditor(row.bundleId, { mode: 'import' })">
-                        Importar
-                      </button>
-                      <button type="button" class="rounded-[9px] border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-600" @click="duplicateFlow(row.bundleId)">
-                        Duplicar
-                      </button>
-                      <button type="button" class="rounded-[9px] border border-[rgba(166,31,40,0.24)] bg-white px-2 py-1 font-semibold text-[var(--color-danger)]" @click="archiveFlow(row.bundleId)">
-                        Arquivar
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </td>
             </tr>
             <tr v-if="!rows.length" class="border-t border-slate-200">
-              <td colspan="9" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
+              <td colspan="6" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
             </tr>
           </tbody>
         </table>
