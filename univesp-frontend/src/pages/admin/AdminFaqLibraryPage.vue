@@ -343,7 +343,7 @@ function situationTone(row = {}) {
       title="Biblioteca de fluxos da base de conhecimento"
       description="Escolha um fluxo para editar. O canvas abre apenas um bundle por vez em tela dedicada."
     >
-      <div class="grid gap-3 md:grid-cols-5">
+      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
           <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Fluxos</p>
           <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.total }}</p>
@@ -408,7 +408,7 @@ function situationTone(row = {}) {
           Criar novo fluxo
           <span class="ml-2 text-xs font-normal text-slate-500">Cadastre um novo fluxo quando nao houver fluxo equivalente.</span>
         </summary>
-        <div class="mt-3 grid gap-2 md:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_140px] md:items-end">
+        <div class="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_140px] lg:items-end">
           <label class="grid min-w-0 gap-1">
             <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo</span>
             <select v-model="createForm.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">

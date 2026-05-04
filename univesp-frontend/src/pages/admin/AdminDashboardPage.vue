@@ -811,7 +811,7 @@ function getRiskLabel(row) {
     </section>
 
     <!-- 2. KPI ROW -->
-    <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+    <section class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
       <button
         v-for="card in criticalKpiCards"
         :key="card.label"
@@ -831,7 +831,7 @@ function getRiskLabel(row) {
     </section>
 
     <!-- 3. DISTRIBUICAO + TENDENCIA -->
-    <div class="grid gap-4 xl:grid-cols-[0.38fr_0.62fr]">
+    <div class="grid gap-4 lg:grid-cols-[0.38fr_0.62fr]">
 
       <!-- Donut distribuicao -->
       <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
@@ -976,7 +976,8 @@ function getRiskLabel(row) {
           <p class="text-sm font-semibold text-slate-950">Areas internas em risco</p>
         </div>
 
-        <div v-if="areaRiskRows.length" class="mt-3">
+        <div v-if="areaRiskRows.length" class="mt-3 overflow-x-auto">
+          <div class="min-w-[420px]">
           <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
             <span>Area interna</span>
             <span class="text-center">Risco</span>
@@ -1020,6 +1021,7 @@ function getRiskLabel(row) {
               Abrir
             </button>
           </div>
+          </div>
         </div>
 
         <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
@@ -1044,7 +1046,8 @@ function getRiskLabel(row) {
           <p class="text-sm font-semibold text-slate-950">Polos em atencao</p>
         </div>
 
-        <div v-if="poloRiskRows.length" class="mt-3">
+        <div v-if="poloRiskRows.length" class="mt-3 overflow-x-auto">
+          <div class="min-w-[420px]">
           <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
             <span>Polo</span>
             <span class="text-center">Risco</span>
@@ -1088,6 +1091,7 @@ function getRiskLabel(row) {
               Abrir
             </button>
           </div>
+          </div>
         </div>
 
         <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
@@ -1107,7 +1111,7 @@ function getRiskLabel(row) {
     </div>
 
     <!-- 5. TEMAS + ACOES + ESCAPE DA FAQ -->
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 
       <!-- Temas em alta -->
       <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
@@ -1342,7 +1346,7 @@ function getRiskLabel(row) {
 
       <section class="mt-5">
         <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Demais indicadores</h3>
-        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div class="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             v-for="metric in secondaryMetrics"
             :key="metric.label"
