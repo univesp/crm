@@ -185,6 +185,59 @@ const publicationPreview = computed(() =>
       })
     : null,
 )
+const workflowStatusLabel = computed(() => {
+  const status = String(workspace.value?.workflowStatus || '').toLowerCase()
+  const labels = {
+    draft: 'Rascunho',
+    published: 'Publicado',
+    'in review': 'Em revisao',
+    review: 'Em revisao',
+    archived: 'Arquivado',
+  }
+  return labels[status] || workspace.value?.workflowStatus || 'Nao informado'
+})
+const publicationReadiness = computed(() => {
+  if (validation.value.hasBlockingPublishError) {
+    return {
+      label: 'Bloqueado',
+      description: 'Corrija os bloqueios antes de publicar.',
+      tone: 'danger',
+    }
+  }
+
+  if (validation.value.warnings?.length || validation.value.ownershipCoverage?.missingFinalNodes) {
+    return {
+      label: 'Precisa revisar',
+      description: 'Revise pendencias antes de publicar.',
+      tone: 'warning',
+    }
+  }
+
+  return {
+    label: 'Apto para publicar',
+    description: 'Teste a jornada e publique quando estiver pronto.',
+    tone: 'success',
+  }
+})
+const recommendedNextStep = computed(() => {
+  if (publicationReadiness.value.tone === 'danger') {
+    return 'Editar fluxo para corrigir bloqueios.'
+  }
+
+  if (publicationReadiness.value.tone === 'warning') {
+    return 'Testar jornada e revisar pendencias.'
+  }
+
+  return activePublished.value
+    ? 'Testar jornada antes de publicar nova versao.'
+    : 'Testar jornada e publicar primeira versao.'
+})
+const activeVersionLabel = computed(() =>
+  activePublished.value ? activePublished.value.bundleVersionId : 'Sem versao ativa',
+)
+const flowSummaryLabel = computed(
+  () => `${flowGraph.value.nodes.length} etapas - ${flowGraph.value.edgeCount} conexoes`,
+)
 
 const testBundle = computed(() => {
   if (!workspace.value) {
@@ -757,26 +810,46 @@ watch(
       <section class="rounded-[16px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p class="text-xs uppercase tracking-[0.08em] text-slate-500">FAQ Builder / Visao do fluxo</p>
+            <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Visao do fluxo FAQ</p>
             <h1 class="mt-1 text-lg font-semibold text-slate-950">{{ currentBundleEntry.title }}</h1>
-            <p class="mt-1 text-xs text-slate-500">{{ currentBundleEntry.bundleId }}</p>
-            <p class="mt-2 max-w-2xl text-xs leading-5 text-slate-600">
-              Revise o desenho do fluxo, teste a jornada e publique apenas quando a validacao estiver sem bloqueios.
-            </p>
-            <div class="mt-2 flex flex-wrap gap-2">
-              <StatusBadge :label="`Workflow: ${workspace.workflowStatus}`" />
-              <StatusBadge :label="validation.hasBlockingPublishError ? 'Com bloqueio estrutural' : 'Apto para publicar'" />
-              <StatusBadge :label="activePublished ? `Versao ativa: ${activePublished.bundleVersionId}` : 'Sem versao ativa'" />
+            <div class="mt-3 grid gap-2 sm:grid-cols-4">
+              <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Status</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">{{ workflowStatusLabel }}</p>
+              </div>
+              <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Publicacao</p>
+                <p
+                  class="mt-1 text-sm font-semibold"
+                  :class="
+                    publicationReadiness.tone === 'danger'
+                      ? 'text-[var(--color-danger)]'
+                      : publicationReadiness.tone === 'warning'
+                        ? 'text-amber-700'
+                        : 'text-[var(--color-success)]'
+                  "
+                >
+                  {{ publicationReadiness.label }}
+                </p>
+              </div>
+              <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Versao ativa</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">{{ activeVersionLabel }}</p>
+              </div>
+              <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Proximo passo</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">{{ recommendedNextStep }}</p>
+              </div>
             </div>
           </div>
           <div class="grid gap-2 justify-items-end">
             <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Acoes do fluxo</p>
             <div class="flex flex-wrap items-center justify-end gap-2">
-              <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="goToEditor()">Editar fluxo</button>
-              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="startTester('draft')">Testar jornada</button>
+              <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="startTester('draft')">Testar jornada</button>
+              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Editar fluxo</button>
+              <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar</button>
               <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Biblioteca</button>
               <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
-              <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar</button>
               <div ref="overflowRef" class="relative">
                 <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
                 <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg">
@@ -865,11 +938,19 @@ watch(
 
       <section v-if="!openState.failed" class="grid gap-3 xl:grid-cols-[1fr_360px]">
         <article class="rounded-[16px] border border-slate-200 bg-white p-3">
-          <p class="text-xs text-slate-600">Visualizacao resumida do fluxo. Para edicao estrutural use o modo editor.</p>
-          <p class="mt-2 text-xs text-slate-500">
-            {{ flowGraph.nodes.length }} no(s) visiveis • {{ flowGraph.edgeCount }} conexao(oes)
-          </p>
-          <div class="mt-2 h-[560px] overflow-auto rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">Pre-visualizacao do fluxo</p>
+              <p class="mt-1 text-xs text-slate-600">Use para revisar a jornada. Para alterar a estrutura, abra o editor.</p>
+            </div>
+            <p
+              class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+              :aria-label="`${flowGraph.edgeCount} conexao(oes)`"
+            >
+              {{ flowSummaryLabel }}
+            </p>
+          </div>
+          <div class="mt-3 h-[420px] overflow-auto rounded-[12px] border border-slate-200 bg-slate-50 p-3">
             <div
               class="relative rounded-[12px] border border-slate-200 bg-white"
               :style="{
@@ -957,22 +1038,45 @@ watch(
           </div>
         </article>
         <article class="rounded-[16px] border border-slate-200 bg-white p-4">
-          <p class="text-sm font-semibold text-slate-900">Publicacao e vigencia</p>
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">Publicacao</p>
+              <p class="mt-1 text-xs text-slate-600">{{ publicationReadiness.description }}</p>
+            </div>
+            <StatusBadge :label="publicationReadiness.label" />
+          </div>
           <div class="mt-3 grid gap-2 text-xs">
-            <label class="grid gap-1"><span class="font-semibold text-slate-600">Modo de publicacao</span><select v-model="publishForm.publishMode" class="faq-input"><option value="immediate">Publicar imediatamente</option><option value="scheduled">Publicar em data futura</option></select></label>
-            <label class="grid gap-1"><span class="font-semibold text-slate-600">Inicio de vigencia</span><input v-model="publishForm.effectiveStartAt" type="datetime-local" class="faq-input" /></label>
-            <label class="grid gap-1"><span class="font-semibold text-slate-600">Fim de vigencia (opcional)</span><input v-model="publishForm.effectiveEndAt" type="datetime-local" class="faq-input" /></label>
-            <label class="grid gap-1"><span class="font-semibold text-slate-600">Prioridade</span><input v-model.number="publishForm.priority" type="number" min="0" max="1000" class="faq-input" /></label>
-            <label class="grid gap-1"><span class="font-semibold text-slate-600">Rank de exibicao</span><input v-model.number="publishForm.displayRank" type="number" min="0" max="1000" class="faq-input" /></label>
-            <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input v-model="publishForm.isFeatured" type="checkbox" /> Destacar este fluxo</label>
-            <label class="grid gap-1"><span class="font-semibold text-slate-600">Condicao especial (opcional)</span><input v-model="publishForm.conditions" type="text" class="faq-input" placeholder="Ex.: periodo rematricula ativo" /></label>
-            <label class="grid gap-1"><span class="font-semibold text-slate-600">Resumo da mudanca</span><textarea v-model="publishForm.summary" rows="3" class="faq-input"></textarea></label>
+            <label class="grid gap-1">
+              <span class="font-semibold text-slate-600">Modo de publicacao</span>
+              <select v-model="publishForm.publishMode" class="faq-input">
+                <option value="immediate">Publicar imediatamente</option>
+                <option value="scheduled">Publicar em data futura</option>
+              </select>
+            </label>
+            <label class="grid gap-1">
+              <span class="font-semibold text-slate-600">Inicio de vigencia</span>
+              <input v-model="publishForm.effectiveStartAt" type="datetime-local" class="faq-input" />
+            </label>
+            <label class="grid gap-1">
+              <span class="font-semibold text-slate-600">Fim de vigencia (opcional)</span>
+              <input v-model="publishForm.effectiveEndAt" type="datetime-local" class="faq-input" />
+            </label>
+            <details class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+              <summary class="cursor-pointer font-semibold text-slate-700">Configuracoes avancadas</summary>
+              <div class="mt-3 grid gap-2">
+                <label class="grid gap-1"><span class="font-semibold text-slate-600">Prioridade</span><input v-model.number="publishForm.priority" type="number" min="0" max="1000" class="faq-input" /></label>
+                <label class="grid gap-1"><span class="font-semibold text-slate-600">Ordem de exibicao</span><input v-model.number="publishForm.displayRank" type="number" min="0" max="1000" class="faq-input" /></label>
+                <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input v-model="publishForm.isFeatured" type="checkbox" /> Destacar este fluxo</label>
+                <label class="grid gap-1"><span class="font-semibold text-slate-600">Condicao especial (opcional)</span><input v-model="publishForm.conditions" type="text" class="faq-input" placeholder="Ex.: periodo rematricula ativo" /></label>
+                <label class="grid gap-1"><span class="font-semibold text-slate-600">Resumo da mudanca</span><textarea v-model="publishForm.summary" rows="3" class="faq-input"></textarea></label>
+              </div>
+            </details>
           </div>
           <div class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
             <p><strong>Proxima versao:</strong> {{ publicationPreview?.nextVersionId || '-' }}</p>
-            <p><strong>Versao que sera substituida:</strong> {{ publicationPreview?.currentPublishedVersion || 'Nenhuma' }}</p>
-            <p><strong>Inicio planejado:</strong> {{ formatDate(publicationPreview?.effectiveStartAt) }}</p>
-            <p><strong>Fim planejado:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</p>
+            <p><strong>Substitui:</strong> {{ publicationPreview?.currentPublishedVersion || 'Nenhuma' }}</p>
+            <p><strong>Inicio:</strong> {{ formatDate(publicationPreview?.effectiveStartAt) }}</p>
+            <p><strong>Fim:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</p>
           </div>
         </article>
       </section>
