@@ -810,54 +810,78 @@ watch(
       <section class="rounded-[16px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Visao do fluxo FAQ</p>
+            <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Fluxo FAQ</p>
             <h1 class="mt-1 text-lg font-semibold text-slate-950">{{ currentBundleEntry.title }}</h1>
-            <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Status</p>
-                <p class="mt-1 text-sm font-semibold text-slate-900">{{ workflowStatusLabel }}</p>
-              </div>
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Publicacao</p>
-                <p
-                  class="mt-1 text-sm font-semibold"
-                  :class="
-                    publicationReadiness.tone === 'danger'
-                      ? 'text-[var(--color-danger)]'
-                      : publicationReadiness.tone === 'warning'
-                        ? 'text-amber-700'
-                        : 'text-[var(--color-success)]'
-                  "
-                >
-                  {{ publicationReadiness.label }}
-                </p>
-              </div>
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Versao ativa</p>
-                <p class="mt-1 text-sm font-semibold text-slate-900">{{ activeVersionLabel }}</p>
-              </div>
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Proximo passo</p>
-                <p class="mt-1 text-sm font-semibold text-slate-900">{{ recommendedNextStep }}</p>
-              </div>
-            </div>
           </div>
-          <div class="grid gap-2 justify-items-end">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Acoes do fluxo</p>
-            <div class="flex flex-wrap items-center justify-end gap-2">
-              <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="startTester('draft')">Testar jornada</button>
-              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Editar fluxo</button>
-              <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar</button>
-              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Biblioteca</button>
-              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
-              <div ref="overflowRef" class="relative">
-                <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
-                <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg">
-                  <button type="button" class="faq-overflow-btn" @click="sendToReview">Enviar para revisao</button>
-                  <button type="button" class="faq-overflow-btn" @click="goToEditor('import')">Abrir importacao</button>
-                  <button type="button" class="faq-overflow-btn" @click="goToEditor('governance')">Abrir governanca</button>
-                  <button type="button" class="faq-overflow-btn" @click="startTester('published')">Testar publicado</button>
-                </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="startTester('draft')">Testar jornada</button>
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Editar fluxo</button>
+            <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar</button>
+          </div>
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Status</p>
+            <p class="mt-1 text-sm font-semibold text-slate-900">{{ workflowStatusLabel }}</p>
+          </div>
+          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Publicacao</p>
+            <p
+              class="mt-1 text-sm font-semibold"
+              :class="
+                publicationReadiness.tone === 'danger'
+                  ? 'text-[var(--color-danger)]'
+                  : publicationReadiness.tone === 'warning'
+                    ? 'text-amber-700'
+                    : 'text-[var(--color-success)]'
+              "
+            >
+              {{ publicationReadiness.label }}
+            </p>
+          </div>
+          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Etapas</p>
+            <p class="mt-1 text-sm font-semibold text-slate-900">
+              {{ flowGraph.nodes.length }} etapas · {{ flowGraph.edgeCount }} conexoes
+            </p>
+          </div>
+          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Pendencias</p>
+            <p
+              class="mt-1 text-sm font-semibold"
+              :class="
+                publicationReadiness.tone === 'danger'
+                  ? 'text-[var(--color-danger)]'
+                  : publicationReadiness.tone === 'warning'
+                    ? 'text-amber-700'
+                    : 'text-[var(--color-success)]'
+              "
+            >
+              {{
+                publicationReadiness.tone === 'danger'
+                  ? validation.errors.length + (validation.errors.length === 1 ? ' bloqueio' : ' bloqueios')
+                  : publicationReadiness.tone === 'warning'
+                    ? validation.warnings.length + (validation.warnings.length === 1 ? ' alerta' : ' alertas')
+                    : 'OK'
+              }}
+            </p>
+          </div>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p class="text-xs text-slate-600">
+            <strong class="font-semibold text-slate-800">Proximo passo:</strong>
+            {{ recommendedNextStep }}
+          </p>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Voltar a biblioteca</button>
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
+            <div ref="overflowRef" class="relative">
+              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
+              <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg">
+                <button type="button" class="faq-overflow-btn" @click="sendToReview">Enviar para revisao</button>
+                <button type="button" class="faq-overflow-btn" @click="goToEditor('import')">Abrir importacao</button>
+                <button type="button" class="faq-overflow-btn" @click="goToEditor('governance')">Abrir governanca</button>
+                <button type="button" class="faq-overflow-btn" @click="startTester('published')">Testar publicado</button>
               </div>
             </div>
           </div>
@@ -941,7 +965,7 @@ watch(
           <div class="flex flex-wrap items-start justify-between gap-2">
             <div>
               <p class="text-sm font-semibold text-slate-900">Pre-visualizacao do fluxo</p>
-              <p class="mt-1 text-xs text-slate-600">Use para revisar a jornada. Para alterar a estrutura, abra o editor.</p>
+              <p class="mt-1 text-xs text-slate-600">Revise a jornada. Para alterar a estrutura, abra o editor.</p>
             </div>
             <p
               class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
@@ -1040,7 +1064,7 @@ watch(
         <article class="rounded-[16px] border border-slate-200 bg-white p-4">
           <div class="flex items-start justify-between gap-2">
             <div>
-              <p class="text-sm font-semibold text-slate-900">Publicacao</p>
+              <p class="text-sm font-semibold text-slate-900">Publicar fluxo</p>
               <p class="mt-1 text-xs text-slate-600">{{ publicationReadiness.description }}</p>
             </div>
             <StatusBadge :label="publicationReadiness.label" />
@@ -1069,14 +1093,18 @@ watch(
                 <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input v-model="publishForm.isFeatured" type="checkbox" /> Destacar este fluxo</label>
                 <label class="grid gap-1"><span class="font-semibold text-slate-600">Condicao especial (opcional)</span><input v-model="publishForm.conditions" type="text" class="faq-input" placeholder="Ex.: periodo rematricula ativo" /></label>
                 <label class="grid gap-1"><span class="font-semibold text-slate-600">Resumo da mudanca</span><textarea v-model="publishForm.summary" rows="3" class="faq-input"></textarea></label>
+                <div class="mt-1 rounded-[10px] border border-slate-200 bg-white p-2 text-xs text-slate-600">
+                  <p><strong>Proxima versao:</strong> {{ publicationPreview?.nextVersionId || '-' }}</p>
+                  <p><strong>Substitui:</strong> {{ publicationPreview?.currentPublishedVersion || 'Nenhuma' }}</p>
+                  <p><strong>Inicio:</strong> {{ formatDate(publicationPreview?.effectiveStartAt) }}</p>
+                  <p><strong>Fim:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</p>
+                </div>
               </div>
             </details>
           </div>
-          <div class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            <p><strong>Proxima versao:</strong> {{ publicationPreview?.nextVersionId || '-' }}</p>
-            <p><strong>Substitui:</strong> {{ publicationPreview?.currentPublishedVersion || 'Nenhuma' }}</p>
-            <p><strong>Inicio:</strong> {{ formatDate(publicationPreview?.effectiveStartAt) }}</p>
-            <p><strong>Fim:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar</button>
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
           </div>
         </article>
       </section>
