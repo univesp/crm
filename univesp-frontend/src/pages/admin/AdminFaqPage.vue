@@ -809,10 +809,10 @@ watch(
     <template v-else>
       <section class="rounded-[16px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div class="min-w-0">
             <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Visao do fluxo FAQ</p>
             <h1 class="mt-1 text-lg font-semibold text-slate-950">{{ currentBundleEntry.title }}</h1>
-            <div class="mt-3 grid gap-2 sm:grid-cols-4">
+            <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
               <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
                 <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Status</p>
                 <p class="mt-1 text-sm font-semibold text-slate-900">{{ workflowStatusLabel }}</p>
@@ -936,8 +936,8 @@ watch(
 
       <section v-if="feedback.message" class="rounded-[14px] border px-4 py-3 text-sm" :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'">{{ feedback.message }}</section>
 
-      <section v-if="!openState.failed" class="grid gap-3 xl:grid-cols-[1fr_360px]">
-        <article class="rounded-[16px] border border-slate-200 bg-white p-3">
+      <section v-if="!openState.failed" class="grid gap-3 lg:grid-cols-[1fr_360px]">
+        <article class="min-w-0 rounded-[16px] border border-slate-200 bg-white p-3">
           <div class="flex flex-wrap items-start justify-between gap-2">
             <div>
               <p class="text-sm font-semibold text-slate-900">Pre-visualizacao do fluxo</p>
@@ -1145,6 +1145,9 @@ watch(
 
 <style scoped>
 .faq-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid #cbd5e1;
   border-radius: 0.65rem;
   padding: 0.48rem 0.6rem;
