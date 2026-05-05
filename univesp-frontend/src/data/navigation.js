@@ -129,55 +129,58 @@ export function buildNavigationSections(mockContext) {
     ]
   }
 
+  // Heroicons v2 24/outline paths
+  const ICON_DASHBOARD =
+    'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z'
+  const ICON_FAQ =
+    'M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25'
+  const ICON_SLA = 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'
+  const ICON_PERMISSIONS =
+    'M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z'
+
   const adminItems = [
     {
       id: 'admin-dashboard',
-      label: 'Dashboard geral',
+      label: 'Dashboard',
       route: '/admin/dashboard',
-      description: 'Resumo executivo e operacional dos casos em andamento.',
+      icon: ICON_DASHBOARD,
     },
   ]
 
   if (hasAction(mockContext, 'edit_faq')) {
     adminItems.push({
       id: 'admin-faq',
-      label: 'FAQ e playbooks',
+      label: 'FAQ & Conhecimento',
       route: '/admin/faq',
-      description: 'Governanca da FAQ do aluno, do OP e dos destaques de calendario.',
+      icon: ICON_FAQ,
+      children: hasAction(mockContext, 'publish_version')
+        ? [{ id: 'admin-versioning', label: 'Publicacao', route: '/admin/publicacao' }]
+        : [],
     })
   }
 
   if (hasAction(mockContext, 'edit_parameters')) {
     adminItems.push({
       id: 'admin-parameters',
-      label: 'SLA e criticidade',
+      label: 'SLA e regras',
       route: '/admin/parametros',
-      description: 'Niveis oficiais e impacto das regras sobre os casos.',
+      icon: ICON_SLA,
     })
   }
 
   if (hasAction(mockContext, 'view_audit')) {
     adminItems.push({
       id: 'admin-permissions',
-      label: 'Permissoes e visibilidade',
+      label: 'Permissoes',
       route: '/admin/permissoes',
-      description: 'Matriz por perfil, fila e area com auditoria administrativa.',
-    })
-  }
-
-  if (hasAction(mockContext, 'publish_version')) {
-    adminItems.push({
-      id: 'admin-versioning',
-      label: 'Publicacao e versionamento',
-      route: '/admin/publicacao',
-      description: 'Comparacao entre a edicao atual e a versao ativa.',
+      icon: ICON_PERMISSIONS,
     })
   }
 
   return [
     {
       id: 'governance',
-      label: 'Administrativo e governanca',
+      label: 'Menu',
       items: adminItems,
     },
   ]
