@@ -10,6 +10,23 @@ const expanded = ref(false)
 const mockContext = computed(() => auth.mockContext)
 const isStudentShell = computed(() => mockContext.value.isStudentShell)
 const scopeSummary = computed(() => summarizeScopeForBar(mockContext.value))
+const showLocalBadge = computed(() => Boolean(mockContext.value.mockMode))
+
+const primaryIdentity = computed(() => {
+  if (isStudentShell.value) {
+    return {
+      id: 'profile',
+      label: 'Perfil',
+      value: mockContext.value.profileLabel,
+    }
+  }
+
+  return {
+    id: 'user',
+    label: 'Usuario',
+    value: mockContext.value.userName,
+  }
+})
 
 const barItems = computed(() => [
   { id: 'origin', label: 'Entrada', value: mockContext.value.entryOrigin },
@@ -32,53 +49,72 @@ const summaryItems = computed(() => [
         { id: 'ai', label: 'IA', value: mockContext.value.aiEnabled ? 'Ligada' : 'Desligada' },
       ]),
 ])
+
+const secondarySummaryItems = computed(() => {
+  const primaryId = primaryIdentity.value.id
+  return summaryItems.value.filter((item) => item.id !== primaryId)
+})
 </script>
 
 <template>
   <section
     :class="[
-      'mb-4 rounded-[20px] border border-slate-200 bg-white/88 shadow-[0_8px_20px_rgba(16,18,20,0.04)]',
-      isStudentShell ? 'px-3 py-2.5' : 'px-4 py-3',
+      'mb-3 rounded-[16px] border border-slate-200 bg-white/84 shadow-[0_6px_16px_rgba(16,18,20,0.035)]',
+      isStudentShell ? 'px-3 py-2' : 'px-3.5 py-2.5',
     ]"
     aria-label="Contexto local do ambiente"
   >
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div class="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-        <span class="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 font-semibold text-[var(--color-primary-dark)]">
+    <div class="flex flex-wrap items-center justify-between gap-2.5">
+      <div class="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-slate-600">
+        <span
+          v-if="showLocalBadge"
+          class="rounded-full border border-[var(--color-primary-soft)] bg-[var(--color-primary-soft)]/55 px-2.5 py-0.5 font-medium text-[var(--color-primary-dark)]"
+        >
           Ambiente local
         </span>
         <span
-          v-for="item in summaryItems"
-          :key="item.id"
-          class="rounded-full bg-slate-100 px-3 py-1"
+          class="max-w-full truncate rounded-full bg-slate-100 px-2.5 py-0.5"
+          :title="`${primaryIdentity.label}: ${primaryIdentity.value}`"
         >
-          <span class="font-semibold text-slate-900">{{ item.label }}:</span>
-          {{ item.value }}
+          <span class="font-medium text-slate-700">{{ primaryIdentity.label }}:</span>
+          <span class="ml-1 text-slate-900">{{ primaryIdentity.value }}</span>
         </span>
       </div>
       <button
         type="button"
-        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
         :aria-expanded="expanded ? 'true' : 'false'"
         @click="expanded = !expanded"
       >
-        {{ expanded ? 'Ocultar contexto' : 'Ver contexto' }}
+        {{ expanded ? 'Ocultar contexto' : 'Contexto' }}
       </button>
     </div>
 
-    <div v-if="expanded" class="mt-3 grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
+    <div v-if="expanded" class="mt-2.5 grid gap-2.5 border-t border-slate-200 pt-2.5">
+      <div class="flex flex-wrap gap-1.5">
+        <span
+          v-for="item in secondarySummaryItems"
+          :key="item.id"
+          class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700"
+        >
+          <span class="font-medium text-slate-900">{{ item.label }}:</span>
+          {{ item.value }}
+        </span>
+      </div>
+      <div class="grid gap-2 md:grid-cols-2">
       <article
         v-for="item in barItems"
         :key="item.id"
-        class="rounded-[16px] bg-slate-50/90 px-4 py-3"
+        class="rounded-[12px] bg-slate-50/90 px-3 py-2.5"
       >
-        <p class="text-xs font-semibold tracking-[0.1em] text-slate-500">
+        <p class="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
           {{ item.label }}
         </p>
-        <p class="mt-1.5 text-sm font-semibold text-slate-900">
+        <p class="mt-1 text-sm font-semibold text-slate-900">
           {{ item.value }}
         </p>
       </article>
+      </div>
     </div>
   </section>
 </template>
