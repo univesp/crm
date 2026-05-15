@@ -95,6 +95,7 @@ const {
   buildSubjectCode,
 } = foundationRuntime
 const {
+  buildFaqBuilderPortalExportPayload,
   buildFaqBuilderDiff,
   buildFaqBuilderGraphSafe,
   cloneFaqBuilderPackage,
@@ -104,6 +105,7 @@ const {
   resolveFaqBuilderNodeEffectiveOwner,
   setFaqBuilderBundleOperationalOwner,
   setFaqBuilderNodeOwnership,
+  validateFaqBuilderPortalExport,
   validateFaqBuilderBundle,
 } = faqBuilderRuntime
 const { buildDistributionDecision, resolveEligibleUsers } = distributionEngine
@@ -574,6 +576,120 @@ test('validacao do builder bloqueia publicacao quando no final nao tem owner efe
   assert.equal(validation.hasBlockingPublishError, true)
   assert.ok(validation.errors.some((issue) => issue.code === 'bundle_without_default_owner'))
   assert.ok(validation.errors.some((issue) => issue.code === 'final_without_effective_owner'))
+})
+
+test('exportacao portal aceita acao principal vazia e aplica fallback de versao', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  const result = await buildFaqBuilderPortalExportPayload(bundle, {
+    sourceBundleId: 'bundle:aluno:matricula-2026',
+    process: 'Matricula 2026',
+    audience: ['candidato'],
+    version: '',
+    currentDate: new Date('2026-05-15T14:30:00-03:00'),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal('primaryAction' in result.payload, false)
+  assert.equal(result.payload.version, 'draft-20260515-1430')
+  assert.deepEqual(result.payload.audience, ['candidato'])
+})
+
+test('exportacao portal exige acao principal completa quando parcialmente preenchida', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  const missingRoute = validateFaqBuilderPortalExport(bundle, {
+    process: 'Matricula 2026',
+    audience: ['candidato'],
+    primaryAction: { label: 'Verificar situacao', route: '' },
+  })
+  const missingLabel = validateFaqBuilderPortalExport(bundle, {
+    process: 'Matricula 2026',
+    audience: ['candidato'],
+    primaryAction: { label: '', route: '/verificar-situacao' },
+  })
+
+  assert.equal(missingRoute.ok, false)
+  assert.ok(missingRoute.errors.some((issue) => issue.code === 'missing_primary_action_route'))
+  assert.equal(missingLabel.ok, false)
+  assert.ok(missingLabel.errors.some((issue) => issue.code === 'missing_primary_action_label'))
+})
+
+test('exportacao portal aceita acao principal valida e bloqueia rotas externas ou internas do CRM', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  const valid = await buildFaqBuilderPortalExportPayload(bundle, {
+    sourceBundleId: 'bundle:aluno:matricula-2026',
+    process: 'Matricula 2026',
+    audience: ['candidato'],
+    primaryAction: { label: 'Verificar situacao', route: '/verificar-situacao' },
+  })
+  const external = validateFaqBuilderPortalExport(bundle, {
+    process: 'Matricula 2026',
+    audience: ['candidato'],
+    primaryAction: { label: 'Site externo', route: 'https://univesp.br' },
+  })
+  const internal = validateFaqBuilderPortalExport(bundle, {
+    process: 'Matricula 2026',
+    audience: ['candidato'],
+    primaryAction: { label: 'Admin', route: '/admin/faq' },
+  })
+
+  assert.equal(valid.ok, true)
+  assert.deepEqual(valid.payload.primaryAction, {
+    label: 'Verificar situacao',
+    route: '/verificar-situacao',
+  })
+  assert.equal(external.ok, false)
+  assert.ok(external.errors.some((issue) => issue.code === 'invalid_primary_action_route'))
+  assert.equal(internal.ok, false)
+  assert.ok(internal.errors.some((issue) => issue.code === 'invalid_primary_action_route'))
+})
+
+test('exportacao portal valida audiences permitidas e processo obrigatorio', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  for (const audience of [['candidato'], ['op'], ['candidato', 'op']]) {
+    const valid = validateFaqBuilderPortalExport(bundle, {
+      process: 'Matricula 2026',
+      audience,
+    })
+    assert.equal(valid.ok, true)
+  }
+  const emptyAudience = validateFaqBuilderPortalExport(bundle, {
+    process: 'Matricula 2026',
+    audience: [],
+  })
+  const emptyProcess = validateFaqBuilderPortalExport(bundle, {
+    process: '',
+    audience: ['candidato'],
+  })
+
+  assert.equal(emptyAudience.ok, false)
+  assert.ok(emptyAudience.errors.some((issue) => issue.code === 'invalid_audience'))
+  assert.equal(emptyProcess.ok, false)
+  assert.ok(emptyProcess.errors.some((issue) => issue.code === 'missing_process'))
+})
+
+test('exportacao portal nao vaza campos internos do builder', async () => {
+  const bundle = cloneFaqBuilderPackage('aluno')
+  const result = await buildFaqBuilderPortalExportPayload(bundle, {
+    sourceBundleId: 'bundle:aluno:matricula-2026',
+    process: 'Matricula 2026',
+    audience: ['candidato'],
+  })
+  const serialized = JSON.stringify(result.payload)
+
+  assert.equal(result.ok, true)
+  for (const forbidden of [
+    'operational_owner',
+    'workflow',
+    'publication_window',
+    'canvas_snapshot',
+    'lock',
+    'audit',
+    'upsert_faq_bundle',
+    'draftBundle',
+    'publishedBundle',
+  ]) {
+    assert.equal(serialized.includes(forbidden), false, `Campo interno exportado: ${forbidden}`)
+  }
 })
 
 test('override invalido de owner no no bloqueia publicacao', async () => {

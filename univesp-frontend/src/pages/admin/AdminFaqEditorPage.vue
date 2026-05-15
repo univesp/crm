@@ -23,6 +23,8 @@ import {
   buildAutoLayoutSnapshot,
   buildFaqBuilderDiff,
   buildFaqBuilderGraphSafe,
+  buildFaqBuilderPortalExportFileName,
+  buildFaqBuilderPortalExportPayload,
   buildFaqBuilderPreviewJourneySafe,
   clearFaqBuilderBundleLibraryLocal,
   connectFaqBuilderNodes,
@@ -48,6 +50,7 @@ import {
   transitionFaqBuilderWorkflow,
   updateCanvasSnapshotNodePosition,
   validateFaqBuilderBundle,
+  validateFaqBuilderPortalExport,
   resolveFaqBuilderNodeEffectiveOwner,
 } from '@/services/faqBuilderHybridRuntime'
 import { useAuthStore } from '@/stores/auth'
@@ -202,6 +205,16 @@ const importState = reactive({
   fileName: '',
   isLoading: false,
   result: null,
+})
+const exportState = reactive({
+  process: '',
+  audiencePreset: 'candidato',
+  version: '',
+  primaryActionLabel: '',
+  primaryActionRoute: '',
+  secondaryActionsText: '',
+  errors: [],
+  isDownloading: false,
 })
 const previewState = reactive({
   activeNodeId: '',
@@ -1435,6 +1448,99 @@ async function downloadTemplate() {
   })
 }
 
+function resolvePortalExportAudience() {
+  if (exportState.audiencePreset === 'op') {
+    return ['op']
+  }
+  if (exportState.audiencePreset === 'candidato_op') {
+    return ['candidato', 'op']
+  }
+  return ['candidato']
+}
+
+function parseSecondaryActionsText(rawValue = '') {
+  return String(rawValue || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [label = '', route = ''] = line.split('|').map((item) => item.trim())
+      return { label, route }
+    })
+}
+
+function validatePortalExportForm() {
+  if (!workspace.value) {
+    exportState.errors = [{ code: 'missing_workspace', message: 'Fluxo indisponivel para exportacao.' }]
+    return false
+  }
+  const validation = validateFaqBuilderPortalExport(workspace.value.draftBundle, {
+    process: exportState.process,
+    audience: resolvePortalExportAudience(),
+    version: exportState.version,
+    primaryAction: {
+      label: exportState.primaryActionLabel,
+      route: exportState.primaryActionRoute,
+    },
+    secondaryActions: parseSecondaryActionsText(exportState.secondaryActionsText),
+  })
+  exportState.errors = validation.errors
+  return validation.ok
+}
+
+function downloadJsonFile(payload = {}, fileName = '') {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
+async function exportPortalJson() {
+  if (!workspace.value || !currentBundleEntry.value || !validatePortalExportForm()) {
+    setFeedback('error', 'Revise os campos da exportacao antes de gerar o JSON.')
+    return
+  }
+
+  exportState.isDownloading = true
+  try {
+    const now = new Date()
+    const result = await buildFaqBuilderPortalExportPayload(workspace.value.draftBundle, {
+      sourceBundleId: currentBundleEntry.value.bundleId,
+      process: exportState.process,
+      audience: resolvePortalExportAudience(),
+      version: exportState.version,
+      primaryAction: {
+        label: exportState.primaryActionLabel,
+        route: exportState.primaryActionRoute,
+      },
+      secondaryActions: parseSecondaryActionsText(exportState.secondaryActionsText),
+      currentDate: now,
+    })
+    if (!result.ok || !result.payload) {
+      exportState.errors = result.errors || []
+      setFeedback('error', 'Nao foi possivel gerar o JSON de exportacao.')
+      return
+    }
+    const fileName = buildFaqBuilderPortalExportFileName(
+      exportState.process,
+      now,
+      currentBundleEntry.value.title,
+    )
+    downloadJsonFile(result.payload, fileName)
+    exportState.errors = []
+    setFeedback('success', 'JSON para o Portal de Matricula gerado com sucesso.')
+  } finally {
+    exportState.isDownloading = false
+  }
+}
+
 async function runSecondaryAction(action = '') {
   ui.showOverflowMenu = false
   if (action === 'review') {
@@ -2425,6 +2531,97 @@ function applySpreadsheetImport() {
               </p>
             </article>
           </section>
+
+          <details class="mt-3 rounded-[18px] border border-slate-200 bg-white p-4">
+            <summary class="cursor-pointer text-sm font-semibold text-slate-900">
+              Exportacao avancada para portal externo
+            </summary>
+            <p class="mt-2 text-xs text-slate-600">
+              Esta exportacao nao publica a FAQ no CRM. Ela gera um arquivo para revisao e publicacao externa no Portal de Matricula.
+            </p>
+
+            <div class="mt-4 grid gap-3 md:grid-cols-2">
+              <label class="faq-field">
+                <span>Processo</span>
+                <input
+                  v-model="exportState.process"
+                  class="faq-input"
+                  placeholder="Ex.: Matricula 2026"
+                />
+              </label>
+              <label class="faq-field">
+                <span>Versao externa</span>
+                <input
+                  v-model="exportState.version"
+                  class="faq-input"
+                  placeholder="Opcional. Sem valor, usa draft-YYYYMMDD-HHmm"
+                />
+              </label>
+              <label class="faq-field">
+                <span>Publico</span>
+                <select v-model="exportState.audiencePreset" class="faq-input">
+                  <option value="candidato">candidato</option>
+                  <option value="op">op</option>
+                  <option value="candidato_op">candidato + op</option>
+                </select>
+              </label>
+              <label class="faq-field">
+                <span>Rotulo da acao principal (opcional)</span>
+                <input
+                  v-model="exportState.primaryActionLabel"
+                  class="faq-input"
+                  placeholder="Ex.: Verificar situacao"
+                />
+              </label>
+              <label class="faq-field md:col-span-2">
+                <span>Rota da acao principal (opcional)</span>
+                <input
+                  v-model="exportState.primaryActionRoute"
+                  class="faq-input"
+                  placeholder="Ex.: /verificar-situacao"
+                />
+              </label>
+              <label class="faq-field md:col-span-2">
+                <span>Acoes secundarias (opcional)</span>
+                <textarea
+                  v-model="exportState.secondaryActionsText"
+                  rows="3"
+                  class="faq-input"
+                  placeholder="Uma por linha: Documentos necessarios | /documentos"
+                ></textarea>
+              </label>
+            </div>
+
+            <div
+              v-if="exportState.errors.length"
+              class="mt-3 rounded-[12px] border border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] p-3 text-xs text-[var(--color-danger)]"
+            >
+              <p class="font-semibold">Corrija antes de exportar:</p>
+              <ul class="mt-2 list-disc pl-5">
+                <li v-for="issue in exportState.errors" :key="`${issue.code}-${issue.message}`">
+                  {{ issue.message }}
+                </li>
+              </ul>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                @click="validatePortalExportForm"
+              >
+                Validar exportacao
+              </button>
+              <button
+                type="button"
+                class="rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="exportState.isDownloading"
+                @click="exportPortalJson"
+              >
+                {{ exportState.isDownloading ? 'Gerando JSON...' : 'Exportar JSON' }}
+              </button>
+            </div>
+          </details>
         </template>
       </template>
     </template>

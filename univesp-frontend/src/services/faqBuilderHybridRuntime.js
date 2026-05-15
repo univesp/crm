@@ -1544,6 +1544,291 @@ export function cloneFaqBuilderPackage(faqType = 'aluno') {
   return ensureBundleCollections(cloneJson(FAQ_PACKAGE_MAP[faqType] || FAQ_PACKAGE_MAP.aluno))
 }
 
+const PORTAL_FAQ_EXPORT_SCHEMA_VERSION = 'portal-faq-export-v1'
+const PORTAL_FAQ_EXPORT_ALLOWED_AUDIENCES = Object.freeze([
+  Object.freeze(['candidato']),
+  Object.freeze(['op']),
+  Object.freeze(['candidato', 'op']),
+])
+
+function buildPortalExportTimestamp(currentDate = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0')
+  return [
+    currentDate.getFullYear(),
+    pad(currentDate.getMonth() + 1),
+    pad(currentDate.getDate()),
+  ].join('') + `-${pad(currentDate.getHours())}${pad(currentDate.getMinutes())}`
+}
+
+function normalizePortalExportRoute(value = '') {
+  return String(value || '').trim()
+}
+
+function isValidPortalExportRoute(value = '') {
+  const route = normalizePortalExportRoute(value)
+  if (!route || !route.startsWith('/') || route.startsWith('//')) {
+    return false
+  }
+  const normalized = route.toLowerCase()
+  const hasControlOrWhitespace = [...route].some((character) => {
+    const code = character.charCodeAt(0)
+    return /\s/.test(character) || code <= 31 || code === 127
+  })
+  const hasExternalDomainLikePrefix = /^\/(?:[^/?#]+\.)+[a-z]{2,}(?:[/?#]|$)/i.test(route)
+  const usesCrmInternalRoute =
+    normalized === '/admin' ||
+    normalized.startsWith('/admin/') ||
+    normalized === '/crm/admin' ||
+    normalized.startsWith('/crm/admin/')
+  return !(
+    hasControlOrWhitespace ||
+    hasExternalDomainLikePrefix ||
+    usesCrmInternalRoute ||
+    normalized.includes('javascript:') ||
+    normalized.includes('http://') ||
+    normalized.includes('https://') ||
+    normalized.includes('://')
+  )
+}
+
+function normalizePortalExportAudience(value = []) {
+  const audience = Array.isArray(value)
+    ? value.map((item) => String(item || '').trim()).filter(Boolean)
+    : []
+  return [...new Set(audience)].sort()
+}
+
+function hasAllowedPortalExportAudience(value = []) {
+  const normalized = normalizePortalExportAudience(value)
+  return PORTAL_FAQ_EXPORT_ALLOWED_AUDIENCES.some(
+    (allowed) =>
+      allowed.length === normalized.length &&
+      allowed.every((item, index) => item === normalized[index]),
+  )
+}
+
+function buildPortalExportTreeItems(bundle = {}) {
+  const nodes = collectValidNodes(bundle.nodes)
+  const activeLinks = (bundle.links || []).filter((link) => link && link.ativo !== false)
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const outgoingMap = buildOutgoingMap(activeLinks)
+  const incomingMap = buildIncomingMap(activeLinks)
+  const rootIds = inferRootIds(nodes, incomingMap)
+
+  function mapNode(nodeId = '') {
+    const node = nodeById.get(nodeId)
+    if (!node) {
+      return null
+    }
+    const children = (outgoingMap.get(node.id) || [])
+      .map((link) => mapNode(link.child_node_id))
+      .filter(Boolean)
+    const isTerminal = inferNodeMode(node) === NODE_MODE_MAP.final
+    const mapped = {
+      id: node.id,
+      type: isTerminal ? 'answer' : 'section',
+      title: String(node.titulo_exibido || '').trim(),
+      question: String(node.pergunta_exibida || node.titulo_exibido || '').trim(),
+    }
+    if (isTerminal) {
+      mapped.answer = String(node.resposta || '').trim()
+      if (Array.isArray(node.palavras_chave) && node.palavras_chave.length) {
+        mapped.keywords = [...node.palavras_chave]
+      }
+    } else {
+      mapped.children = children
+    }
+    return mapped
+  }
+
+  return rootIds.map((rootId) => mapNode(rootId)).filter(Boolean)
+}
+
+function buildPortalExportChecksumSeed(payload = {}) {
+  const clone = cloneJson(payload)
+  delete clone.checksum
+  return JSON.stringify(clone)
+}
+
+async function buildPortalExportChecksum(payload = {}) {
+  if (
+    typeof crypto === 'undefined' ||
+    !crypto?.subtle ||
+    typeof TextEncoder === 'undefined'
+  ) {
+    return ''
+  }
+  const encoded = new TextEncoder().encode(buildPortalExportChecksumSeed(payload))
+  const digest = await crypto.subtle.digest('SHA-256', encoded)
+  const bytes = Array.from(new Uint8Array(digest))
+  return `sha256-${bytes.map((byte) => byte.toString(16).padStart(2, '0')).join('')}`
+}
+
+function normalizePortalSecondaryActions(actions = []) {
+  if (!Array.isArray(actions)) {
+    return []
+  }
+  return actions
+    .map((action) => ({
+      label: String(action?.label || '').trim(),
+      route: normalizePortalExportRoute(action?.route),
+    }))
+}
+
+export function validateFaqBuilderPortalExport(bundle = {}, options = {}) {
+  const structuralValidation = validateFaqBuilderBundle(bundle, { mutateInput: false })
+  const errors = structuralValidation.errors
+    .filter((issue) =>
+      [
+        'duplicate_node_id',
+        'orphan_node',
+        'cycle_detected',
+        'final_without_response',
+      ].includes(issue.code),
+    )
+    .map((issue) => ({
+      code: issue.code,
+      message: issue.message,
+    }))
+  const process = String(options.process || '').trim()
+  const audience = normalizePortalExportAudience(options.audience)
+  const primaryAction = {
+    label: String(options.primaryAction?.label || '').trim(),
+    route: normalizePortalExportRoute(options.primaryAction?.route),
+  }
+  const hasAnyPrimaryActionField = Boolean(primaryAction.label || primaryAction.route)
+
+  if (!process) {
+    errors.push({ code: 'missing_process', message: 'Informe o processo do portal externo.' })
+  }
+  if (!hasAllowedPortalExportAudience(audience)) {
+    errors.push({ code: 'invalid_audience', message: 'Selecione um publico valido para exportacao.' })
+  }
+  if (hasAnyPrimaryActionField) {
+    if (!primaryAction.label) {
+      errors.push({
+        code: 'missing_primary_action_label',
+        message: 'Informe o rotulo da acao principal ou deixe a acao inteira vazia.',
+      })
+    }
+    if (!primaryAction.route) {
+      errors.push({
+        code: 'missing_primary_action_route',
+        message: 'Informe a rota da acao principal ou deixe a acao inteira vazia.',
+      })
+    } else if (!isValidPortalExportRoute(primaryAction.route)) {
+      errors.push({
+        code: 'invalid_primary_action_route',
+        message: 'Informe uma rota relativa valida do portal externo.',
+      })
+    }
+  }
+
+  for (const action of normalizePortalSecondaryActions(options.secondaryActions)) {
+    const hasAnySecondaryActionField = Boolean(action.label || action.route)
+    if (!hasAnySecondaryActionField) {
+      continue
+    }
+    if (!action.label) {
+      errors.push({
+        code: 'missing_secondary_action_label',
+        message: 'Acao secundaria com rota precisa de rotulo.',
+      })
+    }
+    if (!action.route) {
+      errors.push({
+        code: 'missing_secondary_action_route',
+        message: 'Acao secundaria com rotulo precisa de rota.',
+      })
+    } else if (!isValidPortalExportRoute(action.route)) {
+      errors.push({
+        code: 'invalid_secondary_action_route',
+        message: `Rota secundaria invalida: ${action.route}.`,
+      })
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+    audience,
+  }
+}
+
+export async function buildFaqBuilderPortalExportPayload(
+  bundle = {},
+  {
+    sourceBundleId = '',
+    process = '',
+    audience = [],
+    version = '',
+    primaryAction = {},
+    secondaryActions = [],
+    currentDate = new Date(),
+  } = {},
+) {
+  const validation = validateFaqBuilderPortalExport(bundle, {
+    process,
+    audience,
+    version,
+    primaryAction,
+    secondaryActions,
+  })
+  if (!validation.ok) {
+    return {
+      ok: false,
+      errors: validation.errors,
+      payload: null,
+    }
+  }
+
+  const timestamp = buildPortalExportTimestamp(currentDate)
+  const normalizedProcess = slugify(process || bundle.metadata?.subject_key || bundle.metadata?.title || 'faq')
+  const normalizedVersion = String(version || '').trim() || `draft-${timestamp}`
+  const normalizedPrimaryAction = {
+    label: String(primaryAction.label || '').trim(),
+    route: normalizePortalExportRoute(primaryAction.route),
+  }
+  const payload = {
+    schemaVersion: PORTAL_FAQ_EXPORT_SCHEMA_VERSION,
+    exportId: `faq-${normalizedProcess || 'faq'}-draft-${timestamp}`,
+    faqTitle: String(bundle.metadata?.title || '').trim(),
+    sourceBundleId: String(sourceBundleId || bundle.metadata?.bundle_id || '').trim(),
+    exportedAt: currentDate.toISOString(),
+    exportedFrom: 'draft',
+    version: normalizedVersion,
+    audience: validation.audience,
+    process: String(process || '').trim(),
+    items: buildPortalExportTreeItems(bundle),
+  }
+  if (normalizedPrimaryAction.label && normalizedPrimaryAction.route) {
+    payload.primaryAction = normalizedPrimaryAction
+  }
+  const normalizedSecondaryActions = normalizePortalSecondaryActions(secondaryActions)
+    .filter((action) => action.label && action.route)
+  if (normalizedSecondaryActions.length) {
+    payload.secondaryActions = normalizedSecondaryActions
+  }
+  const checksum = await buildPortalExportChecksum(payload)
+  if (checksum) {
+    payload.checksum = checksum
+  }
+  return {
+    ok: true,
+    errors: [],
+    payload,
+  }
+}
+
+export function buildFaqBuilderPortalExportFileName(
+  process = '',
+  currentDate = new Date(),
+  fallbackTitle = '',
+) {
+  const normalizedProcess = slugify(process || fallbackTitle || 'matricula-2026') || 'matricula-2026'
+  return `faq-${normalizedProcess}-draft-${buildPortalExportTimestamp(currentDate)}.json`
+}
+
 export function validateFaqBuilderBundle(bundle = {}, options = {}) {
   const mode = options.mode || 'edit'
   const mutateInput = options.mutateInput === true
