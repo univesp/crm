@@ -22,36 +22,63 @@ const runtime = computed(() => ({
   bundles: repositories.value.knowledge.listBundles(),
   metrics: [
     {
-      label: 'Bundles canônicos',
+      label: 'Fluxos FAQ',
       value: repositories.value.knowledge.listBundles().length,
-      hint: 'Bases publicadas ou em edicao controlada pelo workflow canonico.',
+      hint: 'Fluxos cadastrados para publicacao e revisao.',
     },
     {
-      label: 'Versoes publicadas',
+      label: 'Versoes ativas',
       value: repositories.value.knowledge
         .listFoundation()
         .bundleVersions.filter((item) => item.statusCode === 'Published').length,
-      hint: 'Versoes ativas que podem ser usadas pelos protocolos.',
+      hint: 'Versoes publicadas disponiveis para uso.',
     },
     {
-      label: 'Versoes em edicao',
+      label: 'Em revisao',
       value: repositories.value.knowledge
         .listFoundation()
         .bundleVersions.filter((item) => ['Draft', 'In Review', 'Approved'].includes(item.statusCode)).length,
-      hint: 'Rascunhos, revisoes e versoes aprovadas aguardando publicacao.',
+      hint: 'Rascunhos, revisoes e versoes aprovadas aguardando acao.',
     },
     {
-      label: 'Sugestoes pendentes',
+      label: 'Aguardando aprovacao',
       value: repositories.value.knowledge
         .listSuggestions()
         .filter((item) => item.statusCode === 'Pending Review').length,
-      hint: 'Sugestoes da operacao aguardando revisao ou decisao gerencial.',
+      hint: 'Itens aguardando decisao de publicacao ou revisao.',
     },
   ],
 }))
 
 const currentBundle = computed(() => findKnowledgeBundleRuntime(runtime.value.bundles, ui.bundleType))
 const selectedVersion = computed(() => currentBundle.value?.versions.find((item) => item.id === ui.versionId) || null)
+const lastEventSummaryLabel = computed(() =>
+  ui.lastEventSummary.replace('publicada como referencia canonica de', 'publicada para'),
+)
+
+const publicationRows = computed(() =>
+  runtime.value.bundles.map((bundle) => {
+    const actionVersion =
+      bundle.versions.find((version) => ['Approved', 'In Review', 'Draft'].includes(version.statusCode)) ||
+      bundle.publishedVersion ||
+      bundle.versions[0] ||
+      null
+    const reviewVersion = bundle.versions.find((version) => ['Approved', 'In Review', 'Draft'].includes(version.statusCode))
+    const updatedAt = actionVersion?.publishedAt || actionVersion?.approvedAt || bundle.publishedVersion?.publishedAt || ''
+
+    return {
+      bundleType: bundle.bundleType,
+      bundleLabel: bundle.bundleLabel,
+      stateLabel: resolveBundleStateLabel(bundle, reviewVersion),
+      activeVersionLabel: bundle.publishedVersion?.versionNumber || 'Sem versao ativa',
+      reviewVersionLabel: reviewVersion?.versionNumber || 'Sem rascunho/revisao',
+      pendingLabel: resolvePendingLabel(reviewVersion),
+      updatedAtLabel: formatDateLabel(updatedAt),
+      actionLabel: reviewVersion ? 'Revisar publicacao' : 'Abrir fluxo',
+      versionId: actionVersion?.id || '',
+    }
+  }),
+)
 
 watchEffect(() => {
   if (!ui.bundleType && runtime.value.bundles[0]) {
@@ -70,6 +97,11 @@ function selectBundle(bundleType) {
 }
 
 function selectVersion(versionId) {
+  if (!versionId) {
+    ui.lastEventSummary = ''
+    return
+  }
+
   ui.versionId = versionId
   ui.lastEventSummary = ''
 }
@@ -105,10 +137,71 @@ function publishSelectedVersion() {
     ui.lastEventSummary = `Versao ${updated.versionNumber} publicada como referencia canonica de ${currentBundle.value?.bundleLabel || 'conhecimento'}.`
   }
 }
+
+function statusLabel(statusCode) {
+  const labels = {
+    Published: 'Publicado',
+    Approved: 'Aprovado',
+    'In Review': 'Em revisao',
+    Draft: 'Rascunho',
+    Archived: 'Arquivado',
+    'Pending Review': 'Aguardando revisao',
+  }
+
+  return labels[statusCode] || statusCode || 'Nao informado'
+}
+
+function resolveBundleStateLabel(bundle, reviewVersion) {
+  if (reviewVersion?.statusCode === 'Approved') {
+    return 'Aguardando publicacao'
+  }
+
+  if (reviewVersion) {
+    return statusLabel(reviewVersion.statusCode)
+  }
+
+  if (bundle.publishedVersion) {
+    return 'Publicado'
+  }
+
+  return 'Sem versao'
+}
+
+function resolvePendingLabel(version) {
+  if (!version) {
+    return 'Sem pendencia'
+  }
+
+  const labels = {
+    Approved: 'Aprovada para publicar',
+    'In Review': 'Revisar antes de publicar',
+    Draft: 'Rascunho aberto',
+  }
+
+  return labels[version.statusCode] || statusLabel(version.statusCode)
+}
+
+function formatDateLabel(value) {
+  if (!value) {
+    return '-'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('pt-BR').format(date)
+}
 </script>
 
 <template>
   <div class="grid gap-6">
+    <div class="grid gap-1">
+      <h1 class="text-[1.8rem] font-semibold text-slate-950">Publicação</h1>
+      <p class="text-sm leading-6 text-slate-500">Governança das versões dos fluxos FAQ</p>
+    </div>
+
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <MetricCard
         v-for="metric in runtime.metrics"
@@ -120,144 +213,187 @@ function publishSelectedVersion() {
     </section>
 
     <SectionPanel
-      eyebrow="Bundles"
-      title="Versionamento canônico"
-      description="Cada bundle publicado referencia seus proprios snapshots de nos e links. Publicacao e historico usam a mesma trilha canonica da operacao."
+      eyebrow="FAQ & Conhecimento"
+      title="Governança de publicação"
+      description="Acompanhe versões ativas, revisões e pendências dos fluxos FAQ."
     >
-      <div class="grid gap-3 xl:grid-cols-2">
-        <button
-          v-for="bundle in runtime.bundles"
-          :key="bundle.bundleType"
-          type="button"
-          class="option-button text-left"
-          :class="{ 'is-active': bundle.bundleType === ui.bundleType }"
-          @click="selectBundle(bundle.bundleType)"
-        >
-          <p class="text-xs font-semibold text-slate-500">{{ bundle.bundleType }}</p>
-          <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ bundle.bundleLabel }}</h3>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            {{ bundle.versions.length }} versao(oes) registradas na trilha canonica.
-          </p>
-          <div class="mt-4 flex flex-wrap gap-2">
-            <StatusBadge :label="bundle.publishedVersion ? `publicada ${bundle.publishedVersion.versionNumber}` : 'sem publicacao'" />
-            <StatusBadge :label="`${bundle.publicationHistory.length} publicacao(oes)`" />
+      <div class="overflow-x-auto rounded-[18px] border border-slate-200 bg-white">
+        <div class="min-w-[920px]">
+          <div class="grid grid-cols-[1.45fr_0.9fr_0.85fr_1fr_1.1fr_0.9fr_0.95fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <span>Fluxo</span>
+            <span>Estado</span>
+            <span>Versão ativa</span>
+            <span>Rascunho/revisão</span>
+            <span>Pendência</span>
+            <span>Última atualização</span>
+            <span>Ação</span>
           </div>
-        </button>
+
+          <button
+            v-for="row in publicationRows"
+            :key="row.bundleType"
+            type="button"
+            class="grid w-full grid-cols-[1.45fr_0.9fr_0.85fr_1fr_1.1fr_0.9fr_0.95fr] gap-3 border-b border-slate-100 px-4 py-4 text-left text-sm transition last:border-b-0 hover:bg-slate-50"
+            :class="{ 'bg-red-50/40': row.bundleType === ui.bundleType }"
+            @click="selectBundle(row.bundleType); selectVersion(row.versionId)"
+          >
+            <span class="font-semibold text-slate-950">{{ row.bundleLabel }}</span>
+            <span>
+              <StatusBadge :label="row.stateLabel" />
+            </span>
+            <span class="text-slate-700">{{ row.activeVersionLabel }}</span>
+            <span class="text-slate-700">{{ row.reviewVersionLabel }}</span>
+            <span class="text-slate-600">{{ row.pendingLabel }}</span>
+            <span class="text-slate-600">{{ row.updatedAtLabel }}</span>
+            <span class="font-semibold text-[var(--color-primary)]">{{ row.actionLabel }}</span>
+          </button>
+        </div>
       </div>
     </SectionPanel>
 
-    <div v-if="currentBundle" class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+    <div v-if="currentBundle" class="grid gap-6">
       <SectionPanel
-        eyebrow="Versoes"
+        eyebrow="Fluxo selecionado"
         :title="currentBundle.bundleLabel"
-        description="A publicacao agora age sobre a mesma estrutura canônica usada por snapshots, auditoria e futuros recursos de backend."
-      >
-        <div class="grid gap-3">
-          <button
-            v-for="version in currentBundle.versions"
-            :key="version.id"
-            type="button"
-            class="option-button text-left"
-            :class="{ 'is-active': version.id === ui.versionId }"
-            @click="selectVersion(version.id)"
-          >
-            <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p class="text-xs font-semibold text-slate-500">{{ version.bundleType }}</p>
-                <h3 class="mt-2 text-lg font-semibold text-slate-950">{{ version.versionNumber }}</h3>
-                <p class="mt-2 text-sm leading-6 text-slate-600">{{ version.changeSummary }}</p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <StatusBadge :label="version.statusCode" />
-                <StatusBadge :label="`${version.nodeCount} no(s)`" />
-                <StatusBadge :label="`${version.linkCount} link(s)`" />
-              </div>
-            </div>
-          </button>
-        </div>
-      </SectionPanel>
-
-      <SectionPanel
-        eyebrow="Publicacao"
-        title="Versao selecionada"
-        description="Aprovacao e publicacao mudam a referencia ativa do bundle sem depender do runtime legado de versoes."
       >
         <div v-if="selectedVersion" class="grid gap-5">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Revisar publicação</p>
+              <h2 class="mt-2 text-xl font-semibold text-slate-950">{{ selectedVersion.versionNumber }}</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                class="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!selectedVersion.canApprove"
+                @click="approveSelectedVersion"
+              >
+                Revisar publicação
+              </button>
+              <button
+                type="button"
+                class="rounded-[18px] bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!selectedVersion.canPublish"
+                @click="publishSelectedVersion"
+              >
+                Publicar versão
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="ui.lastEventSummary"
+            class="rounded-[18px] bg-slate-100 px-4 py-3 text-sm text-slate-600"
+          >
+            {{ lastEventSummaryLabel }}
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-4">
+            <div class="inner-panel p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Versão ativa</p>
+              <p class="mt-2 text-lg font-semibold text-slate-950">
+                {{ currentBundle.publishedVersion?.versionNumber || 'Sem versão ativa' }}
+              </p>
+            </div>
+            <div class="inner-panel p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Selecionada</p>
+              <p class="mt-2 text-lg font-semibold text-slate-950">{{ selectedVersion.versionNumber }}</p>
+            </div>
+            <div class="inner-panel p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Estado</p>
+              <p class="mt-2 text-lg font-semibold text-slate-950">{{ statusLabel(selectedVersion.statusCode) }}</p>
+            </div>
+            <div class="inner-panel p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Publicação</p>
+              <p class="mt-2 text-lg font-semibold text-slate-950">
+                {{ selectedVersion.canPublish ? 'Disponível' : 'Sem ação' }}
+              </p>
+            </div>
+          </div>
+
           <div class="inner-panel p-5">
-            <p class="text-sm font-semibold text-slate-500">Versao</p>
-            <p class="mt-3 text-lg font-semibold text-slate-950">{{ selectedVersion.versionNumber }}</p>
-            <p class="mt-2 text-sm text-slate-600">{{ selectedVersion.changeSummary }}</p>
+            <p class="text-sm font-semibold text-slate-500">Resumo da mudança</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">{{ selectedVersion.changeSummary || 'Sem resumo informado.' }}</p>
           </div>
 
-          <div class="grid gap-3 md:grid-cols-2">
-            <div class="inner-panel p-5">
-              <p class="text-sm font-semibold text-slate-500">Estado</p>
-              <p class="mt-3 text-lg font-semibold text-slate-950">{{ selectedVersion.statusCode }}</p>
-              <p class="mt-2 text-sm text-slate-600">Criada por {{ selectedVersion.createdBy }}</p>
+          <div class="inner-panel p-5">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p class="text-sm font-semibold text-slate-500">Versões do fluxo</p>
+                <p class="mt-1 text-sm text-slate-600">Selecione outra versão para revisar sem sair da tela.</p>
+              </div>
             </div>
-
-            <div class="inner-panel p-5">
-              <p class="text-sm font-semibold text-slate-500">Snapshots congelados</p>
-              <p class="mt-3 text-lg font-semibold text-slate-950">
-                {{ selectedVersion.nodeCount }} no(s) / {{ selectedVersion.linkCount }} link(s)
-              </p>
-              <p class="mt-2 text-sm text-slate-600">
-                Cada versao aponta para seus proprios snapshots canônicos.
-              </p>
-            </div>
-          </div>
-
-          <div class="grid gap-3 md:grid-cols-2">
-            <div class="inner-panel p-5">
-              <p class="text-sm font-semibold text-slate-500">Ultima aprovacao</p>
-              <p class="mt-3 text-lg font-semibold text-slate-950">{{ selectedVersion.approvedBy || 'Sem aprovacao' }}</p>
-              <p class="mt-2 text-sm text-slate-600">{{ selectedVersion.publishedAt || 'Sem publicacao registrada' }}</p>
-            </div>
-
-            <div class="inner-panel p-5">
-              <p class="text-sm font-semibold text-slate-500">Publicacao ativa</p>
-              <p class="mt-3 text-lg font-semibold text-slate-950">
-                {{ currentBundle.publishedVersion?.versionNumber || 'Nenhuma' }}
-              </p>
-              <p class="mt-2 text-sm text-slate-600">
-                {{ currentBundle.publishedVersion?.publishedBy || 'Sem ator registrado' }}
-              </p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button
+                v-for="version in currentBundle.versions"
+                :key="version.id"
+                type="button"
+                class="rounded-full px-3 py-2 text-xs font-semibold ring-1 ring-slate-200 transition hover:bg-slate-50"
+                :class="version.id === ui.versionId ? 'bg-[var(--color-primary)] text-white ring-transparent' : 'bg-white text-slate-700'"
+                @click="selectVersion(version.id)"
+              >
+                {{ version.versionNumber }} · {{ statusLabel(version.statusCode) }}
+              </button>
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              class="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="!selectedVersion.canApprove"
-              @click="approveSelectedVersion"
-            >
-              Aprovar versao
-            </button>
-            <button
-              type="button"
-              class="rounded-[18px] bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="!selectedVersion.canPublish"
-              @click="publishSelectedVersion"
-            >
-              Publicar versao
-            </button>
-            <span
-              v-if="ui.lastEventSummary"
-              class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600"
-            >
-              {{ ui.lastEventSummary }}
-            </span>
-          </div>
+          <details class="inner-panel p-5">
+            <summary class="cursor-pointer select-none text-sm font-semibold text-slate-500">
+              Ver detalhes técnicos
+            </summary>
+            <div class="mt-4 grid gap-3 md:grid-cols-2">
+              <div>
+                <p class="text-sm font-semibold text-slate-500">Composição</p>
+                <p class="mt-2 text-lg font-semibold text-slate-950">
+                  {{ selectedVersion.nodeCount }} nó(s) / {{ selectedVersion.linkCount }} conexão(ões)
+                </p>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-slate-500">Aprovação</p>
+                <p class="mt-2 text-lg font-semibold text-slate-950">
+                  {{ selectedVersion.approvedBy || 'Sem aprovação' }}
+                </p>
+                <p class="mt-1 text-sm text-slate-600">
+                  {{ selectedVersion.approvedAt || 'Sem data registrada' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-slate-500">Publicação registrada</p>
+                <p class="mt-2 text-lg font-semibold text-slate-950">
+                  {{ selectedVersion.publishedBy || 'Sem ator registrado' }}
+                </p>
+                <p class="mt-1 text-sm text-slate-600">
+                  {{ selectedVersion.publishedAt || 'Sem publicação registrada' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-slate-500">Autor/criador</p>
+                <p class="mt-2 text-lg font-semibold text-slate-950">
+                  {{ selectedVersion.createdBy || 'Não informado' }}
+                </p>
+                <p class="mt-1 text-sm text-slate-600">
+                  Versão ativa: {{ currentBundle.publishedVersion?.versionNumber || 'Nenhuma' }}
+                </p>
+              </div>
+            </div>
+          </details>
         </div>
 
         <div v-else class="inner-panel p-6">
-          <p class="text-xs font-semibold text-slate-500">Nenhuma versao selecionada</p>
+          <p class="text-xs font-semibold text-slate-500">Nenhuma versão selecionada</p>
           <h3 class="mt-3 text-2xl font-semibold text-slate-950">
-            Selecione um bundle para inspecionar sua publicacao canonica.
+            Selecione um fluxo FAQ para ver versões, pendências e publicação.
           </h3>
         </div>
       </SectionPanel>
+    </div>
+
+    <div v-else class="inner-panel p-6">
+      <p class="text-xs font-semibold text-slate-500">Nenhum fluxo selecionado</p>
+      <h3 class="mt-3 text-2xl font-semibold text-slate-950">
+        Selecione um fluxo FAQ para ver versões, pendências e publicação.
+      </h3>
     </div>
   </div>
 </template>
