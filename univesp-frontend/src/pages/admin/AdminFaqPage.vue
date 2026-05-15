@@ -60,6 +60,36 @@ function formatDate(value = '') {
   return date.toLocaleString('pt-BR')
 }
 
+function publicationIssueLabel(issue = {}) {
+  const code = String(issue.code || '').toLowerCase()
+
+  if (code.includes('owner')) {
+    return 'Revisar responsavel'
+  }
+
+  if (code.includes('final')) {
+    return 'Completar etapa final'
+  }
+
+  if (code.includes('invalid') || code.includes('block')) {
+    return 'Corrigir bloqueio antes de publicar'
+  }
+
+  return issue.message || 'Revisar pendencia antes de publicar'
+}
+
+function firstTextValue(values = []) {
+  return values.map((value) => String(value || '').trim()).find(Boolean) || ''
+}
+
+function predominantValue(values = [], fallback = 'Nao informado') {
+  const counts = new Map()
+  for (const value of values.map((item) => String(item || '').trim()).filter(Boolean)) {
+    counts.set(value, (counts.get(value) || 0) + 1)
+  }
+  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || fallback
+}
+
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -235,10 +265,109 @@ const recommendedNextStep = computed(() => {
 const activeVersionLabel = computed(() =>
   activePublished.value ? activePublished.value.bundleVersionId : 'Sem versao ativa',
 )
+const currentDraftVersionLabel = computed(() =>
+  workspace.value?.draftBundle?.versioning?.draft_version ||
+  publicationPreview.value?.nextVersionId ||
+  'Rascunho atual',
+)
 const flowSummaryLabel = computed(
   () => `${flowGraph.value.nodes.length} etapas - ${flowGraph.value.edgeCount} conexoes`,
 )
+const recentPublicationHistory = computed(() =>
+  Array.isArray(workspace.value?.publishedHistory)
+    ? workspace.value.publishedHistory.slice(0, 3)
+    : [],
+)
+const publicationPendingAllItems = computed(() => {
+  const items = []
 
+  for (const issue of validation.value.errors || []) {
+    items.push({
+      tone: 'danger',
+      label: publicationIssueLabel(issue),
+    })
+  }
+
+  if (validation.value.ownershipCoverage?.missingFinalNodes) {
+    items.push({
+      tone: 'warning',
+      label: 'Revisar responsavel nas etapas finais',
+    })
+  }
+
+  for (const issue of validation.value.warnings || []) {
+    items.push({
+      tone: 'warning',
+      label: publicationIssueLabel(issue),
+    })
+  }
+
+  return items
+})
+const publicationPendingItems = computed(() => publicationPendingAllItems.value.slice(0, 3))
+const publicationPendingCount = computed(() => publicationPendingAllItems.value.length)
+const governanceBundle = computed(() =>
+  safeRuntimeState.sanity.bundle?.nodes?.length
+    ? safeRuntimeState.sanity.bundle
+    : workspace.value?.draftBundle || {},
+)
+const governanceNodes = computed(() =>
+  Array.isArray(governanceBundle.value?.nodes) ? governanceBundle.value.nodes : [],
+)
+const flowOwner = computed(() =>
+  governanceBundle.value?.operational_owner ||
+  governanceBundle.value?.metadata?.operational_owner ||
+  {},
+)
+const flowOwnerLabel = computed(() =>
+  firstTextValue([
+    flowOwner.value.queueLabel,
+    flowOwner.value.areaLabel,
+    flowOwner.value.roleKey,
+    flowOwner.value.queueKey,
+    predominantValue(governanceNodes.value.map((node) => node.fila_destino), ''),
+  ]) || 'Nao definido',
+)
+const predominantQueueLabel = computed(() =>
+  predominantValue(governanceNodes.value.map((node) => node.fila_destino), 'Nao informado'),
+)
+const predominantCriticalityLabel = computed(() =>
+  predominantValue(governanceNodes.value.map((node) => node.criticidade_padrao), 'Nao informado'),
+)
+const predominantSlaLabel = computed(() =>
+  predominantValue(governanceNodes.value.map((node) => node.sla_padrao), 'Nao informado'),
+)
+const ownershipStatusLabel = computed(() => {
+  if (validation.value.hasBlockingPublishError) {
+    return 'Bloqueado'
+  }
+
+  if (validation.value.ownershipCoverage?.missingFinalNodes || validation.value.ownershipCoverage?.invalidOverrides) {
+    return 'Atencao'
+  }
+
+  return 'OK'
+})
+const ownershipStatusTone = computed(() => {
+  if (ownershipStatusLabel.value === 'Bloqueado') return 'danger'
+  if (ownershipStatusLabel.value === 'Atencao') return 'warning'
+  return 'success'
+})
+const governanceIssueLabel = computed(() => {
+  if (ownershipStatusLabel.value === 'Bloqueado') {
+    return 'Corrigir fila/area antes de publicar'
+  }
+
+  if (ownershipStatusLabel.value === 'Atencao') {
+    return 'Revisar responsavel'
+  }
+
+  return 'Sem bloqueios'
+})
+const finalOwnerCoverageLabel = computed(() => {
+  const coverage = validation.value.ownershipCoverage || {}
+  return `${coverage.effectiveFinalNodes || 0}/${coverage.totalFinalNodes || 0}`
+})
 const testBundle = computed(() => {
   if (!workspace.value) {
     return null
@@ -627,6 +756,10 @@ function goToLibrary() {
   router.push({ name: 'admin-faq' })
 }
 
+function goToAdvancedPublication() {
+  router.push({ name: 'admin-versioning' })
+}
+
 function goToEditor(mode = 'visual') {
   const normalizedBundleId = (() => {
     const rawValue = sanitizeBundleId(
@@ -816,16 +949,22 @@ watch(
           <div class="flex flex-wrap items-center gap-2">
             <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="startTester('draft')">Testar jornada</button>
             <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Editar fluxo</button>
-            <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar</button>
+            <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar fluxo</button>
           </div>
         </div>
-        <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div class="mt-4 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p class="text-sm font-semibold text-slate-900">Saude do fluxo</p>
+            <p class="mt-1 text-xs text-slate-600">Status, versao e pendencias antes da publicacao.</p>
+          </div>
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
             <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Status</p>
             <p class="mt-1 text-sm font-semibold text-slate-900">{{ workflowStatusLabel }}</p>
           </div>
           <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Publicacao</p>
+            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Aptidao</p>
             <p
               class="mt-1 text-sm font-semibold"
               :class="
@@ -840,10 +979,12 @@ watch(
             </p>
           </div>
           <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Etapas</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">
-              {{ flowGraph.nodes.length }} etapas · {{ flowGraph.edgeCount }} conexoes
-            </p>
+            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Versao ativa</p>
+            <p class="mt-1 text-sm font-semibold text-slate-900">{{ activeVersionLabel }}</p>
+          </div>
+          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Rascunho/revisao</p>
+            <p class="mt-1 text-sm font-semibold text-slate-900">{{ currentDraftVersionLabel }}</p>
           </div>
           <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
             <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Pendencias</p>
@@ -859,9 +1000,9 @@ watch(
             >
               {{
                 publicationReadiness.tone === 'danger'
-                  ? validation.errors.length + (validation.errors.length === 1 ? ' bloqueio' : ' bloqueios')
+                  ? publicationPendingCount + (publicationPendingCount === 1 ? ' bloqueio' : ' bloqueios')
                   : publicationReadiness.tone === 'warning'
-                    ? validation.warnings.length + (validation.warnings.length === 1 ? ' alerta' : ' alertas')
+                    ? publicationPendingCount + (publicationPendingCount === 1 ? ' alerta' : ' alertas')
                     : 'OK'
               }}
             </p>
@@ -875,6 +1016,7 @@ watch(
           <div class="flex flex-wrap items-center gap-2">
             <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Voltar a biblioteca</button>
             <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToAdvancedPublication">Ver publicacao avancada</button>
             <div ref="overflowRef" class="relative">
               <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
               <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg">
@@ -959,6 +1101,49 @@ watch(
       </section>
 
       <section v-if="feedback.message" class="rounded-[14px] border px-4 py-3 text-sm" :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'">{{ feedback.message }}</section>
+
+      <section class="grid gap-3 lg:grid-cols-2">
+        <article class="rounded-[16px] border border-slate-200 bg-white p-4">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">Governanca do fluxo</p>
+              <p class="mt-1 text-xs text-slate-600">Responsavel, cobertura e regras operacionais deste fluxo.</p>
+            </div>
+            <StatusBadge :label="ownershipStatusLabel" />
+          </div>
+          <div class="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+            <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+              <p class="font-semibold text-slate-500">Area/fila responsavel</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ predominantQueueLabel }}</p>
+            </div>
+            <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+              <p class="font-semibold text-slate-500">Responsavel operacional</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ flowOwnerLabel }}</p>
+            </div>
+            <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+              <p class="font-semibold text-slate-500">Cobertura final</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ finalOwnerCoverageLabel }}</p>
+            </div>
+            <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+              <p class="font-semibold text-slate-500">SLA / criticidade</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ predominantSlaLabel }} - {{ predominantCriticalityLabel }}</p>
+            </div>
+          </div>
+          <p
+            class="mt-3 rounded-[12px] px-3 py-2 text-xs font-semibold"
+            :class="
+              ownershipStatusTone === 'danger'
+                ? 'bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]'
+                : ownershipStatusTone === 'warning'
+                  ? 'bg-amber-50 text-amber-700'
+                  : 'bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'
+            "
+          >
+            {{ governanceIssueLabel }}
+          </p>
+        </article>
+
+      </section>
 
       <section v-if="!openState.failed" class="grid gap-3 lg:grid-cols-[1fr_360px]">
         <article class="min-w-0 rounded-[16px] border border-slate-200 bg-white p-3">
@@ -1064,11 +1249,38 @@ watch(
         <article class="rounded-[16px] border border-slate-200 bg-white p-4">
           <div class="flex items-start justify-between gap-2">
             <div>
-              <p class="text-sm font-semibold text-slate-900">Publicar fluxo</p>
+              <p class="text-sm font-semibold text-slate-900">Publicacao do fluxo</p>
               <p class="mt-1 text-xs text-slate-600">{{ publicationReadiness.description }}</p>
             </div>
             <StatusBadge :label="publicationReadiness.label" />
           </div>
+
+          <div class="mt-3 grid gap-2 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+            <p><strong>Status:</strong> {{ workflowStatusLabel }}</p>
+            <p><strong>Versao ativa:</strong> {{ activeVersionLabel }}</p>
+            <p><strong>Rascunho/revisao:</strong> {{ currentDraftVersionLabel }}</p>
+            <p><strong>Inicio de vigencia:</strong> {{ formatDate(publicationPreview?.effectiveStartAt) }}</p>
+            <p><strong>Fim de vigencia:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</p>
+          </div>
+
+          <div class="mt-3 rounded-[12px] border border-slate-200 bg-white p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm font-semibold text-slate-900">Pendencias para publicar</p>
+              <StatusBadge :label="publicationReadiness.tone === 'success' ? 'OK' : publicationReadiness.label" />
+            </div>
+            <div v-if="publicationPendingItems.length" class="mt-3 grid gap-2">
+              <p
+                v-for="item in publicationPendingItems"
+                :key="item.label"
+                class="rounded-[10px] px-3 py-2 text-xs font-semibold"
+                :class="item.tone === 'danger' ? 'bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'bg-amber-50 text-amber-700'"
+              >
+                {{ item.label }}
+              </p>
+            </div>
+            <p v-else class="mt-2 text-xs text-slate-600">OK para seguir com teste e publicacao.</p>
+          </div>
+
           <div class="mt-3 grid gap-2 text-xs">
             <label class="grid gap-1">
               <span class="font-semibold text-slate-600">Modo de publicacao</span>
@@ -1085,27 +1297,45 @@ watch(
               <span class="font-semibold text-slate-600">Fim de vigencia (opcional)</span>
               <input v-model="publishForm.effectiveEndAt" type="datetime-local" class="faq-input" />
             </label>
-            <details class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-              <summary class="cursor-pointer font-semibold text-slate-700">Configuracoes avancadas</summary>
-              <div class="mt-3 grid gap-2">
+            <label class="grid gap-1">
+              <span class="font-semibold text-slate-600">Resumo da mudanca</span>
+              <textarea v-model="publishForm.summary" rows="3" class="faq-input"></textarea>
+            </label>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="sendToReview">Revisar publicacao</button>
+            <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar fluxo</button>
+            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
+          </div>
+
+          <details class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <summary class="cursor-pointer font-semibold text-slate-700">Historico recente</summary>
+            <div v-if="recentPublicationHistory.length" class="mt-3 grid gap-2 text-xs text-slate-600">
+              <p v-for="item in recentPublicationHistory" :key="`${item.bundleVersionId}-${item.publishedAt}`">
+                <strong>{{ item.bundleVersionId }}</strong> publicado em {{ formatDate(item.publishedAt) }} por {{ item.publishedBy || 'Admin' }}.
+              </p>
+            </div>
+            <p v-else class="mt-3 text-xs text-slate-600">Historico detalhado disponivel na area de publicacao avancada.</p>
+          </details>
+
+          <details class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <summary class="cursor-pointer font-semibold text-slate-700">Detalhes tecnicos</summary>
+            <div class="mt-3 grid gap-3 text-xs text-slate-600">
+              <div class="grid gap-2">
+                <p><strong>Fluxo:</strong> {{ bundleId }}</p>
+                <p><strong>Etapas:</strong> {{ flowGraph.nodes.length }} etapas - {{ flowGraph.edgeCount }} conexoes</p>
+                <p><strong>Proxima versao:</strong> {{ publicationPreview?.nextVersionId || '-' }}</p>
+                <p><strong>Substitui:</strong> {{ publicationPreview?.currentPublishedVersion || 'Nenhuma' }}</p>
+              </div>
+              <div class="grid gap-2">
                 <label class="grid gap-1"><span class="font-semibold text-slate-600">Prioridade</span><input v-model.number="publishForm.priority" type="number" min="0" max="1000" class="faq-input" /></label>
                 <label class="grid gap-1"><span class="font-semibold text-slate-600">Ordem de exibicao</span><input v-model.number="publishForm.displayRank" type="number" min="0" max="1000" class="faq-input" /></label>
                 <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input v-model="publishForm.isFeatured" type="checkbox" /> Destacar este fluxo</label>
                 <label class="grid gap-1"><span class="font-semibold text-slate-600">Condicao especial (opcional)</span><input v-model="publishForm.conditions" type="text" class="faq-input" placeholder="Ex.: periodo rematricula ativo" /></label>
-                <label class="grid gap-1"><span class="font-semibold text-slate-600">Resumo da mudanca</span><textarea v-model="publishForm.summary" rows="3" class="faq-input"></textarea></label>
-                <div class="mt-1 rounded-[10px] border border-slate-200 bg-white p-2 text-xs text-slate-600">
-                  <p><strong>Proxima versao:</strong> {{ publicationPreview?.nextVersionId || '-' }}</p>
-                  <p><strong>Substitui:</strong> {{ publicationPreview?.currentPublishedVersion || 'Nenhuma' }}</p>
-                  <p><strong>Inicio:</strong> {{ formatDate(publicationPreview?.effectiveStartAt) }}</p>
-                  <p><strong>Fim:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</p>
-                </div>
               </div>
-            </details>
-          </div>
-          <div class="mt-4 flex flex-wrap gap-2">
-            <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar</button>
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
-          </div>
+            </div>
+          </details>
         </article>
       </section>
 
