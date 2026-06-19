@@ -875,7 +875,7 @@ watch(
     ui.parentTargetId = selectedNodeParentLink.value?.parent_node_id || ''
     syncSelectedNodeOwnershipDraft(node)
     if (node && responseEditorRef.value) {
-      responseEditorRef.value.innerHTML = node.resposta || ''
+      responseEditorRef.value.innerHTML = sanitizeFaqResponseHtml(node.resposta || '')
     }
   },
   { immediate: true },
@@ -908,6 +908,76 @@ onBeforeUnmount(() => {
 function setFeedback(type = '', message = '') {
   feedback.type = type
   feedback.message = message
+}
+
+function normalizeEditorLinkUrl(value = '') {
+  const rawValue = String(value || '').trim()
+  if (!rawValue) {
+    return ''
+  }
+
+  try {
+    const url = new URL(rawValue, window.location.origin)
+    if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) {
+      return ''
+    }
+    return url.toString()
+  } catch {
+    return ''
+  }
+}
+
+function sanitizeFaqResponseHtml(value = '') {
+  const rawValue = String(value || '')
+  if (typeof document === 'undefined') {
+    return stripHtml(rawValue)
+  }
+
+  const allowedTags = new Set(['A', 'B', 'BR', 'DIV', 'EM', 'I', 'LI', 'OL', 'P', 'STRONG', 'U', 'UL'])
+  const template = document.createElement('template')
+  template.innerHTML = rawValue
+
+  function unwrapElement(element) {
+    const fragment = document.createDocumentFragment()
+    while (element.firstChild) {
+      fragment.appendChild(element.firstChild)
+    }
+    element.replaceWith(fragment)
+  }
+
+  function sanitizeNode(node) {
+    for (const child of [...node.childNodes]) {
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        continue
+      }
+
+      const tagName = child.tagName.toUpperCase()
+      const rawHref = tagName === 'A' ? child.getAttribute('href') || '' : ''
+      if (!allowedTags.has(tagName)) {
+        unwrapElement(child)
+        sanitizeNode(node)
+        continue
+      }
+
+      for (const attribute of [...child.attributes]) {
+        child.removeAttribute(attribute.name)
+      }
+
+      if (tagName === 'A') {
+        const safeHref = normalizeEditorLinkUrl(rawHref)
+        if (safeHref) {
+          child.setAttribute('href', safeHref)
+          child.setAttribute('rel', 'noopener noreferrer')
+          child.setAttribute('target', '_blank')
+        }
+      }
+
+      sanitizeNode(child)
+    }
+  }
+
+  sanitizeNode(template.content)
+  return template.innerHTML
 }
 
 function stripHtml(value = '') {
@@ -975,7 +1045,6 @@ function getCurrentBundleOwnerDraftFieldValue(field = '') {
 }
 
 function syncBundleOwnerDraftFromWorkspace(options = {}) {
-  const source = String(options.source || 'unknown')
   if (isUpdatingBundleOperationalOwner && !options.force) {
     return
   }
@@ -1353,13 +1422,25 @@ function applyEditorCommand(command = '') {
   if (command === 'link') {
     const url = window.prompt('Informe a URL do link:')
     if (!url) return
-    document.execCommand('createLink', false, url)
+    const safeUrl = normalizeEditorLinkUrl(url)
+    if (!safeUrl) {
+      setFeedback('error', 'Use um link http, https ou mailto valido.')
+      return
+    }
+    document.execCommand('createLink', false, safeUrl)
   } else {
     document.execCommand(command, false, null)
   }
   if (selectedNode.value) {
-    updateNodeField('resposta', responseEditorRef.value.innerHTML)
+    const sanitizedResponse = sanitizeFaqResponseHtml(responseEditorRef.value.innerHTML)
+    responseEditorRef.value.innerHTML = sanitizedResponse
+    updateNodeField('resposta', sanitizedResponse)
   }
+}
+
+function updateResponseFromEditor(event) {
+  const nextHtml = sanitizeFaqResponseHtml(event?.target?.innerHTML || '')
+  updateNodeField('resposta', nextHtml)
 }
 
 function selectRootNode() {
@@ -2043,8 +2124,79 @@ function applySpreadsheetImport() {
                     ref="responseEditorRef"
                     contenteditable="true"
                     class="mt-2 min-h-[140px] rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-700"
-                    @input="updateNodeField('resposta', $event.target.innerHTML)"
+                    @input="updateResponseFromEditor"
                   ></div>
+                </section>
+
+                <section
+                  v-if="selectedNodeMode === 'final'"
+                  class="rounded-[8px] border border-slate-200 bg-white p-3"
+                >
+                  <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
+                    Preparacao fase 2
+                  </p>
+                  <p class="mt-1 text-[11px] text-slate-600">
+                    Classifique respostas que futuramente dependerao de dados academicos oficiais.
+                  </p>
+                  <div class="mt-3 grid gap-2">
+                    <label class="faq-field">
+                      <span>Tipo de resposta</span>
+                      <select
+                        :value="selectedNode.response_mode || 'informational'"
+                        class="faq-input"
+                        @change="updateNodeField('response_mode', $event.target.value)"
+                      >
+                        <option
+                          v-for="option in catalogs.responseModes"
+                          :key="option.value"
+                          :value="option.value"
+                        >
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+                    <label class="faq-field">
+                      <span>Intencao academica</span>
+                      <select
+                        :value="selectedNode.academic_intent || 'none'"
+                        class="faq-input"
+                        @change="updateNodeField('academic_intent', $event.target.value)"
+                      >
+                        <option
+                          v-for="option in catalogs.academicIntents"
+                          :key="option.value"
+                          :value="option.value"
+                        >
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+                    <label class="faq-field">
+                      <span>Contrato de dados futuro</span>
+                      <input
+                        :value="selectedNode.data_contract_key || ''"
+                        class="faq-input"
+                        placeholder="Ex.: academic.pending_courses.v1"
+                        @input="updateNodeField('data_contract_key', $event.target.value)"
+                      />
+                    </label>
+                    <label class="faq-field">
+                      <span>Politica de confianca</span>
+                      <select
+                        :value="selectedNode.confidence_policy || 'answer_when_deterministic'"
+                        class="faq-input"
+                        @change="updateNodeField('confidence_policy', $event.target.value)"
+                      >
+                        <option
+                          v-for="option in catalogs.confidencePolicies"
+                          :key="option.value"
+                          :value="option.value"
+                        >
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+                  </div>
                 </section>
 
                 <details class="faq-advanced-panel">

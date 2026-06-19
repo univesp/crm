@@ -31,24 +31,12 @@ const periodOptions = [
   { value: '30d', label: '30 dias', summary: 'ultimos 30 dias' },
   { value: 'base', label: 'Periodo', summary: 'base atual' },
 ]
-const viewModes = [
-  { value: 'areas', label: 'Areas internas' },
-  { value: 'polos', label: 'Polos' },
-  { value: 'temas', label: 'Temas' },
-  { value: 'faq', label: 'FAQ' },
-]
-
 const dashboardBase = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const dashboardView = computed(() => buildAdminDashboardView(dashboardBase.value, filters))
 const filterOptions = computed(() => dashboardBase.value.filterOptions)
 const metrics = computed(() => dashboardView.value.kpis)
 const criticalMetricLabels = ['SLA vencido', 'Criticidade alta', 'Escalados para area interna', 'Reincidencia de tema']
 const metricValue = (label) => metrics.value.find((metric) => metric.label === label)?.value || 0
-const criticalMetrics = computed(() =>
-  criticalMetricLabels
-    .map((label) => metrics.value.find((metric) => metric.label === label))
-    .filter(Boolean),
-)
 const criticalKpiCards = computed(() => [
   {
     label: 'SLA vencido',
@@ -89,17 +77,11 @@ const criticalKpiCards = computed(() => [
 const secondaryMetrics = computed(() =>
   metrics.value.filter((metric) => !criticalMetricLabels.includes(metric.label)),
 )
-const queueSummary = computed(() => dashboardView.value.queueSummary)
 const auditEntries = computed(() => dashboardView.value.auditEntries)
 const activeCasesFull = computed(() => dashboardView.value.activeCases)
 const activeCases = computed(() => activeCasesFull.value.slice(0, 4))
 const governanceCards = computed(() => dashboardView.value.governanceCards)
 const selectedPeriodLabel = computed(() => periodOptions.find((option) => option.value === ui.periodKey)?.summary || 'base atual')
-const currentViewLabel = computed(() => viewModes.find((mode) => mode.value === ui.viewMode)?.label || 'Areas internas')
-const activeFilterCount = computed(() =>
-  [filters.status, filters.criticality, filters.theme].filter((value) => value !== 'todos').length +
-  (ui.poloSearch.trim() ? 1 : 0),
-)
 const healthScore = computed(() =>
   metricValue('SLA vencido') * 4 +
   metricValue('Criticidade alta') * 3 +
@@ -142,21 +124,6 @@ const operationHealth = computed(() => {
     tone: 'normal',
     hint: 'estavel',
   }
-})
-const topRiskTitle = computed(() => {
-  if (ui.viewMode === 'polos') {
-    return 'Polos em risco'
-  }
-
-  if (ui.viewMode === 'temas') {
-    return 'Temas em alta'
-  }
-
-  if (ui.viewMode === 'faq') {
-    return 'FAQ com sinal de falha'
-  }
-
-  return 'Areas internas em risco'
 })
 const demandDistribution = computed(() => {
   const resolvedByFaq = metricValue('Resolvidos pela FAQ')
@@ -366,8 +333,6 @@ const topRiskItems = computed(() => {
   return clusterRiskRows.value.slice(0, 5)
 })
 const areaRiskRows = computed(() => clusterRiskRows.value.slice(0, 6))
-const maxClusterVolume = computed(() => Math.max(...topRiskItems.value.map((entry) => entry.volume), 1))
-const maxClusterRisk = computed(() => Math.max(...topRiskItems.value.map((entry) => entry.riskScore), 1))
 const maxAreaRisk = computed(() => Math.max(...areaRiskRows.value.map((entry) => entry.riskScore), 1))
 const maxPoloRisk = computed(() => Math.max(...poloRiskRows.value.map((entry) => entry.riskScore), 1))
 const selectedClusterDetails = computed(() => {
@@ -693,7 +658,6 @@ function getRiskLabel(row) {
 
 <template>
   <div class="grid gap-4">
-
     <!-- 1. HEADER COMPACTO -->
     <section class="rounded-[8px] border border-slate-200 bg-white p-4">
       <div class="flex flex-wrap items-start justify-between gap-4">
@@ -832,7 +796,6 @@ function getRiskLabel(row) {
 
     <!-- 3. DISTRIBUICAO + TENDENCIA -->
     <div class="grid gap-4 lg:grid-cols-[0.38fr_0.62fr]">
-
       <!-- Donut distribuicao -->
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
@@ -968,7 +931,6 @@ function getRiskLabel(row) {
 
     <!-- 4. AREAS INTERNAS + POLOS EM ATENCAO (tabelas compactas) -->
     <div class="grid gap-4 md:grid-cols-2">
-
       <!-- Areas internas em risco -->
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
@@ -978,49 +940,49 @@ function getRiskLabel(row) {
 
         <div v-if="areaRiskRows.length" class="mt-3 overflow-x-auto">
           <div class="min-w-[420px]">
-          <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
-            <span>Area interna</span>
-            <span class="text-center">Risco</span>
-            <span class="text-center">SLA</span>
-            <span class="text-center">Crit.</span>
-            <span class="text-center">Escal.</span>
-            <span class="text-center">Acao</span>
-          </div>
-          <div
-            v-for="area in areaRiskRows"
-            :key="area.key"
-            class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
-          >
-            <div class="min-w-0">
-              <p class="truncate text-xs font-semibold text-slate-900">{{ area.cluster }}</p>
-              <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
-                <span
-                  class="block h-full rounded-full bg-[var(--color-primary)]"
-                  :style="{ width: `${Math.max(8, Math.round((area.riskScore / maxAreaRisk) * 100))}%` }"
-                ></span>
-              </div>
+            <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
+              <span>Area interna</span>
+              <span class="text-center">Risco</span>
+              <span class="text-center">SLA</span>
+              <span class="text-center">Crit.</span>
+              <span class="text-center">Escal.</span>
+              <span class="text-center">Acao</span>
             </div>
-            <span
-              class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
-              :class="getRiskLabel(area) === 'Alto'
-                ? 'bg-red-100 text-red-700'
-                : getRiskLabel(area) === 'Medio'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-emerald-100 text-emerald-700'"
+            <div
+              v-for="area in areaRiskRows"
+              :key="area.key"
+              class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
             >
-              {{ getRiskLabel(area) }}
-            </span>
-            <span class="text-center text-xs font-semibold text-slate-700">{{ area.slaOverdueCount }}</span>
-            <span class="text-center text-xs font-semibold text-slate-700">{{ area.highCriticalityCount }}</span>
-            <span class="text-center text-xs font-semibold text-slate-700">{{ area.escalationsCount }}</span>
-            <button
-              type="button"
-              class="text-center text-[10px] font-semibold text-[var(--color-primary)]"
-              @click="openInsight(area, 'areas')"
-            >
-              Abrir
-            </button>
-          </div>
+              <div class="min-w-0">
+                <p class="truncate text-xs font-semibold text-slate-900">{{ area.cluster }}</p>
+                <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
+                  <span
+                    class="block h-full rounded-full bg-[var(--color-primary)]"
+                    :style="{ width: `${Math.max(8, Math.round((area.riskScore / maxAreaRisk) * 100))}%` }"
+                  ></span>
+                </div>
+              </div>
+              <span
+                class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
+                :class="getRiskLabel(area) === 'Alto'
+                  ? 'bg-red-100 text-red-700'
+                  : getRiskLabel(area) === 'Medio'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-emerald-100 text-emerald-700'"
+              >
+                {{ getRiskLabel(area) }}
+              </span>
+              <span class="text-center text-xs font-semibold text-slate-700">{{ area.slaOverdueCount }}</span>
+              <span class="text-center text-xs font-semibold text-slate-700">{{ area.highCriticalityCount }}</span>
+              <span class="text-center text-xs font-semibold text-slate-700">{{ area.escalationsCount }}</span>
+              <button
+                type="button"
+                class="text-center text-[10px] font-semibold text-[var(--color-primary)]"
+                @click="openInsight(area, 'areas')"
+              >
+                Abrir
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1048,49 +1010,49 @@ function getRiskLabel(row) {
 
         <div v-if="poloRiskRows.length" class="mt-3 overflow-x-auto">
           <div class="min-w-[420px]">
-          <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
-            <span>Polo</span>
-            <span class="text-center">Risco</span>
-            <span class="text-center">SLA</span>
-            <span class="text-center">Crit.</span>
-            <span class="text-center">Volume</span>
-            <span class="text-center">Acao</span>
-          </div>
-          <div
-            v-for="polo in poloRiskRows.slice(0, 6)"
-            :key="polo.key"
-            class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
-          >
-            <div class="min-w-0">
-              <p class="truncate text-xs font-semibold text-slate-900">{{ polo.cluster }}</p>
-              <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
-                <span
-                  class="block h-full rounded-full bg-[var(--color-primary)]"
-                  :style="{ width: `${Math.max(8, Math.round((polo.riskScore / maxPoloRisk) * 100))}%` }"
-                ></span>
-              </div>
+            <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
+              <span>Polo</span>
+              <span class="text-center">Risco</span>
+              <span class="text-center">SLA</span>
+              <span class="text-center">Crit.</span>
+              <span class="text-center">Volume</span>
+              <span class="text-center">Acao</span>
             </div>
-            <span
-              class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
-              :class="getRiskLabel(polo) === 'Alto'
-                ? 'bg-red-100 text-red-700'
-                : getRiskLabel(polo) === 'Medio'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-emerald-100 text-emerald-700'"
+            <div
+              v-for="polo in poloRiskRows.slice(0, 6)"
+              :key="polo.key"
+              class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
             >
-              {{ getRiskLabel(polo) }}
-            </span>
-            <span class="text-center text-xs font-semibold text-slate-700">{{ polo.slaOverdueCount }}</span>
-            <span class="text-center text-xs font-semibold text-slate-700">{{ polo.highCriticalityCount }}</span>
-            <span class="text-center text-xs font-semibold text-slate-700">{{ polo.volume }}</span>
-            <button
-              type="button"
-              class="text-center text-[10px] font-semibold text-[var(--color-primary)]"
-              @click="openInsight(polo, 'polos')"
-            >
-              Abrir
-            </button>
-          </div>
+              <div class="min-w-0">
+                <p class="truncate text-xs font-semibold text-slate-900">{{ polo.cluster }}</p>
+                <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
+                  <span
+                    class="block h-full rounded-full bg-[var(--color-primary)]"
+                    :style="{ width: `${Math.max(8, Math.round((polo.riskScore / maxPoloRisk) * 100))}%` }"
+                  ></span>
+                </div>
+              </div>
+              <span
+                class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
+                :class="getRiskLabel(polo) === 'Alto'
+                  ? 'bg-red-100 text-red-700'
+                  : getRiskLabel(polo) === 'Medio'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-emerald-100 text-emerald-700'"
+              >
+                {{ getRiskLabel(polo) }}
+              </span>
+              <span class="text-center text-xs font-semibold text-slate-700">{{ polo.slaOverdueCount }}</span>
+              <span class="text-center text-xs font-semibold text-slate-700">{{ polo.highCriticalityCount }}</span>
+              <span class="text-center text-xs font-semibold text-slate-700">{{ polo.volume }}</span>
+              <button
+                type="button"
+                class="text-center text-[10px] font-semibold text-[var(--color-primary)]"
+                @click="openInsight(polo, 'polos')"
+              >
+                Abrir
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1112,7 +1074,6 @@ function getRiskLabel(row) {
 
     <!-- 5. TEMAS + ACOES + ESCAPE DA FAQ -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-
       <!-- Temas em alta -->
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
@@ -1449,6 +1410,5 @@ function getRiskLabel(row) {
         </div>
       </section>
     </details>
-
   </div>
 </template>

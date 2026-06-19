@@ -1142,7 +1142,6 @@ watch(
             {{ governanceIssueLabel }}
           </p>
         </article>
-
       </section>
 
       <section v-if="!openState.failed" class="grid gap-3 lg:grid-cols-[1fr_360px]">
