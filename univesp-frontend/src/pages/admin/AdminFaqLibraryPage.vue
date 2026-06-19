@@ -5,11 +5,9 @@ import { useRouter } from 'vue-router'
 import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
-  archiveFaqBuilderBundleEntry,
   clearFaqBuilderBundleLibraryLocal,
   createFaqBuilderBundleLibrary,
   createFaqBuilderBundleEntry,
-  duplicateFaqBuilderBundleEntry,
   getFaqBuilderCatalogOptions,
   listFaqBuilderBundles,
   loadFaqBuilderBundleLibraryLocal,
@@ -148,48 +146,6 @@ function openBundle(bundleId = '', query = {}) {
   })
 }
 
-function openBundleEditor(bundleId = '', query = {}) {
-  const normalizedBundleId = (() => {
-    try {
-      return decodeURIComponent(
-        String(bundleId || '')
-          .split('?')[0]
-          .split('#')[0]
-          .split('/')[0]
-          .trim(),
-      )
-    } catch {
-      return String(bundleId || '')
-        .split('?')[0]
-        .split('#')[0]
-        .split('/')[0]
-        .trim()
-    }
-  })()
-  if (!normalizedBundleId) {
-    setFeedback('error', 'Fluxo invalido: identificador ausente.')
-    return
-  }
-  const nextQuery = { ...query }
-  const targetRoute = {
-    name: 'admin-faq-builder',
-    params: {
-      bundleId: normalizedBundleId,
-    },
-    ...(Object.keys(nextQuery).length ? { query: nextQuery } : {}),
-  }
-  try {
-    const resolved = router.resolve(targetRoute)
-    window.location.assign(resolved.href)
-  } catch (error) {
-    console.error('[faq-library][open-editor-failed]', error)
-    setFeedback(
-      'error',
-      'Falha de navegação para o editor.',
-    )
-  }
-}
-
 function createFlow() {
   const result = createFaqBuilderBundleEntry(library, {
     faqType: createForm.faqType,
@@ -208,40 +164,6 @@ function createFlow() {
   openBundle(result.entry.bundleId)
 }
 
-function duplicateFlow(bundleId = '') {
-  const result = duplicateFaqBuilderBundleEntry(
-    library,
-    bundleId,
-    currentEditorName.value,
-  )
-  if (!result.ok) {
-    setFeedback('error', result.message)
-    return
-  }
-  saveFaqBuilderBundleLibraryLocal(library)
-  setFeedback('success', 'Fluxo duplicado com sucesso.')
-}
-
-function archiveFlow(bundleId = '') {
-  const confirmed = window.confirm(
-    'Arquivar este fluxo? Ele sai da lista de operação ativa, mas a versao atual e o historico permanecem preservados.',
-  )
-  if (!confirmed) {
-    return
-  }
-  const result = archiveFaqBuilderBundleEntry(
-    library,
-    bundleId,
-    currentEditorName.value,
-  )
-  if (!result.ok) {
-    setFeedback('error', result.message)
-    return
-  }
-  saveFaqBuilderBundleLibraryLocal(library)
-  setFeedback('success', 'Fluxo arquivado.')
-}
-
 function statusLabel(status = '') {
   const normalized = String(status || '').toLowerCase()
   const labels = {
@@ -252,16 +174,6 @@ function statusLabel(status = '') {
     archived: 'Arquivado',
   }
   return labels[normalized] || status || 'Nao informado'
-}
-
-function faqTypeLabel(type = '') {
-  const normalized = String(type || '').toLowerCase()
-  const labels = {
-    op: 'Orientador de Polo',
-    aluno: 'Aluno',
-    admin: 'Administrativo',
-  }
-  return labels[normalized] || type || 'Nao informado'
 }
 
 function formatDate(dateValue = '') {
@@ -432,7 +344,7 @@ function situationTone(row = {}) {
 
     <section class="rounded-[8px] border border-slate-200 bg-white p-4">
       <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
-        <div class="mt-3 overflow-auto rounded-[8px] border border-slate-200">
+      <div class="mt-3 overflow-auto rounded-[8px] border border-slate-200">
         <table class="w-full min-w-[900px] text-left text-xs">
           <thead class="bg-slate-100 text-slate-600">
             <tr>
@@ -474,9 +386,9 @@ function situationTone(row = {}) {
               </td>
               <td class="px-3 py-2">
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
+                  <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
                     Ver fluxo
-                    </button>
+                  </button>
                 </div>
               </td>
             </tr>

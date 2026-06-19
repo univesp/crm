@@ -102,18 +102,18 @@ const secondarySummaryItems = computed(() => {
         </span>
       </div>
       <div class="grid gap-2 md:grid-cols-2">
-      <article
-        v-for="item in barItems"
-        :key="item.id"
-        class="rounded-[8px] bg-slate-50/90 px-3 py-2.5"
-      >
-        <p class="text-[11px] font-semibold tracking-normal text-slate-500">
-          {{ item.label }}
-        </p>
-        <p class="mt-1 text-sm font-semibold text-slate-900">
-          {{ item.value }}
-        </p>
-      </article>
+        <article
+          v-for="item in barItems"
+          :key="item.id"
+          class="rounded-[8px] bg-slate-50/90 px-3 py-2.5"
+        >
+          <p class="text-[11px] font-semibold tracking-normal text-slate-500">
+            {{ item.label }}
+          </p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">
+            {{ item.value }}
+          </p>
+        </article>
       </div>
     </div>
   </section>

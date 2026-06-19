@@ -1,7 +1,6 @@
 ﻿<script setup>
 import { computed, reactive, watch, watchEffect } from 'vue'
 import MetricCard from '@/components/MetricCard.vue'
-import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useAuthStore } from '@/stores/auth'
 import {

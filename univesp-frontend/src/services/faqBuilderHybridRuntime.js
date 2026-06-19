@@ -4,9 +4,12 @@ import faqAluno from '../../mocks/faq-aluno.json'
 import faqOp from '../../mocks/faq-op.json'
 import {
   ACTION_CATALOG,
+  ACADEMIC_INTENT_CATALOG,
+  CONFIDENCE_POLICY_CATALOG,
   CRITICALITY_CATALOG,
   FAQ_TYPE_CATALOG,
   QUEUE_DESTINATION_CATALOG,
+  RESPONSE_MODE_CATALOG,
   SLA_CATALOG,
   getCatalogKeys,
   hasCatalogValue,
@@ -97,6 +100,15 @@ const HEADER_ALIAS_MAP = Object.freeze({
   closing_action: 'closing_action',
   acao_de_encerramento: 'closing_action',
   acao: 'closing_action',
+  response_mode: 'response_mode',
+  tipo_resposta: 'response_mode',
+  modo_resposta: 'response_mode',
+  academic_intent: 'academic_intent',
+  intencao_academica: 'academic_intent',
+  data_contract_key: 'data_contract_key',
+  contrato_dados: 'data_contract_key',
+  confidence_policy: 'confidence_policy',
+  politica_confianca: 'confidence_policy',
   child_order: 'child_order',
   ordem_do_filho: 'child_order',
   ordem: 'child_order',
@@ -168,6 +180,10 @@ export const FAQ_BUILDER_SPREADSHEET_COLUMNS = Object.freeze([
   { key: 'parent_id', label: 'parent_id', required: false, description: 'ID do pai. Deixe vazio para raiz.' },
   { key: 'response_content', label: 'response_content', required: false, description: 'Obrigatorio para node_type=final.' },
   { key: 'closing_action', label: 'closing_action', required: false, description: 'Acao final canonica.' },
+  { key: 'response_mode', label: 'response_mode', required: false, description: 'informational, data_assisted ou protocol_required.' },
+  { key: 'academic_intent', label: 'academic_intent', required: false, description: 'Intencao academica futura, ex.: pending_courses.' },
+  { key: 'data_contract_key', label: 'data_contract_key', required: false, description: 'Chave do contrato de dados academicos futuro.' },
+  { key: 'confidence_policy', label: 'confidence_policy', required: false, description: 'answer_when_deterministic, show_with_caveat ou always_open_protocol.' },
   { key: 'child_order', label: 'child_order', required: false, description: 'Ordem do filho entre os irmaos.' },
   { key: 'theme', label: 'theme', required: true, description: 'Assunto principal.' },
   { key: 'subtheme', label: 'subtheme', required: true, description: 'Subassunto principal.' },
@@ -816,6 +832,16 @@ function sanitizeFaqBuilderBundleForRuntime(bundle = {}, options = {}) {
       ...node,
       id: nodeId,
       node_id: nodeId,
+      response_mode: hasCatalogValue(RESPONSE_MODE_CATALOG, node?.response_mode)
+        ? node.response_mode
+        : 'informational',
+      academic_intent: hasCatalogValue(ACADEMIC_INTENT_CATALOG, node?.academic_intent)
+        ? node.academic_intent
+        : 'none',
+      data_contract_key: String(node?.data_contract_key || '').trim(),
+      confidence_policy: hasCatalogValue(CONFIDENCE_POLICY_CATALOG, node?.confidence_policy)
+        ? node.confidence_policy
+        : 'answer_when_deterministic',
     })
 
     if (normalizedNodes.length >= maxNodes) {
@@ -1221,6 +1247,10 @@ function buildImportTemplateRows(faqType = 'aluno') {
       parent_id: '',
       response_content: '',
       closing_action: 'ir_para_subniveis',
+      response_mode: 'informational',
+      academic_intent: 'none',
+      data_contract_key: '',
+      confidence_policy: 'answer_when_deterministic',
       child_order: 1,
       theme: 'assunto_principal',
       subtheme: 'geral',
@@ -1283,6 +1313,10 @@ function buildImportTemplateRows(faqType = 'aluno') {
       parent_id: `faq-${faqType}-ramo-exemplo`,
       response_content: 'Texto final mostrado para o usuario.',
       closing_action: 'mostrar_resposta',
+      response_mode: 'informational',
+      academic_intent: 'none',
+      data_contract_key: '',
+      confidence_policy: 'answer_when_deterministic',
       child_order: 1,
       theme: 'assunto_principal',
       subtheme: 'resposta',
@@ -1332,6 +1366,9 @@ export function getFaqBuilderCatalogOptions() {
   return {
     faqTypes: buildCatalogOptions(FAQ_TYPE_CATALOG),
     actions: buildCatalogOptions(ACTION_CATALOG),
+    responseModes: buildCatalogOptions(RESPONSE_MODE_CATALOG),
+    academicIntents: buildCatalogOptions(ACADEMIC_INTENT_CATALOG),
+    confidencePolicies: buildCatalogOptions(CONFIDENCE_POLICY_CATALOG),
     queues,
     queueDestinations: queues,
     criticalities: buildCatalogOptions(CRITICALITY_CATALOG),
@@ -3045,6 +3082,10 @@ function buildBundleSkeletonPackage({ faqType = 'aluno', subjectKey = '', title 
         descricao_interna: 'No inicial do fluxo.',
         resposta: '',
         acao: 'ir_para_subniveis',
+        response_mode: 'informational',
+        academic_intent: 'none',
+        data_contract_key: '',
+        confidence_policy: 'answer_when_deterministic',
         abre_atendimento: false,
         fila_destino: defaultOwnerQueue,
         criticidade_padrao: 'media',
@@ -3084,6 +3125,10 @@ function buildBundleSkeletonPackage({ faqType = 'aluno', subjectKey = '', title 
         descricao_interna: 'No final inicial para comecar a edicao.',
         resposta: 'Edite esta resposta para publicar o fluxo.',
         acao: 'mostrar_resposta',
+        response_mode: 'informational',
+        academic_intent: 'none',
+        data_contract_key: '',
+        confidence_policy: 'answer_when_deterministic',
         abre_atendimento: false,
         fila_destino: defaultOwnerQueue,
         criticidade_padrao: 'media',
@@ -3485,6 +3530,10 @@ export function addFaqBuilderChildNode(bundle = {}, parentNodeId = '', options =
     descricao_interna: '',
     resposta: nodeMode === NODE_MODE_MAP.final ? 'Descreva a resposta final.' : '',
     acao: nodeMode === NODE_MODE_MAP.final ? 'mostrar_resposta' : 'ir_para_subniveis',
+    response_mode: 'informational',
+    academic_intent: 'none',
+    data_contract_key: '',
+    confidence_policy: 'answer_when_deterministic',
     abre_atendimento: false,
     fila_destino:
       parentNode.fila_destino && parentNode.fila_destino !== 'nao_aplicavel'
@@ -3701,8 +3750,20 @@ export function buildFaqBuilderDiff({ draftBundle = {}, publishedBundle = {} } =
       continue
     }
 
+    const comparedFields = [
+      'titulo_exibido',
+      'resposta',
+      'acao',
+      'tema',
+      'subtema',
+      'node_kind',
+      'response_mode',
+      'academic_intent',
+      'data_contract_key',
+      'confidence_policy',
+    ]
     const changedFields = []
-    for (const field of ['titulo_exibido', 'resposta', 'acao', 'tema', 'subtema', 'node_kind']) {
+    for (const field of comparedFields) {
       if (String(draftNode[field] || '') !== String(publishedNode[field] || '')) {
         changedFields.push(field)
       }
@@ -4210,6 +4271,25 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
       errors.push(buildImportIssue({ row: rowNumber, field: 'closing_action', code: 'invalid_action', message: `Acao invalida: ${effectiveAction || 'vazio'}.`, suggestion: `Use uma acao canonica: ${getCatalogKeys(ACTION_CATALOG).join(', ')}` }))
     }
 
+    const responseMode = String(row.response_mode || '').trim() || 'informational'
+    if (!hasCatalogValue(RESPONSE_MODE_CATALOG, responseMode)) {
+      errors.push(buildImportIssue({ row: rowNumber, field: 'response_mode', code: 'invalid_response_mode', message: `Tipo de resposta invalido: ${responseMode}.`, suggestion: `Use: ${getCatalogKeys(RESPONSE_MODE_CATALOG).join(', ')}` }))
+    }
+
+    const academicIntent = String(row.academic_intent || '').trim() || 'none'
+    if (!hasCatalogValue(ACADEMIC_INTENT_CATALOG, academicIntent)) {
+      errors.push(buildImportIssue({ row: rowNumber, field: 'academic_intent', code: 'invalid_academic_intent', message: `Intencao academica invalida: ${academicIntent}.`, suggestion: `Use: ${getCatalogKeys(ACADEMIC_INTENT_CATALOG).join(', ')}` }))
+    }
+
+    const confidencePolicy = String(row.confidence_policy || '').trim() || 'answer_when_deterministic'
+    if (!hasCatalogValue(CONFIDENCE_POLICY_CATALOG, confidencePolicy)) {
+      errors.push(buildImportIssue({ row: rowNumber, field: 'confidence_policy', code: 'invalid_confidence_policy', message: `Politica de confianca invalida: ${confidencePolicy}.`, suggestion: `Use: ${getCatalogKeys(CONFIDENCE_POLICY_CATALOG).join(', ')}` }))
+    }
+
+    if (responseMode !== 'data_assisted' && academicIntent !== 'none') {
+      warnings.push(buildImportIssue({ row: rowNumber, field: 'academic_intent', code: 'academic_intent_without_data_mode', message: 'Intencao academica informada em resposta que ainda nao usa dados.', suggestion: 'Use response_mode=data_assisted quando a resposta depender de dados academicos.', severity: 'warning' }))
+    }
+
     const queueDestination = String(row.queue_destination || '').trim() || (faqType === 'op' ? 'op' : 'nao_aplicavel')
     if (!hasCatalogValue(QUEUE_DESTINATION_CATALOG, queueDestination)) {
       errors.push(buildImportIssue({ row: rowNumber, field: 'queue_destination', code: 'invalid_queue_destination', message: `Fila destino invalida: ${queueDestination}.`, suggestion: `Use: ${getCatalogKeys(QUEUE_DESTINATION_CATALOG).join(', ')}` }))
@@ -4312,6 +4392,10 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
       shortTitle,
       responseContent: String(row.response_content || '').trim(),
       action: effectiveAction,
+      responseMode,
+      academicIntent,
+      dataContractKey: String(row.data_contract_key || '').trim(),
+      confidencePolicy,
       childOrder: Number(row.child_order || 0) || 1,
       theme,
       subtheme,
@@ -4431,6 +4515,10 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
       descricao_interna: row.internalNote,
       resposta: row.responseContent,
       acao: row.action,
+      response_mode: row.responseMode,
+      academic_intent: row.academicIntent,
+      data_contract_key: row.dataContractKey,
+      confidence_policy: row.confidencePolicy,
       abre_atendimento: row.action.includes('abrir') || row.action.includes('encaminhar'),
       fila_destino: row.queueDestination,
       criticidade_padrao: row.criticality,
