@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -270,7 +270,7 @@ watch(
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[760px]">
           <p class="text-sm font-semibold text-slate-900">
@@ -285,13 +285,13 @@ watch(
           <RouterLink
             v-if="isAreaManager"
             to="/area/mudancas"
-            class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Mudancas pendentes
           </RouterLink>
           <button
             type="button"
-            class="rounded-[14px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            class="rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
             @click="openSuggestionComposer"
           >
             Sugerir ajuste
@@ -304,14 +304,14 @@ watch(
         <input
           v-model="searchQuery"
           type="search"
-          class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+          class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
           placeholder="Assunto ou subassunto"
         />
       </label>
     </section>
 
     <section class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.4fr)]">
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Assuntos no escopo atual</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -324,16 +324,16 @@ watch(
             :key="row.key"
             type="button"
             :class="[
-              'rounded-[14px] border px-4 py-4 text-left transition',
+              'rounded-[8px] border px-4 py-4 text-left transition',
               selectedSubjectKey === row.key
                 ? 'border-[rgba(8,115,145,0.18)] bg-[rgba(224,242,254,0.48)]'
                 : 'border-slate-200 bg-white hover:bg-slate-50',
             ]"
             @click="selectRow(row)"
           >
-            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Assunto</p>
+            <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Assunto</p>
             <p class="mt-1 text-sm font-semibold text-slate-950">{{ row.themeLabel }}</p>
-            <p class="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Subassunto</p>
+            <p class="mt-3 text-xs font-semibold uppercase tracking-normal text-slate-500">Subassunto</p>
             <p class="mt-1 text-sm leading-6 text-slate-700">{{ row.subsubjectLabel }}</p>
             <p class="mt-3 text-xs text-slate-500">{{ row.suggestions.length }} sugestao(oes) registradas</p>
           </button>
@@ -345,7 +345,7 @@ watch(
       </article>
 
       <article v-if="activeRow" class="grid gap-4">
-        <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
+        <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
           <div class="flex flex-wrap gap-2">
             <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
               Assunto: {{ activeRow.themeLabel }}
@@ -356,14 +356,14 @@ watch(
           </div>
 
           <div class="mt-4 grid gap-4">
-            <div class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-4">
+            <div class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-4">
               <p class="text-sm font-semibold text-slate-900">FAQ do aluno</p>
               <p class="mt-2 text-sm leading-7 text-slate-700">
                 {{ activeFaqLeaf?.resposta || 'Sem resposta vinculada da FAQ do aluno para este assunto.' }}
               </p>
             </div>
 
-            <div class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-4">
+            <div class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-4">
               <p class="text-sm font-semibold text-slate-900">Orientacao operacional da area</p>
               <div class="mt-3 grid gap-4">
                 <div v-for="section in guideSections" :key="section.title" class="grid gap-2">
@@ -373,7 +373,7 @@ watch(
                   </ul>
                 </div>
 
-                <div class="rounded-[12px] bg-white px-4 py-4 text-sm leading-6 text-slate-700">
+                <div class="rounded-[8px] bg-white px-4 py-4 text-sm leading-6 text-slate-700">
                   <p><span class="font-semibold text-slate-900">Resposta sugerida:</span> {{ activeGuide?.responseTemplate || 'Sem resposta sugerida publicada para este assunto.' }}</p>
                 </div>
               </div>
@@ -383,7 +383,7 @@ watch(
 
         <details
           :open="showSuggestionComposer"
-          class="overflow-hidden rounded-[16px] border border-slate-200 bg-white"
+          class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
         >
           <summary class="cursor-pointer list-none border-b border-slate-200 px-5 py-4 text-base font-semibold text-slate-950">
             Sugerir melhoria da orientacao
@@ -397,7 +397,7 @@ watch(
               <span class="text-sm font-semibold text-slate-700">Tipo de conteudo</span>
               <select
                 v-model="form.contentType"
-                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
               >
                 <option value="faq_aluno">FAQ do aluno</option>
                 <option value="orientacao_op">Orientacao do OP</option>
@@ -410,7 +410,7 @@ watch(
               <input
                 v-model="form.title"
                 type="text"
-                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
                 placeholder="Ex.: esclarecer criterio de validacao"
               />
             </label>
@@ -420,7 +420,7 @@ watch(
               <textarea
                 v-model="form.proposalText"
                 rows="4"
-                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700"
                 placeholder="Descreva o ajuste sugerido no conteudo vigente."
               ></textarea>
             </label>
@@ -430,7 +430,7 @@ watch(
               <textarea
                 v-model="form.rationale"
                 rows="3"
-                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700"
                 placeholder="Explique o erro, lacuna ou retrabalho que motivou a sugestao."
               ></textarea>
             </label>
@@ -438,14 +438,14 @@ watch(
             <div class="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                class="rounded-[14px] bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-dark)]"
+                class="rounded-[8px] bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-dark)]"
                 @click="submitSuggestion"
               >
                 Registrar sugestao
               </button>
               <button
                 type="button"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 @click="closeSuggestionComposer"
               >
                 Voltar para consulta
@@ -463,13 +463,13 @@ watch(
           </div>
         </details>
 
-        <section v-if="relatedSuggestions.length" class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
+        <section v-if="relatedSuggestions.length" class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
           <p class="text-base font-semibold text-slate-950">Historico de sugestoes</p>
           <div class="mt-4 grid gap-3">
             <div
               v-for="item in relatedSuggestions"
               :key="item.id"
-              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-4"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-4"
             >
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
@@ -487,7 +487,7 @@ watch(
         </section>
       </article>
 
-      <article v-else class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
+      <article v-else class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
         <p class="text-base font-semibold text-slate-950">Selecione um assunto</p>
         <p class="mt-2 text-sm leading-6 text-slate-600">
           Abra um assunto do escopo atual para consultar o conteudo vigente da area e, se necessario, registrar melhoria.

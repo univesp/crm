@@ -16,10 +16,11 @@ Este arquivo define a governança para agentes de IA neste repositório.
 ## Ordem Obrigatória de Leitura (antes de alterar código)
 1. `AGENTS.md`
 2. `docs/SDD_CRM_UNIVESP.md`
-3. `docs/UX_PRINCIPLES_CRM.md`
-4. `docs/AI_WORKFLOW.md`
-5. `docs/VALIDATION_PLAYBOOK.md`
-6. Documentação específica do módulo impactado em `docs/`
+3. `docs/DESIGN.md`
+4. `docs/UX_PRINCIPLES_CRM.md`
+5. `docs/AI_WORKFLOW.md`
+6. `docs/VALIDATION_PLAYBOOK.md`
+7. Documentação específica do módulo impactado em `docs/`
 
 ## Regras Não Negociáveis
 - Preferir patches pequenos, reversíveis e com baixo raio de impacto.

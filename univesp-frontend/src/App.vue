@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onErrorCaptured, ref, watch } from 'vue'
+import { computed, onErrorCaptured, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AppSidebar from '@/components/AppSidebar.vue'
@@ -20,23 +20,23 @@ const pageTitle = computed(() => {
     }
 
     if (route.name === 'area-manager-home') {
-      return 'Operacao da area'
+      return 'Operação da área'
     }
 
     if (route.name === 'area-queue') {
-      return auth.mockContext.profileKey === 'gestor_area' ? 'Casos da area' : 'Minha fila da area'
+      return auth.mockContext.profileKey === 'gestor_area' ? 'Casos da área' : 'Minha fila da área'
     }
 
     if (route.name === 'operator-case-detail') {
-      return 'Analise do caso'
+      return 'Análise do caso'
     }
 
     if (route.name === 'area-case-detail') {
-      return 'Analise da area'
+      return 'Análise da área'
     }
 
     if (route.name === 'area-guidance') {
-      return 'Conteudo vigente da area'
+      return 'Conteúdo vigente da área'
     }
 
     if (route.name === 'area-knowledge-review') {
@@ -44,11 +44,11 @@ const pageTitle = computed(() => {
     }
 
     if (route.name === 'area-governance') {
-      return 'Regras operacionais da area'
+      return 'Regras operacionais da área'
     }
 
     if (route.name === 'operator-playbook') {
-      return 'Consultar orientacao'
+      return 'Consultar orientação'
     }
 
     if (route.name === 'operator-assisted-intake') {
@@ -56,7 +56,7 @@ const pageTitle = computed(() => {
     }
   }
 
-  return route.meta.title || 'UNIVESP Service Blueprint'
+  return route.meta.title || 'CRM Univesp'
 })
 const isAuthLayout = computed(() => route.meta.layout === 'auth')
 const isWireframeLayout = computed(() => route.meta.layout === 'wireframe')
@@ -83,6 +83,35 @@ const isAreaOperationalShell = computed(() =>
 const isAreaManagerOperationalShell = computed(
   () => auth.mockContext.isOperationalShell && auth.mockContext.profileKey === 'gestor_area',
 )
+const APP_VISUAL_PREFERENCES_KEY = 'univesp.crm.visualPreferences'
+const visualTheme = ref('light')
+const visualScale = ref(0)
+const visualReadableFont = ref(false)
+const visualHighContrast = ref(false)
+const visualScaleLabel = computed(() => {
+  if (visualScale.value === 2) {
+    return 'Texto grande'
+  }
+
+  if (visualScale.value === 1) {
+    return 'Texto médio'
+  }
+
+  return 'Texto padrão'
+})
+const visualPreferencesSummary = computed(() => {
+  const preferences = [visualTheme.value === 'dark' ? 'tema escuro' : 'tema claro', visualScaleLabel.value]
+
+  if (visualReadableFont.value) {
+    preferences.push('fonte legível')
+  }
+
+  if (visualHighContrast.value) {
+    preferences.push('alto contraste')
+  }
+
+  return preferences.join(', ')
+})
 const showAreaSelector = computed(
   () =>
     (auth.mockContext.linkedAreas || []).length > 1 &&
@@ -140,6 +169,101 @@ const routeViewRenderKey = computed(() => {
   }
   return routeName
 })
+
+function persistVisualPreferences() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(
+      APP_VISUAL_PREFERENCES_KEY,
+      JSON.stringify({
+        theme: visualTheme.value,
+        scale: visualScale.value,
+        readableFont: visualReadableFont.value,
+        highContrast: visualHighContrast.value,
+      }),
+    )
+  } catch {
+    // Mantem a interface operavel mesmo quando o navegador bloqueia storage.
+  }
+}
+
+function applyVisualPreferences(shouldPersist = true) {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const root = document.documentElement
+  root.classList.toggle('theme-dark', visualTheme.value === 'dark')
+  root.classList.toggle('theme-light', visualTheme.value !== 'dark')
+  root.classList.toggle('a11y-zoom-lg', visualScale.value === 1)
+  root.classList.toggle('a11y-zoom-xl', visualScale.value === 2)
+  root.classList.toggle('a11y-readable', visualReadableFont.value)
+  root.classList.toggle('a11y-high-contrast', visualHighContrast.value)
+
+  if (shouldPersist) {
+    persistVisualPreferences()
+  }
+}
+
+function loadVisualPreferences() {
+  if (typeof window === 'undefined') {
+    applyVisualPreferences(false)
+    return
+  }
+
+  try {
+    const storedPreferences = JSON.parse(
+      window.localStorage.getItem(APP_VISUAL_PREFERENCES_KEY) || '{}',
+    )
+    visualTheme.value = storedPreferences.theme === 'dark' ? 'dark' : 'light'
+    visualScale.value = Math.min(2, Math.max(0, Number(storedPreferences.scale || 0)))
+    visualReadableFont.value = storedPreferences.readableFont === true
+    visualHighContrast.value = storedPreferences.highContrast === true
+  } catch {
+    visualTheme.value = 'light'
+    visualScale.value = 0
+    visualReadableFont.value = false
+    visualHighContrast.value = false
+  }
+
+  applyVisualPreferences(false)
+}
+
+function setVisualTheme(theme) {
+  visualTheme.value = theme === 'dark' ? 'dark' : 'light'
+  applyVisualPreferences()
+}
+
+function increaseVisualScale() {
+  visualScale.value = Math.min(2, visualScale.value + 1)
+  applyVisualPreferences()
+}
+
+function decreaseVisualScale() {
+  visualScale.value = Math.max(0, visualScale.value - 1)
+  applyVisualPreferences()
+}
+
+function toggleReadableFont() {
+  visualReadableFont.value = !visualReadableFont.value
+  applyVisualPreferences()
+}
+
+function toggleHighContrast() {
+  visualHighContrast.value = !visualHighContrast.value
+  applyVisualPreferences()
+}
+
+function resetVisualPreferences() {
+  visualTheme.value = 'light'
+  visualScale.value = 0
+  visualReadableFont.value = false
+  visualHighContrast.value = false
+  applyVisualPreferences()
+}
 
 function clearRouteRenderError() {
   routeRenderError.value = ''
@@ -367,6 +491,10 @@ watch(
   { immediate: true },
 )
 
+onMounted(() => {
+  loadVisualPreferences()
+})
+
 onErrorCaptured((error) => {
   routeRenderError.value = String(error?.message || 'Falha ao carregar a tela atual.')
   console.error(error)
@@ -388,14 +516,8 @@ onErrorCaptured((error) => {
       href="#main-content"
       class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[120] focus:rounded-full focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-slate-950"
     >
-      Pular para o conteudo principal
+      Pular para o conteúdo principal
     </a>
-
-    <div class="pointer-events-none absolute inset-0">
-      <div class="absolute -left-16 top-10 h-64 w-64 rounded-full bg-[rgba(209,50,57,0.12)] blur-3xl"></div>
-      <div class="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-[rgba(16,18,20,0.06)] blur-3xl"></div>
-      <div class="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-[rgba(128,130,133,0.08)] blur-3xl"></div>
-    </div>
 
     <div
       :class="[
@@ -412,6 +534,86 @@ onErrorCaptured((error) => {
       </div>
 
       <main id="main-content" class="flex-1 pb-8">
+        <section class="app-a11y-toolbar" aria-label="Preferências de visualização">
+          <div class="app-a11y-toolbar__group" role="group" aria-label="Tema">
+            <button
+              type="button"
+              class="app-a11y-toolbar__button"
+              :class="{ 'is-active': visualTheme === 'light' }"
+              :aria-pressed="visualTheme === 'light'"
+              @click="setVisualTheme('light')"
+            >
+              Claro
+            </button>
+            <button
+              type="button"
+              class="app-a11y-toolbar__button"
+              :class="{ 'is-active': visualTheme === 'dark' }"
+              :aria-pressed="visualTheme === 'dark'"
+              @click="setVisualTheme('dark')"
+            >
+              Escuro
+            </button>
+          </div>
+
+          <div class="app-a11y-toolbar__group" role="group" aria-label="Tamanho do texto">
+            <button
+              type="button"
+              class="app-a11y-toolbar__button"
+              :disabled="visualScale === 0"
+              aria-label="Diminuir texto"
+              @click="decreaseVisualScale"
+            >
+              A-
+            </button>
+            <output class="app-a11y-toolbar__status" aria-live="polite">
+              {{ visualScaleLabel }}
+            </output>
+            <button
+              type="button"
+              class="app-a11y-toolbar__button"
+              :disabled="visualScale === 2"
+              aria-label="Aumentar texto"
+              @click="increaseVisualScale"
+            >
+              A+
+            </button>
+          </div>
+
+          <div class="app-a11y-toolbar__group" role="group" aria-label="Leitura e contraste">
+            <button
+              type="button"
+              class="app-a11y-toolbar__button"
+              :class="{ 'is-active': visualReadableFont }"
+              :aria-pressed="visualReadableFont"
+              @click="toggleReadableFont"
+            >
+              Fonte legível
+            </button>
+            <button
+              type="button"
+              class="app-a11y-toolbar__button"
+              :class="{ 'is-active': visualHighContrast }"
+              :aria-pressed="visualHighContrast"
+              @click="toggleHighContrast"
+            >
+              Alto contraste
+            </button>
+            <button
+              type="button"
+              class="app-a11y-toolbar__button"
+              aria-label="Redefinir preferências de visualização"
+              @click="resetVisualPreferences"
+            >
+              Redefinir
+            </button>
+          </div>
+
+          <p class="sr-only" aria-live="polite">
+            Preferências ativas: {{ visualPreferencesSummary }}.
+          </p>
+        </section>
+
         <MockContextBar v-if="!isStudentShell && !isOperationalShell" />
 
         <header
@@ -459,7 +661,7 @@ onErrorCaptured((error) => {
                 <select
                   v-if="showAreaSelector"
                   v-model="operationalAreaModel"
-                  :aria-label="isAreaManagerOperationalShell ? 'Selecionar area do gestor' : 'Selecionar area de trabalho'"
+                  :aria-label="isAreaManagerOperationalShell ? 'Selecionar área do gestor' : 'Selecionar área de trabalho'"
                   class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
                 >
                   <option v-for="area in auth.mockContext.linkedAreas" :key="area" :value="area">
@@ -476,7 +678,7 @@ onErrorCaptured((error) => {
                   v-else-if="(auth.mockContext.linkedAreas || []).length > 1"
                   class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
                 >
-                  Todas as suas areas
+                  Todas as suas áreas
                 </div>
                 <div
                   v-else
@@ -513,7 +715,7 @@ onErrorCaptured((error) => {
             </template>
             <div
               v-else
-              class="rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
             >
               <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
               <p class="mt-1">{{ auth.mockContext.userEmail }}</p>
@@ -533,16 +735,16 @@ onErrorCaptured((error) => {
           <Transition name="route" mode="out-in">
             <section
               v-if="routeRenderError || (!Component && route.matched.length === 0)"
-              class="rounded-[18px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-5 text-slate-800"
+              class="rounded-[8px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-5 text-slate-800"
             >
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-danger)]">
-                Tela indisponivel
+              <p class="text-xs font-semibold uppercase tracking-normal text-[var(--color-danger)]">
+                Tela indisponível
               </p>
               <h2 class="mt-2 text-lg font-semibold text-slate-950">
-                Nao foi possivel carregar este modulo agora.
+                Não foi possível carregar este módulo agora.
               </h2>
               <p class="mt-2 text-sm leading-6">
-                {{ routeRenderError || 'A rota atual nao encontrou um componente valido para renderizar.' }}
+                {{ routeRenderError || 'A rota atual não encontrou um componente válido para renderizar.' }}
               </p>
               <p class="mt-2 text-xs text-slate-600">
                 Rota: {{ route.fullPath }} · Itens reconhecidos: {{ route.matched.length }}
@@ -566,7 +768,7 @@ onErrorCaptured((error) => {
                   :to="fallbackRoute"
                   class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Voltar para modulo seguro
+                  Voltar para módulo seguro
                 </RouterLink>
                 <RouterLink
                   to="/acesso-local"
@@ -578,10 +780,10 @@ onErrorCaptured((error) => {
             </section>
             <section
               v-else-if="!Component"
-              class="rounded-[18px] border border-slate-200 bg-white p-5 text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-white p-5 text-slate-700"
             >
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Carregando modulo
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
+                Carregando módulo
               </p>
               <h2 class="mt-2 text-lg font-semibold text-slate-950">
                 Preparando a tela selecionada
@@ -601,7 +803,7 @@ onErrorCaptured((error) => {
                   :to="fallbackRoute"
                   class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Voltar para modulo seguro
+                  Voltar para módulo seguro
                 </RouterLink>
               </div>
             </section>
@@ -610,10 +812,5 @@ onErrorCaptured((error) => {
         </RouterView>
       </main>
     </div>
-  </div>
-
-  <div class="pointer-events-none fixed bottom-3 left-3 z-[260] rounded-[10px] border border-slate-300 bg-white/95 px-3 py-2 text-[11px] text-slate-700 shadow">
-    <p><span class="font-semibold">route.name:</span> {{ String(route.name || 'undefined') }}</p>
-    <p><span class="font-semibold">route.fullPath:</span> {{ route.fullPath }}</p>
   </div>
 </template>

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, watch, watchEffect } from 'vue'
 import MetricCard from '@/components/MetricCard.vue'
 import SectionPanel from '@/components/SectionPanel.vue'
@@ -277,9 +277,9 @@ function savePermissionChanges() {
 
 <template>
   <div class="grid gap-4">
-    <section class="flex flex-col gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+    <section class="flex flex-col gap-3 rounded-[8px] border border-slate-200 bg-white px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Admin</p>
+        <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Admin</p>
         <h1 class="mt-1 text-2xl font-semibold text-slate-950">Perfis e permissoes</h1>
         <p class="mt-1 text-sm text-slate-600">
           Regras administrativas. A permissao efetiva depende das regras integradas.
@@ -308,7 +308,7 @@ function savePermissionChanges() {
     <template v-if="ui.activeModule === 'profiles'">
       <section
         v-if="!ui.profileDetailOpen"
-        class="overflow-hidden rounded-[18px] border border-slate-200 bg-white"
+        class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
       >
         <div class="grid grid-cols-[1.2fr_1fr_1fr_1fr_0.7fr_0.7fr_0.6fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
           <span>Perfil</span>
@@ -351,7 +351,7 @@ function savePermissionChanges() {
         v-else-if="selectedEntry && selectedRuntimeEntry"
         class="grid gap-4"
       >
-        <div class="flex flex-col gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+        <div class="flex flex-col gap-3 rounded-[8px] border border-slate-200 bg-white px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <button
               type="button"
@@ -386,7 +386,7 @@ function savePermissionChanges() {
 
         <section
           v-if="ui.profileDetailTab === 'summary'"
-          class="grid gap-3 rounded-[18px] border border-slate-200 bg-white p-4 lg:grid-cols-4"
+          class="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 lg:grid-cols-4"
         >
           <div>
             <p class="text-xs font-semibold text-slate-500">Visibilidade</p>
@@ -408,11 +408,11 @@ function savePermissionChanges() {
 
         <section
           v-else-if="ui.profileDetailTab === 'permissions'"
-          class="grid gap-4 rounded-[18px] border border-slate-200 bg-white p-4"
+          class="grid gap-4 rounded-[8px] border border-slate-200 bg-white p-4"
         >
           <div
             v-if="form.scopeType === 'global' || form.allowedActions.publish_version || form.allowedActions.edit_parameters || form.allowedActions.edit_faq || form.allowedActions.view_audit || form.allowedActions.reassign"
-            class="rounded-[14px] bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"
+            class="rounded-[8px] bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"
           >
             Revise escopo amplo ou acao critica antes de salvar.
           </div>
@@ -422,7 +422,7 @@ function savePermissionChanges() {
               <span class="text-sm font-semibold text-slate-600">Perfil</span>
               <select
                 v-model="form.profileKey"
-                class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
               >
                 <option
                   v-for="profile in runtime.catalogs.profiles"
@@ -437,7 +437,7 @@ function savePermissionChanges() {
               <span class="text-sm font-semibold text-slate-600">Escopo</span>
               <select
                 v-model="form.scopeType"
-                class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
               >
                 <option
                   v-for="scope in runtime.catalogs.scopeTypes"
@@ -458,7 +458,7 @@ function savePermissionChanges() {
               <span class="text-sm font-semibold text-slate-600">Polo</span>
               <select
                 :value="form.scopeValues[0] || ''"
-                class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                 @change="updateSingleScopeValue($event.target.value)"
               >
                 <option value="">Selecione</option>
@@ -478,7 +478,7 @@ function savePermissionChanges() {
               <span class="text-sm font-semibold text-slate-600">Fila</span>
               <select
                 :value="form.scopeValues[0] || ''"
-                class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                 @change="updateSingleScopeValue($event.target.value)"
               >
                 <option value="">Selecione</option>
@@ -498,7 +498,7 @@ function savePermissionChanges() {
               <span class="text-sm font-semibold text-slate-600">Area</span>
               <select
                 :value="form.scopeValues[0] || ''"
-                class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                 @change="updateSingleScopeValue($event.target.value)"
               >
                 <option value="">Selecione</option>
@@ -518,7 +518,7 @@ function savePermissionChanges() {
               <label
                 v-for="item in form.scopeType === 'multi_polo' ? runtime.catalogs.polos : form.scopeType === 'multi_fila' ? runtime.catalogs.queues : runtime.catalogs.areas"
                 :key="item.value"
-                class="flex items-center justify-between rounded-[14px] bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
+                class="flex items-center justify-between rounded-[8px] bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
               >
                 <span>{{ item.label }}</span>
                 <input
@@ -530,7 +530,7 @@ function savePermissionChanges() {
             </div>
             <p
               v-else
-              class="rounded-[14px] bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
+              class="rounded-[8px] bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
             >
               Escopo global.
             </p>
@@ -542,7 +542,7 @@ function savePermissionChanges() {
               <label
                 v-for="action in runtime.catalogs.actions.filter((item) => !item.governance)"
                 :key="action.value"
-                class="flex items-center justify-between rounded-[14px] bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
+                class="flex items-center justify-between rounded-[8px] bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
               >
                 <span>{{ action.label }}</span>
                 <input
@@ -556,7 +556,7 @@ function savePermissionChanges() {
               <label
                 v-for="action in runtime.catalogs.actions.filter((item) => item.governance)"
                 :key="action.value"
-                class="flex items-center justify-between rounded-[14px] bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900"
+                class="flex items-center justify-between rounded-[8px] bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900"
               >
                 <span>{{ action.label }}</span>
                 <input
@@ -572,14 +572,14 @@ function savePermissionChanges() {
             <textarea
               v-model="form.note"
               rows="3"
-              class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-700"
             ></textarea>
           </label>
 
           <div class="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              class="rounded-[14px] bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white"
+              class="rounded-[8px] bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white"
               @click="savePermissionChanges"
             >
               Salvar alteracao
@@ -595,7 +595,7 @@ function savePermissionChanges() {
 
         <section
           v-else-if="ui.profileDetailTab === 'users'"
-          class="overflow-hidden rounded-[18px] border border-slate-200 bg-white"
+          class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
         >
           <div
             v-for="user in demoPermissionUsers.filter((item) => item.profileKey === selectedRuntimeEntry.profileKey)"
@@ -610,7 +610,7 @@ function savePermissionChanges() {
 
         <section
           v-else-if="ui.profileDetailTab === 'audit'"
-          class="overflow-hidden rounded-[18px] border border-slate-200 bg-white"
+          class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
         >
           <div
             v-for="log in runtime.auditLogs"
@@ -624,11 +624,11 @@ function savePermissionChanges() {
 
         <section
           v-else
-          class="grid gap-4 rounded-[18px] border border-slate-200 bg-white p-4"
+          class="grid gap-4 rounded-[8px] border border-slate-200 bg-white p-4"
         >
           <div>
             <p class="text-sm font-semibold text-slate-950">Matriz completa</p>
-            <div class="mt-3 overflow-hidden rounded-[14px] border border-slate-200">
+            <div class="mt-3 overflow-hidden rounded-[8px] border border-slate-200">
               <button
                 v-for="entry in runtime.matrixEntries"
                 :key="entry.id"
@@ -649,7 +649,7 @@ function savePermissionChanges() {
               <p
                 v-for="queue in runtime.queueVisibility"
                 :key="queue.queue"
-                class="rounded-[14px] bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                class="rounded-[8px] bg-slate-50 px-3 py-2 text-sm text-slate-700"
               >
                 {{ queue.queue }}: {{ queue.profiles.join(', ') || 'Nenhum' }}
               </p>
@@ -673,16 +673,16 @@ function savePermissionChanges() {
         v-if="!ui.userDetailOpen"
         class="grid gap-3"
       >
-        <div class="grid gap-3 rounded-[18px] border border-slate-200 bg-white p-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <div class="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <input
             v-model="ui.userSearch"
             type="search"
-            class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
             placeholder="Buscar usuario"
           />
           <select
             v-model="ui.userProfileFilter"
-            class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
           >
             <option value="">Todos os perfis</option>
             <option
@@ -695,7 +695,7 @@ function savePermissionChanges() {
           </select>
           <select
             v-model="ui.userScopeFilter"
-            class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
           >
             <option value="">Todo alcance</option>
             <option
@@ -722,7 +722,7 @@ function savePermissionChanges() {
           </select>
           <select
             v-model="ui.userStatusFilter"
-            class="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
           >
             <option value="">Todos status</option>
             <option value="ativo">Ativo</option>
@@ -734,7 +734,7 @@ function savePermissionChanges() {
           Dados demonstrativos para validar a experiencia. A integracao real deve trazer usuarios, desempenho e permissoes efetivas do backend.
         </p>
 
-        <section class="overflow-hidden rounded-[18px] border border-slate-200 bg-white">
+        <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
           <div class="grid grid-cols-[1.2fr_1.2fr_1fr_1fr_0.7fr_0.7fr_1fr_0.5fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
             <span>Nome</span>
             <span>E-mail</span>
@@ -774,7 +774,7 @@ function savePermissionChanges() {
         v-else-if="selectedPermissionUser"
         class="grid gap-4"
       >
-        <div class="flex flex-col gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+        <div class="flex flex-col gap-3 rounded-[8px] border border-slate-200 bg-white px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <button
               type="button"
@@ -793,7 +793,7 @@ function savePermissionChanges() {
           </div>
         </div>
 
-        <section class="grid gap-3 rounded-[18px] border border-slate-200 bg-white p-4 lg:grid-cols-4">
+        <section class="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 lg:grid-cols-4">
           <div>
             <p class="text-xs font-semibold text-slate-500">Casos tratados</p>
             <p class="mt-1 text-xl font-semibold text-slate-950">{{ selectedPermissionUser.handledCases }}</p>
@@ -825,7 +825,7 @@ function savePermissionChanges() {
           </button>
         </div>
 
-        <section class="rounded-[18px] border border-slate-200 bg-white p-4">
+        <section class="rounded-[8px] border border-slate-200 bg-white p-4">
           <div
             v-if="ui.userDetailTab === 'summary'"
             class="grid gap-3 lg:grid-cols-4"

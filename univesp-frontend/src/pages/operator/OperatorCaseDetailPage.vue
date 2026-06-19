@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -63,7 +63,7 @@ function buildInteractionTitle(interaction = {}) {
     return 'Registro do sistema'
   }
 
-  return interaction.actor || 'Interacao registrada'
+  return interaction.actor || 'Interação registrada'
 }
 
 function clearActionFeedback() {
@@ -87,7 +87,7 @@ const headerMeta = computed(() => {
   const status = normalizeText(detail.value.status)
   const pending = normalizeText(detail.value.pendingLabel)
   const hideDeadline =
-    status.includes('complementacao') ||
+    status.includes('complementação') ||
     pending.includes('aluno precisa') ||
     pending.includes('leitura do aluno')
 
@@ -157,9 +157,9 @@ const analysisSections = computed(() => {
   const decisionItems = ['Se a checagem estiver completa, responder ao aluno pelo portal.']
 
   if ((detail.value.playbook.documentsRequested || []).length) {
-    decisionItems.push('Se faltar documento, print ou contexto, pedir complementacao ao aluno.')
+    decisionItems.push('Se faltar documento, print ou contexto, pedir complementação ao aluno.')
   } else {
-    decisionItems.push('Se o relato do aluno ainda nao sustentar a analise, pedir complementacao.')
+    decisionItems.push('Se o relato do aluno ainda nao sustentar a analise, pedir complementação.')
   }
 
   if (detail.value.playbook.escalationCriteria) {
@@ -216,12 +216,12 @@ const decisionOptions = computed(() => {
     },
     {
       id: 'request_info',
-      title: 'Pedir complementacao',
+      title: 'Pedir complementação',
       description: 'Fiz a analise recomendada, mas ainda faltam informacoes ou evidencias.',
-      submitLabel: 'Registrar pedido de complementacao',
-      fieldLabel: 'Pedido de complementacao',
-      previewLabel: 'Complementacao que sera solicitada',
-      placeholder: 'Explique ao aluno o que falta: informacao, print, documento ou confirmacao.',
+      submitLabel: 'Registrar pedido de complementação',
+      fieldLabel: 'Pedido de complementação',
+      previewLabel: 'Complementação que sera solicitada',
+      placeholder: 'Explique ao aluno o que falta: informação, print, documento ou confirmação.',
       toneClass:
         selectedDecision.value === 'request_info'
           ? 'border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.18)] text-[#9a5b00]'
@@ -255,7 +255,7 @@ function buildSuggestedNote(actionType) {
   if (actionType === 'reply') {
     return (
       detail.value.playbook.responseTemplate ||
-      `Orientacao registrada ao aluno sobre ${detail.value.subject.toLowerCase()}.`
+      `Orientação registrada ao aluno sobre ${detail.value.subject.toLowerCase()}.`
     )
   }
 
@@ -264,10 +264,10 @@ function buildSuggestedNote(actionType) {
       return `Para continuar a analise, envie ${detail.value.playbook.documentsRequested.join(', ')} e, se necessario, mais detalhes sobre o ocorrido.`
     }
 
-    return 'Para continuar a analise, preciso de mais informacoes, evidencias ou confirmacao do relato.'
+    return 'Para continuar a analise, preciso de mais informacoes, evidencias ou confirmação do relato.'
   }
 
-  return `Encaminho o caso para ${escalationDestination.value}. Ja foi verificado: ${detail.value.playbook.checklist?.slice(0, 2).join('; ') || detail.value.pendingLabel}. Motivo do escalonamento: ${detail.value.playbook.escalationReason || detail.value.playbook.escalationCriteria || 'necessidade de validacao interna adicional'}.`
+  return `Encaminho o caso para ${escalationDestination.value}. Ja foi verificado: ${detail.value.playbook.checklist?.slice(0, 2).join('; ') || detail.value.pendingLabel}. Motivo do escalonamento: ${detail.value.playbook.escalationReason || detail.value.playbook.escalationCriteria || 'necessidade de validação interna adicional'}.`
 }
 
 function syncSuggestedNote(force = false) {
@@ -395,7 +395,7 @@ const actionAvailability = computed(() => {
 
   if (
     status.includes('respondido pela area') ||
-    status.includes('complementacao solicitada pela area')
+    status.includes('complementação solicitada pela area')
   ) {
     return {
       canAct: true,
@@ -406,12 +406,12 @@ const actionAvailability = computed(() => {
   if (status.includes('respondido pelo op') || status.includes('faq') || status.includes('conclu')) {
     return {
       canAct: false,
-      reason: 'Este atendimento ja foi encerrado. Nao ha nova acao do OP neste momento.',
+      reason: 'Este atendimento ja foi encerrado. Nao ha nova ação do OP neste momento.',
     }
   }
 
   if (
-    status.includes('complementacao') ||
+    status.includes('complementação') ||
     pending.includes('aluno precisa') ||
     pending.includes('leitura do aluno')
   ) {
@@ -479,7 +479,7 @@ function submitOperatorAction(actionType) {
   if (lastActionFingerprint.value === actionFingerprint && now - lastActionAt.value < 2500) {
     actionFeedback.value = {
       type: 'error',
-      message: 'Esta acao acabou de ser registrada. Aguarde a atualizacao antes de repetir.',
+      message: 'Esta ação acabou de ser registrada. Aguarde a atualização antes de repetir.',
     }
     pendingConfirmationAction.value = ''
     return
@@ -501,7 +501,7 @@ function submitOperatorAction(actionType) {
   if (!actionLog) {
     actionFeedback.value = {
       type: 'error',
-      message: 'Nao foi possivel registrar a acao agora. Tente novamente.',
+      message: 'Não foi possível registrar a ação agora. Tente novamente.',
     }
     return
   }
@@ -517,7 +517,7 @@ function submitOperatorAction(actionType) {
       actionType === 'reply'
         ? 'Resposta registrada no portal com sucesso.'
         : actionType === 'request_info'
-          ? 'Pedido de complementacao registrado com sucesso.'
+          ? 'Pedido de complementação registrado com sucesso.'
           : `Escalonamento registrado para ${actionLog.destinationLabel}.`,
   }
 
@@ -581,10 +581,10 @@ const confirmationCopy = computed(() => {
 
   if (pendingConfirmationAction.value === 'request_info') {
     return {
-      title: 'Confirmar pedido de complementacao',
+      title: 'Confirmar pedido de complementação',
       consequence: 'O aluno sera orientado a complementar o protocolo para continuidade da analise.',
       buttonClass: 'border border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.82)] text-[#8a5200]',
-      buttonLabel: 'Confirmar pedido de complementacao',
+      buttonLabel: 'Confirmar pedido de complementação',
     }
   }
 
@@ -598,7 +598,7 @@ const confirmationCopy = computed(() => {
 </script>
 
 <template>
-  <div v-if="!detail" class="rounded-[16px] border border-slate-200 bg-white px-6 py-6">
+  <div v-if="!detail" class="rounded-[8px] border border-slate-200 bg-white px-6 py-6">
     <p class="text-xs font-semibold text-slate-500">
       Atendimento indisponivel
     </p>
@@ -611,13 +611,13 @@ const confirmationCopy = computed(() => {
   </div>
 
   <div v-else class="grid gap-3">
-    <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
+    <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
       <div class="px-5 py-5">
         <p class="text-lg font-semibold text-slate-950">Detalhe do atendimento</p>
         <h2 class="mt-3 text-[1.45rem] font-semibold leading-tight text-slate-950">
           {{ detail.subject }}
         </h2>
-        <div class="mt-4 rounded-[14px] border border-slate-300 bg-[rgba(248,250,252,0.95)] px-4 py-3 text-sm font-semibold leading-6 text-slate-800 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+        <div class="mt-4 rounded-[8px] border border-slate-300 bg-[rgba(248,250,252,0.95)] px-4 py-3 text-sm font-semibold leading-6 text-slate-800 shadow-sm">
           <div class="flex flex-wrap items-center gap-y-2">
             <template v-for="(item, index) in headerMeta" :key="item.key">
               <button
@@ -633,8 +633,8 @@ const confirmationCopy = computed(() => {
             </template>
           </div>
         </div>
-        <div class="mt-3 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Pendencia atual</p>
+        <div class="mt-3 rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Pendencia atual</p>
           <p class="mt-1 text-sm font-medium leading-6 text-slate-800">
             {{ detail.pendingLabel }}
           </p>
@@ -642,7 +642,7 @@ const confirmationCopy = computed(() => {
       </div>
 
       <div class="grid gap-4 px-5 pb-5">
-        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <details open class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
             Resumo do caso
           </summary>
@@ -658,7 +658,7 @@ const confirmationCopy = computed(() => {
 
         <details
           v-if="exchangeItems.length"
-          class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70"
+          class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70"
         >
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
             Troca do atendimento
@@ -668,11 +668,11 @@ const confirmationCopy = computed(() => {
               <div
                 v-for="item in exchangeItems"
                 :key="item.id"
-                class="rounded-[12px] border border-slate-200 bg-white px-4 py-3"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-3"
               >
                 <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
                   <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
-                  <span class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ item.atLabel }}</span>
+                  <span class="text-xs font-semibold tracking-normal text-slate-500">{{ item.atLabel }}</span>
                 </div>
                 <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.description }}</p>
               </div>
@@ -680,7 +680,7 @@ const confirmationCopy = computed(() => {
           </div>
         </details>
 
-        <details open class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <details open class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
             Como analisar este caso
           </summary>
@@ -703,9 +703,9 @@ const confirmationCopy = computed(() => {
           </div>
         </details>
 
-        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <div class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Proxima acao</h3>
+            <h3 class="text-base font-semibold text-slate-950">Proxima ação</h3>
           </div>
 
           <div v-if="!actionAvailability.canAct" class="px-4 py-4 text-sm leading-6 text-slate-700">
@@ -715,7 +715,7 @@ const confirmationCopy = computed(() => {
           <template v-else>
             <div class="px-4 py-4">
               <p class="text-sm leading-6 text-slate-600">
-                Escolha a acao somente depois de concluir a analise recomendada.
+                Escolha a ação somente depois de concluir a analise recomendada.
               </p>
 
               <div class="mt-4 grid gap-3 xl:grid-cols-3">
@@ -725,7 +725,7 @@ const confirmationCopy = computed(() => {
                   type="button"
                   :aria-pressed="selectedDecision === option.id ? 'true' : 'false'"
                   :class="[
-                    'grid gap-1 rounded-[14px] border px-4 py-4 text-left transition',
+                    'grid gap-1 rounded-[8px] border px-4 py-4 text-left transition',
                     option.toneClass,
                   ]"
                   @click="selectDecision(option.id)"
@@ -737,7 +737,7 @@ const confirmationCopy = computed(() => {
 
               <div
                 v-if="activeDecision"
-                class="mt-4 rounded-[14px] border border-slate-200 bg-white px-4 py-4"
+                class="mt-4 rounded-[8px] border border-slate-200 bg-white px-4 py-4"
               >
                 <label class="grid gap-2">
                   <span class="text-sm font-semibold text-slate-900">{{ activeDecision.fieldLabel }}</span>
@@ -747,7 +747,7 @@ const confirmationCopy = computed(() => {
                     rows="5"
                     :aria-invalid="noteError ? 'true' : 'false'"
                     :aria-describedby="noteError ? 'operator-note-error' : undefined"
-                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+                    class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
                     :placeholder="activeDecision.placeholder"
                   />
                 </label>
@@ -761,8 +761,8 @@ const confirmationCopy = computed(() => {
                   {{ noteError }}
                 </p>
 
-                <div class="mt-4 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
-                  <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ activeDecision.previewLabel }}</p>
+                <div class="mt-4 rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <p class="text-xs font-semibold tracking-normal text-slate-500">{{ activeDecision.previewLabel }}</p>
                   <p class="mt-2 text-sm leading-6 text-slate-700">{{ recordPreview }}</p>
                 </div>
 
@@ -771,7 +771,7 @@ const confirmationCopy = computed(() => {
                   :role="actionFeedback.type === 'success' ? 'status' : 'alert'"
                   :aria-live="actionFeedback.type === 'success' ? 'polite' : 'assertive'"
                   :class="[
-                    'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
+                    'mt-4 rounded-[8px] border px-4 py-3 text-sm leading-6',
                     actionFeedback.type === 'success'
                       ? 'border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] text-[var(--color-success)]'
                       : 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]',
@@ -785,7 +785,7 @@ const confirmationCopy = computed(() => {
                     v-if="selectedDecision === 'reply'"
                     type="button"
                     :disabled="isSubmittingAction"
-                    class="rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)] disabled:cursor-wait disabled:opacity-75"
+                    class="rounded-[8px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-wait disabled:opacity-75"
                     @click="handleActionClick('reply')"
                   >
                     {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
@@ -795,7 +795,7 @@ const confirmationCopy = computed(() => {
                     v-else-if="selectedDecision === 'request_info'"
                     type="button"
                     :disabled="isSubmittingAction"
-                    class="rounded-[14px] border border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.86)] px-5 py-3 text-sm font-semibold text-[#8a5200] disabled:cursor-wait disabled:opacity-75"
+                    class="rounded-[8px] border border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.86)] px-5 py-3 text-sm font-semibold text-[#8a5200] disabled:cursor-wait disabled:opacity-75"
                     @click="handleActionClick('request_info')"
                   >
                     {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
@@ -805,13 +805,13 @@ const confirmationCopy = computed(() => {
                     v-else-if="selectedDecision === 'escalate'"
                     type="button"
                     :disabled="isSubmittingAction"
-                    class="rounded-[14px] bg-[#0f4c81] px-5 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
+                    class="rounded-[8px] bg-[#0f4c81] px-5 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
                     @click="handleActionClick('escalate')"
                   >
                     {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
                   </button>
                   <p v-else class="text-sm font-semibold text-slate-600">
-                    Selecione como este atendimento deve seguir para registrar a proxima acao.
+                    Selecione como este atendimento deve seguir para registrar a proxima ação.
                   </p>
                 </div>
 
@@ -820,25 +820,25 @@ const confirmationCopy = computed(() => {
                   ref="confirmationPanelRef"
                   tabindex="-1"
                   role="region"
-                  aria-label="Confirmacao da proxima acao"
-                  class="mt-4 rounded-[14px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
+                  aria-label="Confirmação da proxima ação"
+                  class="mt-4 rounded-[8px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
                 >
                   <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
                   <div class="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
                     <div>
-                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Consequencia</p>
+                      <p class="text-xs font-semibold tracking-normal text-slate-500">Consequencia</p>
                       <p class="mt-1">{{ confirmationCopy.consequence }}</p>
                     </div>
                     <div>
-                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Registro</p>
+                      <p class="text-xs font-semibold tracking-normal text-slate-500">Registro</p>
                       <p class="mt-1">{{ operatorNote.trim() }}</p>
                     </div>
                     <div v-if="pendingConfirmationAction === 'escalate'">
-                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Destino</p>
+                      <p class="text-xs font-semibold tracking-normal text-slate-500">Destino</p>
                       <p class="mt-1 font-semibold text-slate-900">{{ escalationDestination }}</p>
                     </div>
                     <div v-if="pendingConfirmationAction === 'escalate'">
-                      <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Regra observada</p>
+                      <p class="text-xs font-semibold tracking-normal text-slate-500">Regra observada</p>
                       <p class="mt-1">{{ escalationReason }}</p>
                     </div>
                   </div>
@@ -847,7 +847,7 @@ const confirmationCopy = computed(() => {
                     <button
                       type="button"
                       :disabled="isSubmittingAction"
-                      :class="['rounded-[14px] px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-75', confirmationCopy.buttonClass]"
+                      :class="['rounded-[8px] px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-75', confirmationCopy.buttonClass]"
                       @click="submitOperatorAction(pendingConfirmationAction)"
                     >
                       {{ confirmationCopy.buttonLabel }}
@@ -855,7 +855,7 @@ const confirmationCopy = computed(() => {
                     <button
                       type="button"
                       :disabled="isSubmittingAction"
-                      class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                      class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
                       @click="pendingConfirmationAction = ''"
                     >
                       Cancelar
@@ -867,7 +867,7 @@ const confirmationCopy = computed(() => {
           </template>
         </div>
 
-        <details class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <details class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
             Historico do caso
           </summary>
@@ -880,7 +880,7 @@ const confirmationCopy = computed(() => {
               </li>
             </ul>
 
-            <details class="mt-4 rounded-[14px] border border-slate-200 bg-white px-4 py-4">
+            <details class="mt-4 rounded-[8px] border border-slate-200 bg-white px-4 py-4">
               <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
                 Ver historico completo
               </summary>
@@ -888,7 +888,7 @@ const confirmationCopy = computed(() => {
               <div class="mt-4 grid gap-4">
                 <div v-if="detail.timeline.length" class="grid gap-2">
                   <p class="text-sm font-semibold text-slate-900">Movimentacoes</p>
-                  <div class="divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-white">
+                  <div class="divide-y divide-slate-200 rounded-[8px] border border-slate-200 bg-white">
                     <div
                       v-for="item in detail.timeline"
                       :key="item.id"
@@ -896,7 +896,7 @@ const confirmationCopy = computed(() => {
                     >
                       <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
                         <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
-                        <span class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ item.atLabel }}</span>
+                        <span class="text-xs font-semibold tracking-normal text-slate-500">{{ item.atLabel }}</span>
                       </div>
                       <p class="text-sm leading-6 text-slate-600">{{ item.description }}</p>
                     </div>
@@ -905,7 +905,7 @@ const confirmationCopy = computed(() => {
 
                 <div v-if="detail.interactions.length" class="grid gap-2">
                   <p class="text-sm font-semibold text-slate-900">Interacoes registradas</p>
-                  <div class="divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-white">
+                  <div class="divide-y divide-slate-200 rounded-[8px] border border-slate-200 bg-white">
                     <div
                       v-for="interaction in detail.interactions"
                       :key="interaction.id"
@@ -914,11 +914,11 @@ const confirmationCopy = computed(() => {
                       <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
                         <div>
                           <p class="text-sm font-semibold text-slate-950">{{ interaction.actor }}</p>
-                          <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">
+                          <p class="text-xs font-semibold tracking-normal text-slate-500">
                             {{ interaction.channel }}
                           </p>
                         </div>
-                        <span class="text-xs font-semibold tracking-[0.08em] text-slate-500">{{ interaction.atLabel }}</span>
+                        <span class="text-xs font-semibold tracking-normal text-slate-500">{{ interaction.atLabel }}</span>
                       </div>
                       <p class="text-sm leading-6 text-slate-600">{{ interaction.text }}</p>
                     </div>
@@ -927,7 +927,7 @@ const confirmationCopy = computed(() => {
 
                 <div v-if="detail.attachments.length" class="grid gap-2">
                   <p class="text-sm font-semibold text-slate-900">Documentos registrados</p>
-                  <div class="divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-white">
+                  <div class="divide-y divide-slate-200 rounded-[8px] border border-slate-200 bg-white">
                     <div
                       v-for="attachment in detail.attachments"
                       :key="attachment.id"
@@ -941,7 +941,7 @@ const confirmationCopy = computed(() => {
 
                 <div v-if="detail.correlatedHistory.items.length" class="grid gap-2">
                   <p class="text-sm font-semibold text-slate-900">Atendimentos relacionados</p>
-                  <div class="divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-white">
+                  <div class="divide-y divide-slate-200 rounded-[8px] border border-slate-200 bg-white">
                     <RouterLink
                       v-for="item in detail.correlatedHistory.items"
                       :key="item.id"

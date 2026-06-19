@@ -14,6 +14,10 @@ Para navegador, usar sessao institucional do gateway SSO.
 
 Nao usar `VITE_FRAPPE_API_SECRET`. Segredo em `VITE_*` fica exposto no bundle.
 
+As chaves que ja foram versionadas em `.env.development` e `.env.production`
+devem ser tratadas como expostas e rotacionadas no Frappe antes de qualquer
+teste mais real.
+
 ## Variaveis publicas do frontend
 
 ```bash
@@ -21,6 +25,7 @@ VITE_APP_BASE=/crm/
 VITE_ROUTER_BASE=/crm/
 VITE_FRAPPE_BASE_URL=
 VITE_FRAPPE_AUTH_MODE=session
+VITE_FRAPPE_PROTOCOL_SYNC=auto
 VITE_SSO_BASE_URL=
 VITE_SSO_SESSION_PATH=/api/me
 VITE_SSO_START_PATH=/api/sso/start
@@ -76,13 +81,17 @@ Passos:
 Se precisar validar uma chamada no browser antes do backend de login estar pronto:
 
 1. defina `VITE_FRAPPE_AUTH_MODE=token`
-2. no DevTools do navegador:
+2. no DevTools do navegador, injete manualmente um token temporario:
 
 ```js
 localStorage.setItem('univesp.frappe.authHeader', 'token API_KEY:API_SECRET')
 ```
 
 3. recarregue a pagina
+
+O frontend nao monta mais `Authorization` a partir de `VITE_FRAPPE_API_KEY` ou
+`VITE_FRAPPE_API_SECRET`. Esses valores devem permanecer vazios em arquivos
+versionados.
 
 Para remover:
 
@@ -99,6 +108,7 @@ sessionStorage.removeItem('univesp.frappe.authHeader')
 - `GET /api/sso/saml/start?next=/crm/...`
 - `POST /api/sso/logout`
 - `POST /api/resource/:doctype`
+- `POST /api/resource/Issue` para abertura inicial de protocolo do aluno
 - `POST /api/method/univesp.api.ticket.attach_triage`
 - `POST /api/method/univesp.api.ticket.append_chat_summary`
 - `POST /api/method/univesp.api.ticket.request_handoff`

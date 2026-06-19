@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -46,10 +46,10 @@ const activeNodeIsLeaf = computed(() => Boolean(activeNode.value) && activeChild
 const stageCopy = computed(() => {
   if (!activeNode.value) {
     return {
-      eyebrow: 'Tenho uma duvida',
-      title: 'Sobre o que e sua duvida?',
+      eyebrow: 'Tenho uma dúvida',
+      title: 'Sobre o que e sua dúvida?',
       description: 'Escolha o tema para continuar.',
-      mobileLabel: 'Tenho uma duvida',
+      mobileLabel: 'Tenho uma dúvida',
     }
   }
 
@@ -58,16 +58,16 @@ const stageCopy = computed(() => {
       eyebrow: activeNode.value.titulo_exibido,
       title:
         activeNode.value.pergunta_exibida ||
-        'Qual assunto mais se aproxima da sua duvida?',
-      description: 'Voce esta vendo apenas o nivel atual da escolha.',
+        'Qual assunto mais se aaproxima da sua dúvida?',
+      description: 'Você esta vendo apenas o nivel atual da escolha.',
       mobileLabel: activeNode.value.titulo_exibido,
     }
   }
 
   return {
-    eyebrow: 'Orientacao oficial',
+    eyebrow: 'Orientação oficial',
     title: activeNode.value.titulo_exibido,
-    description: 'Leia a orientacao oficial e escolha como continuar.',
+    description: 'Leia a orientação oficial e escolha como continuar.',
     mobileLabel: activeNode.value.titulo_exibido,
   }
 })
@@ -142,8 +142,8 @@ const currentHighlights = computed(() => {
 
 const trailItems = computed(() => {
   const baseItems = [
-    { id: 'home', label: 'Inicio', action: 'home', current: false },
-    { id: 'journey', label: 'Tenho uma duvida', action: 'restart', current: !activeNode.value },
+    { id: 'home', label: 'Início', action: 'home', current: false },
+    { id: 'journey', label: 'Tenho uma dúvida', action: 'restart', current: !activeNode.value },
   ]
 
   if (!activeNode.value) {
@@ -172,14 +172,14 @@ const supportNotes = computed(() => {
 
   if (!activeNodeIsLeaf.value) {
     return [
-      'Voce esta vendo apenas o nivel atual da escolha.',
+      'Você esta vendo apenas o nivel atual da escolha.',
       'Clique em um item do caminho para voltar a uma etapa anterior.',
     ]
   }
 
   return [
-    'Se esta orientacao resolver, o registro aparece em Minhas solicitacoes como Respondida no portal.',
-    'Se ainda precisar de ajuda, o resumo desta navegacao segue preenchido para a solicitacao.',
+    'Se esta orientação resolver, o registro aparece em Minhas solicitações como Respondida no portal.',
+    'Se ainda precisar de ajuda, o resumo desta navegação segue preenchido para a solicitação.',
   ]
 })
 
@@ -193,10 +193,10 @@ const studentMeaning = computed(() => {
   }
 
   if (activeNode.value.abre_atendimento) {
-    return 'Se esta orientacao nao resolver, o portal continua o atendimento com o contexto desta navegacao.'
+    return 'Se esta orientação não resolver, o portal continua o atendimento com o contexto desta navegação.'
   }
 
-  return 'Esta orientacao fica registrada no portal e voce pode decidir se precisa ou nao seguir para atendimento.'
+  return 'Esta orientação fica registrada no portal e você pode decidir se precisa ou não seguir para atendimento.'
 })
 
 function syncFaqContext(node) {
@@ -315,7 +315,6 @@ watch(
     :mobile-label="stageCopy.mobileLabel"
     :show-back="true"
     aside-title="Seu caminho"
-    aside-description="No desktop, esta coluna ajuda a voltar para etapas anteriores sem competir com o conteudo principal."
     @back="goBack"
   >
     <div class="grid gap-4">
@@ -326,7 +325,7 @@ watch(
         <article
           v-for="highlight in currentHighlights"
           :key="highlight.id"
-          class="rounded-[24px] border border-[rgba(109,76,255,0.18)] bg-[rgba(109,76,255,0.08)] p-5"
+          class="rounded-[8px] border border-[rgba(209,50,57,0.18)] bg-[rgba(209,50,57,0.08)] p-5"
         >
           <p class="student-section-label text-[var(--color-primary-dark)]">
             {{ highlight.label }}
@@ -349,9 +348,9 @@ watch(
           :key="option.id"
           type="button"
           :class="[
-            'student-focus-ring flex min-h-[168px] flex-col justify-between rounded-[22px] border bg-white px-5 py-5 text-left hover:-translate-y-1 hover:bg-slate-50',
+            'student-focus-ring flex min-h-[168px] flex-col justify-between rounded-[8px] border bg-white px-5 py-5 text-left hover:bg-slate-50',
             option.highlighted
-              ? 'border-[rgba(109,76,255,0.22)] bg-[rgba(109,76,255,0.06)]'
+              ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.06)]'
               : 'border-slate-200',
           ]"
           @click="openNode(option.id)"
@@ -375,9 +374,9 @@ watch(
           :key="option.id"
           type="button"
           :class="[
-            'student-focus-ring flex w-full items-start justify-between gap-4 rounded-[22px] border bg-white px-5 py-5 text-left hover:-translate-y-1 hover:bg-slate-50',
+            'student-focus-ring flex w-full items-start justify-between gap-4 rounded-[8px] border bg-white px-5 py-5 text-left hover:bg-slate-50',
             option.highlighted
-              ? 'border-[rgba(109,76,255,0.22)] bg-[rgba(109,76,255,0.06)]'
+              ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.06)]'
               : 'border-slate-200',
           ]"
           @click="openNode(option.id)"
@@ -394,12 +393,12 @@ watch(
 
       <div
         v-else
-        class="max-w-2xl rounded-[26px] border border-[rgba(109,76,255,0.16)] bg-[linear-gradient(180deg,rgba(248,244,255,0.96),rgba(255,255,255,0.98))] p-5 md:p-6"
+        class="max-w-2xl rounded-[8px] border border-[rgba(209,50,57,0.16)] bg-white p-5 md:p-6"
       >
         <div class="grid gap-4">
-          <section class="rounded-[22px] border border-slate-200 bg-white/92 p-5">
+          <section class="rounded-[8px] border border-slate-200 bg-white/92 p-5">
             <p class="student-section-label text-[var(--color-primary-dark)]">
-              Orientacao oficial
+              Orientação oficial
             </p>
             <h3 class="mt-3 text-[1.7rem] font-semibold leading-tight text-slate-950">
               {{ activeNode.titulo_exibido }}
@@ -409,33 +408,33 @@ watch(
             </p>
           </section>
 
-          <section class="rounded-[22px] border border-slate-200 bg-white/92 p-5">
+          <section class="rounded-[8px] border border-slate-200 bg-white/92 p-5">
             <p class="student-section-label">O que isso significa para mim</p>
             <p class="mt-3 text-sm leading-7 text-slate-700">
               {{ studentMeaning }}
             </p>
           </section>
 
-          <section class="rounded-[22px] border border-slate-200 bg-white/92 p-5">
+          <section class="rounded-[8px] border border-slate-200 bg-white/92 p-5">
             <p class="student-section-label">Decisao final</p>
             <p class="mt-3 text-sm font-semibold text-slate-900">
-              Essa resposta resolveu sua duvida?
+              Essa resposta resolveu sua dúvida?
             </p>
 
             <div class="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <button
                 type="button"
-                class="student-focus-ring min-w-0 rounded-[20px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-[0_18px_40px_rgba(109,76,255,0.16)] hover:-translate-y-1"
+                class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-slate-50"
                 @click="markAsResolved"
               >
-                Sim, resolveu minha duvida
+                Sim, resolveu minha dúvida
               </button>
               <button
                 type="button"
-                class="student-focus-ring min-w-0 rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-center text-sm font-semibold leading-5 text-slate-700 hover:-translate-y-1 hover:bg-slate-50"
+                class="student-focus-ring min-w-0 rounded-[8px] border border-slate-200 bg-white px-5 py-4 text-center text-sm font-semibold leading-5 text-slate-700 hover:bg-slate-50"
                 @click="continueToProtocol"
               >
-                Nao, continuar atendimento
+                Não, continuar atendimento
               </button>
             </div>
           </section>
@@ -453,7 +452,7 @@ watch(
             :class="[
               'student-focus-ring rounded-full border px-3 py-2 text-xs font-semibold transition',
               item.current
-                ? 'border-[rgba(109,76,255,0.18)] bg-[rgba(109,76,255,0.08)] text-slate-950'
+                ? 'border-[rgba(209,50,57,0.18)] bg-[rgba(209,50,57,0.08)] text-slate-950'
                 : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
             ]"
             :aria-current="item.current ? 'step' : null"
@@ -467,7 +466,7 @@ watch(
           <div
             v-for="note in supportNotes"
             :key="note"
-            class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4 text-sm leading-6 text-slate-600"
+            class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4 text-sm leading-6 text-slate-600"
           >
             {{ note }}
           </div>

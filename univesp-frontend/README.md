@@ -90,6 +90,7 @@ Fluxo esperado:
 5. com a sessao aprovada, o app usa o Frappe apenas como API
 
 Nao coloque `api_secret` em variavel `VITE_`. Tudo que entra em `VITE_*` vai para o bundle do navegador.
+Se uma chave ja tiver sido versionada em `.env.*`, trate como exposta e rotacione no Frappe.
 
 ## Configuracao local sugerida
 
@@ -101,6 +102,7 @@ VITE_APP_BASE=/crm/
 VITE_ROUTER_BASE=/crm/
 VITE_FRAPPE_BASE_URL=
 VITE_FRAPPE_AUTH_MODE=session
+VITE_FRAPPE_PROTOCOL_SYNC=auto
 VITE_FRAPPE_PROXY_TARGET=http://localhost:8000
 VITE_FRAPPE_SOCKETIO_TARGET=http://localhost:9000
 VITE_SSO_SESSION_PATH=/api/me
@@ -126,6 +128,7 @@ VITE_APP_BASE=/
 VITE_ROUTER_BASE=/
 VITE_FRAPPE_BASE_URL=
 VITE_FRAPPE_AUTH_MODE=session
+VITE_FRAPPE_PROTOCOL_SYNC=auto
 VITE_SSO_SESSION_PATH=/api/me
 VITE_SSO_START_PATH=/api/sso/start
 VITE_SSO_AZURE_START_PATH=/api/sso/azure/start
@@ -254,7 +257,7 @@ localStorage.removeItem('univesp.frappe.authHeader')
 sessionStorage.removeItem('univesp.frappe.authHeader')
 ```
 
-Esse modo serve so para dev/homolog. Em producao, use sessao/cookie.
+Esse modo serve so para dev/homolog isolado. Em producao, use sessao/cookie. O frontend nao monta mais `Authorization` a partir de `VITE_FRAPPE_API_KEY` ou `VITE_FRAPPE_API_SECRET`.
 
 ## Como gerar API Key no Frappe
 

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -325,7 +325,7 @@ const managerPriorityAlerts = computed(() =>
 
 const queueIntro = computed(() =>
   isAreaManager.value
-    ? 'Use esta fila para intervencao gerencial por caso. A visao consolidada continua em Operacao da area.'
+    ? 'Use esta fila para intervencao gerencial por caso. A visao consolidada continua em Operação da area.'
     : isMultiAreaAnalyst.value
       ? 'Use esta fila unica para resolver seus casos em todas as areas do seu escopo. Reencaminhamentos ficam como excecao operacional.'
       : 'Use a fila para resolver seus casos primeiro. Reencaminhamentos ficam como excecao operacional, nao como saida normal.',
@@ -722,12 +722,12 @@ onUnmounted(() => {
       v-if="flashMessage"
       role="status"
       aria-live="polite"
-      class="rounded-[16px] border border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] px-4 py-3 text-sm leading-6 text-[var(--color-success)]"
+      class="rounded-[8px] border border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] px-4 py-3 text-sm leading-6 text-[var(--color-success)]"
     >
       {{ flashMessage }}
     </div>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white px-4 py-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-4 py-4">
       <div class="flex flex-col gap-4">
         <div class="flex flex-wrap items-center gap-2">
           <span
@@ -743,11 +743,11 @@ onUnmounted(() => {
           {{ queueIntro }}
         </p>
 
-        <p class="rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+        <p class="rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
           {{ serverParityNote }}
         </p>
-        <details v-if="isAreaManager" class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
-          <summary class="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+        <details v-if="isAreaManager" class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+          <summary class="cursor-pointer list-none text-xs font-semibold uppercase tracking-normal text-slate-500">
             Payload minimo esperado para leitura gerencial
           </summary>
           <ul class="mt-3 grid gap-1 text-xs leading-5 text-slate-600">
@@ -761,9 +761,9 @@ onUnmounted(() => {
           <article
             v-for="card in managerQueueCards"
             :key="card.id"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3"
+            class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-3"
           >
-            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ card.label }}</p>
+            <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ card.label }}</p>
             <p class="mt-2 text-xl font-semibold text-slate-950">{{ card.value }}</p>
             <p class="mt-1 text-xs leading-5 text-slate-600">{{ card.helper }}</p>
           </article>
@@ -775,12 +775,12 @@ onUnmounted(() => {
             :key="shortcut.id"
             type="button"
             :class="[
-              'rounded-[14px] border px-3 py-3 text-left transition',
+              'rounded-[8px] border px-3 py-3 text-left transition',
               managerShortcutToneClass(shortcut.tone, isManagerShortcutActive(shortcut)),
             ]"
             @click="applyManagerShortcut(shortcut)"
           >
-            <p class="text-xs font-semibold uppercase tracking-[0.08em]">{{ shortcut.label }}</p>
+            <p class="text-xs font-semibold uppercase tracking-normal">{{ shortcut.label }}</p>
             <p class="mt-1 text-xs leading-5">{{ shortcut.helper }}</p>
           </button>
         </div>
@@ -790,7 +790,7 @@ onUnmounted(() => {
             v-for="alert in managerPriorityAlerts"
             :key="alert.id"
             :to="{ path: '/area/fila', query: alert.routeQuery || {} }"
-            :class="['rounded-[14px] border px-3 py-3 text-sm leading-6 transition hover:opacity-95', managerAlertToneClass(alert.tone)]"
+            :class="['rounded-[8px] border px-3 py-3 text-sm leading-6 transition hover:opacity-95', managerAlertToneClass(alert.tone)]"
           >
             <p class="font-semibold text-slate-900">{{ alert.title }}</p>
             <p class="mt-1 text-slate-700">{{ alert.description }}</p>
@@ -821,7 +821,7 @@ onUnmounted(() => {
             type="button"
             :aria-pressed="bucket.active ? 'true' : 'false'"
             :class="[
-              'inline-flex items-center gap-2 rounded-[14px] border px-4 py-2.5 text-sm font-semibold transition',
+              'inline-flex items-center gap-2 rounded-[8px] border px-4 py-2.5 text-sm font-semibold transition',
               bucket.active ? bucket.activeClass : bucket.inactiveClass,
             ]"
             @click="setQuickBucket(bucket.id)"
@@ -839,7 +839,7 @@ onUnmounted(() => {
             <input
               v-model="filters.search"
               type="search"
-              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
               placeholder="Protocolo, RA, aluno, polo ou assunto"
             />
           </label>
@@ -848,7 +848,7 @@ onUnmounted(() => {
             <span class="text-sm font-semibold text-slate-700">Area</span>
             <select
               v-model="filters.area"
-              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
             >
               <option v-for="option in filterOptions.area" :key="option.value" :value="option.value">
                 {{ option.label }}
@@ -860,7 +860,7 @@ onUnmounted(() => {
             <span class="text-sm font-semibold text-slate-700">Status</span>
             <select
               v-model="filters.status"
-              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
             >
               <option v-for="option in filterOptions.status" :key="option.value" :value="option.value">
                 {{ option.label }}
@@ -872,7 +872,7 @@ onUnmounted(() => {
             <span class="text-sm font-semibold text-slate-700">Assunto/subassunto</span>
             <select
               v-model="filters.subject"
-              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
             >
               <option v-for="option in filterOptions.subject" :key="option.value" :value="option.value">
                 {{ option.label }}
@@ -884,7 +884,7 @@ onUnmounted(() => {
             <span class="text-sm font-semibold text-slate-700">Responsavel atual</span>
             <select
               v-model="filters.owner"
-              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
             >
               <option v-for="option in filterOptions.owner" :key="option.value" :value="option.value">
                 {{ option.label }}
@@ -896,7 +896,7 @@ onUnmounted(() => {
             <span class="text-sm font-semibold text-slate-700">Itens por pagina</span>
             <select
               v-model.number="filters.pageSize"
-              class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
             >
               <option v-for="size in pageSizeOptions" :key="size" :value="size">
                 {{ size }}
@@ -907,7 +907,7 @@ onUnmounted(() => {
           <div class="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               @click="refreshQueue"
             >
               Atualizar
@@ -915,7 +915,7 @@ onUnmounted(() => {
             <button
               v-if="activeFilterChips.length || filters.bucket !== 'all'"
               type="button"
-              class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               @click="clearFilters"
             >
               Limpar
@@ -938,7 +938,7 @@ onUnmounted(() => {
 
         <div
           v-if="ownerMissingCount > 0"
-          class="rounded-[14px] border border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.66)] px-4 py-3 text-sm leading-6 text-[var(--color-danger)]"
+          class="rounded-[8px] border border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.66)] px-4 py-3 text-sm leading-6 text-[var(--color-danger)]"
         >
           <p class="font-semibold">Sem owner operacional: {{ ownerMissingCount }} caso(s)</p>
           <p class="mt-1">Erro estrutural de fluxo/roteamento. Corrija ownership no bundle e reprocese a fila.</p>
@@ -946,7 +946,7 @@ onUnmounted(() => {
 
         <div
           v-if="unassignedCount > 0"
-          class="rounded-[14px] border border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.5)] px-4 py-3 text-sm leading-6 text-[#8a5200]"
+          class="rounded-[8px] border border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.5)] px-4 py-3 text-sm leading-6 text-[#8a5200]"
         >
           <p class="font-semibold">Sem assignee humano: {{ unassignedCount }} caso(s)</p>
           <p class="mt-1">Owner operacional existe, mas falta distribuir para analista responsavel.</p>
@@ -958,7 +958,7 @@ onUnmounted(() => {
       v-if="queueResult.total"
       role="table"
       aria-label="Fila especializada da area"
-      class="overflow-hidden rounded-[16px] border border-slate-200 bg-white"
+      class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
     >
       <div role="rowgroup" class="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
         <div :class="['hidden gap-4 text-xs font-semibold text-slate-500 lg:grid', tableGridClass]" role="row">
@@ -1016,7 +1016,7 @@ onUnmounted(() => {
         >
           <div class="flex gap-3">
             <div class="w-2 shrink-0 rounded-full" :class="rowToneClass(entry)"></div>
-            <div :class="['min-w-0 flex-1 rounded-[14px] px-1', rowSurfaceClass(entry)]">
+            <div :class="['min-w-0 flex-1 rounded-[8px] px-1', rowSurfaceClass(entry)]">
               <div :class="['grid gap-3 lg:items-start', tableGridClass]">
                 <div :aria-labelledby="headerId('student')">
                   <p class="text-sm font-semibold text-slate-950">{{ entry.student }}</p>
@@ -1047,7 +1047,7 @@ onUnmounted(() => {
                     <span
                       v-for="signal in managerRowSignals(entry)"
                       :key="signal.id"
-                      :class="['rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.05em]', signal.toneClass]"
+                      :class="['rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-normal', signal.toneClass]"
                     >
                       {{ signal.label }}
                     </span>
@@ -1072,7 +1072,7 @@ onUnmounted(() => {
                   <span v-else class="badge-base badge-neutral">Encerrado</span>
                 </div>
                 <div class="flex justify-end">
-                  <span class="inline-flex items-center rounded-[14px] bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-[var(--color-primary-dark)]">
+                  <span class="inline-flex items-center rounded-[8px] bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-[var(--color-primary-dark)]">
                     Abrir
                   </span>
                 </div>
@@ -1089,7 +1089,7 @@ onUnmounted(() => {
         <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="!queueResult.hasPreviousPage"
             @click="previousPage"
           >
@@ -1100,7 +1100,7 @@ onUnmounted(() => {
           </span>
           <button
             type="button"
-            class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="!queueResult.hasNextPage"
             @click="nextPage"
           >
@@ -1112,9 +1112,9 @@ onUnmounted(() => {
 
     <section
       v-else
-      class="rounded-[16px] border border-slate-200 bg-white px-6 py-8 text-center"
+      class="rounded-[8px] border border-slate-200 bg-white px-6 py-8 text-center"
     >
-      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+      <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
         Fila vazia
       </p>
       <h2 class="mt-3 text-2xl font-semibold text-slate-950">

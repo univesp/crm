@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -129,7 +129,7 @@ const activeContext = computed(() => {
       nodeType: activeNode.value.node_type || 'leaf',
     },
     displayedAnswer: activeNode.value.resposta || '',
-    action: activeNode.value.acao || null,
+    action: activeNode.value.ação || null,
     queueDestination: activeNode.value.fila_destino || null,
     criticality: activeNode.value.criticidade_padrao || null,
     sla: activeNode.value.sla_padrao || null,
@@ -181,9 +181,9 @@ const actionOptions = computed(() => [
   },
   {
     id: 'request_info',
-    title: 'Registrar pedido de complementacao',
-    description: 'Ainda faltam informacoes, print, documento ou confirmacao do relato.',
-    buttonLabel: 'Confirmar pedido de complementacao',
+    title: 'Registrar pedido de complementação',
+    description: 'Ainda faltam informacoes, print, documento ou confirmação do relato.',
+    buttonLabel: 'Confirmar pedido de complementação',
     toneClass:
       selectedAction.value === 'request_info'
         ? 'border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.16)] text-[#9a5b00]'
@@ -238,8 +238,8 @@ const confirmationCopy = computed(() => {
 
   if (pendingConfirmationAction.value === 'request_info') {
     return {
-      title: 'Confirmar pedido de complementacao',
-      consequence: 'O atendimento ja nascera com pedido de complementacao ao aluno e aguardando retorno.',
+      title: 'Confirmar pedido de complementação',
+      consequence: 'O atendimento ja nascera com pedido de complementação ao aluno e aguardando retorno.',
       buttonLabel: activeAction.value.buttonLabel,
       buttonClass: activeAction.value.confirmClass,
     }
@@ -452,7 +452,7 @@ function submitAssistedAction() {
       type: 'error',
       message:
         result?.errorMessage ||
-        'Nao foi possivel registrar o atendimento agora. Verifique ownership operacional e tente novamente.',
+        'Não foi possível registrar o atendimento agora. Verifique ownership operacional e tente novamente.',
     }
     return
   }
@@ -514,13 +514,13 @@ watch(
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[16px] border border-slate-200 bg-white px-4 py-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-4 py-4">
       <p class="max-w-[860px] text-sm font-semibold leading-6 text-slate-900">
         Identifique o aluno, confirme o assunto pela mesma FAQ do portal e registre o atendimento somente quando a tratativa realmente precisar continuar.
       </p>
     </section>
 
-    <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
+    <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
         <p class="text-base font-semibold text-slate-950">1. Identificar o aluno</p>
       </div>
@@ -533,7 +533,7 @@ watch(
               <input
                 v-model="lookup.nome"
                 type="text"
-                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
                 placeholder="Buscar por nome"
               />
             </label>
@@ -543,7 +543,7 @@ watch(
               <input
                 v-model="lookup.ra"
                 type="text"
-                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
                 placeholder="Buscar por RA"
               />
             </label>
@@ -552,7 +552,7 @@ watch(
               <span class="text-sm font-semibold text-slate-700">Curso</span>
               <select
                 v-model="lookup.curso"
-                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
               >
                 <option value="">Todos os cursos</option>
                 <option v-for="course in courseOptions" :key="course" :value="course">
@@ -565,7 +565,7 @@ watch(
               <span class="text-sm font-semibold text-slate-700">Forma de atendimento</span>
               <select
                 v-model="lookup.contactChannel"
-                class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
               >
                 <option value="">Selecione</option>
                 <option value="telefone">Telefone</option>
@@ -591,7 +591,7 @@ watch(
           </div>
 
           <template v-if="manualStudentEntry">
-            <div class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <div class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
               <p class="text-sm font-semibold text-slate-900">Entrada manual do aluno</p>
               <p class="mt-2 text-sm leading-6 text-slate-600">
                 Use esta opcao somente quando o aluno nao aparecer na base do polo.
@@ -603,7 +603,7 @@ watch(
                   <input
                     v-model="lookup.nome"
                     type="text"
-                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                    class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
                     placeholder="Nome completo"
                   />
                 </label>
@@ -613,7 +613,7 @@ watch(
                   <input
                     v-model="lookup.ra"
                     type="text"
-                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                    class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
                     placeholder="RA, se houver"
                   />
                 </label>
@@ -622,7 +622,7 @@ watch(
                   <span class="text-sm font-semibold text-slate-700">Curso</span>
                   <select
                     v-model="lookup.curso"
-                    class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                    class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
                   >
                     <option value="">Selecione</option>
                     <option v-for="course in courseOptions" :key="course" :value="course">
@@ -635,7 +635,7 @@ watch(
           </template>
 
           <template v-else>
-            <div v-if="shouldShowSuggestions" class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <div v-if="shouldShowSuggestions" class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <p class="text-sm font-semibold text-slate-900">Resultados encontrados</p>
@@ -654,7 +654,7 @@ watch(
                   :key="`${student.ra}-${student.email}-${student.nome}`"
                   type="button"
                   :class="[
-                    'rounded-[14px] border px-4 py-3 text-left transition',
+                    'rounded-[8px] border px-4 py-3 text-left transition',
                     selectedCandidate?.ra === student.ra && selectedCandidate?.nome === student.nome
                       ? 'border-[rgba(209,50,57,0.2)] bg-[rgba(209,50,57,0.05)]'
                       : 'border-slate-200 bg-white hover:bg-slate-50',
@@ -677,9 +677,9 @@ watch(
 
           <div
             v-if="selectedCandidate || manualStudentEntry"
-            class="rounded-[14px] border border-slate-200 bg-white px-4 py-4"
+            class="rounded-[8px] border border-slate-200 bg-white px-4 py-4"
           >
-            <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Aluno para continuar</p>
+            <p class="text-xs font-semibold tracking-normal text-slate-500">Aluno para continuar</p>
             <p class="mt-2 text-base font-semibold text-slate-950">
               {{ selectedCandidate?.nome || lookup.nome || 'Aluno manual' }}
             </p>
@@ -698,7 +698,7 @@ watch(
             <div class="mt-4">
               <button
                 type="button"
-                class="rounded-[14px] bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                class="rounded-[8px] bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 @click="confirmStudent"
               >
                 Confirmar que e este aluno
@@ -709,11 +709,11 @@ watch(
 
         <div
           v-if="confirmedStudent"
-          class="rounded-[14px] border border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] px-4 py-4"
+          class="rounded-[8px] border border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] px-4 py-4"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p class="text-xs font-semibold tracking-[0.08em] text-[var(--color-success)]">Aluno confirmado</p>
+              <p class="text-xs font-semibold tracking-normal text-[var(--color-success)]">Aluno confirmado</p>
               <div class="mt-2 flex flex-wrap items-center gap-y-2 text-sm font-semibold text-slate-900">
                 <template v-for="(item, index) in selectedStudentSummary" :key="`${item}-${index}`">
                   <span>{{ item }}</span>
@@ -734,7 +734,7 @@ watch(
       </div>
     </section>
 
-    <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
+    <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
         <p class="text-base font-semibold text-slate-950">2. Escolher o assunto</p>
       </div>
@@ -751,7 +751,7 @@ watch(
               :key="option.id"
               type="button"
               :class="[
-                'rounded-[14px] border px-4 py-4 text-left transition hover:bg-slate-50',
+                'rounded-[8px] border px-4 py-4 text-left transition hover:bg-slate-50',
                 option.highlighted
                   ? 'border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.04)]'
                   : 'border-slate-200 bg-white',
@@ -818,9 +818,9 @@ watch(
         </div>
 
         <div v-else class="px-4 py-4">
-          <div class="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
             <div>
-              <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Assunto confirmado</p>
+              <p class="text-xs font-semibold tracking-normal text-slate-500">Assunto confirmado</p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ activeContext.subject }}</p>
               <div class="mt-2 flex flex-wrap gap-2">
                 <span
@@ -845,13 +845,13 @@ watch(
       </template>
     </section>
 
-    <section v-if="canShowDetailFlow" class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
+    <section v-if="canShowDetailFlow" class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
       <div class="px-5 py-5">
         <h2 class="text-[1.45rem] font-semibold leading-tight text-slate-950">
           {{ activeContext.subject }}
         </h2>
 
-        <div class="mt-4 rounded-[14px] border border-slate-300 bg-[rgba(248,250,252,0.95)] px-4 py-3 text-sm font-semibold leading-6 text-slate-800 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+        <div class="mt-4 rounded-[8px] border border-slate-300 bg-[rgba(248,250,252,0.95)] px-4 py-3 text-sm font-semibold leading-6 text-slate-800 shadow-sm">
           <div class="flex flex-wrap items-center gap-y-2">
             <template v-for="(item, index) in selectedStudentSummary" :key="`${item}-${index}`">
               <span>{{ item }}</span>
@@ -862,7 +862,7 @@ watch(
       </div>
 
       <div class="grid gap-4 px-5 pb-5">
-        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <div class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
             <h3 class="text-base font-semibold text-slate-950">FAQ do aluno</h3>
           </div>
@@ -871,7 +871,7 @@ watch(
           </div>
         </div>
 
-        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <div class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
             <h3 class="text-base font-semibold text-slate-950">Como analisar este caso</h3>
           </div>
@@ -890,15 +890,15 @@ watch(
               </ul>
             </div>
 
-            <div class="rounded-[14px] bg-white px-4 py-4 text-sm leading-6 text-slate-700">
+            <div class="rounded-[8px] bg-white px-4 py-4 text-sm leading-6 text-slate-700">
               <p><span class="font-semibold text-slate-900">Abrir atendimento:</span> quando a tratativa precisar continuar no portal.</p>
-              <p class="mt-2"><span class="font-semibold text-slate-900">Pedir complementacao:</span> quando ainda faltar documento, evidencia ou confirmacao.</p>
+              <p class="mt-2"><span class="font-semibold text-slate-900">Pedir complementação:</span> quando ainda faltar documento, evidencia ou confirmação.</p>
               <p class="mt-2"><span class="font-semibold text-slate-900">Escalar:</span> quando a regra do caso exigir decisao da area interna.</p>
             </div>
           </div>
         </div>
 
-        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <div class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
             <h3 class="text-base font-semibold text-slate-950">O que ja foi verificado</h3>
           </div>
@@ -913,8 +913,8 @@ watch(
               rows="5"
               :aria-invalid="formErrors.verifiedSummary ? 'true' : 'false'"
               :aria-describedby="formErrors.verifiedSummary ? 'verified-summary-error' : undefined"
-              class="mt-4 w-full rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
-              placeholder="Ex.: documento conferido, regra validada, contato confirmado, orientacao explicada ao aluno."
+              class="mt-4 w-full rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+              placeholder="Ex.: documento conferido, regra validada, contato confirmado, orientação explicada ao aluno."
             />
 
             <p
@@ -928,14 +928,14 @@ watch(
           </div>
         </div>
 
-        <div class="overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70">
+        <div class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Proxima acao</h3>
+            <h3 class="text-base font-semibold text-slate-950">Proxima ação</h3>
           </div>
 
           <div class="px-4 py-4">
             <p class="text-sm leading-6 text-slate-600">
-              Escolha a acao somente depois de confirmar o aluno, percorrer a FAQ e registrar a triagem.
+              Escolha a ação somente depois de confirmar o aluno, percorrer a FAQ e registrar a triagem.
             </p>
 
             <div class="mt-4 grid gap-3 xl:grid-cols-3">
@@ -944,7 +944,7 @@ watch(
                 :key="option.id"
                 type="button"
                 :aria-pressed="selectedAction === option.id ? 'true' : 'false'"
-                :class="['grid gap-1 rounded-[14px] border px-4 py-4 text-left transition', option.toneClass]"
+                :class="['grid gap-1 rounded-[8px] border px-4 py-4 text-left transition', option.toneClass]"
                 @click="chooseAction(option.id)"
               >
                 <span class="text-sm font-semibold">{{ option.title }}</span>
@@ -957,7 +957,7 @@ watch(
               :role="actionFeedback.type === 'success' ? 'status' : 'alert'"
               :aria-live="actionFeedback.type === 'success' ? 'polite' : 'assertive'"
               :class="[
-                'mt-4 rounded-[14px] border px-4 py-3 text-sm leading-6',
+                'mt-4 rounded-[8px] border px-4 py-3 text-sm leading-6',
                 actionFeedback.type === 'success'
                   ? 'border-[rgba(26,111,67,0.16)] bg-[rgba(26,111,67,0.08)] text-[var(--color-success)]'
                   : 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]',
@@ -971,7 +971,7 @@ watch(
                 v-if="selectedAction === 'open_case'"
                 type="button"
                 :disabled="isSubmitting"
-                class="rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)] disabled:cursor-wait disabled:opacity-75"
+                class="rounded-[8px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-wait disabled:opacity-75"
                 @click="requestActionConfirmation"
               >
                 {{ isSubmitting ? 'Registrando...' : activeAction.buttonLabel }}
@@ -981,7 +981,7 @@ watch(
                 v-if="selectedAction === 'request_info'"
                 type="button"
                 :disabled="isSubmitting"
-                class="rounded-[14px] border border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.86)] px-5 py-3 text-sm font-semibold text-[#8a5200] disabled:cursor-wait disabled:opacity-75"
+                class="rounded-[8px] border border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.86)] px-5 py-3 text-sm font-semibold text-[#8a5200] disabled:cursor-wait disabled:opacity-75"
                 @click="requestActionConfirmation"
               >
                 {{ isSubmitting ? 'Registrando...' : activeAction.buttonLabel }}
@@ -991,7 +991,7 @@ watch(
                 v-if="selectedAction === 'escalate'"
                 type="button"
                 :disabled="isSubmitting"
-                class="rounded-[14px] bg-[#0f4c81] px-5 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
+                class="rounded-[8px] bg-[#0f4c81] px-5 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
                 @click="requestActionConfirmation"
               >
                 {{ isSubmitting ? 'Registrando...' : activeAction.buttonLabel }}
@@ -1010,17 +1010,17 @@ watch(
               ref="confirmationPanelRef"
               tabindex="-1"
               role="region"
-              aria-label="Confirmacao da abertura assistida"
-              class="mt-4 rounded-[14px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
+              aria-label="Confirmação da abertura assistida"
+              class="mt-4 rounded-[8px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
             >
               <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
               <div class="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
                 <div>
-                  <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Consequencia</p>
+                  <p class="text-xs font-semibold tracking-normal text-slate-500">Consequencia</p>
                   <p class="mt-1">{{ confirmationCopy.consequence }}</p>
                 </div>
                 <div>
-                  <p class="text-xs font-semibold tracking-[0.08em] text-slate-500">Registro</p>
+                  <p class="text-xs font-semibold tracking-normal text-slate-500">Registro</p>
                   <p class="mt-1">{{ verifiedSummary.trim() }}</p>
                 </div>
               </div>
@@ -1029,7 +1029,7 @@ watch(
                 <button
                   type="button"
                   :disabled="isSubmitting"
-                  :class="['rounded-[14px] px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-75', confirmationCopy.buttonClass]"
+                  :class="['rounded-[8px] px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-75', confirmationCopy.buttonClass]"
                   @click="submitAssistedAction"
                 >
                   {{ confirmationCopy.buttonLabel }}
@@ -1037,7 +1037,7 @@ watch(
                 <button
                   type="button"
                   :disabled="isSubmitting"
-                  class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
                   @click="pendingConfirmationAction = ''"
                 >
                   Cancelar

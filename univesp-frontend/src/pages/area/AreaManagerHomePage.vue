@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed } from 'vue'
 
 import {
@@ -164,7 +164,7 @@ function recommendationPriorityLabel(priority = '') {
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[780px]">
           <p class="text-sm font-semibold text-slate-900">
@@ -178,20 +178,20 @@ function recommendationPriorityLabel(priority = '') {
         <div class="flex flex-wrap gap-2">
           <RouterLink
             :to="buildQueueRoute({ bucket: 'needs_review', sortField: 'sla', sortDirection: 'asc' })"
-            class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Abrir fila priorizada
           </RouterLink>
           <RouterLink
             to="/area/mudancas"
-            class="rounded-[14px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            class="rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Decidir mudancas
           </RouterLink>
         </div>
       </div>
 
-      <p class="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+      <p class="mt-4 rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
         {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
       </p>
     </section>
@@ -200,9 +200,9 @@ function recommendationPriorityLabel(priority = '') {
       <article
         v-for="item in overview.operationalQuestions"
         :key="item.id"
-        :class="['rounded-[16px] border px-5 py-4', questionToneClass(item.tone)]"
+        :class="['rounded-[8px] border px-5 py-4', questionToneClass(item.tone)]"
       >
-        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.question }}</p>
+        <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ item.question }}</p>
         <p class="mt-3 text-2xl font-semibold leading-none text-slate-950">{{ item.value }}</p>
         <p class="mt-3 text-sm font-semibold text-slate-900">{{ item.headline }}</p>
         <p class="mt-2 text-sm leading-6 text-slate-700">{{ item.helper }}</p>
@@ -215,7 +215,7 @@ function recommendationPriorityLabel(priority = '') {
       </article>
     </section>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white">
+    <section class="rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
         <p class="text-base font-semibold text-slate-950">Intervencao recomendada agora</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -226,7 +226,7 @@ function recommendationPriorityLabel(priority = '') {
         <article
           v-for="item in overview.interventionQueue"
           :key="item.id"
-          :class="['rounded-[14px] border px-4 py-4', recommendationToneClass(item.tone)]"
+          :class="['rounded-[8px] border px-4 py-4', recommendationToneClass(item.tone)]"
         >
           <div class="flex flex-wrap items-center justify-between gap-2">
             <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
@@ -253,15 +253,15 @@ function recommendationPriorityLabel(priority = '') {
       <article
         v-for="item in kpiCards"
         :key="item.id"
-        class="rounded-[16px] border border-slate-200 bg-white px-5 py-4"
+        class="rounded-[8px] border border-slate-200 bg-white px-5 py-4"
       >
-        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
+        <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ item.label }}</p>
         <p class="mt-3 text-[1.8rem] font-semibold leading-none text-slate-950">{{ item.value }}</p>
         <p class="mt-2 text-xs leading-5 text-slate-600">{{ item.helper }}</p>
       </article>
     </section>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white">
+    <section class="rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
         <p class="text-base font-semibold text-slate-950">Atalhos de acao gerencial</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -273,7 +273,7 @@ function recommendationPriorityLabel(priority = '') {
           v-for="item in quickActions"
           :key="item.id"
           :to="item.route"
-          class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-4 transition hover:bg-slate-50"
+          class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-4 transition hover:bg-slate-50"
         >
           <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
           <p class="mt-2 text-sm leading-6 text-slate-700">{{ item.description }}</p>
@@ -282,7 +282,7 @@ function recommendationPriorityLabel(priority = '') {
     </section>
 
     <section class="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Carga por analista</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -300,26 +300,26 @@ function recommendationPriorityLabel(priority = '') {
               <p class="mt-1 text-xs text-slate-500">Leitura de carga no escopo atual.</p>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Ativos</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Ativos</p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.activeCases }}</p>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Vencidos</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Vencidos</p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.overdueCases }}</p>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Em risco</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Em risco</p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.riskCases }}</p>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Complemento</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Complemento</p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.waitingComplementCases }}</p>
             </div>
           </div>
         </div>
       </article>
 
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Impacto de regra na operacao</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -330,7 +330,7 @@ function recommendationPriorityLabel(priority = '') {
           <div
             v-for="item in overview.ruleImpactHints"
             :key="item.id"
-            :class="['rounded-[14px] border px-4 py-4', recommendationToneClass(item.tone)]"
+            :class="['rounded-[8px] border px-4 py-4', recommendationToneClass(item.tone)]"
           >
             <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
             <p class="mt-2 text-sm leading-6 text-slate-700">{{ item.description }}</p>
@@ -350,7 +350,7 @@ function recommendationPriorityLabel(priority = '') {
     </section>
 
     <section class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Gargalos por assunto</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -376,15 +376,15 @@ function recommendationPriorityLabel(priority = '') {
               </RouterLink>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Backlog</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Backlog</p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.openCases }}</p>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Vencidos</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Vencidos</p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.overdueCases }}</p>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Em risco</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Em risco</p>
               <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.riskCases }}</p>
             </div>
           </div>
@@ -395,7 +395,7 @@ function recommendationPriorityLabel(priority = '') {
         </div>
       </article>
 
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Casos expostos e mudancas pendentes</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -407,7 +407,7 @@ function recommendationPriorityLabel(priority = '') {
             v-for="item in overview.attentionCases"
             :key="item.id"
             :to="buildCaseRoute(item)"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-4 transition hover:bg-slate-50"
+            class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-4 transition hover:bg-slate-50"
           >
             <p class="text-sm font-semibold text-slate-950">{{ item.subject }}</p>
             <p class="mt-1 text-sm leading-6 text-slate-700">{{ item.currentAssigneeMeta }}</p>
@@ -417,7 +417,7 @@ function recommendationPriorityLabel(priority = '') {
           <div
             v-for="item in overview.pendingKnowledgeSuggestions"
             :key="item.id"
-            class="rounded-[14px] border border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.52)] px-4 py-4"
+            class="rounded-[8px] border border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.52)] px-4 py-4"
           >
             <p class="text-sm font-semibold text-slate-950">{{ item.subjectLabel }}</p>
             <p class="mt-1 text-sm leading-6 text-slate-700">{{ item.title }}</p>
@@ -428,7 +428,7 @@ function recommendationPriorityLabel(priority = '') {
 
           <RouterLink
             to="/area/mudancas"
-            class="inline-flex items-center justify-center rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            class="inline-flex items-center justify-center rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Abrir mudancas pendentes
           </RouterLink>
@@ -436,7 +436,7 @@ function recommendationPriorityLabel(priority = '') {
       </article>
     </section>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-4">
       <details>
         <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
           Contrato minimo esperado para backend da home gerencial
