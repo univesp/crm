@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, watchEffect } from 'vue'
 
 import MetricCard from '@/components/MetricCard.vue'
@@ -24,7 +24,7 @@ const runtime = computed(() => ({
     {
       label: 'Fluxos FAQ',
       value: repositories.value.knowledge.listBundles().length,
-      hint: 'Fluxos cadastrados para publicacao e revisao.',
+      hint: 'Fluxos cadastrados para publicação e revisao.',
     },
     {
       label: 'Versoes ativas',
@@ -38,14 +38,14 @@ const runtime = computed(() => ({
       value: repositories.value.knowledge
         .listFoundation()
         .bundleVersions.filter((item) => ['Draft', 'In Review', 'Approved'].includes(item.statusCode)).length,
-      hint: 'Rascunhos, revisoes e versoes aprovadas aguardando acao.',
+      hint: 'Rascunhos, revisoes e versoes aprovadas aguardando ação.',
     },
     {
-      label: 'Aguardando aprovacao',
+      label: 'Aguardando aprovação',
       value: repositories.value.knowledge
         .listSuggestions()
         .filter((item) => item.statusCode === 'Pending Review').length,
-      hint: 'Itens aguardando decisao de publicacao ou revisao.',
+      hint: 'Itens aguardando decisao de publicação ou revisao.',
     },
   ],
 }))
@@ -74,7 +74,7 @@ const publicationRows = computed(() =>
       reviewVersionLabel: reviewVersion?.versionNumber || 'Sem rascunho/revisao',
       pendingLabel: resolvePendingLabel(reviewVersion),
       updatedAtLabel: formatDateLabel(updatedAt),
-      actionLabel: reviewVersion ? 'Revisar publicacao' : 'Abrir fluxo',
+      actionLabel: reviewVersion ? 'Revisar publicação' : 'Abrir fluxo',
       versionId: actionVersion?.id || '',
     }
   }),
@@ -153,7 +153,7 @@ function statusLabel(statusCode) {
 
 function resolveBundleStateLabel(bundle, reviewVersion) {
   if (reviewVersion?.statusCode === 'Approved') {
-    return 'Aguardando publicacao'
+    return 'Aguardando publicação'
   }
 
   if (reviewVersion) {
@@ -217,9 +217,9 @@ function formatDateLabel(value) {
       title="Governança de publicação"
       description="Acompanhe versões ativas, revisões e pendências dos fluxos FAQ."
     >
-      <div class="overflow-x-auto rounded-[18px] border border-slate-200 bg-white">
+      <div class="overflow-x-auto rounded-[8px] border border-slate-200 bg-white">
         <div class="min-w-[920px]">
-          <div class="grid grid-cols-[1.45fr_0.9fr_0.85fr_1fr_1.1fr_0.9fr_0.95fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <div class="grid grid-cols-[1.45fr_0.9fr_0.85fr_1fr_1.1fr_0.9fr_0.95fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[0.68rem] font-semibold uppercase tracking-normal text-slate-500">
             <span>Fluxo</span>
             <span>Estado</span>
             <span>Versão ativa</span>
@@ -259,13 +259,13 @@ function formatDateLabel(value) {
         <div v-if="selectedVersion" class="grid gap-5">
           <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Revisar publicação</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Revisar publicação</p>
               <h2 class="mt-2 text-xl font-semibold text-slate-950">{{ selectedVersion.versionNumber }}</h2>
             </div>
             <div class="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                class="rounded-[18px] bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                class="rounded-[8px] bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!selectedVersion.canApprove"
                 @click="approveSelectedVersion"
               >
@@ -273,7 +273,7 @@ function formatDateLabel(value) {
               </button>
               <button
                 type="button"
-                class="rounded-[18px] bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+                class="rounded-[8px] bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!selectedVersion.canPublish"
                 @click="publishSelectedVersion"
               >
@@ -284,28 +284,28 @@ function formatDateLabel(value) {
 
           <div
             v-if="ui.lastEventSummary"
-            class="rounded-[18px] bg-slate-100 px-4 py-3 text-sm text-slate-600"
+            class="rounded-[8px] bg-slate-100 px-4 py-3 text-sm text-slate-600"
           >
             {{ lastEventSummaryLabel }}
           </div>
 
           <div class="grid gap-4 lg:grid-cols-4">
             <div class="inner-panel p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Versão ativa</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Versão ativa</p>
               <p class="mt-2 text-lg font-semibold text-slate-950">
                 {{ currentBundle.publishedVersion?.versionNumber || 'Sem versão ativa' }}
               </p>
             </div>
             <div class="inner-panel p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Selecionada</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Selecionada</p>
               <p class="mt-2 text-lg font-semibold text-slate-950">{{ selectedVersion.versionNumber }}</p>
             </div>
             <div class="inner-panel p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Estado</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Estado</p>
               <p class="mt-2 text-lg font-semibold text-slate-950">{{ statusLabel(selectedVersion.statusCode) }}</p>
             </div>
             <div class="inner-panel p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Publicação</p>
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Publicação</p>
               <p class="mt-2 text-lg font-semibold text-slate-950">
                 {{ selectedVersion.canPublish ? 'Disponível' : 'Sem ação' }}
               </p>

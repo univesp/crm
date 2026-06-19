@@ -207,7 +207,7 @@ export const useAuthStore = defineStore('auth', () => {
     status.value = 'loading'
 
     try {
-      const result = logoutFromSso()
+      const result = await logoutFromSso()
       if (result?.redirected) {
         return
       }

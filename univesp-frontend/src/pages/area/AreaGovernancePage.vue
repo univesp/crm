@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, watch } from 'vue'
 
 import {
@@ -278,7 +278,7 @@ function saveAvailability() {
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[760px]">
           <p class="text-sm font-semibold text-slate-900">
@@ -292,19 +292,19 @@ function saveAvailability() {
         <div class="flex flex-wrap gap-2">
           <RouterLink
             to="/area/orientacao"
-            class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Conteudo vigente
           </RouterLink>
           <RouterLink
             to="/area/mudancas"
-            class="rounded-[14px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            class="rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Mudancas pendentes
           </RouterLink>
         </div>
       </div>
-      <p class="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+      <p class="mt-4 rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
         {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
       </p>
     </section>
@@ -313,15 +313,15 @@ function saveAvailability() {
       <article
         v-for="item in operationalImpactCards"
         :key="item.id"
-        class="rounded-[16px] border border-slate-200 bg-white px-5 py-4"
+        class="rounded-[8px] border border-slate-200 bg-white px-5 py-4"
       >
-        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
+        <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ item.label }}</p>
         <p class="mt-3 text-[1.8rem] font-semibold leading-none text-slate-950">{{ item.value }}</p>
         <p class="mt-2 text-xs leading-5 text-slate-600">{{ item.helper }}</p>
       </article>
     </section>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white">
+    <section class="rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
         <p class="text-base font-semibold text-slate-950">Sinais de impacto operacional</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -332,7 +332,7 @@ function saveAvailability() {
         <article
           v-for="hint in managerOverview.ruleImpactHints"
           :key="hint.id"
-          :class="['rounded-[14px] border px-4 py-3', impactHintToneClass(hint.tone)]"
+          :class="['rounded-[8px] border px-4 py-3', impactHintToneClass(hint.tone)]"
         >
           <p class="text-sm font-semibold text-slate-950">{{ hint.title }}</p>
           <p class="mt-1 text-sm leading-6 text-slate-700">{{ hint.description }}</p>
@@ -343,7 +343,7 @@ function saveAvailability() {
       </div>
     </section>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white">
+    <section class="rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
         <p class="text-base font-semibold text-slate-950">Escopo e visibilidade por assunto</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -376,23 +376,23 @@ function saveAvailability() {
             </p>
 
             <div class="mt-4 grid gap-3 sm:grid-cols-3">
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Backlog</p>
+              <div class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Backlog</p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">{{ row.openCases }}</p>
               </div>
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Vencidos</p>
+              <div class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Vencidos</p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">{{ row.overdueCases }}</p>
               </div>
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Em risco</p>
+              <div class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Em risco</p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">{{ row.riskCases }}</p>
               </div>
             </div>
           </div>
 
-          <div class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
-            <div :class="['mb-4 rounded-[12px] border px-3 py-2 text-xs leading-5', rowRiskState(row).toneClass]">
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <div :class="['mb-4 rounded-[8px] border px-3 py-2 text-xs leading-5', rowRiskState(row).toneClass]">
               <p class="font-semibold">{{ rowRiskState(row).label }}</p>
               <p class="mt-1">{{ rowRiskState(row).helper }}</p>
               <RouterLink
@@ -407,7 +407,7 @@ function saveAvailability() {
               <span class="text-sm font-semibold text-slate-700">Regra de visibilidade</span>
               <select
                 v-model="draftFor(row).accessMode"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
               >
                 <option value="team">Todo o time ve este assunto</option>
                 <option value="restricted">Somente analistas selecionados</option>
@@ -419,7 +419,7 @@ function saveAvailability() {
               <label
                 v-for="analyst in areaTeamMembers"
                 :key="`${row.id}-${analyst}`"
-                class="flex items-center gap-3 rounded-[12px] border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
+                class="flex items-center gap-3 rounded-[8px] border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
               >
                 <input
                   :checked="draftFor(row).allowedAnalysts.includes(analyst)"
@@ -434,7 +434,7 @@ function saveAvailability() {
             <div class="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
-                class="rounded-[14px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                class="rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                 @click="saveScopeRule(row)"
               >
                 Salvar regra
@@ -446,7 +446,7 @@ function saveAvailability() {
     </section>
 
     <section class="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Disponibilidade do time</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -471,7 +471,7 @@ function saveAvailability() {
             <span class="text-sm font-semibold text-slate-700">Pessoa</span>
             <select
               v-model="availabilityForm.userName"
-              class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
             >
               <option value="">Selecione</option>
               <option v-for="analyst in areaTeamMembers" :key="analyst" :value="analyst">
@@ -485,7 +485,7 @@ function saveAvailability() {
               <span class="text-sm font-semibold text-slate-700">Recorte</span>
               <select
                 v-model="availabilityForm.scope"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
               >
                 <option value="current_area">Somente esta area</option>
                 <option value="global">Todas as areas do usuario</option>
@@ -496,7 +496,7 @@ function saveAvailability() {
               <span class="text-sm font-semibold text-slate-700">Estado</span>
               <select
                 v-model="availabilityForm.statusCode"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
               >
                 <option value="unavailable">Indisponivel</option>
                 <option value="reduced_capacity">Capacidade reduzida</option>
@@ -510,7 +510,7 @@ function saveAvailability() {
               <span class="text-sm font-semibold text-slate-700">Motivo</span>
               <select
                 v-model="availabilityForm.reasonType"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
               >
                 <option value="vacation">Ferias</option>
                 <option value="leave">Licenca</option>
@@ -523,7 +523,7 @@ function saveAvailability() {
               <span class="text-sm font-semibold text-slate-700">Fator de capacidade</span>
               <select
                 v-model="availabilityForm.capacityFactor"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
               >
                 <option value="0.25">25%</option>
                 <option value="0.5">50%</option>
@@ -538,7 +538,7 @@ function saveAvailability() {
               <input
                 v-model="availabilityForm.startsAt"
                 type="datetime-local"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
               />
             </label>
 
@@ -547,7 +547,7 @@ function saveAvailability() {
               <input
                 v-model="availabilityForm.endsAt"
                 type="datetime-local"
-                class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
               />
             </label>
           </div>
@@ -557,7 +557,7 @@ function saveAvailability() {
             <textarea
               v-model="availabilityForm.notes"
               rows="3"
-              class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
               placeholder="Explique o motivo ou a restricao relevante para a distribuicao."
             ></textarea>
           </label>
@@ -565,7 +565,7 @@ function saveAvailability() {
           <div class="flex flex-wrap gap-2">
             <button
               type="button"
-              class="rounded-[14px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              class="rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               @click="saveAvailability"
             >
               Registrar disponibilidade
@@ -574,7 +574,7 @@ function saveAvailability() {
         </div>
       </article>
 
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Janelas ativas do time</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -586,7 +586,7 @@ function saveAvailability() {
           <div
             v-for="record in availabilityRows"
             :key="record.id"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4"
+            class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4"
           >
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -615,7 +615,7 @@ function saveAvailability() {
       </article>
     </section>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-4">
       <details>
         <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
           Campos de impacto que a governanca deve receber do backend

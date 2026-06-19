@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -25,8 +25,8 @@ const trailItems = computed(() => {
   }
 
   return [
-    { id: 'home', label: 'Inicio', route: '/aluno' },
-    { id: 'journey', label: 'Tenho uma duvida', route: '/aluno/duvida' },
+    { id: 'home', label: 'Início', route: '/aluno' },
+    { id: 'journey', label: 'Tenho uma dúvida', route: '/aluno/duvida' },
     ...faqContext.value.breadcrumb.map((step, index) => ({
       id: `${step}-${index}`,
       label: step,
@@ -49,7 +49,7 @@ function handleAttachmentChange(event) {
   studentSupportStore.setProtocolAttachments(attachmentList)
 }
 
-function submitProtocol() {
+async function submitProtocol() {
   if (isSubmitting.value) {
     return
   }
@@ -57,11 +57,12 @@ function submitProtocol() {
   hasAttemptedSubmit.value = true
   formMessage.value = ''
   isSubmitting.value = true
-  const result = studentSupportStore.submitProtocol()
+  const result = await studentSupportStore.submitProtocol()
 
   if (!result.ok) {
     isSubmitting.value = false
-    formMessage.value = 'Revise os campos destacados antes de enviar sua solicitacao.'
+    formMessage.value =
+      result.validation?.errors?.form || 'Revise os campos destacados antes de enviar sua solicitação.'
     nextTick(() => {
       if (result.validation.errors.description) {
         descriptionField.value?.focus()
@@ -81,58 +82,57 @@ function submitProtocol() {
 
 <template>
   <StudentStageLayout
-    eyebrow="Resumo da solicitacao"
-    title="Continuar com a solicitacao"
-    description="Revise o resumo abaixo e complemente apenas o que for necessario."
+    eyebrow="Resumo da solicitação"
+    title="Continuar com a solicitação"
+    description="Revise o resumo abaixo e complemente apenas o que for necessário."
     :mobile-label="faqContext?.finalNode?.title || 'Continuar atendimento'"
     :show-back="true"
     aside-title="Seu caminho"
-    aside-description="No desktop, esta coluna apenas resume o contexto aproveitado da navegacao."
     @back="goBackToFaq"
   >
     <div
       v-if="!protocolDraft || !faqContext"
-      class="max-w-2xl rounded-[24px] border border-slate-200 bg-slate-50/80 p-6"
+      class="max-w-2xl rounded-[8px] border border-slate-200 bg-slate-50/80 p-6"
     >
-      <p class="text-sm font-semibold text-slate-900">Solicitacao indisponivel</p>
+      <p class="text-sm font-semibold text-slate-900">Solicitação indisponível</p>
       <p class="mt-3 text-sm leading-7 text-slate-600">
-        Siga a jornada da duvida ate a orientacao oficial e escolha continuar atendimento para abrir esta etapa com o contexto preenchido.
+        Siga a jornada da dúvida até a orientação oficial e escolha continuar atendimento para abrir esta etapa com o contexto preenchido.
       </p>
     </div>
 
     <div v-else class="grid max-w-2xl gap-4">
-      <div class="rounded-[24px] border border-[rgba(109,76,255,0.16)] bg-[rgba(109,76,255,0.06)] p-5">
-        <p class="text-sm font-semibold text-slate-950">Vamos dar continuidade para voce.</p>
+      <div class="rounded-[8px] border border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.06)] p-5">
+        <p class="text-sm font-semibold text-slate-950">Vamos dar continuidade para você.</p>
         <p class="mt-2 text-sm leading-6 text-slate-600">
-          O portal aproveitou o caminho da sua navegacao para sugerir o assunto e reduzir o preenchimento.
+          O portal aproveitou o caminho da sua navegação para sugerir o assunto e reduzir o preenchimento.
         </p>
       </div>
 
-      <div class="rounded-[24px] border border-slate-200 bg-white p-5">
-        <p class="text-sm font-semibold text-slate-900">Resumo da sua solicitacao</p>
+      <div class="rounded-[8px] border border-slate-200 bg-white p-5">
+        <p class="text-sm font-semibold text-slate-900">Resumo da sua solicitação</p>
 
         <div class="mt-4 grid gap-3">
-          <div class="rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Tema</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Tema</p>
             <p class="mt-1.5 text-sm font-semibold text-slate-900">{{ protocolDraft.form.theme }}</p>
           </div>
 
-          <div class="rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Assunto</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Assunto</p>
             <p class="mt-1.5 text-sm font-semibold text-slate-900">{{ protocolDraft.form.subject }}</p>
           </div>
 
-          <div class="rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Resumo do caminho</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Resumo do caminho</p>
             <p class="mt-1.5 text-sm leading-6 text-slate-700">{{ protocolDraft.form.breadcrumb }}</p>
           </div>
         </div>
       </div>
 
-      <div class="rounded-[24px] border border-slate-200 bg-white p-5">
+      <div class="rounded-[8px] border border-slate-200 bg-white p-5">
         <div
           v-if="formMessage"
-          class="mb-5 rounded-[18px] border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm leading-6 text-[var(--color-danger)]"
+          class="mb-5 rounded-[8px] border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm leading-6 text-[var(--color-danger)]"
           role="alert"
         >
           {{ formMessage }}
@@ -148,11 +148,11 @@ function submitProtocol() {
             ref="descriptionField"
             rows="5"
             :class="[
-              'student-focus-ring rounded-[20px] border px-4 py-3 text-sm leading-6 text-slate-700',
+              'student-focus-ring rounded-[8px] border px-4 py-3 text-sm leading-6 text-slate-700',
               visibleErrors.description ? 'border-[var(--color-danger)] bg-[rgba(253,236,237,0.5)]' : 'border-slate-200 bg-white',
             ]"
             :value="protocolDraft.form.description"
-            placeholder="Explique o que ainda nao foi resolvido."
+            placeholder="Explique o que ainda não foi resolvido."
             :aria-invalid="visibleErrors.description ? 'true' : 'false'"
             :aria-describedby="visibleErrors.description ? 'protocol-description-error protocol-description-help' : 'protocol-description-help'"
             @input="updateDescription"
@@ -173,7 +173,7 @@ function submitProtocol() {
 
         <div
           v-if="protocolDraft.allowsAttachment || visibleErrors.attachments"
-          class="mt-5 rounded-[22px] border border-dashed border-[rgba(109,76,255,0.24)] bg-[rgba(109,76,255,0.04)] p-5"
+          class="mt-5 rounded-[8px] border border-dashed border-[rgba(209,50,57,0.24)] bg-[rgba(209,50,57,0.04)] p-5"
         >
           <label
             for="student-protocol-attachment-input"
@@ -188,7 +188,7 @@ function submitProtocol() {
           <input
             id="student-protocol-attachment-input"
             ref="attachmentField"
-            class="student-focus-ring mt-4 block rounded-[16px] border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600"
+            class="student-focus-ring mt-4 block rounded-[8px] border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600"
             type="file"
             multiple
             :aria-invalid="visibleErrors.attachments ? 'true' : 'false'"
@@ -224,25 +224,25 @@ function submitProtocol() {
           v-else
           class="mt-5 text-sm leading-6 text-slate-500"
         >
-          Nenhum anexo e necessario neste assunto.
+          Nenhum anexo e necessário neste assunto.
         </p>
 
         <div class="mt-6 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <button
             type="button"
             :disabled="isSubmitting"
-            class="student-focus-ring min-w-0 rounded-[20px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-[0_18px_40px_rgba(109,76,255,0.16)] hover:-translate-y-1 disabled:cursor-wait disabled:opacity-75"
+            class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-slate-50 disabled:cursor-wait disabled:opacity-75"
             @click="submitProtocol"
           >
-            {{ isSubmitting ? 'Enviando solicitacao...' : 'Enviar solicitacao' }}
+            {{ isSubmitting ? 'Enviando solicitação...' : 'Enviar solicitação' }}
           </button>
           <button
             type="button"
             :disabled="isSubmitting"
-            class="student-focus-ring min-w-0 rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-center text-sm font-semibold leading-5 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+            class="student-focus-ring min-w-0 rounded-[8px] border border-slate-200 bg-white px-5 py-4 text-center text-sm font-semibold leading-5 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
             @click="goBackToFaq"
           >
-            Voltar para a orientacao
+            Voltar para a orientação
           </button>
         </div>
       </div>
@@ -258,7 +258,7 @@ function submitProtocol() {
             :class="[
               'student-focus-ring rounded-full border px-3 py-2 text-xs font-semibold transition',
               item.current
-                ? 'border-[rgba(109,76,255,0.18)] bg-[rgba(109,76,255,0.08)] text-slate-950'
+                ? 'border-[rgba(209,50,57,0.18)] bg-[rgba(209,50,57,0.08)] text-slate-950'
                 : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
             ]"
             :aria-current="item.current ? 'step' : null"
@@ -267,14 +267,14 @@ function submitProtocol() {
           </RouterLink>
         </div>
 
-        <div class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4">
-          <p class="text-sm font-semibold text-slate-900">Orientacao apresentada</p>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4">
+          <p class="text-sm font-semibold text-slate-900">Orientação apresentada</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
             {{ faqContext.displayedAnswer }}
           </p>
         </div>
 
-        <div class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4">
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4">
           <p class="text-sm font-semibold text-slate-900">Assunto sugerido</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
             {{ faqContext.finalNode.title }}

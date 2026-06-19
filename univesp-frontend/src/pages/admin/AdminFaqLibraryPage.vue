@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -185,7 +185,7 @@ function openBundleEditor(bundleId = '', query = {}) {
     console.error('[faq-library][open-editor-failed]', error)
     setFeedback(
       'error',
-      'Falha de navegacao para o editor.',
+      'Falha de navegação para o editor.',
     )
   }
 }
@@ -224,7 +224,7 @@ function duplicateFlow(bundleId = '') {
 
 function archiveFlow(bundleId = '') {
   const confirmed = window.confirm(
-    'Arquivar este fluxo? Ele sai da lista de operacao ativa, mas a versao atual e o historico permanecem preservados.',
+    'Arquivar este fluxo? Ele sai da lista de operação ativa, mas a versao atual e o historico permanecem preservados.',
   )
   if (!confirmed) {
     return
@@ -325,13 +325,13 @@ function situationTone(row = {}) {
   <div class="grid gap-5">
     <section
       v-if="runtimeError"
-      class="rounded-[14px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
+      class="rounded-[8px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
     >
-      <p class="font-semibold">Nao foi possivel carregar a biblioteca local.</p>
+      <p class="font-semibold">Não foi possível carregar a biblioteca local.</p>
       <p class="mt-1">{{ runtimeError }}</p>
       <button
         type="button"
-        class="mt-3 rounded-[10px] border border-[rgba(166,31,40,0.28)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
+        class="mt-3 rounded-[8px] border border-[rgba(166,31,40,0.28)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
         @click="resetLibraryState"
       >
         Reinicializar dados locais do FAQ Builder
@@ -344,24 +344,24 @@ function situationTone(row = {}) {
       description="Escolha um fluxo para editar. O canvas abre apenas um bundle por vez em tela dedicada."
     >
       <div class="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Fluxos</p>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Fluxos</p>
           <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.total }}</p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Rascunhos</p>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Rascunhos</p>
           <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.draft }}</p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Em revisao</p>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Em revisao</p>
           <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.review }}</p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Publicados</p>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Publicados</p>
           <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.published }}</p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Com erro estrutural</p>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Com erro estrutural</p>
           <p class="mt-1 text-xl font-semibold text-[var(--color-danger)]">{{ summary.withErrors }}</p>
         </div>
       </div>
@@ -369,23 +369,23 @@ function situationTone(row = {}) {
 
     <section
       v-if="feedback.message"
-      class="rounded-[14px] border px-4 py-3 text-sm"
+      class="rounded-[8px] border px-4 py-3 text-sm"
       :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'"
     >
       {{ feedback.message }}
     </section>
 
     <section class="grid gap-3">
-      <article class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
+      <article class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
         <p class="text-sm font-semibold text-slate-900">Filtros da biblioteca</p>
         <div class="mt-2 grid gap-2 md:grid-cols-[minmax(220px,1fr)_minmax(150px,180px)_minmax(150px,180px)]">
           <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Buscar</span>
-            <input v-model="filters.search" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Nome do fluxo, assunto ou tipo" />
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Buscar</span>
+            <input v-model="filters.search" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Nome do fluxo, assunto ou tipo" />
           </label>
           <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Status</span>
-            <select v-model="filters.status" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Status</span>
+            <select v-model="filters.status" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
               <option value="all">Todos</option>
               <option value="draft">Rascunho</option>
               <option value="in review">Em revisao</option>
@@ -394,8 +394,8 @@ function situationTone(row = {}) {
             </select>
           </label>
           <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo de FAQ</span>
-            <select v-model="filters.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Tipo de FAQ</span>
+            <select v-model="filters.faqType" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
               <option value="all">Todos</option>
               <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
@@ -403,43 +403,43 @@ function situationTone(row = {}) {
         </div>
       </article>
 
-      <details class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
+      <details class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
         <summary class="cursor-pointer text-sm font-semibold text-slate-900">
           Criar novo fluxo
           <span class="ml-2 text-xs font-normal text-slate-500">Cadastre um novo fluxo quando nao houver fluxo equivalente.</span>
         </summary>
         <div class="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_140px] lg:items-end">
           <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo</span>
-            <select v-model="createForm.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Tipo</span>
+            <select v-model="createForm.faqType" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
               <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
           <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Nome do fluxo</span>
-            <input v-model="createForm.title" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: Provas e segunda chamada" />
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Nome do fluxo</span>
+            <input v-model="createForm.title" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: Provas e segunda chamada" />
           </label>
           <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Chave do assunto (opcional)</span>
-            <input v-model="createForm.subjectKey" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: provas_segunda_chamada" />
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Chave do assunto (opcional)</span>
+            <input v-model="createForm.subjectKey" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: provas_segunda_chamada" />
           </label>
-          <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white" @click="createFlow">
+          <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white" @click="createFlow">
             Criar fluxo
           </button>
         </div>
       </details>
     </section>
 
-    <section class="rounded-[18px] border border-slate-200 bg-white p-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white p-4">
       <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
-        <div class="mt-3 overflow-auto rounded-[12px] border border-slate-200">
+        <div class="mt-3 overflow-auto rounded-[8px] border border-slate-200">
         <table class="w-full min-w-[900px] text-left text-xs">
           <thead class="bg-slate-100 text-slate-600">
             <tr>
               <th class="px-3 py-2">Fluxo</th>
               <th class="px-3 py-2">Status</th>
               <th class="px-3 py-2">Area responsavel</th>
-              <th class="px-3 py-2">Situacao</th>
+              <th class="px-3 py-2">Situação</th>
               <th class="px-3 py-2">Atualizado em</th>
               <th class="px-3 py-2">Acao</th>
             </tr>
@@ -474,7 +474,7 @@ function situationTone(row = {}) {
               </td>
               <td class="px-3 py-2">
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
+                    <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
                     Ver fluxo
                     </button>
                 </div>

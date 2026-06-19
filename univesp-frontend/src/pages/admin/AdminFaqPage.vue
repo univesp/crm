@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import {
   computed,
   onBeforeUnmount,
@@ -442,7 +442,7 @@ function buildFlowGraphModel(bundle = {}, previewRuntime = {}, canvasSnapshot = 
       title: String(node.titulo_exibido || nodeId).trim(),
       subtitle: `${String(node.tema || '').trim()} / ${String(node.subtema || '').trim()}`,
       nodeModeLabel: isFinal ? 'Resposta final' : 'Caminho',
-      actionLabel: String(node.acao || '').trim() || 'acao_nao_definida',
+      actionLabel: String(node.ação || '').trim() || 'ação_nao_definida',
       outgoingCount: Array.isArray(outgoingMap.get(nodeId))
         ? outgoingMap.get(nodeId).length
         : 0,
@@ -787,7 +787,7 @@ function goToEditor(mode = 'visual') {
     ...(Object.keys(query).length ? { query } : {}),
   }
 
-  // Navegacao completa (hard navigation): evita dessincronismo URL x estado interno do
+  // Navegação completa (hard navigation): evita dessincronismo URL x estado interno do
   // Vue Router quando router.push resolve com falha silenciosa (NavigationFailure).
   try {
     const resolved = router.resolve(targetRoute)
@@ -854,13 +854,13 @@ function openPublishModal() {
 function confirmPublish() {
   if (!workspace.value) return
   if (!ui.publishConfirm) {
-    setFeedback('error', 'Confirme a publicacao para continuar.')
+    setFeedback('error', 'Confirme a publicação para continuar.')
     return
   }
   syncPublishConfigToWorkspace()
   const result = publishFaqBuilderWorkspace(workspace.value, {
     actorName: currentEditorName.value,
-    summary: publishForm.summary || 'Publicacao aprovada pela visao do fluxo.',
+    summary: publishForm.summary || 'Publicação aprovada pela visao do fluxo.',
     publishConfig: workspace.value.publishConfig,
   })
   if (!result.ok) {
@@ -926,45 +926,45 @@ watch(
   <div class="grid gap-4">
     <section
       v-if="openState.isLoading"
-      class="rounded-[16px] border border-slate-200 bg-white p-4"
+      class="rounded-[8px] border border-slate-200 bg-white p-4"
     >
       <p class="text-sm font-semibold text-slate-900">Abrindo fluxo...</p>
       <p class="mt-2 text-xs text-slate-600">
-        Preparando bundle, validacao, preview e canvas em modo seguro.
+        Preparando bundle, validação, preview e canvas em modo seguro.
       </p>
     </section>
 
-    <section v-else-if="isMissingBundle" class="rounded-[16px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.8)] p-4">
+    <section v-else-if="isMissingBundle" class="rounded-[8px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.8)] p-4">
       <p class="text-sm font-semibold text-[var(--color-danger)]">Fluxo nao encontrado.</p>
-      <button type="button" class="mt-3 rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="goToLibrary">Voltar para biblioteca</button>
+      <button type="button" class="mt-3 rounded-[8px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="goToLibrary">Voltar para biblioteca</button>
     </section>
 
     <template v-else>
-      <section class="rounded-[16px] border border-slate-200 bg-white p-4">
+      <section class="rounded-[8px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Fluxo FAQ</p>
+            <p class="text-xs uppercase tracking-normal text-slate-500">Fluxo FAQ</p>
             <h1 class="mt-1 text-lg font-semibold text-slate-950">{{ currentBundleEntry.title }}</h1>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="startTester('draft')">Testar jornada</button>
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Editar fluxo</button>
-            <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar fluxo</button>
+            <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="startTester('draft')">Testar jornada</button>
+            <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Editar fluxo</button>
+            <button type="button" class="rounded-[8px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar fluxo</button>
           </div>
         </div>
         <div class="mt-4 flex flex-wrap items-end justify-between gap-2">
           <div>
             <p class="text-sm font-semibold text-slate-900">Saude do fluxo</p>
-            <p class="mt-1 text-xs text-slate-600">Status, versao e pendencias antes da publicacao.</p>
+            <p class="mt-1 text-xs text-slate-600">Status, versao e pendencias antes da publicação.</p>
           </div>
         </div>
         <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
-          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Status</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-normal text-slate-500">Status</p>
             <p class="mt-1 text-sm font-semibold text-slate-900">{{ workflowStatusLabel }}</p>
           </div>
-          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Aptidao</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-normal text-slate-500">Aptidao</p>
             <p
               class="mt-1 text-sm font-semibold"
               :class="
@@ -978,16 +978,16 @@ watch(
               {{ publicationReadiness.label }}
             </p>
           </div>
-          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Versao ativa</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-normal text-slate-500">Versao ativa</p>
             <p class="mt-1 text-sm font-semibold text-slate-900">{{ activeVersionLabel }}</p>
           </div>
-          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Rascunho/revisao</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-normal text-slate-500">Rascunho/revisao</p>
             <p class="mt-1 text-sm font-semibold text-slate-900">{{ currentDraftVersionLabel }}</p>
           </div>
-          <div class="rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Pendencias</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
+            <p class="text-[10px] font-semibold uppercase tracking-normal text-slate-500">Pendencias</p>
             <p
               class="mt-1 text-sm font-semibold"
               :class="
@@ -1014,14 +1014,14 @@ watch(
             {{ recommendedNextStep }}
           </p>
           <div class="flex flex-wrap items-center gap-2">
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Voltar a biblioteca</button>
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToAdvancedPublication">Ver publicacao avancada</button>
+            <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToLibrary">Voltar a biblioteca</button>
+            <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
+            <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToAdvancedPublication">Ver publicação avancada</button>
             <div ref="overflowRef" class="relative">
-              <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
-              <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg">
+              <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click.stop="toggleOverflow">Mais</button>
+              <div v-if="ui.showOverflow" class="absolute right-0 z-20 mt-2 grid min-w-[220px] gap-1 rounded-[8px] border border-slate-200 bg-white p-2 shadow-lg">
                 <button type="button" class="faq-overflow-btn" @click="sendToReview">Enviar para revisao</button>
-                <button type="button" class="faq-overflow-btn" @click="goToEditor('import')">Abrir importacao</button>
+                <button type="button" class="faq-overflow-btn" @click="goToEditor('import')">Abrir importação</button>
                 <button type="button" class="faq-overflow-btn" @click="goToEditor('governance')">Abrir governanca</button>
                 <button type="button" class="faq-overflow-btn" @click="startTester('published')">Testar publicado</button>
               </div>
@@ -1032,17 +1032,17 @@ watch(
 
       <section
         v-if="openState.safeMode || safeRuntimeState.sanity.warnings.length || openState.failed"
-        class="rounded-[14px] border border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.72)] p-4"
+        class="rounded-[8px] border border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.72)] p-4"
       >
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#0b6e8c]">
+            <p class="text-xs font-semibold uppercase tracking-normal text-[#0b6e8c]">
               Abertura protegida do fluxo
             </p>
             <p class="mt-1 text-sm font-semibold text-slate-900">
               {{
                 openState.failed
-                  ? 'Nao foi possivel preparar a visualizacao agora.'
+                  ? 'Não foi possível preparar a visualização agora.'
                   : openState.safeMode
                     ? 'Modo seguro ativo para manter a revisao disponivel.'
                     : 'Fluxo aberto com ajustes automaticos de estabilidade.'
@@ -1056,14 +1056,14 @@ watch(
               class="mt-1 text-xs text-slate-700"
             >
               {{
-                `${safeRuntimeState.sanity.warnings.length} ajuste(s) aplicados para manter a visualizacao estavel.`
+                `${safeRuntimeState.sanity.warnings.length} ajuste(s) aplicados para manter a visualização estavel.`
               }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
             <button
               type="button"
-              class="rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              class="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
               @click="retryOpenBundle"
             >
               Tentar novamente
@@ -1071,14 +1071,14 @@ watch(
             <button
               v-if="!openState.safeMode"
               type="button"
-              class="rounded-[10px] border border-[#0b6e8c] bg-white px-3 py-2 text-xs font-semibold text-[#0b6e8c]"
+              class="rounded-[8px] border border-[#0b6e8c] bg-white px-3 py-2 text-xs font-semibold text-[#0b6e8c]"
               @click="openBundleInSafeMode"
             >
               Abrir em modo seguro
             </button>
             <button
               type="button"
-              class="rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              class="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
               @click="recoverByIgnoringSnapshot"
             >
               Reconstruir layout visual
@@ -1087,7 +1087,7 @@ watch(
         </div>
         <details
           v-if="openState.markers.length"
-          class="mt-3 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+          class="mt-3 rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
         >
           <summary class="cursor-pointer font-semibold text-slate-700">
             Ver detalhes tecnicos da abertura
@@ -1100,10 +1100,10 @@ watch(
         </details>
       </section>
 
-      <section v-if="feedback.message" class="rounded-[14px] border px-4 py-3 text-sm" :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'">{{ feedback.message }}</section>
+      <section v-if="feedback.message" class="rounded-[8px] border px-4 py-3 text-sm" :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'">{{ feedback.message }}</section>
 
       <section class="grid gap-3 lg:grid-cols-2">
-        <article class="rounded-[16px] border border-slate-200 bg-white p-4">
+        <article class="rounded-[8px] border border-slate-200 bg-white p-4">
           <div class="flex items-start justify-between gap-2">
             <div>
               <p class="text-sm font-semibold text-slate-900">Governanca do fluxo</p>
@@ -1112,25 +1112,25 @@ watch(
             <StatusBadge :label="ownershipStatusLabel" />
           </div>
           <div class="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
-            <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+            <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
               <p class="font-semibold text-slate-500">Area/fila responsavel</p>
               <p class="mt-1 text-sm font-semibold text-slate-900">{{ predominantQueueLabel }}</p>
             </div>
-            <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+            <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
               <p class="font-semibold text-slate-500">Responsavel operacional</p>
               <p class="mt-1 text-sm font-semibold text-slate-900">{{ flowOwnerLabel }}</p>
             </div>
-            <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+            <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
               <p class="font-semibold text-slate-500">Cobertura final</p>
               <p class="mt-1 text-sm font-semibold text-slate-900">{{ finalOwnerCoverageLabel }}</p>
             </div>
-            <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+            <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
               <p class="font-semibold text-slate-500">SLA / criticidade</p>
               <p class="mt-1 text-sm font-semibold text-slate-900">{{ predominantSlaLabel }} - {{ predominantCriticalityLabel }}</p>
             </div>
           </div>
           <p
-            class="mt-3 rounded-[12px] px-3 py-2 text-xs font-semibold"
+            class="mt-3 rounded-[8px] px-3 py-2 text-xs font-semibold"
             :class="
               ownershipStatusTone === 'danger'
                 ? 'bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]'
@@ -1146,10 +1146,10 @@ watch(
       </section>
 
       <section v-if="!openState.failed" class="grid gap-3 lg:grid-cols-[1fr_360px]">
-        <article class="min-w-0 rounded-[16px] border border-slate-200 bg-white p-3">
+        <article class="min-w-0 rounded-[8px] border border-slate-200 bg-white p-3">
           <div class="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p class="text-sm font-semibold text-slate-900">Pre-visualizacao do fluxo</p>
+              <p class="text-sm font-semibold text-slate-900">Pre-visualização do fluxo</p>
               <p class="mt-1 text-xs text-slate-600">Revise a jornada. Para alterar a estrutura, abra o editor.</p>
             </div>
             <p
@@ -1159,9 +1159,9 @@ watch(
               {{ flowSummaryLabel }}
             </p>
           </div>
-          <div class="mt-3 h-[420px] overflow-auto rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+          <div class="mt-3 h-[420px] overflow-auto rounded-[8px] border border-slate-200 bg-slate-50 p-3">
             <div
-              class="relative rounded-[12px] border border-slate-200 bg-white"
+              class="relative rounded-[8px] border border-slate-200 bg-white"
               :style="{
                 width: `${flowGraph.canvasWidth}px`,
                 height: `${flowGraph.canvasHeight}px`,
@@ -1211,7 +1211,7 @@ watch(
               <article
                 v-for="node in flowGraph.nodes"
                 :key="`flow-node-${node.id}`"
-                class="absolute rounded-[12px] border px-3 py-2 shadow-sm"
+                class="absolute rounded-[8px] border px-3 py-2 shadow-sm"
                 :class="
                   node.nodeModeLabel === 'Resposta final'
                     ? 'border-[rgba(8,115,145,0.25)] bg-[rgba(224,242,254,0.92)]'
@@ -1224,7 +1224,7 @@ watch(
                   top: `${node.drawY}px`,
                 }"
               >
-                <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                <p class="text-[10px] font-semibold uppercase tracking-normal text-slate-500">
                   {{ node.nodeModeLabel }}
                 </p>
                 <p class="mt-1 text-sm font-semibold text-slate-900">
@@ -1242,20 +1242,20 @@ watch(
               </article>
             </div>
             <p v-if="!flowGraph.nodes.length" class="py-6 text-center text-sm text-slate-500">
-              Nenhum no valido para visualizacao resumida.
+              Nenhum no valido para visualização resumida.
             </p>
           </div>
         </article>
-        <article class="rounded-[16px] border border-slate-200 bg-white p-4">
+        <article class="rounded-[8px] border border-slate-200 bg-white p-4">
           <div class="flex items-start justify-between gap-2">
             <div>
-              <p class="text-sm font-semibold text-slate-900">Publicacao do fluxo</p>
+              <p class="text-sm font-semibold text-slate-900">Publicação do fluxo</p>
               <p class="mt-1 text-xs text-slate-600">{{ publicationReadiness.description }}</p>
             </div>
             <StatusBadge :label="publicationReadiness.label" />
           </div>
 
-          <div class="mt-3 grid gap-2 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+          <div class="mt-3 grid gap-2 rounded-[8px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
             <p><strong>Status:</strong> {{ workflowStatusLabel }}</p>
             <p><strong>Versao ativa:</strong> {{ activeVersionLabel }}</p>
             <p><strong>Rascunho/revisao:</strong> {{ currentDraftVersionLabel }}</p>
@@ -1263,7 +1263,7 @@ watch(
             <p><strong>Fim de vigencia:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</p>
           </div>
 
-          <div class="mt-3 rounded-[12px] border border-slate-200 bg-white p-3">
+          <div class="mt-3 rounded-[8px] border border-slate-200 bg-white p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm font-semibold text-slate-900">Pendencias para publicar</p>
               <StatusBadge :label="publicationReadiness.tone === 'success' ? 'OK' : publicationReadiness.label" />
@@ -1272,18 +1272,18 @@ watch(
               <p
                 v-for="item in publicationPendingItems"
                 :key="item.label"
-                class="rounded-[10px] px-3 py-2 text-xs font-semibold"
+                class="rounded-[8px] px-3 py-2 text-xs font-semibold"
                 :class="item.tone === 'danger' ? 'bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'bg-amber-50 text-amber-700'"
               >
                 {{ item.label }}
               </p>
             </div>
-            <p v-else class="mt-2 text-xs text-slate-600">OK para seguir com teste e publicacao.</p>
+            <p v-else class="mt-2 text-xs text-slate-600">OK para seguir com teste e publicação.</p>
           </div>
 
           <div class="mt-3 grid gap-2 text-xs">
             <label class="grid gap-1">
-              <span class="font-semibold text-slate-600">Modo de publicacao</span>
+              <span class="font-semibold text-slate-600">Modo de publicação</span>
               <select v-model="publishForm.publishMode" class="faq-input">
                 <option value="immediate">Publicar imediatamente</option>
                 <option value="scheduled">Publicar em data futura</option>
@@ -1304,22 +1304,22 @@ watch(
           </div>
 
           <div class="mt-4 flex flex-wrap gap-2">
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="sendToReview">Revisar publicacao</button>
-            <button type="button" class="rounded-[10px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar fluxo</button>
-            <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
+            <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="sendToReview">Revisar publicação</button>
+            <button type="button" class="rounded-[8px] border border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.75)] px-3 py-2 text-xs font-semibold text-[var(--color-success)]" @click="openPublishModal">Publicar fluxo</button>
+            <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="saveDraft">Salvar rascunho</button>
           </div>
 
-          <details class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+          <details class="mt-3 rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
             <summary class="cursor-pointer font-semibold text-slate-700">Historico recente</summary>
             <div v-if="recentPublicationHistory.length" class="mt-3 grid gap-2 text-xs text-slate-600">
               <p v-for="item in recentPublicationHistory" :key="`${item.bundleVersionId}-${item.publishedAt}`">
                 <strong>{{ item.bundleVersionId }}</strong> publicado em {{ formatDate(item.publishedAt) }} por {{ item.publishedBy || 'Admin' }}.
               </p>
             </div>
-            <p v-else class="mt-3 text-xs text-slate-600">Historico detalhado disponivel na area de publicacao avancada.</p>
+            <p v-else class="mt-3 text-xs text-slate-600">Historico detalhado disponivel na area de publicação avancada.</p>
           </details>
 
-          <details class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+          <details class="mt-3 rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
             <summary class="cursor-pointer font-semibold text-slate-700">Detalhes tecnicos</summary>
             <div class="mt-3 grid gap-3 text-xs text-slate-600">
               <div class="grid gap-2">
@@ -1341,16 +1341,16 @@ watch(
 
       <section
         v-else
-        class="rounded-[16px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-4 text-sm text-[var(--color-danger)]"
+        class="rounded-[8px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-4 text-sm text-[var(--color-danger)]"
       >
         O fluxo nao pode ser renderizado neste momento. Use o modo seguro ou reconstrua o layout visual para recuperar.
       </section>
     </template>
 
     <div v-if="ui.showPublishModal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/55 p-4">
-      <div class="w-full max-w-[620px] rounded-[16px] border border-slate-200 bg-white p-4">
-        <h2 class="text-base font-semibold text-slate-900">Confirmar publicacao</h2>
-        <p class="mt-2 text-sm text-slate-600">Esta acao ativa uma nova versao do fluxo e nao interrompe jornadas ja iniciadas (politica sticky_version).</p>
+      <div class="w-full max-w-[620px] rounded-[8px] border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold text-slate-900">Confirmar publicação</h2>
+        <p class="mt-2 text-sm text-slate-600">Esta ação ativa uma nova versao do fluxo e nao interrompe jornadas ja iniciadas (politica sticky_version).</p>
         <ul class="mt-3 grid gap-1 text-xs text-slate-700">
           <li><strong>Fluxo:</strong> {{ currentBundleEntry?.title }}</li>
           <li><strong>Nova versao:</strong> {{ publicationPreview?.nextVersionId }}</li>
@@ -1358,43 +1358,43 @@ watch(
           <li><strong>Fim:</strong> {{ formatDate(publicationPreview?.effectiveEndAt) }}</li>
           <li><strong>Prioridade:</strong> {{ publicationPreview?.priority }}</li>
         </ul>
-        <label class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input v-model="ui.publishConfirm" type="checkbox" /> Confirmo o impacto da publicacao</label>
+        <label class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input v-model="ui.publishConfirm" type="checkbox" /> Confirmo o impacto da publicação</label>
         <div class="mt-4 flex justify-end gap-2">
-          <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="ui.showPublishModal = false">Cancelar</button>
-          <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="confirmPublish">Confirmar publicacao</button>
+          <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="ui.showPublishModal = false">Cancelar</button>
+          <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white" @click="confirmPublish">Confirmar publicação</button>
         </div>
       </div>
     </div>
 
     <div v-if="ui.showTesterModal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/55 p-4">
-      <div class="w-full max-w-[760px] rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="w-full max-w-[760px] rounded-[8px] border border-slate-200 bg-white p-4">
         <div class="flex items-center justify-between gap-2">
           <h2 class="text-base font-semibold text-slate-900">Teste da jornada do aluno</h2>
-          <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700" @click="ui.showTesterModal = false">Fechar</button>
+          <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700" @click="ui.showTesterModal = false">Fechar</button>
         </div>
         <div class="mt-2 flex flex-wrap gap-2">
           <button type="button" class="rounded-full border px-3 py-1 text-xs font-semibold" :class="ui.testerMode === 'draft' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="startTester('draft')">Testar draft</button>
           <button type="button" class="rounded-full border px-3 py-1 text-xs font-semibold" :class="ui.testerMode === 'published' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="startTester('published')">Testar publicado</button>
           <StatusBadge :label="`Modo: ${ui.testerMode}`" />
         </div>
-        <div class="mt-3 rounded-[14px] border border-slate-200 bg-slate-50 p-3">
+        <div class="mt-3 rounded-[8px] border border-slate-200 bg-slate-50 p-3">
           <p class="text-xs text-slate-500">Caminho percorrido</p>
           <p class="mt-1 text-sm text-slate-700">{{ ui.testerPath.join(' > ') || 'Inicio da jornada' }}</p>
         </div>
-        <div class="mt-3 rounded-[14px] border border-slate-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Pergunta atual</p>
+        <div class="mt-3 rounded-[8px] border border-slate-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-normal text-slate-500">Pergunta atual</p>
           <p class="mt-1 text-base font-semibold text-slate-950">{{ testerNode?.titulo_exibido || 'Fluxo sem no inicial' }}</p>
           <p v-if="testerNode?.resposta" class="mt-2 text-sm text-slate-700">{{ testerNode.resposta.replace(/<[^>]+>/g, ' ').trim() }}</p>
           <div class="mt-3 grid gap-2">
-            <button v-for="choice in testerChoices" :key="choice.id" type="button" class="rounded-[12px] border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-700 hover:border-slate-400" @click="chooseTesterNode(choice)">
+            <button v-for="choice in testerChoices" :key="choice.id" type="button" class="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-700 hover:border-slate-400" @click="chooseTesterNode(choice)">
               {{ choice.titulo_exibido }}
             </button>
-            <p v-if="!testerChoices.length" class="text-xs text-slate-500">Fim da jornada. Acao final: {{ testerNode?.acao || 'n/a' }}</p>
+            <p v-if="!testerChoices.length" class="text-xs text-slate-500">Fim da jornada. Acao final: {{ testerNode?.ação || 'n/a' }}</p>
           </div>
         </div>
         <div class="mt-3 flex justify-end gap-2">
-          <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="restartTester">Reiniciar teste</button>
-          <button type="button" class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Abrir editor completo</button>
+          <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="restartTester">Reiniciar teste</button>
+          <button type="button" class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700" @click="goToEditor()">Abrir editor completo</button>
         </div>
       </div>
     </div>

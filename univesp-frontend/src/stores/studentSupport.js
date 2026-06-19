@@ -60,6 +60,10 @@ import { buildOperationalOwnershipReferenceCatalog } from '@/services/operationa
 import { validateOperationalOwnershipEnvelope } from '@/contracts/operationalOwnershipContract'
 import { OPERATIONAL_OWNERSHIP_BACKEND_ENDPOINTS } from '@/contracts/operationalOwnershipBackendContract'
 import {
+  shouldSyncProtocolWithFrappe,
+  submitStudentProtocolTicket,
+} from '@/services/frappeClient'
+import {
   DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
   auditLegacyOwnershipRecords,
   validateOperationalOwnershipForServer,
@@ -1293,7 +1297,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
 
       return finalDraft
     },
-    submitProtocol(currentDate = new Date()) {
+    async submitProtocol(currentDate = new Date()) {
       const validation = validateProtocolDraft(this.protocolDraft)
 
       if (!validation.isValid || !this.protocolDraft) {
@@ -1367,81 +1371,121 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         }
       }
 
-      this.protocols = [protocol, ...this.protocols]
+      let protocolToPersist = protocol
+      let remoteTicket = null
+
+      if (shouldSyncProtocolWithFrappe()) {
+        try {
+          remoteTicket = await submitStudentProtocolTicket(protocol)
+          protocolToPersist = {
+            ...protocol,
+            remoteSyncStatus: 'synced',
+            remoteDoctype: import.meta.env.VITE_FRAPPE_TICKET_DOCTYPE || 'Issue',
+            remoteDocumentName: remoteTicket?.name || '',
+            remoteDocument: remoteTicket || null,
+          }
+        } catch (error) {
+          return {
+            ok: false,
+            validation: {
+              ...validation,
+              isValid: false,
+              errors: {
+                ...(validation.errors || {}),
+                form:
+                  error?.message ||
+                  'Nao foi possivel registrar a solicitacao no Frappe. Tente novamente em instantes.',
+              },
+            },
+            remoteSyncStatus: 'failed',
+            remoteError: error,
+          }
+        }
+      }
+
+      this.protocols = [protocolToPersist, ...this.protocols]
       this.appendCaseKnowledgeUsage(
         buildInitialKnowledgeUsageForProtocol({
-          protocolId: protocol.protocolNumber,
-          themeKey: protocol.context?.theme,
-          subsubjectKey: protocol.context?.subtheme || protocol.context?.finalNode?.title,
+          protocolId: protocolToPersist.protocolNumber,
+          themeKey: protocolToPersist.context?.theme,
+          subsubjectKey: protocolToPersist.context?.subtheme || protocolToPersist.context?.finalNode?.title,
           actorName: 'Aluno',
           actorRole: 'student',
-          usedAt: protocol.createdAt,
+          usedAt: protocolToPersist.createdAt,
           knowledgeFoundation: this.knowledgeFoundation,
         }),
       )
       this.appendCaseRoutingDecision(
         buildCanonicalRoutingDecision({
-          caseId: protocol.protocolNumber,
-          sourceNodeId: protocol.context?.finalNode?.id || '',
+          caseId: protocolToPersist.protocolNumber,
+          sourceNodeId: protocolToPersist.context?.finalNode?.id || '',
           defaultAreaLabel:
-            protocol.ownerArea ||
-            protocol.lastMileAreaLabel ||
-            protocol.context?.routing?.targetAreaLabel ||
-            protocol.ownerQueue ||
+            protocolToPersist.ownerArea ||
+            protocolToPersist.lastMileAreaLabel ||
+            protocolToPersist.context?.routing?.targetAreaLabel ||
+            protocolToPersist.ownerQueue ||
             '',
           resolvedAreaLabel:
-            protocol.ownerArea ||
-            protocol.lastMileAreaLabel ||
-            protocol.context?.routing?.targetAreaLabel ||
-            protocol.ownerQueue ||
+            protocolToPersist.ownerArea ||
+            protocolToPersist.lastMileAreaLabel ||
+            protocolToPersist.context?.routing?.targetAreaLabel ||
+            protocolToPersist.ownerQueue ||
             '',
           routingMode: 'standard',
-          justification: protocol.context?.routing?.assignmentRuleLabel || 'Roteamento inicial pelo conhecimento vigente.',
+          justification:
+            protocolToPersist.context?.routing?.assignmentRuleLabel ||
+            'Roteamento inicial pelo conhecimento vigente.',
           decidedBy: 'Aluno',
-          decidedAt: protocol.createdAt,
+          decidedAt: protocolToPersist.createdAt,
         }),
       )
       this.appendCaseEvent(
         buildCanonicalCaseEvent({
-          caseId: protocol.protocolNumber,
+          caseId: protocolToPersist.protocolNumber,
           eventType: 'case_submitted',
           actor: 'Aluno',
           actorRole: 'student',
           fromStatus: '',
           toStatus: mapLegacyCaseStatusCode({
-            statusCode: protocol.statusCode,
-            statusLabel: protocol.statusLabel,
-            pendingLabel: protocol.pendingLabel,
+            statusCode: protocolToPersist.statusCode,
+            statusLabel: protocolToPersist.statusLabel,
+            pendingLabel: protocolToPersist.pendingLabel,
           }),
           description: 'Protocolo enviado a partir da FAQ com snapshots de conhecimento registrados.',
           payload: {
-            subjectCode: buildSubjectCode(protocol.context?.theme),
-            subsubjectCode: buildSubsubjectCode(protocol.context?.theme, protocol.context?.subtheme || protocol.context?.finalNode?.title),
-            queueLabel: protocol.queueLabel,
-            lastMileAreaLabel: protocol.lastMileAreaLabel,
-            ownerType: protocol.ownerType || '',
-            ownerKey: protocol.ownerKey || '',
-            ownerQueue: protocol.ownerQueue || '',
-            ownerArea: protocol.ownerArea || '',
+            subjectCode: buildSubjectCode(protocolToPersist.context?.theme),
+            subsubjectCode: buildSubsubjectCode(
+              protocolToPersist.context?.theme,
+              protocolToPersist.context?.subtheme || protocolToPersist.context?.finalNode?.title,
+            ),
+            queueLabel: protocolToPersist.queueLabel,
+            lastMileAreaLabel: protocolToPersist.lastMileAreaLabel,
+            ownerType: protocolToPersist.ownerType || '',
+            ownerKey: protocolToPersist.ownerKey || '',
+            ownerQueue: protocolToPersist.ownerQueue || '',
+            ownerArea: protocolToPersist.ownerArea || '',
+            remoteDoctype: protocolToPersist.remoteDoctype || '',
+            remoteDocumentName: protocolToPersist.remoteDocumentName || '',
           },
-          createdAt: protocol.createdAt,
+          createdAt: protocolToPersist.createdAt,
         }),
       )
       this.records = this.records.map((record) =>
         record.id === this.protocolDraft.sourceRecordId
           ? {
               ...record,
-              pendingLabel: `Protocolo ${protocol.protocolNumber} enviado para continuidade`,
+              pendingLabel: `Protocolo ${protocolToPersist.protocolNumber} enviado para continuidade`,
             }
           : record,
       )
-      this.appendAnalytics('protocol_submitted', protocol.context, currentDate)
+      this.appendAnalytics('protocol_submitted', protocolToPersist.context, currentDate)
       this.protocolDraft = null
       this.persistState()
 
       return {
         ok: true,
-        protocol,
+        protocol: protocolToPersist,
+        remoteTicket,
         validation,
       }
     },

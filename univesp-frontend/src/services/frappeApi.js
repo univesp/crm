@@ -1,9 +1,3 @@
-const envAuthHeader = buildEnvAuthHeader(
-  import.meta.env.VITE_FRAPPE_AUTH_HEADER || '',
-  import.meta.env.VITE_FRAPPE_API_KEY || '',
-  import.meta.env.VITE_FRAPPE_API_SECRET || '',
-)
-
 const runtimeConfig = {
   baseUrl: normalizeBaseUrl(import.meta.env.VITE_FRAPPE_BASE_URL || ''),
   apiPrefix: normalizePath(import.meta.env.VITE_FRAPPE_API_PREFIX || '/api'),
@@ -92,7 +86,7 @@ export async function frappeRequest(path, options = {}) {
   const headers = new Headers(options.headers || {})
   headers.set('Accept', 'application/json')
 
-  const authHeader = runtimeConfig.authMode === 'token' ? readStoredAuthHeader() || envAuthHeader : ''
+  const authHeader = runtimeConfig.authMode === 'token' ? readStoredAuthHeader() : ''
   if (authHeader) {
     headers.set('Authorization', authHeader)
   } else if (method !== 'GET' && method !== 'HEAD') {
@@ -154,21 +148,6 @@ function normalizePath(value) {
 
 function normalizeAuthMode(value) {
   return value === 'token' ? 'token' : 'session'
-}
-
-function buildEnvAuthHeader(authHeader, apiKey, apiSecret) {
-  const directHeader = String(authHeader || '').trim()
-  if (directHeader) {
-    return directHeader
-  }
-
-  const normalizedKey = String(apiKey || '').trim()
-  const normalizedSecret = String(apiSecret || '').trim()
-  if (!normalizedKey || !normalizedSecret) {
-    return ''
-  }
-
-  return `token ${normalizedKey}:${normalizedSecret}`
 }
 
 function trimSlashes(value) {
