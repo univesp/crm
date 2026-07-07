@@ -61,13 +61,15 @@ As variaveis base estao em:
 
 - `.env.example`: referencia geral
 - `.env.development`: compose e Vite local em `http://localhost:8080/crm`
-- `.env.production`: espelho da homolog em `https://homolog.crm.univesp.br/`
+- `.env.production`: espelho da homolog em `https://homolog-crm.univesp.br/`
 
 Nesta fase:
 
 - `VITE_ENABLE_MOCKS=true` mantem o frontend desacoplado de backend real
 - `VITE_APP_BASE`, `VITE_DEV_PORT` e `VITE_PREVIEW_PORT` ajudam no encaixe futuro como modulo
-- `VITE_FRAPPE_BASE_URL` aponta para o backend Frappe CRM
+- `VITE_FRAPPE_BASE_URL` deve ficar vazio em homolog para usar o mesmo host publico
+- `FRAPPE_WEB_ORIGIN`, `FRAPPE_SOCKETIO_ORIGIN` e `SSO_GATEWAY_ORIGIN` sao variaveis
+  do container Nginx/Cloud Run e apontam para os servicos internos
 - `VITE_SSO_SESSION_PATH=/api/me` replica o contrato de sessao do SGP
 - `VITE_SSO_START_PATH`, `VITE_SSO_AZURE_START_PATH` e `VITE_SSO_SAML_START_PATH` iniciam os fluxos SSO
 - `VITE_SAML_ACS_URL`, `VITE_SAML_LOGOUT_URL` e `VITE_AZURE_REDIRECT_URI` recebem os callbacks publicos do gateway
@@ -75,7 +77,15 @@ Nesta fase:
 
 ## Autenticacao e API
 
-O `univesp-frontend` separa autenticacao de integracao de negocio:
+O `univesp-frontend` fica na frente do dominio publico, mas o Nginx do container
+encaminha as rotas do Frappe para o backend real:
+
+- `/api/method/*`, `/api/resource/*`, `/crm*`, `/assets/*`, `/files/*` -> Frappe web
+- `/socket.io/*` -> Frappe socket.io
+- `/api/me`, `/api/sso/*` -> SSO gateway
+- `/`, `/login` e demais rotas institucionais -> frontend UNIVESP
+
+O app separa autenticacao de integracao de negocio:
 
 - `src/services/ssoClient.js`: sessao atual em `/api/me`, inicio de login em `/api/sso/*` e logout institucional
 - `src/services/frappeApi.js`: chamadas para `/api/resource/...` e `/api/method/...`
@@ -134,9 +144,17 @@ VITE_SSO_LOGOUT_PATH=/api/sso/logout
 VITE_SAML_ENTITY_ID=crm_production
 VITE_SAML_NAME_ID_FORMAT=urn:oasis:names:tc:SAML:2.0:nameid-format:email
 VITE_SAML_NAME_ID_ATTRIBUTE=mail
-VITE_SAML_ACS_URL=https://homolog.crm.univesp.br/consume
-VITE_SAML_LOGOUT_URL=https://homolog.crm.univesp.br/logout
-VITE_AZURE_REDIRECT_URI=https://homolog.crm.univesp.br/api/sso/azure/callback
+VITE_SAML_ACS_URL=https://homolog-crm.univesp.br/consume
+VITE_SAML_LOGOUT_URL=https://homolog-crm.univesp.br/logout
+VITE_AZURE_REDIRECT_URI=https://homolog-crm.univesp.br/api/sso/azure/callback
+```
+
+Variaveis esperadas no servico Cloud Run que serve este frontend:
+
+```bash
+FRAPPE_WEB_ORIGIN=https://<origem-frappe-web>
+FRAPPE_SOCKETIO_ORIGIN=https://<origem-frappe-socketio>
+SSO_GATEWAY_ORIGIN=https://<origem-sso-gateway>
 ```
 
 ## Execucao local
@@ -230,8 +248,8 @@ Observacao: esse compose e para dev local. Ele deixa a API funcionando sem depen
 
 Depois do deploy por GitHub Actions:
 
-- tela inicial do `univesp-frontend`: `https://homolog.crm.univesp.br/`
-- CRM nativo do Frappe: `https://homolog.crm.univesp.br/crm`
+- tela inicial do `univesp-frontend`: `https://homolog-crm.univesp.br/`
+- CRM nativo do Frappe: `https://homolog-crm.univesp.br/crm`
 
 ## Chaves de API do Frappe
 

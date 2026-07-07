@@ -20,6 +20,7 @@
     "types": ["vite/client", "node"]
   },
   "include": [
+    "src/**/*.d.ts",
     "src/**/*.js",
     "src/**/*.vue",
     "vite.config.js",

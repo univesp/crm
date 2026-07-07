@@ -17,8 +17,8 @@ Nao usar `VITE_FRAPPE_API_SECRET`. Segredo em `VITE_*` fica exposto no bundle.
 ## Variaveis publicas do frontend
 
 ```bash
-VITE_APP_BASE=/crm/
-VITE_ROUTER_BASE=/crm/
+VITE_APP_BASE=/
+VITE_ROUTER_BASE=/
 VITE_FRAPPE_BASE_URL=
 VITE_FRAPPE_AUTH_MODE=session
 VITE_SSO_BASE_URL=
@@ -30,9 +30,9 @@ VITE_SSO_LOGOUT_PATH=/api/sso/logout
 VITE_SAML_ENTITY_ID=crm_production
 VITE_SAML_NAME_ID_FORMAT=urn:oasis:names:tc:SAML:2.0:nameid-format:email
 VITE_SAML_NAME_ID_ATTRIBUTE=mail
-VITE_SAML_ACS_URL=https://homolog.crm.univesp.br/consume
-VITE_SAML_LOGOUT_URL=https://homolog.crm.univesp.br/logout
-VITE_AZURE_REDIRECT_URI=https://homolog.crm.univesp.br/api/sso/azure/callback
+VITE_SAML_ACS_URL=https://homolog-crm.univesp.br/consume
+VITE_SAML_LOGOUT_URL=https://homolog-crm.univesp.br/logout
+VITE_AZURE_REDIRECT_URI=https://homolog-crm.univesp.br/api/sso/azure/callback
 ```
 
 Com `VITE_FRAPPE_BASE_URL=` vazio, o frontend usa a mesma origem e depende do proxy reverso local ou do Cloud Run.
@@ -42,8 +42,8 @@ Com `VITE_FRAPPE_BASE_URL=` vazio, o frontend usa a mesma origem e depende do pr
 ### homolog
 
 - `Entity ID`: `crm_production`
-- `AssertionConsumerService`: `https://homolog.crm.univesp.br/consume`
-- `SingleLogoutService`: `https://homolog.crm.univesp.br/logout`
+- `AssertionConsumerService`: `https://homolog-crm.univesp.br/consume`
+- `SingleLogoutService`: `https://homolog-crm.univesp.br/logout`
 - `NameIDFormat`: `urn:oasis:names:tc:SAML:2.0:nameid-format:email`
 - `simplesaml.nameidattribute`: `mail`
 
@@ -58,7 +58,7 @@ Com `VITE_FRAPPE_BASE_URL=` vazio, o frontend usa a mesma origem e depende do pr
 ## Callback Azure AD
 
 - local: `http://localhost:8080/api/sso/azure/callback`
-- homolog: `https://homolog.crm.univesp.br/api/sso/azure/callback`
+- homolog: `https://homolog-crm.univesp.br/api/sso/azure/callback`
 
 ## Quando usar chave de API do Frappe
 
@@ -94,9 +94,9 @@ sessionStorage.removeItem('univesp.frappe.authHeader')
 ## Endpoints esperados pelo frontend
 
 - `GET /api/me`
-- `GET /api/sso/start?email=...&next=/crm/...`
-- `GET /api/sso/azure/start?tenant=admin|academico&next=/crm/...`
-- `GET /api/sso/saml/start?next=/crm/...`
+- `GET /api/sso/start?email=...&next=/...`
+- `GET /api/sso/azure/start?tenant=admin|academico&next=/...`
+- `GET /api/sso/saml/start?next=/...`
 - `POST /api/sso/logout`
 - `POST /api/resource/:doctype`
 - `POST /api/method/univesp.api.ticket.attach_triage`

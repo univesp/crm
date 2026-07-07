@@ -51,6 +51,7 @@ jobs:
       DB_PASSWORD_SECRET_NAME: ${{ vars.DB_PASSWORD_SECRET_NAME }}
       ADMIN_PASSWORD_SECRET_NAME: ${{ vars.ADMIN_PASSWORD_SECRET_NAME }}
       CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      SSO_GATEWAY_ORIGIN: ${{ vars.SSO_GATEWAY_ORIGIN }}
 
     steps:
       - name: Checkout

@@ -68,11 +68,11 @@ export const environmentChecklist = [
   },
   {
     key: 'VITE_SAML_LOGOUT_URL',
-    purpose: 'Single logout do perfil SAML. Homolog: https://homolog.crm.univesp.br/logout.',
+    purpose: 'Single logout do perfil SAML. Homolog: https://homolog-crm.univesp.br/logout.',
   },
   {
     key: 'VITE_AZURE_REDIRECT_URI',
-    purpose: 'Callback do OAuth2/Azure AD. Homolog: https://homolog.crm.univesp.br/api/sso/azure/callback.',
+    purpose: 'Callback do OAuth2/Azure AD. Homolog: https://homolog-crm.univesp.br/api/sso/azure/callback.',
   },
   {
     key: 'VITE_SAML_IDP_METADATA_URL',
