@@ -32,7 +32,7 @@ VITE_SAML_NAME_ID_FORMAT=urn:oasis:names:tc:SAML:2.0:nameid-format:email
 VITE_SAML_NAME_ID_ATTRIBUTE=mail
 VITE_SAML_ACS_URL=https://homolog-crm.univesp.br/consume
 VITE_SAML_LOGOUT_URL=https://homolog-crm.univesp.br/logout
-VITE_AZURE_REDIRECT_URI=https://homolog-crm.univesp.br/api/sso/azure/callback
+VITE_AZURE_REDIRECT_URI=https://homolog-crm.univesp.br/login
 ```
 
 Com `VITE_FRAPPE_BASE_URL=` vazio, o frontend usa a mesma origem e depende do proxy reverso local ou do Cloud Run.
@@ -58,7 +58,7 @@ Com `VITE_FRAPPE_BASE_URL=` vazio, o frontend usa a mesma origem e depende do pr
 ## Callback Azure AD
 
 - local: `http://localhost:8080/api/sso/azure/callback`
-- homolog: `https://homolog-crm.univesp.br/api/sso/azure/callback`
+- homolog: `https://homolog-crm.univesp.br/login`
 
 ## Quando usar chave de API do Frappe
 

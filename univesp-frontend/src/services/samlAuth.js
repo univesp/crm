@@ -72,7 +72,7 @@ export const environmentChecklist = [
   },
   {
     key: 'VITE_AZURE_REDIRECT_URI',
-    purpose: 'Callback do OAuth2/Azure AD. Homolog: https://homolog-crm.univesp.br/api/sso/azure/callback.',
+    purpose: 'Callback do OAuth2/Azure AD. Homolog: https://homolog-crm.univesp.br/login.',
   },
   {
     key: 'VITE_SAML_IDP_METADATA_URL',

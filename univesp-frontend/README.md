@@ -146,7 +146,7 @@ VITE_SAML_NAME_ID_FORMAT=urn:oasis:names:tc:SAML:2.0:nameid-format:email
 VITE_SAML_NAME_ID_ATTRIBUTE=mail
 VITE_SAML_ACS_URL=https://homolog-crm.univesp.br/consume
 VITE_SAML_LOGOUT_URL=https://homolog-crm.univesp.br/logout
-VITE_AZURE_REDIRECT_URI=https://homolog-crm.univesp.br/api/sso/azure/callback
+VITE_AZURE_REDIRECT_URI=https://homolog-crm.univesp.br/login
 ```
 
 Variaveis esperadas no servico Cloud Run que serve este frontend:
