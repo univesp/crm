@@ -4,6 +4,8 @@
 
 Documentar a configuracao minima para o `univesp-frontend` usar o mesmo SSO do SGP e consumir o Frappe CRM apenas via API.
 
+Planejamento das APIs e contrato inicial com o Frappe: [frappe-api-roadmap.md](./frappe-api-roadmap.md).
+
 ## Regra principal
 
 Para navegador, usar sessao institucional do gateway SSO.
