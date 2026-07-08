@@ -22,20 +22,21 @@ https://homolog-crm.univesp.br/
 ```text
 /var/crm/
 ├── sso-gateway/                  # Node.js SSO, porta 4000
-├── frontend/                     # Vue build publicado em dist/
+├── frontend/                     # Next.js antigo, se ainda estiver em uso
+├── univesp-frontend/             # Vue build publicado em dist/
 └── frappe-bench/                 # Frappe CRM
 ```
 
-O frontend Vue pode ser publicado em `/var/crm/frontend/dist`. Se a pasta atual
-`/var/crm/frontend` ainda for o Next.js antigo, publique o Vue em
-`/var/crm/univesp-frontend/dist` e ajuste `root` no arquivo nginx.
+O frontend Vue deve ser publicado em `/var/crm/univesp-frontend/dist`.
+Esse caminho evita conflito com `/var/crm/frontend`, que no ambiente atual ainda
+parece servir o Next.js antigo.
 
 ## Publicar o Vue na VM
 
 Na VM:
 
 ```bash
-cd /var/crm/frontend
+cd /var/crm/univesp-frontend
 npm ci
 npm run build
 ```
@@ -43,8 +44,11 @@ npm run build
 Confirme que existe:
 
 ```bash
-test -f /var/crm/frontend/dist/index.html
+test -f /var/crm/univesp-frontend/dist/index.html
 ```
+
+Se o codigo ainda nao estiver em `/var/crm/univesp-frontend`, clone ou copie a
+pasta `univesp-frontend/` do repositorio para esse caminho antes do build.
 
 ## Aplicar o nginx
 
@@ -55,6 +59,12 @@ sudo cp ops/vm/nginx/homolog-crm.univesp.br.conf /etc/nginx/sites-available/homo
 sudo ln -sfn /etc/nginx/sites-available/homolog-crm.univesp.br.conf /etc/nginx/sites-enabled/homolog-crm.univesp.br.conf
 sudo nginx -t
 sudo systemctl reload nginx
+```
+
+Tambem existe um script operacional com esses passos:
+
+```bash
+sudo bash ops/vm/scripts/apply-frontdoor.sh
 ```
 
 Se a VM termina TLS diretamente no nginx, mantenha os certificados ja usados
@@ -81,3 +91,5 @@ Cannot GET /api/method/...
 
 Se aparecer, `/api/method/*` ainda esta caindo no Node/frontend em vez do Frappe.
 
+Se `/` ou `/login` retornarem HTML com `__next_error__` ou assets `/_next/static`,
+essas rotas ainda estao caindo no Next.js antigo em vez do Vue.
