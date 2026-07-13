@@ -588,7 +588,7 @@ test('exportacao portal aceita acao principal vazia e aplica fallback de versao'
     process: 'Matricula 2026',
     audience: ['candidato'],
     version: '',
-    currentDate: new Date('2026-05-15T14:30:00-03:00'),
+    currentDate: new Date(2026, 4, 15, 14, 30),
   })
 
   assert.equal(result.ok, true)
