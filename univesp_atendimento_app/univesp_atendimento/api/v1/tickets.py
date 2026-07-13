@@ -106,6 +106,7 @@ def create(payload: dict | str | None = None):
 			"custom_student_polo": str(student.get("polo") or ""),
 			"custom_student_course": str(student.get("course") or ""),
 			"custom_univesp_queue": queue,
+			"agent_group": queue if queue and frappe.db.exists("HD Team", queue) else None,
 			"custom_univesp_area": area,
 			"custom_univesp_context_json": json.dumps(data.get("triage") or {}, ensure_ascii=False),
 			"custom_source_bundle_id": str(knowledge.get("bundle_id") or ""),
@@ -210,6 +211,7 @@ def assign(ticket_id: str, assignee: str | None = None, queue: str | None = None
 	doc = frappe.get_doc("HD Ticket", name)
 	if queue:
 		doc.custom_univesp_queue = str(queue).strip()
+		doc.agent_group = str(queue).strip() if frappe.db.exists("HD Team", str(queue).strip()) else None
 	if assignee:
 		from frappe.desk.form.assign_to import add
 

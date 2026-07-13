@@ -50,6 +50,12 @@ test -f /var/crm/univesp-frontend/dist/index.html
 Se o codigo ainda nao estiver em `/var/crm/univesp-frontend`, clone ou copie a
 pasta `univesp-frontend/` do repositorio para esse caminho antes do build.
 
+## Compatibilidade confirmada
+
+A VM usa Frappe `15.113.3` e CRM `1.76.0`. Nao atualizar para Frappe 16 nesta
+entrega. A combinacao fixada de Telephony e Helpdesk esta registrada em
+`docs/architecture/ENGINE_COMPATIBILITY.md`.
+
 ## Instalar Helpdesk e o app UNIVESP
 
 Gere um segredo compartilhado no secret manager e configure-o no site sem
@@ -66,8 +72,24 @@ Com o repositorio em `/var/crm/repository`, execute como o usuario dono do bench
 bash /var/crm/repository/ops/vm/scripts/install-atendimento-backend.sh
 ```
 
-O script valida pre-requisitos, faz backup com arquivos, instala Helpdesk e o
-app `univesp_atendimento`, aplica migrations, gera assets e reinicia o bench.
+O script valida pre-requisitos, faz backup com arquivos, instala Telephony,
+Helpdesk e o app `univesp_atendimento`, aplica migrations, gera assets e
+reinicia o bench. As dependencias externas usam commits fixos.
+
+## Publicar o Gateway
+
+Preserve `/var/crm/sso-gateway/.env` e adicione as variaveis novas de
+`sso-gateway/.env.example`. Crie uma conta tecnica exclusiva no Frappe e
+configure sua API key somente nesse arquivo.
+
+```bash
+sudo CRM_ROOT=/var/crm \
+  SOURCE_GATEWAY=/var/crm/repository/sso-gateway \
+  /var/crm/repository/ops/vm/scripts/deploy-sso-gateway.sh
+```
+
+O script nunca copia nem remove o `.env`; ele atualiza dependencias, valida a
+sintaxe, reinicia somente `sso-gateway` e testa a porta 4000.
 
 ## Aplicar o nginx
 

@@ -6,6 +6,9 @@ BENCH_DIR="${BENCH_DIR:-$CRM_ROOT/frappe-bench}"
 SITE="${SITE:-crm.localhost}"
 SOURCE_APP="${SOURCE_APP:-$CRM_ROOT/repository/univesp_atendimento_app}"
 TARGET_APP="$BENCH_DIR/apps/univesp_atendimento"
+HELPDESK_REF="${HELPDESK_REF:-6b423f8fba6d4c7f8ff5db56f197243f6549d450}"
+TELEPHONY_REF="${TELEPHONY_REF:-58d32184e44b193e27498d3dd156085c793b7528}"
+MIN_FRAPPE_VERSION="15.109.0"
 
 if [[ ! -d "$BENCH_DIR" || ! -f "$BENCH_DIR/sites/$SITE/site_config.json" ]]; then
   echo "Bench/site nao encontrado: $BENCH_DIR/sites/$SITE" >&2
@@ -19,6 +22,12 @@ fi
 
 cd "$BENCH_DIR"
 
+frappe_version="$(bench version | awk '$1 == "frappe" {print $2}')"
+if [[ -z "$frappe_version" || "$(printf '%s\n%s\n' "$MIN_FRAPPE_VERSION" "$frappe_version" | sort -V | head -n1)" != "$MIN_FRAPPE_VERSION" ]]; then
+  echo "Frappe $MIN_FRAPPE_VERSION ou superior e obrigatorio; encontrado: ${frappe_version:-desconhecido}." >&2
+  exit 1
+fi
+
 if ! bench --site "$SITE" show-config | grep -q 'univesp_bff_shared_secret'; then
   echo "Configure univesp_bff_shared_secret no site antes de instalar." >&2
   exit 1
@@ -26,16 +35,30 @@ fi
 
 bench --site "$SITE" backup --with-files
 
+if [[ ! -d apps/telephony ]]; then
+  bench get-app telephony https://github.com/frappe/telephony
+fi
+
+git -C apps/telephony fetch --depth 1 origin "$TELEPHONY_REF"
+git -C apps/telephony checkout --detach "$TELEPHONY_REF"
+
 if [[ ! -d apps/helpdesk ]]; then
   bench get-app --branch main helpdesk https://github.com/frappe/helpdesk
 fi
 
-if [[ ! -d "$TARGET_APP" ]]; then
-  cp -a "$SOURCE_APP" "$TARGET_APP"
-fi
+git -C apps/helpdesk fetch --depth 1 origin "$HELPDESK_REF"
+git -C apps/helpdesk checkout --detach "$HELPDESK_REF"
 
+mkdir -p "$TARGET_APP"
+rsync -a --delete --exclude '.git/' --exclude '__pycache__/' "$SOURCE_APP/" "$TARGET_APP/"
+
+bench setup requirements --app telephony
 bench setup requirements --app helpdesk
 bench setup requirements --app univesp_atendimento
+
+if ! bench --site "$SITE" list-apps | grep -qx telephony; then
+  bench --site "$SITE" install-app telephony
+fi
 
 if ! bench --site "$SITE" list-apps | grep -qx helpdesk; then
   bench --site "$SITE" install-app helpdesk
@@ -46,6 +69,6 @@ if ! bench --site "$SITE" list-apps | grep -qx univesp_atendimento; then
 fi
 
 bench --site "$SITE" migrate
-bench build --app helpdesk --app univesp_atendimento
+bench build --app telephony --app helpdesk --app univesp_atendimento
 bench restart
 bench --site "$SITE" list-apps
