@@ -56,6 +56,18 @@ A VM usa Frappe `15.113.3` e CRM `1.76.0`. Nao atualizar para Frappe 16 nesta
 entrega. A combinacao fixada de Telephony e Helpdesk esta registrada em
 `docs/architecture/ENGINE_COMPATIBILITY.md`.
 
+O roteiro completo para a equipe de infraestrutura, incluindo segredos,
+perfis de teste, ordem de implantacao, aceite e rollback, esta em
+`ops/vm/HANDOFF_TI.md`.
+
+Antes de qualquer alteracao, execute o preflight. Ele informa apenas a presenca
+das configuracoes e nunca imprime os valores dos segredos:
+
+```bash
+sudo CRM_ROOT=/var/crm REPO_DIR=/var/crm/repository \
+  bash /var/crm/repository/ops/vm/scripts/preflight-atendimento.sh
+```
+
 ## Instalar Helpdesk e o app UNIVESP
 
 Gere um segredo compartilhado no secret manager e configure-o no site sem

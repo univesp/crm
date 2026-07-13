@@ -105,6 +105,17 @@ function validateRuntimeConfig() {
     'FRAPPE_API_KEY',
     'FRAPPE_API_SECRET',
     'UNIVESP_BFF_SHARED_SECRET',
+    'AZURE_REDIRECT_URI',
+    'AZURE_ADMIN_CLIENT_ID',
+    'AZURE_ADMIN_TENANT_ID',
+    'AZURE_ADMIN_CLIENT_SECRET',
+    'AZURE_ACADEMICO_CLIENT_ID',
+    'AZURE_ACADEMICO_TENANT_ID',
+    'AZURE_ACADEMICO_CLIENT_SECRET',
+    'SAML_IDP_SSO_URL',
+    'SAML_IDP_CERT',
+    'SAML_ACS_URL',
+    'SAML_ENTITY_ID',
   ]) {
     if (!String(process.env[name] || '').trim()) throw new Error(`${name} obrigatorio em producao.`)
   }
