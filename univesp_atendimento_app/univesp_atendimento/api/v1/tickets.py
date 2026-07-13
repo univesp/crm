@@ -72,7 +72,7 @@ TICKET_FIELDS = [
 
 
 @frappe.whitelist(methods=["POST"])
-def create(payload=None):
+def create(payload: dict | str | None = None):
 	context = get_request_context("create_ticket")
 	data = _payload(payload)
 	student = data.get("student") if isinstance(data.get("student"), dict) else {}
@@ -116,12 +116,16 @@ def create(payload=None):
 	).insert(ignore_permissions=True)
 	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
 	return response(_serialize_ticket(doc), request_id=context.request_id)
 
 
 @frappe.whitelist(methods=["GET"])
-def list_tickets(page=1, page_size=25, status=None, search=None):
+def list_tickets(
+	page: int | str = 1,
+	page_size: int | str = 25,
+	status: str | None = None,
+	search: str | None = None,
+):
 	context = get_request_context("view_ticket")
 	page = max(cint(page), 1)
 	page_size = min(max(cint(page_size), 1), 100)
@@ -149,7 +153,7 @@ def list_tickets(page=1, page_size=25, status=None, search=None):
 
 
 @frappe.whitelist(methods=["GET"])
-def get(ticket_id):
+def get(ticket_id: str):
 	context = get_request_context("view_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
@@ -161,7 +165,7 @@ def get(ticket_id):
 
 
 @frappe.whitelist(methods=["POST"])
-def add_message(ticket_id, message=None):
+def add_message(ticket_id: str, message: str | None = None):
 	context = get_request_context("reply_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
@@ -179,12 +183,11 @@ def add_message(ticket_id, message=None):
 			"comment_by": context.name,
 		}
 	).insert(ignore_permissions=True)
-	frappe.db.commit()
 	return response({"id": comment.name, "created_at": comment.creation}, request_id=context.request_id)
 
 
 @frappe.whitelist(methods=["POST"])
-def attach(ticket_id):
+def attach(ticket_id: str):
 	context = get_request_context("attach_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
@@ -196,12 +199,11 @@ def attach(ticket_id):
 	for uploaded in uploads:
 		file_doc = save_file(uploaded.filename, uploaded.stream.read(), "HD Ticket", name, is_private=1)
 		created.append({"id": file_doc.name, "file_name": file_doc.file_name})
-	frappe.db.commit()
 	return response(created, request_id=context.request_id)
 
 
 @frappe.whitelist(methods=["POST"])
-def assign(ticket_id, assignee=None, queue=None):
+def assign(ticket_id: str, assignee: str | None = None, queue: str | None = None):
 	context = get_request_context("assign_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
@@ -213,12 +215,11 @@ def assign(ticket_id, assignee=None, queue=None):
 
 		add({"doctype": "HD Ticket", "name": name, "assign_to": [str(assignee)]})
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
 	return response(_serialize_ticket(doc), request_id=context.request_id)
 
 
 @frappe.whitelist(methods=["POST"])
-def transition(ticket_id, status=None, message=None):
+def transition(ticket_id: str, status: str | None = None, message: str | None = None):
 	context = get_request_context("transition_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
@@ -234,7 +235,6 @@ def transition(ticket_id, status=None, message=None):
 	doc.save(ignore_permissions=True)
 	if message:
 		doc.add_comment("Comment", text=str(message))
-	frappe.db.commit()
 	return response(_serialize_ticket(doc), request_id=context.request_id)
 
 

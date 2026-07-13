@@ -4,7 +4,7 @@ from univesp_atendimento.api.v1.common import get_request_context, response
 
 
 @frappe.whitelist(methods=["GET"])
-def published(search=None, limit=50):
+def published(search: str | None = None, limit: int | str = 50):
 	context = get_request_context()
 	filters = {}
 	if search:

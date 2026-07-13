@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 
@@ -23,7 +24,7 @@ def after_migrate():
 
 def setup_schema():
 	if not frappe.db.exists("DocType", "HD Ticket"):
-		frappe.throw("Frappe Helpdesk deve estar instalado antes de UNIVESP Atendimento.")
+		frappe.throw(_("Frappe Helpdesk deve estar instalado antes de UNIVESP Atendimento."))
 
 	create_custom_fields(
 		{
@@ -159,5 +160,3 @@ def setup_schema():
 				"enabled": 1,
 			}
 		).insert(ignore_permissions=True)
-
-	frappe.db.commit()
