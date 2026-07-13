@@ -1,106 +1,45 @@
-# Frappe CRM Auth e API
+# Autenticacao e acesso ao Frappe
 
-## Objetivo
+O navegador se autentica no SSO Gateway e consome apenas APIs same-origin do
+BFF. O Frappe e o motor interno e nao recebe chamadas diretas do frontend.
 
-Documentar a configuracao minima para o `univesp-frontend` usar o mesmo SSO do SGP e consumir o Frappe CRM apenas via API.
+## Fluxo
 
-Planejamento das APIs e contrato inicial com o Frappe: [frappe-api-roadmap.md](./frappe-api-roadmap.md).
+1. OIDC/SAML e concluido no gateway, com validacao de assinatura, issuer,
+   audience, `state` e `nonce`;
+2. o gateway cria cookie `Secure`, `HttpOnly` e `SameSite=Lax`;
+3. `/api/me` devolve identidade, perfil, escopos, acoes e expiracao;
+4. o frontend chama `/api/app/v1/*` com `credentials: include`;
+5. o gateway assina a identidade e chama `univesp_atendimento.api.v1` no
+   Frappe pela rede interna.
 
-## Regra principal
-
-Para navegador, usar sessao institucional do gateway SSO.
-
-- login por SAML ou OAuth2 acontece em `/api/sso/*`
-- o gateway devolve a sessao institucional e expone `/api/me`
-- o frontend consome a API com `credentials: include`
-
-Nao usar `VITE_FRAPPE_API_SECRET`. Segredo em `VITE_*` fica exposto no bundle.
-
-## Variaveis publicas do frontend
+## Configuracao publica
 
 ```bash
 VITE_APP_BASE=/
 VITE_ROUTER_BASE=/
-VITE_FRAPPE_BASE_URL=
-VITE_FRAPPE_AUTH_MODE=session
-VITE_SSO_BASE_URL=
+VITE_APP_API_BASE=/api/app/v1
 VITE_SSO_SESSION_PATH=/api/me
 VITE_SSO_START_PATH=/api/sso/start
 VITE_SSO_AZURE_START_PATH=/api/sso/azure/start
 VITE_SSO_SAML_START_PATH=/api/sso/saml/start
 VITE_SSO_LOGOUT_PATH=/api/sso/logout
-VITE_SAML_ENTITY_ID=crm_production
-VITE_SAML_NAME_ID_FORMAT=urn:oasis:names:tc:SAML:2.0:nameid-format:email
-VITE_SAML_NAME_ID_ATTRIBUTE=mail
-VITE_SAML_ACS_URL=https://homolog-crm.univesp.br/consume
-VITE_SAML_LOGOUT_URL=https://homolog-crm.univesp.br/logout
-VITE_AZURE_REDIRECT_URI=https://homolog-crm.univesp.br/login
+VITE_SSO_LOGOUT_METHOD=POST
 ```
 
-Com `VITE_FRAPPE_BASE_URL=` vazio, o frontend usa a mesma origem e depende do proxy reverso local ou do Cloud Run.
+Nenhuma chave, segredo, token tecnico, client secret ou cabecalho de
+autorizacao pode existir em variavel `VITE_*`, `localStorage` ou
+`sessionStorage`.
 
-## Metadata SAML recebida
-
-### homolog
-
-- `Entity ID`: `crm_production`
-- `AssertionConsumerService`: `https://homolog-crm.univesp.br/consume`
-- `SingleLogoutService`: `https://homolog-crm.univesp.br/logout`
-- `NameIDFormat`: `urn:oasis:names:tc:SAML:2.0:nameid-format:email`
-- `simplesaml.nameidattribute`: `mail`
-
-### local
-
-- `Entity ID`: `crm_development`
-- `AssertionConsumerService`: `http://localhost:8080/consume`
-- `SingleLogoutService`: `http://localhost:8080/logout`
-- `NameIDFormat`: `urn:oasis:names:tc:SAML:2.0:nameid-format:email`
-- `simplesaml.nameidattribute`: `mail`
-
-## Callback Azure AD
-
-- local: `http://localhost:8080/api/sso/azure/callback`
-- homolog: `https://homolog-crm.univesp.br/login`
-
-## Quando usar chave de API do Frappe
-
-So para integracoes server-to-server ou debug isolado.
-
-Passos:
-
-1. criar um usuario tecnico dedicado no Frappe
-2. restringir perfis e permissoes ao minimo necessario
-3. gerar `API Key` e `API Secret`
-4. guardar isso fora do frontend, de preferencia no backend ou secret manager
-
-## Token manual so para dev/homolog
-
-Se precisar validar uma chamada no browser antes do backend de login estar pronto:
-
-1. defina `VITE_FRAPPE_AUTH_MODE=token`
-2. no DevTools do navegador:
-
-```js
-localStorage.setItem('univesp.frappe.authHeader', 'token API_KEY:API_SECRET')
-```
-
-3. recarregue a pagina
-
-Para remover:
-
-```js
-localStorage.removeItem('univesp.frappe.authHeader')
-sessionStorage.removeItem('univesp.frappe.authHeader')
-```
-
-## Endpoints esperados pelo frontend
+## Rotas
 
 - `GET /api/me`
-- `GET /api/sso/start?email=...&next=/...`
-- `GET /api/sso/azure/start?tenant=admin|academico&next=/...`
-- `GET /api/sso/saml/start?next=/...`
+- `GET /api/sso/start`
+- `GET /api/sso/azure/start`
+- `GET /api/sso/saml/start`
 - `POST /api/sso/logout`
-- `POST /api/resource/:doctype`
-- `POST /api/method/univesp.api.ticket.attach_triage`
-- `POST /api/method/univesp.api.ticket.append_chat_summary`
-- `POST /api/method/univesp.api.ticket.request_handoff`
+- `/api/app/v1/*`, conforme `docs/architecture/API_CONTRACT.md`
+
+`/api/resource`, `/api/method` e `/private/files` devem retornar 404 no dominio
+publico. Credenciais de servico ficam no secret manager e somente no processo
+do gateway.

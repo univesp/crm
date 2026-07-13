@@ -7,17 +7,6 @@ on:
         description: "Provisionar Artifact Registry, bucket, service account e VPC connector antes do deploy"
         required: false
         default: "false"
-  push:
-    branches:
-      - univesp/cloudrun-homolog
-    paths:
-      - ".github/workflows/univesp-cloudrun-homolog.yml"
-      - "crm/**"
-      - "frontend/**"
-      - "ops/cloudrun/**"
-      - "package.json"
-      - "univesp-frontend/**"
-      - "yarn.lock"
 
 permissions:
   contents: read

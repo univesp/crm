@@ -57,6 +57,9 @@ const server = await createServer({
   root,
   logLevel: 'error',
   appType: 'custom',
+  define: {
+    'import.meta.env.VITE_ENABLE_MOCKS': JSON.stringify('true'),
+  },
   server: {
     middlewareMode: true,
   },

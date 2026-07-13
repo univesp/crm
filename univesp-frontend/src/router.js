@@ -43,6 +43,16 @@ const routes = [
     },
   },
   {
+    path: '/acesso-pendente',
+    name: 'access-pending',
+    component: () => import('@/pages/AccessPendingPage.vue'),
+    meta: {
+      title: 'Acesso pendente',
+      layout: 'auth',
+      requiresAuth: true,
+    },
+  },
+  {
     path: '/wireframes/aluno/:screenId?',
     name: 'student-wireframe',
     component: () => import('@/pages/wireframes/StudentWireframePage.vue'),

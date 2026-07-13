@@ -1,10 +1,12 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import StatusBadge from '@/components/StatusBadge.vue'
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
+import { addTicketAttachments, addTicketMessage, getTicket, isMockRuntimeEnabled, transitionTicket } from '@/services/appApi'
 import { buildStudentRequestDetail, STUDENT_REQUEST_STATES } from '@/services/studentPortalRuntime'
+import { mapApiTicketToStudentProtocol } from '@/services/ticketMapper'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const route = useRoute()
@@ -19,13 +21,17 @@ const actionSuccess = ref('')
 const isSubmittingAction = ref(false)
 const actionMessageField = ref(null)
 const actionAttachmentField = ref(null)
+const actionAttachmentFiles = ref([])
+const remoteProtocol = ref(null)
+const isLoadingDetail = ref(false)
 
 const detail = computed(() =>
   buildStudentRequestDetail({
     requestId: route.params.protocolId,
     protocolDraft: studentSupportStore.protocolDraft,
     records: studentSupportStore.records,
-    protocols: studentSupportStore.protocols,
+    protocols: remoteProtocol.value ? [remoteProtocol.value] : studentSupportStore.protocols,
+    seededProtocols: isMockRuntimeEnabled() ? undefined : [],
   }),
 )
 
@@ -69,7 +75,8 @@ function goBackToRequests() {
 }
 
 function handleActionAttachmentChange(event) {
-  actionAttachments.value = Array.from(event.target.files || []).map((file) => file.name)
+  actionAttachmentFiles.value = Array.from(event.target.files || [])
+  actionAttachments.value = actionAttachmentFiles.value.map((file) => file.name)
   actionAttachmentError.value = ''
   actionFormError.value = ''
 }
@@ -80,7 +87,7 @@ function handleActionMessageInput(event) {
   actionFormError.value = ''
 }
 
-function submitPendingAction() {
+async function submitPendingAction() {
   if (!detail.value || detail.value.studentState !== STUDENT_REQUEST_STATES.ACTION_REQUIRED || isSubmittingAction.value) {
     return
   }
@@ -103,6 +110,25 @@ function submitPendingAction() {
   }
 
   isSubmittingAction.value = true
+  if (!isMockRuntimeEnabled()) {
+    try {
+      if (actionMessage.value.trim()) await addTicketMessage(detail.value.id, actionMessage.value.trim())
+      if (actionAttachmentFiles.value.length) await addTicketAttachments(detail.value.id, actionAttachmentFiles.value)
+      await transitionTicket(detail.value.id, { status: 'in_analysis' })
+      const refreshed = await getTicket(detail.value.id)
+      remoteProtocol.value = mapApiTicketToStudentProtocol(refreshed.data)
+      actionMessage.value = ''
+      actionAttachments.value = []
+      actionAttachmentFiles.value = []
+      actionSuccess.value = 'Resposta registrada. Agora a equipe retoma a analise.'
+    } catch (error) {
+      actionFormError.value = error.message || 'Nao foi possivel registrar sua resposta agora.'
+    } finally {
+      isSubmittingAction.value = false
+    }
+    return
+  }
+
   const updatedProtocol = studentSupportStore.submitRequestFollowUp({
     requestId: detail.value.id,
     note: actionMessage.value,
@@ -121,6 +147,21 @@ function submitPendingAction() {
     ? 'Documento enviado. Agora a equipe retoma a analise.'
     : 'Resposta registrada. Agora a equipe retoma a analise.'
 }
+
+async function loadDetail() {
+  if (isMockRuntimeEnabled()) return
+  isLoadingDetail.value = true
+  try {
+    const result = await getTicket(route.params.protocolId)
+    remoteProtocol.value = mapApiTicketToStudentProtocol(result.data)
+  } catch (error) {
+    actionFormError.value = error.message || 'Nao foi possivel carregar este protocolo.'
+  } finally {
+    isLoadingDetail.value = false
+  }
+}
+
+onMounted(loadDetail)
 </script>
 
 <template>

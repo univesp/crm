@@ -27,8 +27,8 @@ export const samlClaims = [
 
 export const environmentChecklist = [
   {
-    key: 'VITE_FRAPPE_BASE_URL',
-    purpose: 'Base do backend Frappe para tickets e consulta de contexto.',
+    key: 'VITE_APP_API_BASE',
+    purpose: 'Base publica do BFF de atendimento, por padrao /api/app/v1.',
   },
   {
     key: 'VITE_SSO_SESSION_PATH',
@@ -49,14 +49,6 @@ export const environmentChecklist = [
   {
     key: 'VITE_SSO_LOGOUT_PATH',
     purpose: 'Endpoint de logout da sessao SSO, por padrao /api/sso/logout.',
-  },
-  {
-    key: 'VITE_FRAPPE_BASE_URL',
-    purpose: 'Base do backend Frappe para tickets e consulta de contexto.',
-  },
-  {
-    key: 'VITE_FRAPPE_TICKET_DOCTYPE',
-    purpose: 'DocType alvo do ticket, como Issue ou HD Ticket.',
   },
   {
     key: 'VITE_SAML_ENTITY_ID',

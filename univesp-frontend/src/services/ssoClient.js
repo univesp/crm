@@ -5,9 +5,6 @@ const appBasePath = normalizeBasePath(
 )
 
 const DEV_BYPASS_STORAGE_KEY = 'univesp.sso.devBypassProfile'
-const SSO_STATE_STORAGE_KEY = 'univesp.sso.state'
-const SSO_SESSION_KEY = 'univesp.sso.session'
-const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000
 
 const devBypassConfig = {
   enabled: isTruthy(import.meta.env.VITE_SSO_DEV_BYPASS, false),
@@ -28,6 +25,11 @@ const DEV_BYPASS_PROFILE_CATALOG = Object.freeze(
         label: profile.label,
         helper: profile.helper,
         shellKey: profile.shellKey,
+        linkedPolos: profile.linkedPolos || [],
+        linkedAreas: profile.linkedAreas || profile.visibleAreas || [],
+        visibleQueues: profile.visibleQueues || [],
+        visibleAreas: profile.visibleAreas || [],
+        allowedActions: profile.allowedActions || [],
       }),
     ]),
   ),
@@ -39,28 +41,20 @@ const defaultRoute = normalizeInternalRouteTarget(
   appBasePath,
 )
 
-const azureConfigs = {
-  admin: {
-    clientId: String(
-      import.meta.env.VITE_AZURE_ADMIN_CLIENT_ID || import.meta.env.VITE_AZURE_CLIENT_ID || '',
-    ).trim(),
-    tenantId: String(
-      import.meta.env.VITE_AZURE_ADMIN_TENANT_ID || import.meta.env.VITE_AZURE_TENANT_ID || '',
-    ).trim(),
-  },
-  academico: {
-    clientId: String(import.meta.env.VITE_AZURE_ACADEMICO_CLIENT_ID || '').trim(),
-    tenantId: String(import.meta.env.VITE_AZURE_ACADEMICO_TENANT_ID || '').trim(),
-  },
-  redirectUri: String(import.meta.env.VITE_AZURE_REDIRECT_URI || `${getOrigin()}/login`).trim(),
-  scopes: ['openid', 'profile', 'email'],
-}
-
-const runtimeConfig = {
+const runtimeConfig = Object.freeze({
   appBasePath,
   defaultRoute,
-  sessionStorageKey: SSO_SESSION_KEY,
-}
+  sessionPath: normalizePath(import.meta.env.VITE_SSO_SESSION_PATH || '/api/me'),
+  startPath: normalizePath(import.meta.env.VITE_SSO_START_PATH || '/api/sso/start'),
+  azureStartPath: normalizePath(
+    import.meta.env.VITE_SSO_AZURE_START_PATH || '/api/sso/azure/start',
+  ),
+  samlStartPath: normalizePath(
+    import.meta.env.VITE_SSO_SAML_START_PATH || '/api/sso/saml/start',
+  ),
+  logoutPath: normalizePath(import.meta.env.VITE_SSO_LOGOUT_PATH || '/api/sso/logout'),
+  logoutMethod: String(import.meta.env.VITE_SSO_LOGOUT_METHOD || 'POST').toUpperCase(),
+})
 
 export class SsoApiError extends Error {
   constructor(message, details = {}) {
@@ -73,15 +67,7 @@ export class SsoApiError extends Error {
 }
 
 export function getSsoRuntimeConfig() {
-  return {
-    ...runtimeConfig,
-    azure: {
-      admin: { ...azureConfigs.admin },
-      academico: { ...azureConfigs.academico },
-      redirectUri: azureConfigs.redirectUri,
-      scopes: [...azureConfigs.scopes],
-    },
-  }
+  return { ...runtimeConfig }
 }
 
 export function getDefaultAuthenticatedRoute() {
@@ -93,7 +79,7 @@ export function hasSsoDevBypass() {
 }
 
 export function isAzureConfigured() {
-  return hasAzureConfig('admin') || hasAzureConfig('academico')
+  return Boolean(runtimeConfig.azureStartPath)
 }
 
 export function getDevBypassProfiles() {
@@ -138,7 +124,7 @@ export function clearSelectedDevBypassProfile() {
     window.sessionStorage.removeItem(DEV_BYPASS_STORAGE_KEY)
     window.localStorage.removeItem(DEV_BYPASS_STORAGE_KEY)
   } catch {
-    // Ignore localStorage errors.
+    // Storage can be unavailable in hardened browser modes.
   }
 }
 
@@ -147,19 +133,15 @@ export function classifyInstitutionalEmail(email) {
   if (!normalized || !normalized.includes('@')) {
     return null
   }
-
   if (normalized.endsWith('@aluno.univesp.br')) {
     return 'aluno'
   }
-
   if (normalized.endsWith('@univesp.br')) {
     return 'admin'
   }
-
   if (normalized.includes('.univesp.br')) {
     return 'academico'
   }
-
   return null
 }
 
@@ -228,45 +210,22 @@ export function getPublicAppPath(value = runtimeConfig.defaultRoute) {
   return `${pathname}${url.search}${url.hash}`
 }
 
-export function buildAzureLoginUrl({ next = runtimeConfig.defaultRoute, flow = 'admin' } = {}) {
-  const normalizedFlow = flow === 'academico' ? 'academico' : 'admin'
-  const config = azureConfigs[normalizedFlow]
-
-  if (!config?.clientId || !config?.tenantId) {
-    throw new SsoApiError(`Azure AD nao configurado para o fluxo ${normalizedFlow}.`)
-  }
-
-  const state = JSON.stringify({
-    next: normalizeInternalRouteTarget(next, runtimeConfig.defaultRoute),
-    nonce: generateNonce(),
-    flow: normalizedFlow,
-  })
-
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(SSO_STATE_STORAGE_KEY, state)
-  }
-
-  const nonce = JSON.parse(state).nonce
-  const params = new URLSearchParams({
-    client_id: config.clientId,
-    response_type: 'id_token',
-    redirect_uri: azureConfigs.redirectUri,
-    scope: azureConfigs.scopes.join(' '),
-    response_mode: 'fragment',
-    state: btoa(state),
-    nonce,
-  })
-
-  return `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize?${params.toString()}`
+export function buildAzureLoginUrl(options = {}) {
+  return buildAzureStartUrl(options)
 }
 
 export function buildAzureStartUrl({ flow = 'admin', next = runtimeConfig.defaultRoute } = {}) {
-  return buildAzureLoginUrl({ next, flow })
+  return withQuery(runtimeConfig.azureStartPath, {
+    tenant: flow === 'academico' ? 'academico' : 'admin',
+    flow: flow === 'academico' ? 'academico' : 'admin',
+    next: normalizeInternalRouteTarget(next, runtimeConfig.defaultRoute),
+  })
 }
 
 export function buildSamlStartUrl({ next = runtimeConfig.defaultRoute } = {}) {
-  const target = normalizeInternalRouteTarget(next, runtimeConfig.defaultRoute)
-  return `${getPublicAppPath('/login')}?redirect=${encodeURIComponent(target)}`
+  return withQuery(runtimeConfig.samlStartPath, {
+    next: normalizeInternalRouteTarget(next, runtimeConfig.defaultRoute),
+  })
 }
 
 export function buildSsoStartUrl({
@@ -274,15 +233,10 @@ export function buildSsoStartUrl({
   flow = '',
   next = runtimeConfig.defaultRoute,
 } = {}) {
-  const resolvedFlow = flow || classifyInstitutionalEmail(email) || 'admin'
-
-  if (resolvedFlow === 'aluno') {
-    return buildSamlStartUrl({ next })
-  }
-
-  return buildAzureStartUrl({
-    flow: resolvedFlow === 'academico' ? 'academico' : 'admin',
-    next,
+  return withQuery(runtimeConfig.startPath, {
+    email: String(email || '').trim(),
+    flow: flow || classifyInstitutionalEmail(email) || '',
+    next: normalizeInternalRouteTarget(next, runtimeConfig.defaultRoute),
   })
 }
 
@@ -291,231 +245,165 @@ export async function fetchCurrentSsoUser() {
     return buildDevBypassUser()
   }
 
-  const callbackResult = processAzureCallback()
-  if (callbackResult?.user) {
-    return callbackResult.user
+  const response = await fetch(runtimeConfig.sessionPath, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  const payload = await parseResponsePayload(response)
+
+  if (response.status === 401 || response.status === 403) {
+    return null
+  }
+  if (!response.ok) {
+    throw new SsoApiError(extractErrorMessage(payload, response.status), {
+      status: response.status,
+      url: response.url,
+      payload,
+    })
   }
 
-  return loadStoredSession()
+  const session = unwrapEnvelope(payload)
+  if (!session || session.authenticated === false) {
+    return null
+  }
+
+  return normalizeGatewayUser(session)
 }
 
-export function logoutFromSso() {
-  const sessionUser = loadStoredSession()
-  clearStoredSession()
+export async function logoutFromSso() {
+  if (devBypassConfig.enabled) {
+    clearSelectedDevBypassProfile()
+    return { ok: true, redirected: false }
+  }
 
-  const flow = sessionUser?.flow === 'academico' ? 'academico' : 'admin'
-  const config = azureConfigs[flow]
+  const response = await fetch(runtimeConfig.logoutPath, {
+    method: runtimeConfig.logoutMethod,
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  })
+  const payload = await parseResponsePayload(response)
 
-  if (config?.clientId && config?.tenantId) {
-    const logoutUrl = new URL(
-      `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/logout`,
-    )
-    logoutUrl.searchParams.set('post_logout_redirect_uri', `${getOrigin()}${getPublicAppPath('/login')}`)
-    window.location.assign(logoutUrl.toString())
+  if (!response.ok && response.status !== 401) {
+    throw new SsoApiError(extractErrorMessage(payload, response.status), {
+      status: response.status,
+      url: response.url,
+      payload,
+    })
+  }
+
+  const result = unwrapEnvelope(payload) || {}
+  const redirectUrl = String(result.redirect_url || result.redirectUrl || '').trim()
+  if (redirectUrl && typeof window !== 'undefined') {
+    window.location.assign(redirectUrl)
     return { ok: true, redirected: true }
   }
 
   return { ok: true, redirected: false }
 }
 
-function processAzureCallback() {
-  if (typeof window === 'undefined') {
-    return null
+function normalizeGatewayUser(session) {
+  const rawUser = session.user && typeof session.user === 'object' ? session.user : session
+  const profile = session.profile ?? rawUser.profile ?? null
+  const profileKey = normalizeMockProfileKey(
+    typeof profile === 'string'
+      ? profile
+      : profile?.key || profile?.profile_key || rawUser.profile_key || rawUser.profileKey || '',
+  )
+  const scopes = normalizeScopes(session.scopes || profile?.scopes || rawUser.scopes)
+  const allowedActions = normalizeStringList(
+    session.actions || session.permissions || profile?.actions || rawUser.actions,
+  )
+  const email = String(rawUser.email || rawUser.mail || '').trim().toLowerCase()
+
+  if (!email) {
+    throw new SsoApiError('A sessao institucional nao informou o email do usuario.')
   }
 
-  const hash = window.location.hash
-  if (!hash || !hash.includes('id_token=')) {
-    return null
+  return {
+    id: rawUser.id || rawUser.sub || rawUser.oid || email,
+    email,
+    displayName: rawUser.display_name || rawUser.displayName || rawUser.name || email,
+    firstName: rawUser.first_name || rawUser.firstName || '',
+    lastName: rawUser.last_name || rawUser.lastName || '',
+    ra: rawUser.ra || rawUser.student_id || '',
+    flow: rawUser.flow || session.flow || classifyInstitutionalEmail(email),
+    profileKey,
+    scopes,
+    allowedActions,
+    expiresAt: session.expires_at || session.expiresAt || null,
+    raw: {
+      source: 'sso-gateway',
+      profileKey,
+    },
   }
-
-  const params = new URLSearchParams(hash.substring(1))
-  const idToken = params.get('id_token')
-  const stateParam = params.get('state')
-
-  if (!idToken) {
-    return null
-  }
-
-  const claims = decodeJwtPayload(idToken)
-  if (!claims) {
-    return null
-  }
-
-  let nextRoute = runtimeConfig.defaultRoute
-  if (stateParam) {
-    try {
-      const stateData = JSON.parse(atob(stateParam))
-      nextRoute = normalizeInternalRouteTarget(stateData.next, runtimeConfig.defaultRoute)
-    } catch {
-      nextRoute = runtimeConfig.defaultRoute
-    }
-  }
-
-  const user = normalizeSsoUser({
-    id: claims.oid || claims.sub || claims.email || claims.preferred_username,
-    email: claims.email || claims.preferred_username || claims.upn || '',
-    displayName: claims.name || claims.given_name || claims.email || '',
-    firstName: claims.given_name || '',
-    lastName: claims.family_name || '',
-    flow: classifyInstitutionalEmail(claims.email || claims.preferred_username || claims.upn || ''),
-    idToken,
-    raw: claims,
-  })
-
-  saveSession(user)
-
-  if (window.history.replaceState) {
-    window.history.replaceState(null, '', window.location.pathname + window.location.search)
-  }
-
-  return { user, nextRoute }
 }
 
 function buildDevBypassUser() {
   const selectedProfile = getSelectedDevBypassProfile()
   const email = selectedProfile?.email || devBypassConfig.email || 'admin@univesp.br'
 
-  return normalizeSsoUser({
+  return {
     id: email,
     email,
     displayName: selectedProfile?.displayName || devBypassConfig.name || email,
+    firstName: '',
+    lastName: '',
+    ra: '',
     flow: selectedProfile?.flow || classifyInstitutionalEmail(email) || 'admin',
+    profileKey: selectedProfile?.key || '',
+    scopes: {
+      polos: [...(selectedProfile?.linkedPolos || [])],
+      areas: [...(selectedProfile?.linkedAreas || [])],
+      queues: [...(selectedProfile?.visibleQueues || [])],
+    },
+    allowedActions: [...(selectedProfile?.allowedActions || [])],
     raw: {
       source: 'sso-dev-bypass',
       profileKey: selectedProfile?.key || '',
-      email,
-      displayName: selectedProfile?.displayName || devBypassConfig.name || email,
     },
-  })
+  }
+}
+
+function normalizeScopes(scopes) {
+  if (!scopes || typeof scopes !== 'object' || Array.isArray(scopes)) {
+    return { polos: [], areas: [], queues: [], courses: [] }
+  }
+  return {
+    polos: normalizeStringList(scopes.polos || scopes.polo),
+    areas: normalizeStringList(scopes.areas || scopes.area),
+    queues: normalizeStringList(scopes.queues || scopes.filas || scopes.queue),
+    courses: normalizeStringList(scopes.courses || scopes.cursos || scopes.course),
+  }
+}
+
+function normalizeStringList(value) {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))]
+  }
+  const normalized = String(value || '').trim()
+  return normalized ? [normalized] : []
 }
 
 function resolveDevBypassProfileFromEmail(email = '') {
   const normalized = String(email || '').trim().toLowerCase()
-
-  const catalogMatch = Object.values(DEV_BYPASS_PROFILE_CATALOG).find(
-    (profile) => profile.email === normalized,
+  return (
+    Object.values(DEV_BYPASS_PROFILE_CATALOG).find(
+      (profile) => profile.email === normalized,
+    ) || null
   )
-  if (catalogMatch) {
-    return catalogMatch
-  }
-
-  const flow = classifyInstitutionalEmail(normalized)
-  if (flow === 'aluno') {
-    return DEV_BYPASS_PROFILE_CATALOG.aluno || null
-  }
-
-  if (flow === 'academico') {
-    return DEV_BYPASS_PROFILE_CATALOG.op || null
-  }
-
-  return DEV_BYPASS_PROFILE_CATALOG.admin_central || null
-}
-
-function normalizeSsoUser(rawUser) {
-  if (!rawUser) {
-    return null
-  }
-
-  if (typeof rawUser === 'string') {
-    return {
-      id: rawUser,
-      email: rawUser,
-      displayName: rawUser,
-      flow: classifyInstitutionalEmail(rawUser),
-      raw: rawUser,
-    }
-  }
-
-  return {
-    id: rawUser.id || rawUser.email || '',
-    email: rawUser.email || '',
-    displayName: rawUser.displayName || rawUser.email || '',
-    firstName: rawUser.firstName || '',
-    lastName: rawUser.lastName || '',
-    flow: rawUser.flow || classifyInstitutionalEmail(rawUser.email),
-    raw: rawUser.raw || rawUser,
-  }
-}
-
-function saveSession(user) {
-  if (typeof sessionStorage === 'undefined' || !user?.email) {
-    return
-  }
-
-  const sessionData = {
-    id: user.id,
-    email: user.email,
-    displayName: user.displayName,
-    firstName: user.firstName || '',
-    lastName: user.lastName || '',
-    flow: user.flow,
-    savedAt: Date.now(),
-  }
-
-  sessionStorage.setItem(SSO_SESSION_KEY, JSON.stringify(sessionData))
-}
-
-function loadStoredSession() {
-  if (typeof sessionStorage === 'undefined') {
-    return null
-  }
-
-  const raw = sessionStorage.getItem(SSO_SESSION_KEY)
-  if (!raw) {
-    return null
-  }
-
-  try {
-    const data = JSON.parse(raw)
-    if (!data?.email) {
-      clearStoredSession()
-      return null
-    }
-
-    if (Date.now() - (data.savedAt || 0) > SESSION_MAX_AGE_MS) {
-      clearStoredSession()
-      return null
-    }
-
-    return normalizeSsoUser({
-      id: data.id,
-      email: data.email,
-      displayName: data.displayName,
-      firstName: data.firstName || '',
-      lastName: data.lastName || '',
-      flow: data.flow || classifyInstitutionalEmail(data.email),
-      raw: data,
-    })
-  } catch {
-    clearStoredSession()
-    return null
-  }
-}
-
-function clearStoredSession() {
-  if (typeof sessionStorage === 'undefined') {
-    return
-  }
-
-  sessionStorage.removeItem(SSO_SESSION_KEY)
-  sessionStorage.removeItem(SSO_STATE_STORAGE_KEY)
 }
 
 function readStoredDevBypassProfileKey() {
   if (typeof window === 'undefined') {
     return ''
   }
-
   try {
-    const sessionKey = String(window.sessionStorage.getItem(DEV_BYPASS_STORAGE_KEY) || '').trim()
-    if (sessionKey) {
-      return sessionKey
-    }
-
-    // Clear legacy persisted choices so a previous profile does not keep
-    // overriding the current local review session unexpectedly.
-    window.localStorage.removeItem(DEV_BYPASS_STORAGE_KEY)
-    return ''
+    return String(window.sessionStorage.getItem(DEV_BYPASS_STORAGE_KEY) || '').trim()
   } catch {
     return ''
   }
@@ -525,39 +413,65 @@ function writeStoredDevBypassProfileKey(profileKey) {
   if (typeof window === 'undefined') {
     return
   }
-
   try {
     window.sessionStorage.setItem(DEV_BYPASS_STORAGE_KEY, profileKey)
     window.localStorage.removeItem(DEV_BYPASS_STORAGE_KEY)
   } catch {
-    // Ignore localStorage errors.
+    // Storage can be unavailable in hardened browser modes.
   }
 }
 
-function hasAzureConfig(flow) {
-  const config = azureConfigs[flow]
-  return Boolean(config?.clientId && config?.tenantId)
+function withQuery(path, params = {}) {
+  const url = new URL(path, getOrigin())
+  Object.entries(params).forEach(([key, value]) => {
+    const normalized = String(value ?? '').trim()
+    if (normalized) {
+      url.searchParams.set(key, normalized)
+    }
+  })
+  return `${url.pathname}${url.search}`
 }
 
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3) {
-      return null
-    }
-
-    const payload = parts[1]
-    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-    return JSON.parse(decoded)
-  } catch {
+async function parseResponsePayload(response) {
+  const rawBody = await response.text()
+  if (!rawBody) {
     return null
   }
+  try {
+    return JSON.parse(rawBody)
+  } catch {
+    return rawBody
+  }
 }
 
-function generateNonce() {
-  const array = new Uint8Array(16)
-  crypto.getRandomValues(array)
-  return Array.from(array, (value) => value.toString(16).padStart(2, '0')).join('')
+function unwrapEnvelope(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return payload
+  }
+  if ('data' in payload) {
+    return payload.data
+  }
+  if ('message' in payload && typeof payload.message === 'object') {
+    return payload.message
+  }
+  return payload
+}
+
+function extractErrorMessage(payload, status) {
+  if (typeof payload === 'string' && payload.trim()) {
+    return payload
+  }
+  if (payload && typeof payload === 'object') {
+    const error = payload.error
+    const message =
+      (typeof error === 'object' && (error.message || error.user_message)) ||
+      payload.message ||
+      payload._error_message
+    if (typeof message === 'string' && message.trim()) {
+      return message
+    }
+  }
+  return `O gateway de autenticacao respondeu com erro HTTP ${status}.`
 }
 
 function normalizeBasePath(value) {
