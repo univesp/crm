@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 CRM_ROOT="${CRM_ROOT:-/var/crm}"
+DOMAIN="${DOMAIN:-homolog-crm.univesp.br}"
 BENCH_DIR="${BENCH_DIR:-$CRM_ROOT/frappe-bench}"
 SITE="${SITE:-crm.localhost}"
 REPO_DIR="${REPO_DIR:-$CRM_ROOT/repository}"
@@ -107,6 +108,11 @@ if [[ "$MODE" == "post-install" ]]; then
     ok "Gateway respondeu na porta 4000"
   else
     fail "Gateway nao respondeu na porta 4000"
+  fi
+  if curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/healthz" >/dev/null; then
+    ok "Origem HTTPS respondeu na porta 443"
+  else
+    fail "Origem HTTPS nao respondeu na porta 443"
   fi
   if supervisorctl status sso-gateway 2>/dev/null | grep -q RUNNING; then
     ok "Supervisor informa Gateway RUNNING"
