@@ -9,6 +9,22 @@ TARGET_APP="$BENCH_DIR/apps/univesp_atendimento"
 HELPDESK_REF="${HELPDESK_REF:-6b423f8fba6d4c7f8ff5db56f197243f6549d450}"
 TELEPHONY_REF="${TELEPHONY_REF:-58d32184e44b193e27498d3dd156085c793b7528}"
 MIN_FRAPPE_VERSION="15.109.0"
+SKIP_RESTART="${SKIP_RESTART:-0}"
+
+fetch_app_ref() {
+  local app_dir="$1"
+  local ref="$2"
+  local remote
+
+  remote="$(git -C "$app_dir" remote | head -n1)"
+  if [[ -z "$remote" ]]; then
+    echo "App sem remoto Git: $app_dir" >&2
+    exit 1
+  fi
+
+  git -C "$app_dir" fetch --depth 1 "$remote" "$ref"
+  git -C "$app_dir" checkout --detach "$ref"
+}
 
 if [[ ! -d "$BENCH_DIR" || ! -f "$BENCH_DIR/sites/$SITE/site_config.json" ]]; then
   echo "Bench/site nao encontrado: $BENCH_DIR/sites/$SITE" >&2
@@ -39,15 +55,13 @@ if [[ ! -d apps/telephony ]]; then
   bench get-app telephony https://github.com/frappe/telephony
 fi
 
-git -C apps/telephony fetch --depth 1 origin "$TELEPHONY_REF"
-git -C apps/telephony checkout --detach "$TELEPHONY_REF"
+fetch_app_ref apps/telephony "$TELEPHONY_REF"
 
 if [[ ! -d apps/helpdesk ]]; then
   bench get-app --branch main helpdesk https://github.com/frappe/helpdesk
 fi
 
-git -C apps/helpdesk fetch --depth 1 origin "$HELPDESK_REF"
-git -C apps/helpdesk checkout --detach "$HELPDESK_REF"
+fetch_app_ref apps/helpdesk "$HELPDESK_REF"
 
 mkdir -p "$TARGET_APP"
 rsync -a --delete --exclude '.git/' --exclude '__pycache__/' "$SOURCE_APP/" "$TARGET_APP/"
@@ -70,5 +84,7 @@ fi
 
 bench --site "$SITE" migrate
 bench build --app telephony --app helpdesk --app univesp_atendimento
-bench restart
+if [[ "$SKIP_RESTART" != "1" ]]; then
+  bench restart
+fi
 bench --site "$SITE" list-apps

@@ -7,6 +7,7 @@ VUE_APP_DIR=${VUE_APP_DIR:-/var/crm/univesp-frontend}
 NGINX_SITE_NAME=${NGINX_SITE_NAME:-homolog-crm.univesp.br.conf}
 NGINX_AVAILABLE=${NGINX_AVAILABLE:-/etc/nginx/sites-available}
 NGINX_ENABLED=${NGINX_ENABLED:-/etc/nginx/sites-enabled}
+LEGACY_NGINX_SITE_NAME=${LEGACY_NGINX_SITE_NAME:-crm.conf}
 
 log() {
 	printf '[homolog-vm] %s\n' "$*"
@@ -51,6 +52,10 @@ install -m 0644 \
 ln -sfn \
 	"${NGINX_AVAILABLE}/${NGINX_SITE_NAME}" \
 	"${NGINX_ENABLED}/${NGINX_SITE_NAME}"
+
+if [[ "${LEGACY_NGINX_SITE_NAME}" != "${NGINX_SITE_NAME}" ]]; then
+	rm -f "${NGINX_ENABLED}/${LEGACY_NGINX_SITE_NAME}"
+fi
 
 nginx -t
 systemctl reload nginx
