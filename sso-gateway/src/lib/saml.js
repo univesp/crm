@@ -27,7 +27,7 @@ export function createSamlStrategy() {
       logoutUrl: process.env.SAML_IDP_SLO_URL,
       callbackUrl: process.env.SAML_ACS_URL,
       issuer: process.env.SAML_ENTITY_ID,
-      cert,
+      idpCert: cert,
       identifierFormat: null,
       wantAuthnResponseSigned: true,
     },
