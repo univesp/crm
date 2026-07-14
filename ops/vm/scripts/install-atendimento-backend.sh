@@ -68,7 +68,10 @@ rsync -a --delete --exclude '.git/' --exclude '__pycache__/' "$SOURCE_APP/" "$TA
 
 bench setup requirements telephony
 bench setup requirements helpdesk
-bench setup requirements univesp_atendimento
+if ! grep -qx univesp_atendimento sites/apps.txt; then
+  printf '%s\n' univesp_atendimento >> sites/apps.txt
+fi
+"$BENCH_DIR/env/bin/python" -m pip install --quiet --editable "$TARGET_APP"
 
 if ! bench --site "$SITE" list-apps | grep -qx telephony; then
   bench --site "$SITE" install-app telephony
