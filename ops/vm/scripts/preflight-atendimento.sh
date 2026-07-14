@@ -50,7 +50,7 @@ if [[ -d "$BENCH_DIR" ]]; then
     fail "Frappe deve estar na linha 15 e ser >= $MIN_FRAPPE_VERSION; encontrado: ${frappe_version:-desconhecido}"
   fi
 
-  installed_apps="$(bench --site "$SITE" list-apps 2>/dev/null || true)"
+  installed_apps="$(bench --site "$SITE" list-apps 2>/dev/null | awk '{print $1}' || true)"
   for app_name in telephony helpdesk univesp_atendimento; do
     if grep -qx "$app_name" <<<"$installed_apps"; then
       ok "App instalado: $app_name"
