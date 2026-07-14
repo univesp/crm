@@ -61,13 +61,14 @@ As variaveis base estao em:
 
 - `.env.example`: referencia geral
 - `.env.development`: compose e Vite local em `http://localhost:8080/crm`
-- `.env.production`: espelho da homolog em `https://homolog.crm.univesp.br/`
+- `.env.production`: espelho da homolog em `https://homolog-crm.univesp.br/`
 
 Nesta fase:
 
 - `VITE_ENABLE_MOCKS=true` mantem o frontend desacoplado de backend real
 - `VITE_APP_BASE`, `VITE_DEV_PORT` e `VITE_PREVIEW_PORT` ajudam no encaixe futuro como modulo
-- `VITE_FRAPPE_BASE_URL` aponta para o backend Frappe CRM
+- `VITE_APP_API_BASE=/api/app/v1` usa o BFF no mesmo host publico
+- `SSO_GATEWAY_ORIGIN` aponta o Nginx para o gateway interno
 - `VITE_SSO_SESSION_PATH=/api/me` replica o contrato de sessao do SGP
 - `VITE_SSO_START_PATH`, `VITE_SSO_AZURE_START_PATH` e `VITE_SSO_SAML_START_PATH` iniciam os fluxos SSO
 - `VITE_SAML_ACS_URL`, `VITE_SAML_LOGOUT_URL` e `VITE_AZURE_REDIRECT_URI` recebem os callbacks publicos do gateway
@@ -75,10 +76,19 @@ Nesta fase:
 
 ## Autenticacao e API
 
-O `univesp-frontend` separa autenticacao de integracao de negocio:
+O `univesp-frontend` fica na frente do dominio publico, mas o Nginx do container
+encaminha somente as rotas publicas do gateway:
+
+- `/api/app/v1/*` -> SSO Gateway/BFF -> app Frappe interno
+- `/api/method/*`, `/api/resource/*`, `/private/files/*` -> bloqueados externamente
+- `/socket.io/*` -> Frappe socket.io
+- `/api/me`, `/api/sso/*` -> SSO gateway
+- `/`, `/login` e demais rotas institucionais -> frontend UNIVESP
+
+O app separa autenticacao de integracao de negocio:
 
 - `src/services/ssoClient.js`: sessao atual em `/api/me`, inicio de login em `/api/sso/*` e logout institucional
-- `src/services/frappeApi.js`: chamadas para `/api/resource/...` e `/api/method/...`
+- `src/services/appApi.js`: contrato publico same-origin do BFF
 - `src/services/frappeClient.js`: adaptadores de negocio para ticket e handoff
 
 Fluxo esperado:
@@ -87,7 +97,7 @@ Fluxo esperado:
 2. `/api/sso/start` classifica o email e redireciona para Azure AD ou SAML
 3. o gateway devolve para `/` com sessao institucional ativa
 4. o frontend valida a sessao em `/api/me`
-5. com a sessao aprovada, o app usa o Frappe apenas como API
+5. com a sessao aprovada, o app usa `/api/app/v1`; o gateway chama o Frappe internamente
 
 Nao coloque `api_secret` em variavel `VITE_`. Tudo que entra em `VITE_*` vai para o bundle do navegador.
 
@@ -99,10 +109,7 @@ O arquivo versionado [`.env.development`](/home/lukakas/dev/univesp/crm/univesp-
 VITE_ENABLE_MOCKS=false
 VITE_APP_BASE=/crm/
 VITE_ROUTER_BASE=/crm/
-VITE_FRAPPE_BASE_URL=
-VITE_FRAPPE_AUTH_MODE=session
-VITE_FRAPPE_PROXY_TARGET=http://localhost:8000
-VITE_FRAPPE_SOCKETIO_TARGET=http://localhost:9000
+VITE_APP_API_BASE=/api/app/v1
 VITE_SSO_SESSION_PATH=/api/me
 VITE_SSO_START_PATH=/api/sso/start
 VITE_SSO_AZURE_START_PATH=/api/sso/azure/start
@@ -124,8 +131,7 @@ O arquivo versionado [`.env.production`](/home/lukakas/dev/univesp/crm/univesp-f
 VITE_ENABLE_MOCKS=false
 VITE_APP_BASE=/
 VITE_ROUTER_BASE=/
-VITE_FRAPPE_BASE_URL=
-VITE_FRAPPE_AUTH_MODE=session
+VITE_APP_API_BASE=/api/app/v1
 VITE_SSO_SESSION_PATH=/api/me
 VITE_SSO_START_PATH=/api/sso/start
 VITE_SSO_AZURE_START_PATH=/api/sso/azure/start
@@ -134,9 +140,17 @@ VITE_SSO_LOGOUT_PATH=/api/sso/logout
 VITE_SAML_ENTITY_ID=crm_production
 VITE_SAML_NAME_ID_FORMAT=urn:oasis:names:tc:SAML:2.0:nameid-format:email
 VITE_SAML_NAME_ID_ATTRIBUTE=mail
-VITE_SAML_ACS_URL=https://homolog.crm.univesp.br/consume
-VITE_SAML_LOGOUT_URL=https://homolog.crm.univesp.br/logout
-VITE_AZURE_REDIRECT_URI=https://homolog.crm.univesp.br/api/sso/azure/callback
+VITE_SAML_ACS_URL=https://homolog-crm.univesp.br/consume
+VITE_SAML_LOGOUT_URL=https://homolog-crm.univesp.br/logout
+VITE_AZURE_REDIRECT_URI=https://homolog-crm.univesp.br/login
+```
+
+Variaveis esperadas no servico Cloud Run que serve este frontend:
+
+```bash
+FRAPPE_WEB_ORIGIN=https://<origem-frappe-web>
+FRAPPE_SOCKETIO_ORIGIN=https://<origem-frappe-socketio>
+SSO_GATEWAY_ORIGIN=https://<origem-sso-gateway>
 ```
 
 ## Execucao local
@@ -172,7 +186,7 @@ URLs esperadas:
 - `http://localhost:8080/crm`
 - `http://localhost:8080/crm/acesso-local`
 - sem backend local: usar os perfis `.env.local.admin`, `.env.local.op` ou `.env.local.aluno`
-- com backend local: o gateway de API pode responder em `http://localhost:8000` se `VITE_FRAPPE_PROXY_TARGET` estiver ativo
+- com gateway local: configure `VITE_SSO_GATEWAY_PROXY_TARGET=http://localhost:4000`
 
 Observacao: no modo mock/bypass local, nao ha senha. A forma mais simples e:
 
@@ -230,31 +244,14 @@ Observacao: esse compose e para dev local. Ele deixa a API funcionando sem depen
 
 Depois do deploy por GitHub Actions:
 
-- tela inicial do `univesp-frontend`: `https://homolog.crm.univesp.br/`
-- CRM nativo do Frappe: `https://homolog.crm.univesp.br/crm`
+- tela inicial do `univesp-frontend`: `https://homolog-crm.univesp.br/`
+- CRM nativo do Frappe: `https://homolog-crm.univesp.br/crm`
 
-## Chaves de API do Frappe
+## Credenciais do Frappe
 
-Para frontend web, o recomendado continua sendo `VITE_FRAPPE_AUTH_MODE=session`. Chave de API do Frappe deve existir apenas para servicos backend, jobs ou integracoes server-to-server.
-
-Se ainda precisar testar token no browser em ambiente isolado:
-
-1. gere `API Key` e `API Secret` para um usuario tecnico no Frappe
-2. mantenha `VITE_FRAPPE_AUTH_MODE=token`
-3. abra o console do navegador e rode:
-
-```js
-localStorage.setItem('univesp.frappe.authHeader', 'token API_KEY:API_SECRET')
-```
-
-Para limpar:
-
-```js
-localStorage.removeItem('univesp.frappe.authHeader')
-sessionStorage.removeItem('univesp.frappe.authHeader')
-```
-
-Esse modo serve so para dev/homolog. Em producao, use sessao/cookie.
+Credenciais tecnicas pertencem apenas ao gateway/secret manager. Nao existe
+modo suportado de token no navegador, nem mesmo em homologacao. Para testes
+locais, execute o gateway ou use mocks explicitamente habilitados.
 
 ## Como gerar API Key no Frappe
 

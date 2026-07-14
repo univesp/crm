@@ -2,7 +2,7 @@
 
 Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 
-- `web`: Cloud Run público com `nginx + gunicorn + socket.io` no mesmo container.
+- `web`: Cloud Run público com `nginx + gunicorn + socket.io` no mesmo container, servindo o `univesp-frontend` na raiz e o Frappe CRM em `/crm`.
 - `worker`: Cloud Run privado, instância fixa, CPU sempre alocada, processando filas Redis.
 - `scheduler`: Cloud Run privado, instância fixa, CPU sempre alocada, executando `bench schedule`.
 - `bootstrap`: Cloud Run Job idempotente para criar o site, instalar o app e rodar `migrate`.
@@ -71,8 +71,9 @@ MODE=full ./ops/cloudrun/set-service-mode.sh
 - `GCP_REGION=us-east1`
 - `ARTIFACT_REPOSITORY=crm`
 - `IMAGE_NAME=frappe-crm`
-- `FRAPPE_SITE_NAME=homolog.crm.univesp.br`
-- `PUBLIC_DOMAIN=homolog.crm.univesp.br`
+- `FRAPPE_SITE_NAME=homolog-crm.univesp.br`
+- `PUBLIC_DOMAIN=homolog-crm.univesp.br`
+- `SSO_GATEWAY_ORIGIN=https://<origem-do-sso-gateway>`
 - `DB_TYPE=postgres`
 - `DB_SETUP_MODE=existing`
 - `DB_NAME=crm_homolog`
@@ -90,6 +91,17 @@ MODE=full ./ops/cloudrun/set-service-mode.sh
 - `DB_PASSWORD_SECRET_NAME=crm-homolog-db-password`
 - `ADMIN_PASSWORD_SECRET_NAME=crm-homolog-admin-password`
 - `CLOUDFLARE_ZONE_ID=<zone id do domínio univesp.br>`
+
+### Fronteira HTTP da homolog
+
+O nginx do serviço público fica como entrada única do ambiente:
+
+- `/` e `/login` servem o `univesp-frontend`.
+- `/api/me` e `/api/sso/*` vão para `SSO_GATEWAY_ORIGIN`.
+- `/api/method/*`, `/api/resource/*`, `/crm*`, `/app*`, `/desk*`, `/assets*` e `/files*` vão para o Frappe.
+- `/socket.io*` vai para o processo realtime do Frappe.
+
+Essa separação evita o erro `Cannot GET /api/method/...`: chamadas Frappe não devem cair no frontend/SSO, e chamadas SSO não devem cair no Frappe.
 
 ### Google Cloud / domínio
 

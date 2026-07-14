@@ -44,27 +44,17 @@ services:
       VITE_PREVIEW_PORT: 8080
       VITE_ENABLE_MOCKS: "false"
       VITE_ENABLE_ANALYTICS_MOCKS: "false"
-      VITE_FRAPPE_BASE_URL: ""
-      VITE_FRAPPE_API_PREFIX: /api
-      VITE_FRAPPE_AUTH_MODE: token
-      VITE_FRAPPE_API_KEY: ${FRAPPE_API_KEY}
-      VITE_FRAPPE_API_SECRET: ${FRAPPE_API_SECRET}
-      VITE_FRAPPE_PROXY_TARGET: http://frappe:8000
-      VITE_FRAPPE_SOCKETIO_TARGET: http://frappe:9000
-      VITE_FRAPPE_TICKET_DOCTYPE: Issue
-      VITE_AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
-      VITE_AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
-      VITE_AZURE_REDIRECT_URI: http://localhost:8080/crm/login
+      VITE_APP_API_BASE: /api/app/v1
+      VITE_SSO_SESSION_PATH: /api/me
+      VITE_SSO_START_PATH: /api/sso/start
+      VITE_SSO_AZURE_START_PATH: /api/sso/azure/start
+      VITE_SSO_SAML_START_PATH: /api/sso/saml/start
+      VITE_SSO_LOGOUT_PATH: /api/sso/logout
+      VITE_SSO_LOGOUT_METHOD: POST
       VITE_DEFAULT_AUTH_ROUTE: /
       VITE_SSO_DEV_BYPASS: "true"
       VITE_SSO_DEV_BYPASS_EMAIL: ${VITE_SSO_DEV_BYPASS_EMAIL:-admin@univesp.br}
       VITE_SSO_DEV_BYPASS_NAME: ${VITE_SSO_DEV_BYPASS_NAME:-Administrador Local}
-      VITE_SAML_ENTITY_ID: crm_development
-      VITE_SAML_NAME_ID_FORMAT: urn:oasis:names:tc:SAML:2.0:nameid-format:email
-      VITE_SAML_NAME_ID_ATTRIBUTE: mail
-      VITE_SAML_ACS_URL: http://localhost:8080/consume
-      VITE_SAML_LOGOUT_URL: http://localhost:8080/logout
-      VITE_SAML_IDP_METADATA_URL: https://login.univesp.br/simplesaml/saml2/idp/metadata.php
       VITE_HANDOFF_WEBHOOK_URL: https://contact-center.example.com/handoff
     ports:
       - "8080:8080"

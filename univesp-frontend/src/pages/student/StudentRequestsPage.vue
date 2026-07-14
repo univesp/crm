@@ -1,9 +1,11 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 
 import StatusBadge from '@/components/StatusBadge.vue'
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
+import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
 import { buildStudentRequestSections, buildStudentRequestSummary } from '@/services/studentPortalRuntime'
+import { mapApiTicketToStudentProtocol } from '@/services/ticketMapper'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const studentSupportStore = useStudentSupportStore()
@@ -16,12 +18,16 @@ const openSections = ref({
   completed: false,
 })
 const sectionElements = ref({})
+const remoteProtocols = ref([])
+const loadingMessage = ref('')
+const loadError = ref('')
 
 const requestSections = computed(() =>
   buildStudentRequestSections({
     protocolDraft: studentSupportStore.protocolDraft,
     records: studentSupportStore.records,
-    protocols: studentSupportStore.protocols,
+    protocols: isMockRuntimeEnabled() ? studentSupportStore.protocols : remoteProtocols.value,
+    seededProtocols: isMockRuntimeEnabled() ? undefined : [],
     query: searchQuery.value,
     period: periodFilter.value,
   }),
@@ -90,6 +96,22 @@ const showNoResults = computed(() =>
   Boolean(searchQuery.value.trim().length || periodFilter.value !== 'all') && !hasFilteredResults.value,
 )
 
+async function loadRequests() {
+  if (isMockRuntimeEnabled()) return
+  loadingMessage.value = 'Carregando suas solicitacoes...'
+  loadError.value = ''
+  try {
+    const result = await listTickets({ page: 1, page_size: 100 })
+    remoteProtocols.value = result.data.map(mapApiTicketToStudentProtocol)
+  } catch (error) {
+    loadError.value = error.message || 'Nao foi possivel carregar suas solicitacoes.'
+  } finally {
+    loadingMessage.value = ''
+  }
+}
+
+onMounted(loadRequests)
+
 function toggleSection(sectionKey) {
   openSections.value = {
     ...openSections.value,
@@ -134,6 +156,11 @@ function openActionRequiredSection() {
     aside-description="No desktop, esta coluna continua apenas como apoio."
   >
     <div class="grid gap-4">
+      <p v-if="loadingMessage" class="rounded-[20px] border border-slate-200 bg-white p-4 text-sm text-slate-600" role="status">{{ loadingMessage }}</p>
+      <div v-if="loadError" class="rounded-[20px] border border-[var(--color-danger)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-danger)]" role="alert">
+        {{ loadError }}
+        <button type="button" class="ml-2 font-semibold underline" @click="loadRequests">Tentar novamente</button>
+      </div>
       <button
         v-if="requestSummary.actionRequiredCount > 0"
         type="button"

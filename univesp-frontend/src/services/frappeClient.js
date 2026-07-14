@@ -1,16 +1,16 @@
 import {
-  callFrappeMethod,
-  createResource,
-  getFrappeRuntimeConfig,
-  unwrapFrappePayload,
-} from '@/services/frappeApi'
+  addTicketMessage,
+  assignTicket,
+  createTicket,
+  transitionTicket,
+} from '@/services/appApi'
 
 export function buildTicketDraft({ customer, session, flow, answerSummary }) {
   const subjectSeed =
     answerSummary.find((item) => item.questionId === 'need')?.answer || flow.name
 
   const payload = {
-    doctype: import.meta.env.VITE_FRAPPE_TICKET_DOCTYPE || 'Issue',
+    doctype: 'HD Ticket',
     subject: `${flow.name} - ${subjectSeed}`,
     status: 'Open',
     priority: session.priority,
@@ -38,7 +38,7 @@ export function buildTicketDraft({ customer, session, flow, answerSummary }) {
 
   return {
     doctype: payload.doctype,
-    endpoint: `/api/resource/${payload.doctype}`,
+    endpoint: '/api/app/v1/tickets',
     queue: flow.queue,
     sla: flow.expectedSla,
     protocol: session.protocol,
@@ -59,53 +59,62 @@ export function getFrappeOperations(flow) {
     {
       name: 'Abrir ticket',
       method: 'POST',
-      endpoint: `/api/resource/${import.meta.env.VITE_FRAPPE_TICKET_DOCTYPE || 'Issue'}`,
+      endpoint: '/api/app/v1/tickets',
       detail: `Cria o ticket base para o fluxo ${flow.name}.`,
     },
     {
       name: 'Anexar contexto de triagem',
       method: 'PUT',
-      endpoint: '/api/method/univesp.api.ticket.attach_triage',
+      endpoint: '/api/app/v1/tickets/:id',
       detail: 'Persiste respostas, canal, SSO e dados do aluno.',
     },
     {
       name: 'Registrar contexto de atendimento',
       method: 'POST',
-      endpoint: '/api/method/univesp.api.ticket.append_attendance_context',
+      endpoint: '/api/app/v1/tickets/:id/messages',
       detail: 'Guarda o resumo da triagem e do handoff operacional.',
     },
     {
       name: 'Transferir para fila humana',
       method: 'POST',
-      endpoint: '/api/method/univesp.api.ticket.request_handoff',
+      endpoint: '/api/app/v1/tickets/:id/transition',
       detail: `Solicita atendente da fila ${flow.queue}.`,
     },
   ]
 }
 
 export const frappeModelNotes = [
-  'Preferir sessao/cookie do Frappe para navegacao web; nao embutir api_secret em VITE_.',
-  'Definir se o ticket sera Issue, HD Ticket ou DocType customizado.',
+  'O navegador usa apenas a sessao institucional do gateway; nenhum segredo Frappe entra no bundle.',
+  'HD Ticket e o registro operacional oficial do atendimento.',
   'Persistir resumo de triagem e handoff, sem depender de conversa automatica.',
   'Guardar o estado da triagem em campo JSON para reuso posterior.',
   'Planejar eventos para atualizacao em tempo real da fila do atendente.',
 ]
 
 export function getFrappeIntegrationProfile() {
-  const config = getFrappeRuntimeConfig()
-
   return {
-    ...config,
-    apiBaseUrl: `${config.baseUrl}${config.apiPrefix}`,
-    authSummary:
-      config.authMode === 'token'
-        ? 'Token manual de dev/homolog armazenado no browser.'
-        : 'Sessao web do Frappe via cookie HTTP-only.',
+    apiBaseUrl: '/api/app/v1',
+    authSummary: 'Sessao institucional HTTP-only validada pelo SSO Gateway.',
   }
 }
 
 export async function submitTicketDraft(ticketDraft) {
-  return unwrapFrappePayload(await createResource(ticketDraft.doctype, ticketDraft.payload))
+  const result = await createTicket({
+    subject: ticketDraft.payload.subject,
+    description: ticketDraft.payload.description,
+    priority: ticketDraft.payload.priority,
+    source: ticketDraft.payload.custom_channel || 'portal',
+    queue: ticketDraft.payload.custom_queue,
+    triage: ticketDraft.payload.custom_triage_summary,
+    student: {
+      ra: ticketDraft.payload.custom_student_ra,
+      polo: ticketDraft.payload.custom_student_polo,
+    },
+    knowledge: {
+      flow_id: ticketDraft.payload.custom_flow_id,
+    },
+  })
+  return result.data
 }
 
 export async function attachTriageContext({
@@ -116,21 +125,18 @@ export async function attachTriageContext({
   session,
   answerSummary,
 }) {
-  return callFrappeMethod('univesp.api.ticket.attach_triage', {
-    document_name: documentName,
-    custom_protocol: protocol,
-    custom_flow_id: flow.id,
-    custom_queue: flow.queue,
-    custom_channel: customer.channel,
-    custom_sso_status: customer.ssoStatus,
-    custom_student_ra: customer.ra,
-    custom_student_polo: customer.polo,
-    custom_priority: session.priority,
-    custom_triage_summary: answerSummary.map((item) => ({
-      question: item.question,
-      answer: item.answer,
-      value: item.value,
-    })),
+  return transitionTicket(documentName, {
+    status: 'in_analysis',
+    protocol,
+    context: {
+      flow_id: flow.id,
+      queue: flow.queue,
+      channel: customer.channel,
+      student_ra: customer.ra,
+      student_polo: customer.polo,
+      priority: session.priority,
+      triage: answerSummary,
+    },
   })
 }
 
@@ -141,14 +147,10 @@ export async function appendAttendanceContext({
   triageSummary,
   handoffSummary,
 }) {
-  return callFrappeMethod('univesp.api.ticket.append_attendance_context', {
-    document_name: documentName,
-    custom_protocol: protocol,
-    custom_flow_id: flow.id,
-    custom_queue: flow.queue,
-    triage_context: triageSummary,
-    handoff_context: handoffSummary,
-  })
+  return addTicketMessage(
+    documentName,
+    JSON.stringify({ protocol, flow_id: flow.id, queue: flow.queue, triageSummary, handoffSummary }),
+  )
 }
 
 export async function requestHumanHandoff({
@@ -159,13 +161,12 @@ export async function requestHumanHandoff({
   session,
   transferBrief,
 }) {
-  return callFrappeMethod('univesp.api.ticket.request_handoff', {
-    document_name: documentName,
-    custom_protocol: protocol,
-    queue: flow.queue,
-    customer_name: customer.name,
-    customer_email: customer.email,
+  await assignTicket(documentName, { queue: flow.queue })
+  return transitionTicket(documentName, {
+    status: 'waiting_internal',
+    protocol,
     priority: session.priority,
     summary: transferBrief,
+    customer: { name: customer.name, email: customer.email },
   })
 }

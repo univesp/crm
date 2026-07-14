@@ -62,7 +62,7 @@ npm install
    - `.env.local.aluno`
 2. manter `VITE_ENABLE_MOCKS=true` nesta fase
 3. manter `VITE_SSO_DEV_BYPASS=true` para testes locais sem gateway
-4. manter `VITE_FRAPPE_PROXY_TARGET=` e `VITE_FRAPPE_SOCKETIO_TARGET=` vazios quando nao houver backend local
+4. usar `VITE_SSO_GATEWAY_PROXY_TARGET=http://localhost:4000` somente quando o gateway estiver rodando localmente
 5. nao usar endpoints reais enquanto o backend nao estiver habilitado
 
 Exemplo:

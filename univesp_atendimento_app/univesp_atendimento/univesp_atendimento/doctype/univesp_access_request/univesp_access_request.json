@@ -1,0 +1,25 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Access Request",
+  "module": "Univesp Atendimento",
+  "autoname": "field:user_email",
+  "title_field": "display_name",
+  "track_changes": 1,
+  "field_order": ["user_email", "display_name", "ra", "identity_flow", "status", "first_seen_at", "last_seen_at", "attempt_count", "resolution_reason", "resolved_by", "resolved_at"],
+  "fields": [
+    {"fieldname": "user_email", "fieldtype": "Data", "label": "Email", "options": "Email", "reqd": 1, "unique": 1, "in_list_view": 1},
+    {"fieldname": "display_name", "fieldtype": "Data", "label": "Nome", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "ra", "fieldtype": "Data", "label": "RA"},
+    {"fieldname": "identity_flow", "fieldtype": "Data", "label": "Fluxo SSO", "read_only": 1},
+    {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Pending\nApproved\nRejected", "default": "Pending", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "first_seen_at", "fieldtype": "Datetime", "label": "Primeira tentativa", "read_only": 1},
+    {"fieldname": "last_seen_at", "fieldtype": "Datetime", "label": "Ultima tentativa", "read_only": 1},
+    {"fieldname": "attempt_count", "fieldtype": "Int", "label": "Tentativas", "default": "1", "read_only": 1},
+    {"fieldname": "resolution_reason", "fieldtype": "Small Text", "label": "Motivo da decisao", "read_only": 1},
+    {"fieldname": "resolved_by", "fieldtype": "Data", "label": "Resolvido por", "read_only": 1},
+    {"fieldname": "resolved_at", "fieldtype": "Datetime", "label": "Resolvido em", "read_only": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "report": 1, "export": 1}
+  ]
+}
