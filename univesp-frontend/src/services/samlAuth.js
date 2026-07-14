@@ -27,8 +27,8 @@ export const samlClaims = [
 
 export const environmentChecklist = [
   {
-    key: 'VITE_FRAPPE_BASE_URL',
-    purpose: 'Base do backend Frappe para tickets e consulta de contexto.',
+    key: 'VITE_APP_API_BASE',
+    purpose: 'Base publica do BFF de atendimento, por padrao /api/app/v1.',
   },
   {
     key: 'VITE_SSO_SESSION_PATH',
@@ -51,14 +51,6 @@ export const environmentChecklist = [
     purpose: 'Endpoint de logout da sessao SSO, por padrao /api/sso/logout.',
   },
   {
-    key: 'VITE_FRAPPE_BASE_URL',
-    purpose: 'Base do backend Frappe para tickets e consulta de contexto.',
-  },
-  {
-    key: 'VITE_FRAPPE_TICKET_DOCTYPE',
-    purpose: 'DocType alvo do ticket, como Issue ou HD Ticket.',
-  },
-  {
     key: 'VITE_SAML_ENTITY_ID',
     purpose: 'Entity ID do frontend ou gateway de autenticacao.',
   },
@@ -68,11 +60,11 @@ export const environmentChecklist = [
   },
   {
     key: 'VITE_SAML_LOGOUT_URL',
-    purpose: 'Single logout do perfil SAML. Homolog: https://homolog.crm.univesp.br/logout.',
+    purpose: 'Single logout do perfil SAML. Homolog: https://homolog-crm.univesp.br/logout.',
   },
   {
     key: 'VITE_AZURE_REDIRECT_URI',
-    purpose: 'Callback do OAuth2/Azure AD. Homolog: https://homolog.crm.univesp.br/api/sso/azure/callback.',
+    purpose: 'Callback do OAuth2/Azure AD. Homolog: https://homolog-crm.univesp.br/login.',
   },
   {
     key: 'VITE_SAML_IDP_METADATA_URL',

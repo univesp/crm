@@ -36,37 +36,56 @@ export function getMockProfileDefinition(profileKey = '') {
 }
 
 export function inferMockProfileKey(user) {
-  const explicitProfile = normalizeMockProfileKey(user?.raw?.profileKey || '')
+  const explicitProfile = normalizeMockProfileKey(user?.profileKey || user?.raw?.profileKey || '')
 
   if (explicitProfile && profileCatalog[explicitProfile]) {
     return explicitProfile
   }
 
-  const normalizedEmail = normalizeText(user?.email || '')
-  if (normalizedEmail) {
-    const emailMatch = mockAccessProfiles.find((profile) => normalizeText(profile.email) === normalizedEmail)
-
-    if (emailMatch) {
-      return emailMatch.key
-    }
-  }
-
-  const normalizedFlow = normalizeText(user?.flow || '')
-  if (normalizedFlow === 'aluno') {
-    return 'aluno'
-  }
-
-  if (normalizedFlow === 'academico') {
-    return 'op'
-  }
-
-  return 'admin_central'
+  return 'unassigned'
 }
 
 export function buildMockAccessContext(user) {
   const profileKey = inferMockProfileKey(user)
-  const definition = getMockProfileDefinition(profileKey) || profileCatalog.aluno
+  const definition = getMockProfileDefinition(profileKey)
+
+  if (!definition) {
+    return {
+      profileKey: 'unassigned',
+      profileLabel: 'Perfil pendente',
+      roleLabel: 'Sem perfil operacional',
+      shellKey: 'governance',
+      shellLabel: 'Acesso pendente',
+      shellDescription: 'O acesso institucional existe, mas ainda nao possui perfil autorizado.',
+      defaultRoute: '/acesso-pendente',
+      entryOrigin: 'SSO institucional',
+      currentPolo: '',
+      currentArea: '',
+      linkedPolos: [],
+      linkedAreas: [],
+      visibleQueues: [],
+      visibleAreas: [],
+      allowedActions: [],
+      mockMode: false,
+      aiEnabled: false,
+      userName: user?.displayName || user?.email || '',
+      userEmail: user?.email || '',
+      helper: 'Solicite o vinculo de perfil e escopo ao administrador do atendimento.',
+      isStudentShell: false,
+      isOperationalShell: false,
+      isGovernanceShell: true,
+    }
+  }
+
   const shell = MOCK_SHELL_CATALOG[definition.shellKey] || MOCK_SHELL_CATALOG.student
+  const isGatewayContext = user?.raw?.source === 'sso-gateway'
+  const linkedPolos = isGatewayContext ? user?.scopes?.polos || [] : definition.linkedPolos
+  const linkedAreas = isGatewayContext
+    ? user?.scopes?.areas || []
+    : definition.linkedAreas || definition.visibleAreas || []
+  const visibleQueues = isGatewayContext ? user?.scopes?.queues || [] : definition.visibleQueues
+  const visibleAreas = isGatewayContext ? user?.scopes?.areas || [] : definition.visibleAreas
+  const allowedActions = isGatewayContext ? user?.allowedActions || [] : definition.allowedActions
 
   return {
     profileKey: definition.key,
@@ -77,14 +96,14 @@ export function buildMockAccessContext(user) {
     shellDescription: shell.description,
     defaultRoute: definition.defaultRoute,
     entryOrigin: definition.entryOrigin,
-    currentPolo: definition.currentPolo,
-    currentArea: definition.currentArea || definition.visibleAreas?.[0] || '',
-    linkedPolos: [...definition.linkedPolos],
-    linkedAreas: [...(definition.linkedAreas || definition.visibleAreas || [])],
-    visibleQueues: [...definition.visibleQueues],
-    visibleAreas: [...definition.visibleAreas],
-    allowedActions: [...definition.allowedActions],
-    mockMode: true,
+    currentPolo: linkedPolos[0] || '',
+    currentArea: linkedAreas[0] || '',
+    linkedPolos: [...linkedPolos],
+    linkedAreas: [...linkedAreas],
+    visibleQueues: [...visibleQueues],
+    visibleAreas: [...visibleAreas],
+    allowedActions: [...allowedActions],
+    mockMode: !isGatewayContext,
     aiEnabled: false,
     userName: user?.displayName || definition.displayName,
     userEmail: user?.email || definition.email,

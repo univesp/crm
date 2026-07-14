@@ -4,39 +4,21 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const backendTarget = env.VITE_FRAPPE_PROXY_TARGET || ''
-  const socketTarget = env.VITE_FRAPPE_SOCKETIO_TARGET || backendTarget
-  const proxiedPaths = [
-    '/api',
-    '/login',
-    '/logout',
-    '/consume',
-    '/oauth',
-    '/assets',
-    '/files',
-  ]
+  const gatewayTarget = env.VITE_SSO_GATEWAY_PROXY_TARGET || ''
+  const proxiedPaths = ['/api']
 
-  const proxy = backendTarget
+  const proxy = gatewayTarget
     ? Object.fromEntries(
         proxiedPaths.map((proxyPath) => [
           proxyPath,
           {
-            target: backendTarget,
+            target: gatewayTarget,
             changeOrigin: true,
             secure: false,
           },
         ]),
       )
     : undefined
-
-  if (proxy && socketTarget) {
-    proxy['/socket.io'] = {
-      target: socketTarget,
-      changeOrigin: true,
-      secure: false,
-      ws: true,
-    }
-  }
 
   return {
     base: env.VITE_APP_BASE || '/',

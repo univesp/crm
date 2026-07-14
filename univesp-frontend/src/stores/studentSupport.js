@@ -66,8 +66,14 @@ import {
 } from '@/services/operationalOwnershipServerRuntime'
 import { areaActionSeeds, operatorAuditSeeds, operatorQueue, studentProtocols } from '../../mocks/operations'
 import { mockAccessProfiles } from '../../mocks/mockAccessProfiles'
+import { isMockRuntimeEnabled } from '@/services/appApi'
 
 const STORAGE_KEY = 'univesp-student-support'
+
+function shouldUseLocalPersistence() {
+  const configuredValue = import.meta.env.VITE_ENABLE_MOCKS
+  return configuredValue === undefined ? true : isMockRuntimeEnabled()
+}
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value))
@@ -697,7 +703,7 @@ function defaultState() {
 }
 
 function loadPersistedState() {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || !shouldUseLocalPersistence()) {
     return defaultState()
   }
 
@@ -987,7 +993,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
   },
   actions: {
     persistState() {
-      if (typeof window === 'undefined') {
+      if (typeof window === 'undefined' || !shouldUseLocalPersistence()) {
         return
       }
 

@@ -11,3 +11,8 @@ crm/www/crm.html
 build
 
 .vscode
+
+# Local review artifacts.
+.worktrees/
+tmp-*
+*.tgz

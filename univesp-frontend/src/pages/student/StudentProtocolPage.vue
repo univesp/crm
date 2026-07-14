@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
+import { addTicketAttachments, createTicket, isMockRuntimeEnabled } from '@/services/appApi'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const router = useRouter()
@@ -12,6 +13,7 @@ const isSubmitting = ref(false)
 const formMessage = ref('')
 const descriptionField = ref(null)
 const attachmentField = ref(null)
+const attachmentFiles = ref([])
 
 const protocolDraft = computed(() => studentSupportStore.protocolDraft)
 const faqContext = computed(() => studentSupportStore.currentFaqContext)
@@ -45,11 +47,12 @@ function updateDescription(event) {
 }
 
 function handleAttachmentChange(event) {
-  const attachmentList = Array.from(event.target.files || []).map((file) => file.name)
+  attachmentFiles.value = Array.from(event.target.files || [])
+  const attachmentList = attachmentFiles.value.map((file) => file.name)
   studentSupportStore.setProtocolAttachments(attachmentList)
 }
 
-function submitProtocol() {
+async function submitProtocol() {
   if (isSubmitting.value) {
     return
   }
@@ -57,6 +60,49 @@ function submitProtocol() {
   hasAttemptedSubmit.value = true
   formMessage.value = ''
   isSubmitting.value = true
+  if (!protocolValidation.value.isValid || !protocolDraft.value) {
+    isSubmitting.value = false
+    formMessage.value = 'Revise os campos destacados antes de enviar sua solicitacao.'
+    nextTick(() => {
+      if (protocolValidation.value.errors.description) descriptionField.value?.focus()
+      else if (protocolValidation.value.errors.attachments) attachmentField.value?.focus()
+    })
+    return
+  }
+
+  if (!isMockRuntimeEnabled()) {
+    try {
+      const draft = protocolDraft.value
+      const result = await createTicket({
+        subject: draft.form.subject,
+        description: draft.form.description,
+        priority: draft.form.priority || 'medium',
+        source: 'portal',
+        queue: draft.form.ownerQueue || draft.form.queueDestination || '',
+        area: draft.form.ownerArea || draft.form.routingArea || '',
+        triage: {
+          theme: draft.form.theme,
+          subtheme: draft.form.subtheme,
+          breadcrumb: draft.form.breadcrumb,
+        },
+        knowledge: {
+          bundle_id: draft.form.bundleId,
+          bundle_version_id: draft.form.bundleVersionId,
+          node_id: draft.form.sourceNodeId,
+        },
+      })
+      if (attachmentFiles.value.length) {
+        await addTicketAttachments(result.data.id, attachmentFiles.value)
+      }
+      isSubmitting.value = false
+      router.push(`/aluno/confirmacao/${result.data.protocol}`)
+    } catch (error) {
+      isSubmitting.value = false
+      formMessage.value = error.message || 'Nao foi possivel enviar sua solicitacao agora.'
+    }
+    return
+  }
+
   const result = studentSupportStore.submitProtocol()
 
   if (!result.ok) {
