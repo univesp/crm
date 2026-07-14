@@ -36,7 +36,14 @@ class UnivespConflictError(frappe.ValidationError):
 
 
 @frappe.whitelist(methods=["GET"])
-def list_users(page=1, page_size=25, search=None, profile=None, status=None, scope=None):
+def list_users(
+	page: int | str = 1,
+	page_size: int | str = 25,
+	search: str | None = None,
+	profile: str | None = None,
+	status: str | None = None,
+	scope: str | None = None,
+):
 	context = _admin_context()
 	page = max(cint(page), 1)
 	page_size = min(max(cint(page_size), 1), 100)
@@ -74,7 +81,7 @@ def list_users(page=1, page_size=25, search=None, profile=None, status=None, sco
 
 
 @frappe.whitelist(methods=["GET"])
-def get_user(email):
+def get_user(email: str):
 	context = _admin_context()
 	doc = _get_profile(email)
 	data = _serialize_profile(doc)
@@ -83,7 +90,7 @@ def get_user(email):
 
 
 @frappe.whitelist(methods=["POST"])
-def create_user(payload=None):
+def create_user(payload: dict | str | None = None):
 	context = _admin_context()
 	data = _payload(payload)
 	reason = _required_reason(data)
@@ -112,7 +119,7 @@ def create_user(payload=None):
 
 
 @frappe.whitelist(methods=["PATCH", "POST"])
-def update_user(email, payload=None):
+def update_user(email: str, payload: dict | str | None = None):
 	context = _admin_context()
 	data = _payload(payload)
 	reason = _required_reason(data)
@@ -140,7 +147,12 @@ def update_user(email, payload=None):
 
 
 @frappe.whitelist(methods=["GET"])
-def list_access_requests(page=1, page_size=25, status=None, search=None):
+def list_access_requests(
+	page: int | str = 1,
+	page_size: int | str = 25,
+	status: str | None = None,
+	search: str | None = None,
+):
 	context = _admin_context()
 	page = max(cint(page), 1)
 	page_size = min(max(cint(page_size), 1), 100)
@@ -184,7 +196,10 @@ def list_access_requests(page=1, page_size=25, status=None, search=None):
 
 
 @frappe.whitelist(methods=["POST"])
-def approve_access_request(access_request_id, payload=None):
+def approve_access_request(
+	access_request_id: str,
+	payload: dict | str | None = None,
+):
 	context = _admin_context()
 	data = _payload(payload)
 	reason = _required_reason(data)
@@ -219,7 +234,10 @@ def approve_access_request(access_request_id, payload=None):
 
 
 @frappe.whitelist(methods=["POST"])
-def reject_access_request(access_request_id, payload=None):
+def reject_access_request(
+	access_request_id: str,
+	payload: dict | str | None = None,
+):
 	context = _admin_context()
 	data = _payload(payload)
 	reason = _required_reason(data)
@@ -260,7 +278,12 @@ def catalogs():
 
 
 @frappe.whitelist(methods=["GET"])
-def list_audit(page=1, page_size=25, target_email=None, operation=None):
+def list_audit(
+	page: int | str = 1,
+	page_size: int | str = 25,
+	target_email: str | None = None,
+	operation: str | None = None,
+):
 	context = _admin_context()
 	page = max(cint(page), 1)
 	page_size = min(max(cint(page_size), 1), 100)
