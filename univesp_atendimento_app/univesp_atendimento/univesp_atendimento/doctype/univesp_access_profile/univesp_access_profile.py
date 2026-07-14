@@ -12,7 +12,9 @@ class UnivespAccessProfile(Document):
 		self.user_email = str(self.user_email or "").strip().lower()
 		if not self.user_email or "@" not in self.user_email:
 			frappe.throw(_("Email institucional invalido."), frappe.ValidationError)
-		self.scopes_json = json.dumps(normalize_scopes(self.profile_key, self.scopes_json), ensure_ascii=False)
+		self.scopes_json = json.dumps(
+			normalize_scopes(self.profile_key, self.scopes_json), ensure_ascii=False
+		)
 		self.actions_json = json.dumps(actions_for_profile(self.profile_key), ensure_ascii=False)
 
 	def on_trash(self):

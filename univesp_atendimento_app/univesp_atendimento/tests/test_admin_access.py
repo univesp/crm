@@ -103,9 +103,7 @@ class TestAdminAccess(IntegrationTestCase):
 		self.assertEqual(first["data"]["access"]["status"], "pending")
 		self.assertEqual(second["data"]["access"]["status"], "pending")
 		self.assertEqual(
-			frappe.db.count(
-				"Univesp Access Request", {"user_email": "pending.access.tests@univesp.br"}
-			),
+			frappe.db.count("Univesp Access Request", {"user_email": "pending.access.tests@univesp.br"}),
 			1,
 		)
 		request_doc = frappe.get_doc("Univesp Access Request", "pending.access.tests@univesp.br")

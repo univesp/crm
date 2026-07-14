@@ -8,9 +8,7 @@ from univesp_atendimento.api.v1.common import response, verify_signed_identity
 def get_context():
 	identity = verify_signed_identity()
 	request_id = frappe.get_request_header("X-Request-ID") or ""
-	profile_name = frappe.db.get_value(
-		"Univesp Access Profile", {"user_email": identity["email"]}, "name"
-	)
+	profile_name = frappe.db.get_value("Univesp Access Profile", {"user_email": identity["email"]}, "name")
 	if not profile_name:
 		request = _touch_access_request(identity)
 		return response(

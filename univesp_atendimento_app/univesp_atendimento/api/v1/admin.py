@@ -4,7 +4,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime
 
-from univesp_atendimento.access_control import normalize_scopes, profile_catalog
+from univesp_atendimento.access_control import profile_catalog
 from univesp_atendimento.api.v1.common import get_request_context, response
 
 
@@ -158,7 +158,20 @@ def list_access_requests(page=1, page_size=25, status=None, search=None):
 		"Univesp Access Request",
 		filters=filters,
 		or_filters=or_filters,
-		fields=["name", "user_email", "display_name", "ra", "identity_flow", "status", "first_seen_at", "last_seen_at", "attempt_count", "resolved_by", "resolved_at", "modified"],
+		fields=[
+			"name",
+			"user_email",
+			"display_name",
+			"ra",
+			"identity_flow",
+			"status",
+			"first_seen_at",
+			"last_seen_at",
+			"attempt_count",
+			"resolved_by",
+			"resolved_at",
+			"modified",
+		],
 		order_by="last_seen_at desc",
 		start=(page - 1) * page_size,
 		page_length=page_size,
@@ -194,7 +207,14 @@ def approve_access_request(access_request_id, payload=None):
 		}
 	).insert(ignore_permissions=True)
 	_resolve_request(request_doc.name, "Approved", context, reason)
-	_write_audit(context, doc.user_email, "access_request_approved", reason, _request_snapshot(request_doc), _profile_snapshot(doc))
+	_write_audit(
+		context,
+		doc.user_email,
+		"access_request_approved",
+		reason,
+		_request_snapshot(request_doc),
+		_profile_snapshot(doc),
+	)
 	return response(_serialize_profile(doc), request_id=context.request_id)
 
 
@@ -209,7 +229,14 @@ def reject_access_request(access_request_id, payload=None):
 	before = _request_snapshot(request_doc)
 	_resolve_request(request_doc.name, "Rejected", context, reason)
 	request_doc.reload()
-	_write_audit(context, request_doc.user_email, "access_request_rejected", reason, before, _request_snapshot(request_doc))
+	_write_audit(
+		context,
+		request_doc.user_email,
+		"access_request_rejected",
+		reason,
+		before,
+		_request_snapshot(request_doc),
+	)
 	return response(_serialize_request(request_doc), request_id=context.request_id)
 
 
@@ -298,14 +325,18 @@ def _get_request(value):
 
 
 def _protect_admin_change(context, doc, next_profile, next_active):
-	removes_admin = doc.profile_key == "admin_central" and doc.active and (
-		next_profile != "admin_central" or not next_active
+	removes_admin = (
+		doc.profile_key == "admin_central"
+		and doc.active
+		and (next_profile != "admin_central" or not next_active)
 	)
 	if doc.user_email == context.email and removes_admin:
 		raise UnivespValidationError(_("Voce nao pode remover o proprio acesso administrativo."))
-	if removes_admin and frappe.db.count(
-		"Univesp Access Profile", filters={"profile_key": "admin_central", "active": 1}
-	) <= 1:
+	if (
+		removes_admin
+		and frappe.db.count("Univesp Access Profile", filters={"profile_key": "admin_central", "active": 1})
+		<= 1
+	):
 		raise UnivespValidationError(_("O ultimo Admin central ativo nao pode ser removido."))
 
 
@@ -334,7 +365,19 @@ def _serialize_profile(value):
 
 def _profile_snapshot(doc):
 	data = _serialize_profile(doc)
-	return {key: data[key] for key in ["email", "display_name", "ra", "profile_key", "active", "provisioning_source", "scopes", "actions"]}
+	return {
+		key: data[key]
+		for key in [
+			"email",
+			"display_name",
+			"ra",
+			"profile_key",
+			"active",
+			"provisioning_source",
+			"scopes",
+			"actions",
+		]
+	}
 
 
 def _serialize_request(value):
@@ -357,7 +400,9 @@ def _serialize_request(value):
 
 def _request_snapshot(doc):
 	data = _serialize_request(doc)
-	return {key: data[key] for key in ["email", "display_name", "ra", "identity_flow", "status", "attempt_count"]}
+	return {
+		key: data[key] for key in ["email", "display_name", "ra", "identity_flow", "status", "attempt_count"]
+	}
 
 
 def _resolve_request(email, status, context, reason):
@@ -399,7 +444,17 @@ def _audit_rows(target_email=None, filters=None, start=0, page_size=25):
 	rows = frappe.get_all(
 		"Univesp Access Audit",
 		filters=filters,
-		fields=["name", "actor_email", "target_email", "operation", "reason", "before_json", "after_json", "request_id", "event_at"],
+		fields=[
+			"name",
+			"actor_email",
+			"target_email",
+			"operation",
+			"reason",
+			"before_json",
+			"after_json",
+			"request_id",
+			"event_at",
+		],
 		order_by="event_at desc",
 		start=start,
 		page_length=page_size,
