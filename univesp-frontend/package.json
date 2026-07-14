@@ -17,7 +17,8 @@
     "lint": "eslint . --ext .js,.vue --max-warnings=0",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "check": "npm run lint && npm run typecheck && npm run build",
-    "test:foundation": "node scripts/run-canonical-tests.mjs"
+    "test:foundation": "node scripts/run-canonical-tests.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@vue-flow/background": "^1.3.2",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^20.0.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "autoprefixer": "^10.4.20",

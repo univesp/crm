@@ -10,15 +10,9 @@ from dataclasses import dataclass
 import frappe
 from frappe import _
 
+from univesp_atendimento.access_control import ALLOWED_PROFILES
 
-ALLOWED_PROFILES = {
-	"aluno",
-	"op",
-	"gestor_polos",
-	"analista_area",
-	"gestor_area",
-	"admin_central",
-}
+
 MAX_CONTEXT_AGE_SECONDS = 60
 
 
@@ -34,8 +28,8 @@ class RequestContext:
 
 
 def get_request_context(required_action: str | None = None) -> RequestContext:
-	identity = _verify_signed_identity()
-	profile = _load_access_profile(identity["email"])
+	identity = verify_signed_identity()
+	profile = load_access_profile(identity["email"])
 	request_id = frappe.get_request_header("X-Request-ID") or str(uuid.uuid4())
 	context = RequestContext(
 		email=identity["email"],
@@ -97,7 +91,7 @@ def resolve_ticket_name(ticket_id: str) -> str:
 	return name
 
 
-def _verify_signed_identity():
+def verify_signed_identity():
 	encoded = frappe.get_request_header("X-Univesp-User-Context") or ""
 	timestamp = frappe.get_request_header("X-Univesp-Timestamp") or ""
 	signature = frappe.get_request_header("X-Univesp-Signature") or ""
@@ -133,18 +127,21 @@ def _verify_signed_identity():
 	email = str(payload.get("email") or "").strip().lower()
 	if not email:
 		raise frappe.AuthenticationError(_("Identidade institucional sem email."))
-	return {"email": email, "name": str(payload.get("name") or ""), "ra": str(payload.get("ra") or "")}
+	return {
+		"email": email,
+		"name": str(payload.get("name") or ""),
+		"ra": str(payload.get("ra") or ""),
+		"flow": str(payload.get("flow") or ""),
+	}
 
 
-def _load_access_profile(email: str):
-	name = frappe.db.get_value(
-		"Univesp Access Profile",
-		{"user_email": email, "active": 1},
-		"name",
-	)
+def load_access_profile(email: str):
+	name = frappe.db.get_value("Univesp Access Profile", {"user_email": email}, "name")
 	if not name:
 		raise frappe.PermissionError(_("Usuario sem perfil ativo no Atendimento UNIVESP."))
 	profile = frappe.get_doc("Univesp Access Profile", name)
+	if not profile.active:
+		raise frappe.PermissionError(_("Usuario desativado no Atendimento UNIVESP."))
 	if profile.profile_key not in ALLOWED_PROFILES:
 		raise frappe.PermissionError(_("Perfil institucional invalido."))
 	return profile

@@ -37,6 +37,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:foundation
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
   backend-syntax:
     runs-on: ubuntu-latest

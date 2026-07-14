@@ -115,7 +115,11 @@ function publicStatus(status) {
 }
 
 function frappeErrorCode(status, payload) {
-  if (/sem perfil ativo/i.test(JSON.stringify(payload || {}))) return 'PROFILE_NOT_ASSIGNED'
+	const serialized = JSON.stringify(payload || {})
+	if (/UnivespConflictError/i.test(serialized)) return 'CONFLICT'
+	if (/UnivespValidationError/i.test(serialized)) return 'VALIDATION_ERROR'
+	if (/desativado no Atendimento/i.test(serialized)) return 'ACCESS_DISABLED'
+	if (/sem perfil ativo/i.test(serialized)) return 'PROFILE_NOT_ASSIGNED'
   if (status === 401) return 'AUTHENTICATION_REQUIRED'
   if (status === 403) return 'PERMISSION_DENIED'
   if (status === 404) return 'NOT_FOUND'

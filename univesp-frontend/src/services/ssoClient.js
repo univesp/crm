@@ -306,7 +306,7 @@ export async function logoutFromSso() {
   return { ok: true, redirected: false }
 }
 
-function normalizeGatewayUser(session) {
+export function normalizeGatewayUser(session) {
   const rawUser = session.user && typeof session.user === 'object' ? session.user : session
   const profile = session.profile ?? rawUser.profile ?? null
   const profileKey = normalizeMockProfileKey(
@@ -319,6 +319,7 @@ function normalizeGatewayUser(session) {
     session.actions || session.permissions || profile?.actions || rawUser.actions,
   )
   const email = String(rawUser.email || rawUser.mail || '').trim().toLowerCase()
+  const access = session.access && typeof session.access === 'object' ? session.access : {}
 
   if (!email) {
     throw new SsoApiError('A sessao institucional nao informou o email do usuario.')
@@ -339,6 +340,8 @@ function normalizeGatewayUser(session) {
     raw: {
       source: 'sso-gateway',
       profileKey,
+      accessStatus: String(access.status || (profileKey ? 'active' : 'pending')).toLowerCase(),
+      accessRequestId: access.request_id || '',
     },
   }
 }

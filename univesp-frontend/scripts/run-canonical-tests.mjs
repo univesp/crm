@@ -80,6 +80,8 @@ const ownershipServerRuntime = await loadModule('/src/services/operationalOwners
 const studentSupportModule = await loadModule('/src/stores/studentSupport.js')
 const mockContextModule = await loadModule('/src/services/mockContextRuntime.js')
 const authModule = await loadModule('/src/stores/auth.js')
+const appApiModule = await loadModule('/src/services/appApi.js')
+const ssoClientModule = await loadModule('/src/services/ssoClient.js')
 const adminFaqLibraryModule = await loadModule('/src/pages/admin/AdminFaqLibraryPage.vue')
 const adminFaqFlowModule = await loadModule('/src/pages/admin/AdminFaqPage.vue')
 const adminFaqEditorModule = await loadModule('/src/pages/admin/AdminFaqEditorPage.vue')
@@ -127,7 +129,9 @@ const {
   validateBundleOwnershipCoverageForServer,
 } = ownershipServerRuntime
 const { useStudentSupportStore } = studentSupportModule
-const { buildMockAccessContext } = mockContextModule
+const { buildMockAccessContext, canAccessRouteWithMockContext } = mockContextModule
+const { listAdminUsers, updateAdminUser } = appApiModule
+const { normalizeGatewayUser } = ssoClientModule
 const { useAuthStore } = authModule
 const AdminFaqLibraryPage = adminFaqLibraryModule.default
 const AdminFaqPage = adminFaqFlowModule.default
@@ -380,6 +384,57 @@ function test(name, fn) {
 }
 
 const now = new Date('2026-04-08T10:00:00-03:00')
+
+test('rota de gestao de usuarios exige manage_users e admin possui a acao', () => {
+  const route = appRoutes.find((entry) => entry.name === 'admin-permissions')
+  const context = getMockContext('admin_central')
+
+  assert.deepEqual(route.meta.requiredActions, ['manage_users'])
+  assert.equal(canAccessRouteWithMockContext(route.meta, context), true)
+})
+
+test('cliente administrativo usa mesma origem, PATCH e preserva conflito 409', async () => {
+  const originalFetch = globalThis.fetch
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: options.method || 'GET' })
+    if (String(url).includes('conflict%40univesp.br')) {
+      return new Response(
+        JSON.stringify({ error: { code: 'CONFLICT', message: 'Registro alterado.' } }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
+    return new Response(JSON.stringify({ data: [], error: null, meta: { total: 0 } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  try {
+    await listAdminUsers({ search: 'ana' })
+    await assert.rejects(
+      () => updateAdminUser('conflict@univesp.br', { version: 'old', reason: 'Teste' }),
+      (error) => error.status === 409 && error.code === 'CONFLICT',
+    )
+    assert.match(calls[0].url, /^\/api\/app\/v1\/admin\/users\?search=ana$/)
+    assert.equal(calls[1].method, 'PATCH')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('sessao sem perfil permanece autenticada com estado pendente', () => {
+  const user = normalizeGatewayUser({
+    user: { email: 'pending@univesp.br', display_name: 'Pending' },
+    profile: null,
+    scopes: {},
+    actions: [],
+    access: { status: 'pending', request_id: 'pending@univesp.br' },
+  })
+  assert.equal(user.email, 'pending@univesp.br')
+  assert.equal(user.profileKey, '')
+  assert.equal(user.raw.accessStatus, 'pending')
+  assert.equal(buildMockAccessContext(user).defaultRoute, '/acesso-pendente')
+})
 
 test('rota do editor FAQ resolve corretamente sem cair na visao resumida', async () => {
   const router = createRouter({

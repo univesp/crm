@@ -203,7 +203,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'operational',
       allowedProfiles: ['op', 'gestor_polos'],
-      requiredActions: ['view_case'],
+      requiredActions: ['view_ticket'],
     },
   },
   {
@@ -216,7 +216,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'operational',
       allowedProfiles: ['op', 'gestor_polos'],
-      requiredActions: ['view_case'],
+      requiredActions: ['view_ticket'],
     },
   },
   {
@@ -229,7 +229,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'operational',
       allowedProfiles: ['op', 'gestor_polos'],
-      requiredActions: ['view_case'],
+      requiredActions: ['view_ticket'],
     },
   },
   {
@@ -242,7 +242,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'operational',
       allowedProfiles: ['op', 'gestor_polos'],
-      requiredActions: ['view_case'],
+      requiredActions: ['view_ticket'],
     },
   },
   {
@@ -255,7 +255,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'operational',
       allowedProfiles: ['gestor_area'],
-      requiredActions: ['view_case'],
+      requiredActions: ['view_ticket'],
     },
   },
   {
@@ -268,7 +268,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'operational',
       allowedProfiles: ['analista_area', 'gestor_area'],
-      requiredActions: ['view_case'],
+      requiredActions: ['view_ticket'],
     },
   },
   {
@@ -281,7 +281,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'operational',
       allowedProfiles: ['analista_area', 'gestor_area'],
-      requiredActions: ['view_case'],
+      requiredActions: ['view_ticket'],
     },
   },
   {
@@ -333,7 +333,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'governance',
       allowedProfiles: ['admin_central'],
-      requiredActions: ['view_case'],
+      requiredActions: ['view_ticket'],
     },
   },
   {
@@ -434,7 +434,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'governance',
       allowedProfiles: ['admin_central'],
-      requiredActions: ['view_audit'],
+      requiredActions: ['manage_users'],
     },
   },
   {

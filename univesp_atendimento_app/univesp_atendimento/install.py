@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
+from univesp_atendimento.access_control import actions_for_profile
+
 
 STATUS_DEFINITIONS = (
 	("Aberto", "Aberto", "Open", "Red"),
@@ -160,3 +162,13 @@ def setup_schema():
 				"enabled": 1,
 			}
 		).insert(ignore_permissions=True)
+
+	if frappe.db.exists("DocType", "Univesp Access Profile"):
+		for profile in frappe.get_all("Univesp Access Profile", fields=["name", "profile_key"]):
+			frappe.db.set_value(
+				"Univesp Access Profile",
+				profile.name,
+				"actions_json",
+				frappe.as_json(actions_for_profile(profile.profile_key)),
+				update_modified=False,
+			)

@@ -13,19 +13,36 @@ router.use((req, res, next) => {
 
 router.get('/tickets', forward('tickets.list_tickets', { query: true }))
 router.post('/tickets', forward('tickets.create', { wrapPayload: true }))
-router.get('/tickets/:ticketId', forward('tickets.get', { params: true }))
-router.post('/tickets/:ticketId/messages', forward('tickets.add_message', { params: true }))
-router.post('/tickets/:ticketId/attachments', forward('tickets.attach', { params: true, rawBody: true }))
-router.post('/tickets/:ticketId/assign', forward('tickets.assign', { params: true }))
-router.post('/tickets/:ticketId/transition', forward('tickets.transition', { params: true }))
+router.get('/tickets/:ticketId', forward('tickets.get', { routeParams: { ticket_id: 'ticketId' } }))
+router.post('/tickets/:ticketId/messages', forward('tickets.add_message', { routeParams: { ticket_id: 'ticketId' } }))
+router.post('/tickets/:ticketId/attachments', forward('tickets.attach', { routeParams: { ticket_id: 'ticketId' }, rawBody: true }))
+router.post('/tickets/:ticketId/assign', forward('tickets.assign', { routeParams: { ticket_id: 'ticketId' } }))
+router.post('/tickets/:ticketId/transition', forward('tickets.transition', { routeParams: { ticket_id: 'ticketId' } }))
 router.get('/queues', forward('queues.list_queues'))
 router.get('/knowledge/published', forward('knowledge.published', { query: true }))
+router.get('/admin/users', forward('admin.list_users', { query: true }))
+router.post('/admin/users', forward('admin.create_user', { wrapPayload: true }))
+router.get('/admin/users/:email', forward('admin.get_user', { routeParams: { email: 'email' } }))
+router.patch('/admin/users/:email', forward('admin.update_user', { routeParams: { email: 'email' }, wrapPayload: true }))
+router.get('/admin/access-requests', forward('admin.list_access_requests', { query: true }))
+router.post('/admin/access-requests/:requestId/approve', forward('admin.approve_access_request', {
+  routeParams: { access_request_id: 'requestId' },
+  wrapPayload: true,
+}))
+router.post('/admin/access-requests/:requestId/reject', forward('admin.reject_access_request', {
+  routeParams: { access_request_id: 'requestId' },
+  wrapPayload: true,
+}))
+router.get('/admin/catalogs', forward('admin.catalogs'))
+router.get('/admin/audit', forward('admin.list_audit', { query: true }))
 
 function forward(method, options = {}) {
   return async (req, res) => {
     const requestId = requestIdFor(req)
     try {
-      const routeParams = options.params ? { ticket_id: req.params.ticketId } : {}
+      const routeParams = Object.fromEntries(
+        Object.entries(options.routeParams || {}).map(([target, source]) => [target, req.params[source]]),
+      )
       const query = {
         ...(options.query ? req.query : {}),
         ...(req.method === 'GET' || options.rawBody ? routeParams : {}),
@@ -33,7 +50,7 @@ function forward(method, options = {}) {
       let body
       if (!options.rawBody) {
         body = { ...routeParams, ...(req.body || {}) }
-        if (options.wrapPayload) body = { payload: JSON.stringify(req.body || {}) }
+        if (options.wrapPayload) body = { ...routeParams, payload: JSON.stringify(req.body || {}) }
       }
       const result = await callFrappe(method, {
         user: req.session.user,

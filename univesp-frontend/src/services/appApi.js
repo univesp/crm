@@ -67,6 +67,48 @@ export async function listPublishedKnowledge(params = {}) {
   return appRequest(withQuery('/knowledge/published', params))
 }
 
+export async function listAdminUsers(params = {}) {
+  return appRequest(withQuery('/admin/users', params))
+}
+
+export async function getAdminUser(email) {
+  return appRequest(`/admin/users/${encodeURIComponent(email)}`)
+}
+
+export async function createAdminUser(payload) {
+  return appRequest('/admin/users', { method: 'POST', body: payload })
+}
+
+export async function updateAdminUser(email, payload) {
+  return appRequest(`/admin/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: payload })
+}
+
+export async function listAccessRequests(params = {}) {
+  return appRequest(withQuery('/admin/access-requests', params))
+}
+
+export async function approveAccessRequest(requestId, payload) {
+  return appRequest(`/admin/access-requests/${encodeURIComponent(requestId)}/approve`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function rejectAccessRequest(requestId, payload) {
+  return appRequest(`/admin/access-requests/${encodeURIComponent(requestId)}/reject`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function getAdminCatalogs() {
+  return appRequest('/admin/catalogs')
+}
+
+export async function listAccessAudit(params = {}) {
+  return appRequest(withQuery('/admin/audit', params))
+}
+
 export async function appRequest(path, options = {}) {
   const method = String(options.method || 'GET').toUpperCase()
   const headers = new Headers(options.headers || {})
