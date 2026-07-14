@@ -66,9 +66,9 @@ fetch_app_ref apps/helpdesk "$HELPDESK_REF"
 mkdir -p "$TARGET_APP"
 rsync -a --delete --exclude '.git/' --exclude '__pycache__/' "$SOURCE_APP/" "$TARGET_APP/"
 
-bench setup requirements --app telephony
-bench setup requirements --app helpdesk
-bench setup requirements --app univesp_atendimento
+bench setup requirements telephony
+bench setup requirements helpdesk
+bench setup requirements univesp_atendimento
 
 if ! bench --site "$SITE" list-apps | grep -qx telephony; then
   bench --site "$SITE" install-app telephony
