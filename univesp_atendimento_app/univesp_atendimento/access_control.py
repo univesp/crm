@@ -64,6 +64,8 @@ PROFILE_DEFINITIONS = {
 			"transition_ticket",
 			"manage_users",
 			"view_audit",
+			"view_area_guidance",
+			"manage_area_scope",
 			"edit_faq",
 			"edit_parameters",
 			"publish_version",

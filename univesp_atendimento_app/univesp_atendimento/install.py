@@ -109,11 +109,26 @@ def setup_schema():
 					"insert_after": "custom_univesp_queue",
 				},
 				{
+					"fieldname": "custom_univesp_assignee_email",
+					"label": "Responsavel institucional",
+					"fieldtype": "Data",
+					"options": "Email",
+					"in_standard_filter": 1,
+					"insert_after": "custom_univesp_area",
+				},
+				{
+					"fieldname": "custom_univesp_assignee_name",
+					"label": "Nome do responsavel",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_univesp_assignee_email",
+				},
+				{
 					"fieldname": "custom_univesp_context_json",
 					"label": "Contexto da triagem",
 					"fieldtype": "Long Text",
 					"read_only": 1,
-					"insert_after": "custom_univesp_area",
+					"insert_after": "custom_univesp_assignee_name",
 				},
 				{
 					"fieldname": "custom_source_bundle_id",

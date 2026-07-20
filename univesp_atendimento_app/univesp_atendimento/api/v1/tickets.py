@@ -64,6 +64,8 @@ TICKET_FIELDS = [
 	"custom_student_course",
 	"custom_univesp_queue",
 	"custom_univesp_area",
+	"custom_univesp_assignee_email",
+	"custom_univesp_assignee_name",
 	"custom_univesp_context_json",
 	"custom_source_bundle_id",
 	"custom_source_bundle_version_id",
@@ -137,20 +139,44 @@ def list_tickets(
 		term = f"%{str(search).strip()}%"
 		filters.append(["HD Ticket", "subject", "like", term])
 
+	or_filters = _ticket_assignment_or_filters(context)
+	query_options = {
+		"filters": filters,
+		"or_filters": or_filters,
+	}
 	rows = frappe.get_all(
 		"HD Ticket",
-		filters=filters,
+		**query_options,
 		fields=TICKET_FIELDS,
 		order_by="modified desc",
 		start=(page - 1) * page_size,
 		page_length=page_size,
 	)
-	total = frappe.db.count("HD Ticket", filters=filters)
+	if or_filters:
+		count_rows = frappe.get_all(
+			"HD Ticket",
+			**query_options,
+			fields=["count(name) as total"],
+			page_length=1,
+		)
+		total = cint(count_rows[0].get("total")) if count_rows else 0
+	else:
+		total = frappe.db.count("HD Ticket", filters=filters)
 	return response(
 		[_serialize_ticket(row) for row in rows],
 		meta={"page": page, "page_size": page_size, "total": total},
 		request_id=context.request_id,
 	)
+
+
+def _ticket_assignment_or_filters(context):
+	if context.profile_key != "op":
+		return []
+	return [
+		["HD Ticket", "custom_univesp_assignee_email", "=", context.email],
+		["HD Ticket", "custom_univesp_assignee_email", "=", ""],
+		["HD Ticket", "custom_univesp_assignee_email", "is", "not set"],
+	]
 
 
 @frappe.whitelist(methods=["GET"])
@@ -170,6 +196,7 @@ def add_message(ticket_id: str, message: str | None = None):
 	context = get_request_context("reply_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
+	_claim_operator_ticket(name, context)
 	text = str(message or _payload().get("message") or "").strip()
 	if not text:
 		frappe.throw(_("Mensagem obrigatoria."), frappe.ValidationError)
@@ -192,6 +219,7 @@ def attach(ticket_id: str):
 	context = get_request_context("attach_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
+	_claim_operator_ticket(name, context)
 	files = getattr(frappe.request, "files", None)
 	uploads = files.getlist("files") if files and hasattr(files, "getlist") else list((files or {}).values())
 	if not uploads:
@@ -204,20 +232,90 @@ def attach(ticket_id: str):
 
 
 @frappe.whitelist(methods=["POST"])
-def assign(ticket_id: str, assignee: str | None = None, queue: str | None = None):
+def assign(
+	ticket_id: str,
+	assignee: str | None = None,
+	queue: str | None = None,
+	area: str | None = None,
+	reason: str | None = None,
+):
 	context = get_request_context("assign_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
 	doc = frappe.get_doc("HD Ticket", name)
-	if queue:
-		doc.custom_univesp_queue = str(queue).strip()
-		doc.agent_group = str(queue).strip() if frappe.db.exists("HD Team", str(queue).strip()) else None
+	assignment_reason = str(reason or "").strip()
+	if len(assignment_reason) < 5:
+		frappe.throw(_("Informe um motivo auditavel para a atribuicao."), frappe.ValidationError)
+	if queue is not None:
+		queue_name = str(queue).strip()
+		doc.custom_univesp_queue = queue_name
+		doc.agent_group = queue_name if queue_name and frappe.db.exists("HD Team", queue_name) else None
+	if area is not None:
+		area_name = str(area).strip()
+		if area_name:
+			_validate_area_destination(context, area_name)
+		doc.custom_univesp_area = area_name
 	if assignee:
-		from frappe.desk.form.assign_to import add
+		profile = _assignable_profile(context, assignee, doc.custom_univesp_area)
+		doc.custom_univesp_assignee_email = profile.user_email
+		doc.custom_univesp_assignee_name = profile.display_name
+		if frappe.db.exists("User", profile.user_email):
+			from frappe.desk.form.assign_to import add
 
-		add({"doctype": "HD Ticket", "name": name, "assign_to": [str(assignee)]})
+			add({"doctype": "HD Ticket", "name": name, "assign_to": [profile.user_email]})
+	doc.add_comment("Comment", text=assignment_reason)
+	doc.custom_request_id = context.request_id
 	doc.save(ignore_permissions=True)
 	return response(_serialize_ticket(doc), request_id=context.request_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def area_action(
+	ticket_id: str,
+	action_type: str | None = None,
+	note: str | None = None,
+	destination_area: str | None = None,
+):
+	context = get_request_context("transition_ticket")
+	if context.profile_key not in {"analista_area", "gestor_area", "admin_central"}:
+		raise frappe.PermissionError(_("Seu perfil nao pode registrar tratativa de area."))
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	doc = frappe.get_doc("HD Ticket", name)
+	action = str(action_type or "").strip()
+	message = str(note or "").strip()
+	if len(message) < 3:
+		frappe.throw(_("Registre uma nota auditavel para a tratativa."), frappe.ValidationError)
+
+	if action == "reassign":
+		if context.profile_key not in {"gestor_area", "admin_central"}:
+			raise frappe.PermissionError(_("Somente gestor de area pode reencaminhar o caso."))
+		next_area = str(destination_area or "").strip()
+		if not next_area:
+			frappe.throw(_("Area de destino obrigatoria."), frappe.ValidationError)
+		_validate_area_destination(context, next_area, allow_manager_override=True)
+		target_status = "waiting_internal"
+		doc.custom_univesp_area = next_area
+	elif action == "technical_reply":
+		target_status = "in_analysis"
+		doc.custom_univesp_area = ""
+	elif action == "request_complement":
+		target_status = "waiting_student"
+		doc.custom_univesp_area = ""
+	elif action == "conclude":
+		target_status = "resolved"
+		doc.custom_univesp_area = ""
+	else:
+		frappe.throw(_("Acao de area invalida."), frappe.ValidationError)
+
+	_move_to_status(doc, target_status)
+	doc.custom_request_id = context.request_id
+	doc.save(ignore_permissions=True)
+	doc.add_comment("Comment", text=message)
+	result = _serialize_ticket(doc)
+	result["timeline"] = _ticket_timeline(name)
+	result["attachments"] = _ticket_attachments(name)
+	return response(result, request_id=context.request_id)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -225,6 +323,7 @@ def transition(ticket_id: str, status: str | None = None, message: str | None = 
 	context = get_request_context("transition_ticket")
 	name = resolve_ticket_name(ticket_id)
 	ensure_ticket_access(name, context)
+	_claim_operator_ticket(name, context)
 	doc = frappe.get_doc("HD Ticket", name)
 	target = str(status or _payload().get("status") or "").strip()
 	current = doc.custom_univesp_status_code or "open"
@@ -279,6 +378,8 @@ def _serialize_ticket(ticket):
 		"source": value.get("custom_univesp_source"),
 		"queue": value.get("custom_univesp_queue"),
 		"area": value.get("custom_univesp_area"),
+		"assignee": value.get("custom_univesp_assignee_name") or "",
+		"assignee_email": value.get("custom_univesp_assignee_email") or "",
 		"student": {
 			"email": value.get("custom_student_email"),
 			"name": value.get("custom_student_name"),
@@ -289,6 +390,87 @@ def _serialize_ticket(ticket):
 		"created_at": value.get("creation"),
 		"updated_at": value.get("modified"),
 	}
+
+
+def _claim_operator_ticket(ticket_name, context):
+	if context.profile_key != "op":
+		return
+	frappe.db.sql(
+		"""
+		UPDATE `tabHD Ticket`
+		SET custom_univesp_assignee_email = %s,
+			custom_univesp_assignee_name = %s,
+			custom_request_id = %s
+		WHERE name = %s
+			AND COALESCE(custom_univesp_assignee_email, '') = ''
+		""",
+		(context.email, context.name, context.request_id, ticket_name),
+	)
+	assignee = str(
+		frappe.db.get_value("HD Ticket", ticket_name, "custom_univesp_assignee_email") or ""
+	).strip().lower()
+	if assignee != context.email:
+		raise frappe.PermissionError(_("Este atendimento foi assumido por outro OP."))
+
+
+def _validate_area_destination(context, area_name, allow_manager_override=False):
+	if not _known_area(area_name):
+		frappe.throw(_("Area institucional de destino nao encontrada."), frappe.ValidationError)
+	if context.profile_key == "admin_central":
+		return
+	allowed_areas = {str(value).strip() for value in context.scopes.get("areas", []) if str(value).strip()}
+	if area_name in allowed_areas:
+		return
+	if allow_manager_override and "manager_override_route" in context.actions:
+		return
+	raise frappe.PermissionError(_("Area fora do escopo institucional ativo."))
+
+
+def _known_area(area_name):
+	if frappe.db.exists("HD Ticket", {"custom_univesp_area": area_name}):
+		return True
+	rows = frappe.get_all(
+		"Univesp Access Profile", fields=["scopes_json"], filters={"active": 1}, limit_page_length=0
+	)
+	for row in rows:
+		scopes = frappe.parse_json(row.scopes_json or "{}")
+		if area_name in set(scopes.get("areas") or []):
+			return True
+	return False
+
+
+def _assignable_profile(context, email, area_name):
+	normalized_email = str(email or "").strip().lower()
+	profile_name = frappe.db.get_value(
+		"Univesp Access Profile", {"user_email": normalized_email, "active": 1}, "name"
+	)
+	if not profile_name:
+		frappe.throw(_("Responsavel institucional ativo nao encontrado."), frappe.ValidationError)
+	profile = frappe.get_doc("Univesp Access Profile", profile_name)
+	if profile.profile_key not in {"analista_area", "gestor_area"}:
+		frappe.throw(_("O responsavel precisa ter perfil de area."), frappe.ValidationError)
+	profile_scopes = frappe.parse_json(profile.scopes_json or "{}")
+	if area_name and area_name not in set(profile_scopes.get("areas") or []):
+		frappe.throw(_("O responsavel nao pertence a area atual do caso."), frappe.ValidationError)
+	if area_name:
+		_validate_area_destination(context, area_name)
+	return profile
+
+
+def _move_to_status(doc, target):
+	current = doc.custom_univesp_status_code or "open"
+	if current == target:
+		return
+	if target not in TRANSITIONS.get(current, set()):
+		if "in_analysis" not in TRANSITIONS.get(current, set()):
+			frappe.throw(_("Transicao de status nao permitida."), frappe.ValidationError)
+		doc.status = _status_name("in_analysis")
+		doc.custom_univesp_status_code = "in_analysis"
+		current = "in_analysis"
+	if target not in TRANSITIONS.get(current, set()):
+		frappe.throw(_("Transicao de status nao permitida."), frappe.ValidationError)
+	doc.status = _status_name(target)
+	doc.custom_univesp_status_code = target
 
 
 def _ticket_timeline(ticket_name):

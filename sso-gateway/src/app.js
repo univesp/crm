@@ -21,7 +21,7 @@ export function createApp({ sessionStore } = {}) {
 
   app.use(cookieParser())
   app.use(express.urlencoded({ extended: false }))
-  app.use(express.json({ limit: '1mb' }))
+  app.use(express.json({ limit: process.env.MAX_JSON_BODY || '3mb' }))
   app.use(
     session({
       name: 'crm_session',
@@ -48,12 +48,18 @@ export function createApp({ sessionStore } = {}) {
   app.use((error, _req, res, _next) => {
     const requestId = randomUUID()
     const invalidJson = error?.type === 'entity.parse.failed'
+    const bodyTooLarge = error?.type === 'entity.too.large'
+    const status = bodyTooLarge ? 413 : invalidJson ? 400 : 500
     res.setHeader('X-Request-ID', requestId)
-    res.status(invalidJson ? 400 : 500).json({
+    res.status(status).json({
       data: null,
       error: {
-        code: invalidJson ? 'INVALID_JSON' : 'INTERNAL_ERROR',
-        message: invalidJson ? 'Corpo JSON invalido.' : 'Falha interna no Gateway.',
+        code: bodyTooLarge ? 'PAYLOAD_TOO_LARGE' : invalidJson ? 'INVALID_JSON' : 'INTERNAL_ERROR',
+        message: bodyTooLarge
+          ? 'Corpo JSON maior que o limite permitido.'
+          : invalidJson
+            ? 'Corpo JSON invalido.'
+            : 'Falha interna no Gateway.',
       },
       meta: {},
       request_id: requestId,
