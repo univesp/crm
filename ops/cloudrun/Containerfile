@@ -39,6 +39,14 @@ COPY univesp-frontend/package*.json ./
 RUN npm ci
 
 COPY univesp-frontend/ ./
+
+ARG VITE_ENABLE_MOCKS=false
+ARG VITE_SSO_DEV_BYPASS=false
+ARG VITE_APP_API_BASE=/api/app/v1
+ENV VITE_ENABLE_MOCKS=${VITE_ENABLE_MOCKS}
+ENV VITE_SSO_DEV_BYPASS=${VITE_SSO_DEV_BYPASS}
+ENV VITE_APP_API_BASE=${VITE_APP_API_BASE}
+
 RUN npm run build
 
 FROM frappe/base:${FRAPPE_BRANCH}

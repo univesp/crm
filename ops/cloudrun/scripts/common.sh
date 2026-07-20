@@ -275,7 +275,11 @@ start_socketio() {
 start_nginx() {
 	export BACKEND=127.0.0.1:8000
 	export SOCKETIO=127.0.0.1:${SOCKETIO_PORT}
-	export SSO_GATEWAY_ORIGIN=${SSO_GATEWAY_ORIGIN:-http://127.0.0.1:4000}
+	if [[ -z "${SSO_GATEWAY_ORIGIN:-}" ]]; then
+		printf 'SSO_GATEWAY_ORIGIN is required for the academic front door.\n' >&2
+		return 1
+	fi
+	export SSO_GATEWAY_ORIGIN
 	export PROXY_READ_TIMEOUT=${PROXY_READ_TIMEOUT:-3600}
 	export CLIENT_MAX_BODY_SIZE=${CLIENT_MAX_BODY_SIZE:-50m}
 

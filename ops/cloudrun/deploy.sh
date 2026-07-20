@@ -52,10 +52,18 @@ SCHEDULER_TIMEOUT=${SCHEDULER_TIMEOUT:-}
 SCHEDULER_CPU_ALWAYS_ALLOCATED=${SCHEDULER_CPU_ALWAYS_ALLOCATED:-}
 SSO_GATEWAY_ORIGIN=${SSO_GATEWAY_ORIGIN:-}
 
-if [[ -z "${PROJECT_ID}" || -z "${IMAGE_URI}" || -z "${CLOUDSQL_INSTANCE}" || -z "${SITES_BUCKET}" || -z "${VPC_CONNECTOR}" || -z "${RUNTIME_SERVICE_ACCOUNT}" ]]; then
-	printf 'GCP_PROJECT_ID, IMAGE_URI, CLOUDSQL_INSTANCE, SITES_BUCKET, VPC_CONNECTOR and CLOUDRUN_RUNTIME_SERVICE_ACCOUNT are required.\n' >&2
+if [[ -z "${PROJECT_ID}" || -z "${IMAGE_URI}" || -z "${CLOUDSQL_INSTANCE}" || -z "${SITES_BUCKET}" || -z "${VPC_CONNECTOR}" || -z "${RUNTIME_SERVICE_ACCOUNT}" || -z "${SSO_GATEWAY_ORIGIN}" ]]; then
+	printf 'GCP_PROJECT_ID, IMAGE_URI, CLOUDSQL_INSTANCE, SITES_BUCKET, VPC_CONNECTOR, CLOUDRUN_RUNTIME_SERVICE_ACCOUNT and SSO_GATEWAY_ORIGIN are required.\n' >&2
 	exit 1
 fi
+
+case "${SSO_GATEWAY_ORIGIN}" in
+https://*) ;;
+*)
+	printf 'SSO_GATEWAY_ORIGIN must be an https:// origin for Cloud Run.\n' >&2
+	exit 1
+	;;
+esac
 
 if [[ -z "${DB_PORT}" ]]; then
 	if [[ "${DB_TYPE}" == "postgres" ]]; then

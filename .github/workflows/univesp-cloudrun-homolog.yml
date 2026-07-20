@@ -3,6 +3,11 @@ name: Univesp Cloud Run Homolog
 on:
   workflow_dispatch:
     inputs:
+      confirm_homolog_deploy:
+        description: "Confirmar deploy manual no ambiente de homologacao"
+        required: true
+        default: false
+        type: boolean
       provision_infra:
         description: "Provisionar Artifact Registry, bucket, service account e VPC connector antes do deploy"
         required: false
@@ -14,7 +19,11 @@ permissions:
 
 jobs:
   deploy:
+    if: ${{ github.ref_name == 'univesp/cloudrun-homolog' && inputs.confirm_homolog_deploy == true }}
     runs-on: ubuntu-latest
+    environment:
+      name: homolog
+      url: https://${{ vars.PUBLIC_DOMAIN }}
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}

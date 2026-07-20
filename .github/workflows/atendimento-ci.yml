@@ -7,6 +7,7 @@ on:
       - "univesp_atendimento_app/**"
       - "sso-gateway/**"
       - "ops/vm/**"
+      - "ops/cloudrun/**"
       - ".github/workflows/atendimento-ci.yml"
   push:
     branches:
@@ -16,6 +17,7 @@ on:
       - "univesp_atendimento_app/**"
       - "sso-gateway/**"
       - "ops/vm/**"
+      - "ops/cloudrun/**"
 
 permissions:
   contents: read
@@ -34,9 +36,8 @@ jobs:
           cache: npm
           cache-dependency-path: univesp-frontend/package-lock.json
       - run: npm ci
-      - run: npm run typecheck
+      - run: npm run check
       - run: npm run test:foundation
-      - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
@@ -48,6 +49,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m compileall -q univesp_atendimento_app
+      - run: python -m unittest discover -s ops/cloudrun/tests -p "test_*.py"
 
   gateway:
     runs-on: ubuntu-latest
