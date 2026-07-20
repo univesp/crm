@@ -406,9 +406,11 @@ def _claim_operator_ticket(ticket_name, context):
 		""",
 		(context.email, context.name, context.request_id, ticket_name),
 	)
-	assignee = str(
-		frappe.db.get_value("HD Ticket", ticket_name, "custom_univesp_assignee_email") or ""
-	).strip().lower()
+	assignee = (
+		str(frappe.db.get_value("HD Ticket", ticket_name, "custom_univesp_assignee_email") or "")
+		.strip()
+		.lower()
+	)
 	if assignee != context.email:
 		raise frappe.PermissionError(_("Este atendimento foi assumido por outro OP."))
 

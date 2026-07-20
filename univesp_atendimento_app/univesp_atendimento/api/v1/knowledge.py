@@ -189,7 +189,9 @@ def _serialize_library(doc):
 
 
 def _library_summary(library):
-	encoded = json.dumps(library or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+	encoded = json.dumps(library or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+		"utf-8"
+	)
 	bundles = library.get("bundles") if isinstance(library, dict) else []
 	bundles = bundles if isinstance(bundles, list) else []
 	return {

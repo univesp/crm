@@ -78,9 +78,11 @@ def ensure_ticket_access(ticket_name: str, context: RequestContext):
 	if not frappe.get_all("HD Ticket", filters=filters, pluck="name", limit=1):
 		raise frappe.PermissionError(_("Voce nao pode acessar este protocolo."))
 	if context.profile_key == "op":
-		assignee = str(
-			frappe.db.get_value("HD Ticket", ticket_name, "custom_univesp_assignee_email") or ""
-		).strip().lower()
+		assignee = (
+			str(frappe.db.get_value("HD Ticket", ticket_name, "custom_univesp_assignee_email") or "")
+			.strip()
+			.lower()
+		)
 		if assignee and assignee != context.email:
 			raise frappe.PermissionError(_("Este atendimento esta atribuido a outro OP."))
 

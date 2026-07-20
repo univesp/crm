@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 
 from univesp_atendimento.api.v1.common import get_request_context, response
 
@@ -25,12 +26,12 @@ def list_queues():
 def list_area_members(area: str):
 	context = get_request_context("assign_ticket")
 	if context.profile_key not in {"gestor_area", "admin_central"}:
-		raise frappe.PermissionError("Somente gestor de area pode consultar responsaveis.")
+		raise frappe.PermissionError(_("Somente gestor de area pode consultar responsaveis."))
 	area_name = str(area or "").strip()
 	if not area_name:
-		frappe.throw("Area obrigatoria.", frappe.ValidationError)
+		frappe.throw(_("Area obrigatoria."), frappe.ValidationError)
 	if context.profile_key != "admin_central" and area_name not in set(context.scopes.get("areas") or []):
-		raise frappe.PermissionError("Area fora do escopo institucional ativo.")
+		raise frappe.PermissionError(_("Area fora do escopo institucional ativo."))
 
 	rows = frappe.get_all(
 		"Univesp Access Profile",

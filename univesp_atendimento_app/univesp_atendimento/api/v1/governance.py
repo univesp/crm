@@ -94,7 +94,9 @@ def _known_areas():
 
 def _governance_doc(area):
 	name = frappe.db.exists("Univesp Area Governance", {"area_label": area})
-	return frappe.get_doc("Univesp Area Governance", name) if name else frappe.new_doc("Univesp Area Governance")
+	return (
+		frappe.get_doc("Univesp Area Governance", name) if name else frappe.new_doc("Univesp Area Governance")
+	)
 
 
 def _payload(value=None):

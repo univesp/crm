@@ -39,20 +39,24 @@ class TestAreaGovernance(TestCase):
 	def test_accepts_scoped_rule_and_availability(self, _members):
 		_validate_state(
 			"Suporte Academico Digital",
-			[{
-				"id": "scope-1",
-				"areaLabel": "Suporte Academico Digital",
-				"accessMode": "restricted",
-				"allowedAnalysts": ["Analista Um"],
-			}],
-			[{
-				"id": "availability-1",
-				"userName": "Analista Um",
-				"areaLabel": "Suporte Academico Digital",
-				"statusCode": "unavailable",
-				"startsAt": "2026-07-20 10:00:00",
-				"endsAt": "2026-07-21 10:00:00",
-			}],
+			[
+				{
+					"id": "scope-1",
+					"areaLabel": "Suporte Academico Digital",
+					"accessMode": "restricted",
+					"allowedAnalysts": ["Analista Um"],
+				}
+			],
+			[
+				{
+					"id": "availability-1",
+					"userName": "Analista Um",
+					"areaLabel": "Suporte Academico Digital",
+					"statusCode": "unavailable",
+					"startsAt": "2026-07-20 10:00:00",
+					"endsAt": "2026-07-21 10:00:00",
+				}
+			],
 		)
 
 	@patch(
@@ -63,11 +67,13 @@ class TestAreaGovernance(TestCase):
 		with self.assertRaises(AreaGovernanceValidationError):
 			_validate_state(
 				"Suporte Academico Digital",
-				[{
-					"id": "scope-1",
-					"areaLabel": "Suporte Academico Digital",
-					"accessMode": "restricted",
-					"allowedAnalysts": ["Pessoa Externa"],
-				}],
+				[
+					{
+						"id": "scope-1",
+						"areaLabel": "Suporte Academico Digital",
+						"accessMode": "restricted",
+						"allowedAnalysts": ["Pessoa Externa"],
+					}
+				],
 				[],
 			)

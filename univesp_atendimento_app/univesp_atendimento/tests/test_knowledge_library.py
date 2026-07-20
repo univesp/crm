@@ -36,10 +36,12 @@ class TestKnowledgeLibrary(TestCase):
 	def test_rejects_payload_above_two_mebibytes(self):
 		with self.assertRaises(KnowledgeLibraryValidationError):
 			_validate_library(
-				_library({
-					"bundleId": "bundle:oversized",
-					"workspace": {"draftBundle": {"content": "x" * (2 * 1024 * 1024)}},
-				})
+				_library(
+					{
+						"bundleId": "bundle:oversized",
+						"workspace": {"draftBundle": {"content": "x" * (2 * 1024 * 1024)}},
+					}
+				)
 			)
 
 	def test_publication_respects_effective_window(self):
@@ -51,9 +53,7 @@ class TestKnowledgeLibrary(TestCase):
 				current,
 			)
 		)
-		self.assertFalse(
-			_is_publication_active({"effectiveStartAt": "2026-07-21 10:00:00"}, {}, current)
-		)
+		self.assertFalse(_is_publication_active({"effectiveStartAt": "2026-07-21 10:00:00"}, {}, current))
 
 	def test_audit_summary_uses_hash_instead_of_full_payload(self):
 		summary = _library_summary(_library(_bundle()))
