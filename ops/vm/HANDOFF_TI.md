@@ -1,4 +1,6 @@
-# Passagem para TI - Atendimento UNIVESP
+# Passagem para TI - Atendimento UNIVESP (topologia VM)
+
+> Checklist canônico e atualizado: `docs/TI_HOMOLOGACAO.md`. Este arquivo mantém apenas os passos específicos da VM.
 
 Este roteiro separa o que ja esta no codigo do que exige acesso administrativo.
 Execute primeiro em homologacao. Nao registre valores de segredo em chamados,
@@ -67,8 +69,8 @@ Qualquer item marcado como `ERRO` deve ser corrigido.
 ```bash
 cd /var/crm/repository
 git fetch origin
-git checkout codex/atendimento-foundation
-git pull --ff-only origin codex/atendimento-foundation
+git checkout univesp/cloudrun-homolog
+git pull --ff-only origin univesp/cloudrun-homolog
 
 BENCH_OWNER="$(stat -c '%U' /var/crm/frappe-bench)"
 sudo -u "$BENCH_OWNER" CRM_ROOT=/var/crm \

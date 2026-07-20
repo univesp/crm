@@ -12,7 +12,7 @@ tokens tecnicos do Frappe e nao acessa `/api/resource` ou `/api/method`.
 3. consultar o perfil autorizado no app `univesp_atendimento`;
 4. expor `/api/me` e `/api/app/v1/*` no mesmo dominio do portal;
 5. assinar o contexto enviado ao Frappe e encaminhar `X-Request-ID`;
-6. persistir sessoes no Redis e limitar o corpo JSON a 1 MB;
+6. persistir sessoes no Redis e limitar o corpo JSON a 3 MB, com resposta 413 para excesso;
 7. usar uma conta tecnica Frappe exclusiva, mantida apenas no `.env` da VM.
 
 ## Contexto assinado

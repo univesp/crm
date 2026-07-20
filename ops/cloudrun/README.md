@@ -2,7 +2,7 @@
 
 Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 
-- `web`: Cloud Run público com `nginx + gunicorn + socket.io` no mesmo container, servindo o `univesp-frontend` na raiz e o Frappe CRM em `/crm`.
+- `web`: Cloud Run público com `nginx + gunicorn + socket.io` no mesmo container. O nginx serve o `univesp-frontend`; Frappe permanece como motor interno e não expõe CRM/Desk/APIs genéricas no domínio acadêmico.
 - `worker`: Cloud Run privado, instância fixa, CPU sempre alocada, processando filas Redis.
 - `scheduler`: Cloud Run privado, instância fixa, CPU sempre alocada, executando `bench schedule`.
 - `bootstrap`: Cloud Run Job idempotente para criar o site, instalar o app e rodar `migrate`.
@@ -97,11 +97,12 @@ MODE=full ./ops/cloudrun/set-service-mode.sh
 O nginx do serviço público fica como entrada única do ambiente:
 
 - `/` e `/login` servem o `univesp-frontend`.
-- `/api/me` e `/api/sso/*` vão para `SSO_GATEWAY_ORIGIN`.
-- `/api/method/*`, `/api/resource/*`, `/crm*`, `/app*`, `/desk*`, `/assets*` e `/files*` vão para o Frappe.
-- `/socket.io*` vai para o processo realtime do Frappe.
+- `/api/me`, `/api/sso/*` e `/api/app/v1/*` vão para `SSO_GATEWAY_ORIGIN`.
+- `/api/method/*`, `/api/resource/*`, `/app*`, `/desk*`, `/assets*`, `/files*`, `/private/files*` e `/socket.io*` retornam `404` externamente.
+- `/crm*` redireciona para o portal acadêmico.
+- O gateway usa uma origem interna/privada do Frappe com credencial técnica e contexto institucional assinado; ela não deve ser o front door público bloqueado por este nginx.
 
-Essa separação evita o erro `Cannot GET /api/method/...`: chamadas Frappe não devem cair no frontend/SSO, e chamadas SSO não devem cair no Frappe.
+`SSO_GATEWAY_ORIGIN` é obrigatório e deve usar HTTPS. O deploy falha antes de alterar serviços quando essa integração não está configurada.
 
 ### Google Cloud / domínio
 
@@ -116,7 +117,7 @@ Use esta divisão de responsabilidade:
 - `origin/main`: espelho limpo do upstream no seu fork. Não suba commits da Univesp aqui.
 - `origin/univesp/cloudrun-homolog`: branch longa com tudo que é específico da Univesp.
 
-O workflow `Univesp Cloud Run Homolog` agora dispara apenas em `push` para `univesp/cloudrun-homolog`, então o deploy não depende mais de promover essas customizações para a `main` do fork.
+O workflow `Univesp Cloud Run Homolog` é exclusivamente manual. Ele aceita deploy apenas quando a referência selecionada é `univesp/cloudrun-homolog`, exige `confirm_homolog_deploy=true` e usa o Environment `homolog`. O deploy não depende de promover customizações para a `main` do fork.
 
 Sincronização recomendada:
 
@@ -155,7 +156,7 @@ Use `SYNC_MODE=rebase` quando a branch for basicamente sua e você quiser histó
 
 1. Execute `ops/cloudrun/provision.sh` autenticado no GCP para criar Artifact Registry, bucket, service account, VPC connector, Redis VM e permissões mínimas do runtime.
 2. Alimente os secrets do GitHub.
-3. Faça push em `univesp/cloudrun-homolog` ou rode manualmente o workflow `Univesp Cloud Run Homolog`.
+3. Após PR aprovado e merge em `univesp/cloudrun-homolog`, rode manualmente o workflow `Univesp Cloud Run Homolog`, confirme o deploy e obtenha a aprovação do Environment `homolog`.
 4. O workflow:
    - autentica no GCP via Workload Identity Federation,
    - builda a imagem em Artifact Registry,
@@ -201,6 +202,7 @@ export CLOUDSQL_INSTANCE=univesp-201808:us-east1:pgsql17-prod
 export SITES_BUCKET=univesp-201808-crm-homolog-sites
 export VPC_CONNECTOR=crm-homolog-connector
 export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
+export SSO_GATEWAY_ORIGIN=https://<origem-do-sso-gateway>
 ./ops/cloudrun/deploy.sh
 ```
 
@@ -216,5 +218,22 @@ export SITES_BUCKET=univesp-201808-crm-homolog-sites
 export VPC_CONNECTOR=crm-homolog-connector
 export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
 export DEPLOY_PROFILE=single-user
+export SSO_GATEWAY_ORIGIN=https://<origem-do-sso-gateway>
 ./ops/cloudrun/deploy.sh
 ```
+
+## Rollback de imagem
+
+Use somente uma imagem anterior identificada por SHA ou digest. O procedimento
+preserva a configuração dos serviços e não desfaz migrations:
+
+```bash
+export GCP_PROJECT_ID=univesp-201808
+export GCP_REGION=us-east1
+export ROLLBACK_IMAGE_URI=<imagem-anterior-por-sha-ou-digest>
+export CONFIRM_ROLLBACK=homolog
+./ops/cloudrun/rollback.sh
+```
+
+Após o rollback, execute smoke completo. Migration incompatível exige decisão
+de forward-fix ou restore seguindo `docs/TI_HOMOLOGACAO.md`.
