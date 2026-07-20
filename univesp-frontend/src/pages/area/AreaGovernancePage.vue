@@ -1,15 +1,85 @@
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
 import {
   AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
   buildAreaManagerBackendReadiness,
 } from '@/contracts/areaManagerOperationalContract'
+import {
+  getAreaGovernance,
+  isMockRuntimeEnabled,
+  listAreaMembers,
+  listTickets,
+  updateAreaGovernance,
+} from '@/services/appApi'
+import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
+const liveTeamMembers = ref([])
+const governanceState = reactive({
+  loading: false,
+  error: '',
+  version: '',
+})
+
+async function loadInstitutionalGovernance() {
+  if (isMockRuntimeEnabled()) return
+  const area = auth.mockContext.currentArea
+  if (!area) return
+  governanceState.loading = true
+  governanceState.error = ''
+  try {
+    const [stateResponse, membersResponse, ticketsResponse] = await Promise.all([
+      getAreaGovernance(area),
+      listAreaMembers(area),
+      listTickets({ page: 1, page_size: 100 }),
+    ])
+    studentSupportStore.areaSubjectRules = Array.isArray(stateResponse.data?.rules)
+      ? stateResponse.data.rules
+      : []
+    studentSupportStore.userAvailability = Array.isArray(stateResponse.data?.availability)
+      ? stateResponse.data.availability
+      : []
+    governanceState.version = String(stateResponse.data?.version || '')
+    liveTeamMembers.value = (membersResponse.data || []).map((member) => member.display_name).filter(Boolean)
+    studentSupportStore.replaceLiveTickets(
+      (ticketsResponse.data || []).map(mapApiTicketToOperationalProtocol),
+    )
+  } catch (error) {
+    governanceState.error = error?.message || 'Falha ao carregar a governanca institucional da area.'
+    liveTeamMembers.value = []
+    studentSupportStore.areaSubjectRules = []
+    studentSupportStore.userAvailability = []
+    studentSupportStore.replaceLiveTickets([])
+  } finally {
+    governanceState.loading = false
+  }
+}
+
+async function persistInstitutionalGovernance(reason) {
+  if (isMockRuntimeEnabled()) return
+  const area = auth.mockContext.currentArea
+  const rules = studentSupportStore.areaSubjectRules.filter((rule) => rule.areaLabel === area)
+  const availability = studentSupportStore.userAvailabilityCatalog.filter(
+    (record) => !record.areaLabel || record.areaLabel === area,
+  )
+  const response = await updateAreaGovernance(area, {
+    rules,
+    availability,
+    version: governanceState.version,
+    reason,
+  })
+  governanceState.version = String(response.data?.version || governanceState.version)
+}
+
+watch(
+  () => auth.mockContext.currentArea,
+  () => loadInstitutionalGovernance(),
+  { immediate: true },
+)
 
 const governanceRows = computed(() => studentSupportStore.areaGovernanceRows(auth.mockContext))
 const managerOverview = computed(
@@ -24,7 +94,11 @@ const managerOverview = computed(
       ruleImpactHints: [],
     },
 )
-const areaTeamMembers = computed(() => studentSupportStore.areaTeamMembers(auth.mockContext.currentArea))
+const areaTeamMembers = computed(() =>
+  isMockRuntimeEnabled()
+    ? studentSupportStore.areaTeamMembers(auth.mockContext.currentArea)
+    : liveTeamMembers.value,
+)
 const availabilityRows = computed(() =>
   studentSupportStore.userAvailabilityCatalog
     .filter(
@@ -33,6 +107,11 @@ const availabilityRows = computed(() =>
         (!record.areaLabel || record.areaLabel === auth.mockContext.currentArea),
     )
     .sort((left, right) => new Date(right.startsAt || 0).getTime() - new Date(left.startsAt || 0).getTime()),
+)
+const serverParityNote = computed(() =>
+  isMockRuntimeEnabled()
+    ? AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE
+    : 'Regras, disponibilidade, membros e tickets sao carregados do Frappe; escrita exige escopo de gestor, versao atual e gera auditoria.',
 )
 const backendReadiness = buildAreaManagerBackendReadiness({ hasServerOverview: false })
 const backendImpactFields = computed(() => backendReadiness.governanceImpactFields || [])
@@ -126,7 +205,7 @@ function toggleAnalyst(rowId, analystName) {
     : [...draft.allowedAnalysts, analystName]
 }
 
-function saveScopeRule(row) {
+async function saveScopeRule(row) {
   const draft = scopeDrafts[row.id]
   if (!draft) {
     return
@@ -142,8 +221,14 @@ function saveScopeRule(row) {
     actorName: auth.mockContext.userName,
   })
 
-  feedback.scope.type = 'success'
-  feedback.scope.message = `Regra de escopo atualizada para ${row.subjectLabel}.`
+  try {
+    await persistInstitutionalGovernance(`Atualizacao da regra de escopo: ${row.subjectLabel}`)
+    feedback.scope.type = 'success'
+    feedback.scope.message = `Regra de escopo atualizada para ${row.subjectLabel}.`
+  } catch (error) {
+    feedback.scope.type = 'error'
+    feedback.scope.message = error?.message || 'Falha ao persistir a regra de escopo.'
+  }
 }
 
 function statusLabel(statusCode = '') {
@@ -247,7 +332,7 @@ function resetAvailabilityForm() {
   availabilityForm.notes = ''
 }
 
-function saveAvailability() {
+async function saveAvailability() {
   if (!availabilityForm.userName || !availabilityForm.startsAt || !availabilityForm.endsAt) {
     feedback.availability.type = 'error'
     feedback.availability.message = 'Preencha pessoa, inicio e fim para registrar a disponibilidade.'
@@ -270,14 +355,29 @@ function saveAvailability() {
     notes: availabilityForm.notes,
   })
 
-  feedback.availability.type = 'success'
-  feedback.availability.message = `Disponibilidade registrada para ${availabilityForm.userName}.`
-  resetAvailabilityForm()
+  const savedUserName = availabilityForm.userName
+  try {
+    await persistInstitutionalGovernance(`Atualizacao de disponibilidade: ${savedUserName}`)
+    feedback.availability.type = 'success'
+    feedback.availability.message = `Disponibilidade registrada para ${savedUserName}.`
+    resetAvailabilityForm()
+  } catch (error) {
+    feedback.availability.type = 'error'
+    feedback.availability.message = error?.message || 'Falha ao persistir a disponibilidade.'
+  }
 }
 </script>
 
 <template>
   <div class="grid gap-4">
+    <section
+      v-if="governanceState.loading || governanceState.error"
+      class="rounded-[14px] border px-4 py-3 text-sm"
+      :class="governanceState.error ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-600'"
+      :role="governanceState.error ? 'alert' : 'status'"
+    >
+      {{ governanceState.error || 'Carregando governanca institucional...' }}
+    </section>
     <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[760px]">
@@ -305,7 +405,7 @@ function saveAvailability() {
         </div>
       </div>
       <p class="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
-        {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
+        {{ serverParityNote }}
       </p>
     </section>
 

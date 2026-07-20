@@ -1,3 +1,5 @@
+import { reactive } from 'vue'
+
 import faqAluno from '../../mocks/faq-aluno.json'
 import faqOp from '../../mocks/faq-op.json'
 import {
@@ -11,6 +13,80 @@ import {
   getCatalogKeys,
   hasCatalogValue,
 } from './faqCatalogs'
+
+const publishedFaqState = reactive({
+  enabled: false,
+  aluno: null,
+  op: null,
+})
+
+function emptyFaqPackage(faqType) {
+  return {
+    schema_version: '2.0.0',
+    faq_id: `faq-${faqType}-published`,
+    tipo_faq: faqType,
+    metadata: { title: `FAQ ${faqType}`, source_mode: 'institutional_published' },
+    versioning: { publication_status: 'published' },
+    publication: {},
+    nodes: [],
+    links: [],
+  }
+}
+
+function mergePublishedPackages(faqType, entries = []) {
+  const packages = (entries || [])
+    .map((entry) => entry?.package || entry)
+    .filter((entry) => entry && typeof entry === 'object' && Array.isArray(entry.nodes))
+  if (!packages.length) return emptyFaqPackage(faqType)
+
+  const base = JSON.parse(JSON.stringify(packages[0]))
+  const nodes = []
+  const links = []
+  const nodeIds = new Set()
+  const linkIds = new Set()
+  packages.forEach((pkg) => {
+    ;(pkg.nodes || []).forEach((node) => {
+      const id = String(node?.id || '').trim()
+      if (!id || nodeIds.has(id)) return
+      nodeIds.add(id)
+      nodes.push(JSON.parse(JSON.stringify(node)))
+    })
+    ;(pkg.links || []).forEach((link, index) => {
+      const source = String(link?.source || link?.source_id || link?.parent_node_id || '').trim()
+      const target = String(link?.target || link?.target_id || link?.child_node_id || '').trim()
+      if (!source || !target || !nodeIds.has(source) || !nodeIds.has(target)) return
+      const id = String(link?.id || `${source}:${target}:${index}`).trim()
+      if (linkIds.has(id)) return
+      linkIds.add(id)
+      links.push(JSON.parse(JSON.stringify({ ...link, id })))
+    })
+  })
+  return {
+    ...base,
+    faq_id: `faq-${faqType}-published`,
+    tipo_faq: faqType,
+    nodes,
+    links,
+  }
+}
+
+export function enablePublishedFaqRuntime() {
+  publishedFaqState.enabled = true
+  publishedFaqState.aluno = emptyFaqPackage('aluno')
+  publishedFaqState.op = emptyFaqPackage('op')
+}
+
+export function setPublishedFaqBundles(faqType = 'aluno', entries = []) {
+  const normalized = String(faqType || 'aluno').trim().toLowerCase()
+  if (!['aluno', 'op'].includes(normalized)) return
+  publishedFaqState[normalized] = mergePublishedPackages(normalized, entries)
+}
+
+function faqPackageFor(faqType, mockPackage) {
+  return publishedFaqState.enabled
+    ? publishedFaqState[faqType] || emptyFaqPackage(faqType)
+    : mockPackage
+}
 
 const TARGET_TYPES = new Set(['node', 'tema', 'tag'])
 const ACTIVE_PUBLICATION_STATUSES = new Set(['draft', 'review', 'published'])
@@ -517,28 +593,28 @@ export function buildFaqHomeEntries(faqPackage, options = {}) {
 }
 
 export function buildStudentFaqRuntime(options = {}) {
-  return buildFaqRuntimeTree(faqAluno, {
+  return buildFaqRuntimeTree(faqPackageFor('aluno', faqAluno), {
     profile: 'aluno',
     ...options,
   })
 }
 
 export function buildOperatorFaqRuntime(options = {}) {
-  return buildFaqRuntimeTree(faqOp, {
+  return buildFaqRuntimeTree(faqPackageFor('op', faqOp), {
     profile: 'op',
     ...options,
   })
 }
 
 export function buildStudentFaqHomeEntries(options = {}) {
-  return buildFaqHomeEntries(faqAluno, {
+  return buildFaqHomeEntries(faqPackageFor('aluno', faqAluno), {
     profile: 'aluno',
     ...options,
   })
 }
 
 export function buildOperatorFaqHomeEntries(options = {}) {
-  return buildFaqHomeEntries(faqOp, {
+  return buildFaqHomeEntries(faqPackageFor('op', faqOp), {
     profile: 'op',
     ...options,
   })

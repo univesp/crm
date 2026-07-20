@@ -1,9 +1,17 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { buildAreaCaseSummaryBackendReadiness, buildAreaCaseSummaryPayload } from '@/contracts/areaCaseSummaryContract'
 import { AREA_OPERATIONAL_SERVER_PARITY_NOTE, canRunAreaAction } from '@/contracts/areaOperationalContracts'
+import {
+  assignTicket,
+  getTicket,
+  isMockRuntimeEnabled,
+  listAreaMembers,
+  submitAreaTicketAction,
+} from '@/services/appApi'
+import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -36,6 +44,7 @@ const reassignVerifiedContext = ref('')
 const concludeNoPendingConfirmed = ref(false)
 const activeSupportTab = ref('op_context')
 const showFullTimeline = ref(false)
+const liveAreaMembers = ref([])
 
 const SUPPORT_TAB_OPTIONS = Object.freeze([
   { id: 'op_context', label: 'Contexto OP' },
@@ -75,9 +84,19 @@ const detail = computed(() => studentSupportStore.areaCaseById(caseId.value, are
 const globalAreaDetail = computed(() => studentSupportStore.areaCaseById(caseId.value, null))
 const globalOperatorDetail = computed(() => studentSupportStore.operatorCaseById(caseId.value, null))
 const queueFlashStorageKey = computed(() => `univesp-area-queue-flash:${auth.mockContext.profileKey}`)
-const teamMembers = computed(() =>
-  detail.value ? studentSupportStore.areaTeamMembers(detail.value.currentAreaLabel || auth.mockContext.currentArea) : [],
-)
+const teamMemberOptions = computed(() => {
+  if (isMockRuntimeEnabled()) {
+    return detail.value
+      ? studentSupportStore
+          .areaTeamMembers(detail.value.currentAreaLabel || auth.mockContext.currentArea)
+          .map((name) => ({ value: name, label: name }))
+      : []
+  }
+  return liveAreaMembers.value.map((member) => ({
+    value: member.email,
+    label: member.display_name || member.email,
+  }))
+})
 const guidanceRoute = computed(() => {
   if (!detail.value) {
     return '/area/orientacao'
@@ -1016,14 +1035,14 @@ watch(selectedAction, () => {
 })
 
 watch(
-  () => detail.value?.currentAssigneeLabel,
-  (assigneeLabel) => {
+  () => [detail.value?.currentAssigneeLabel, detail.value?.currentAssigneeEmail],
+  ([assigneeLabel, assigneeEmail]) => {
     if (!assigneeLabel || assigneeLabel === 'Sem responsavel') {
       selectedAssignee.value = ''
       return
     }
 
-    selectedAssignee.value = assigneeLabel
+    selectedAssignee.value = isMockRuntimeEnabled() ? assigneeLabel : assigneeEmail || ''
   },
 )
 
@@ -1265,7 +1284,51 @@ const confirmationCopy = computed(() => {
   return null
 })
 
-function submitAreaAction(actionType) {
+async function loadLiveAreaCase() {
+  if (isMockRuntimeEnabled() || !caseId.value) return
+  try {
+    const result = await getTicket(caseId.value)
+    const protocol = mapApiTicketToOperationalProtocol(result.data)
+    studentSupportStore.upsertLiveTicket(protocol)
+    if (isAreaManager.value && protocol.currentAreaLabel) {
+      const membersResult = await listAreaMembers(protocol.currentAreaLabel)
+      liveAreaMembers.value = Array.isArray(membersResult.data) ? membersResult.data : []
+      selectedAssignee.value = protocol.assignedOperatorEmail || ''
+    }
+  } catch (error) {
+    actionFeedback.value = {
+      type: 'error',
+      message: error?.message || 'Nao foi possivel carregar o caso institucional da area.',
+    }
+  }
+}
+
+async function submitLiveAreaAction(actionType) {
+  const note = actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value.trim()
+  const result = await submitAreaTicketAction(detail.value.id, {
+    action_type: actionType,
+    note,
+    destination_area: actionType === 'reassign' ? selectedDestinationArea.value : '',
+  })
+  const protocol = mapApiTicketToOperationalProtocol(result.data)
+  studentSupportStore.upsertLiveTicket(protocol)
+  return {
+    destinationLabel:
+      actionType === 'reassign'
+        ? selectedDestinationArea.value
+        : protocol.currentAreaLabel || protocol.queueLabel || 'Operacao do polo',
+  }
+}
+
+onMounted(() => {
+  void loadLiveAreaCase()
+})
+
+watch(caseId, () => {
+  void loadLiveAreaCase()
+})
+
+async function submitAreaAction(actionType) {
   if (!detail.value || isSubmitting.value || !actionAvailability.value.canAct) {
     return
   }
@@ -1278,14 +1341,16 @@ function submitAreaAction(actionType) {
   clearFeedback()
   let actionLog = null
   try {
-    actionLog = studentSupportStore.registerAreaAction({
-      caseId: detail.value.id,
-      actionType,
-      note: actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value,
-      actorName: auth.mockContext.userName,
-      nextArea: selectedDestinationArea.value,
-      isManagerException: isManagerExceptionSelected.value,
-    })
+    actionLog = isMockRuntimeEnabled()
+      ? studentSupportStore.registerAreaAction({
+          caseId: detail.value.id,
+          actionType,
+          note: actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value,
+          actorName: auth.mockContext.userName,
+          nextArea: selectedDestinationArea.value,
+          isManagerException: isManagerExceptionSelected.value,
+        })
+      : await submitLiveAreaAction(actionType)
   } catch (error) {
     isSubmitting.value = false
     actionFeedback.value = {
@@ -1338,7 +1403,7 @@ function submitAreaAction(actionType) {
   syncSuggestedNote(true)
 }
 
-function assignCase() {
+async function assignCase() {
   if (!detail.value || !isAreaManager.value) {
     return
   }
@@ -1362,19 +1427,39 @@ function assignCase() {
   }
 
   assignmentError.value = ''
+  const selectedOption = teamMemberOptions.value.find((item) => item.value === selectedAssignee.value)
+  const assigneeLabel = selectedOption?.label || selectedAssignee.value
+  const reason = assignmentReason.value || 'Redistribuicao gerencial da area.'
 
-  studentSupportStore.assignAreaCase({
-    caseId: detail.value.id,
-    areaLabel: detail.value.currentAreaLabel,
-    analystName: selectedAssignee.value,
-    actorName: auth.mockContext.userName,
-    reason: assignmentReason.value || 'Redistribuicao gerencial da area.',
-  })
+  try {
+    if (isMockRuntimeEnabled()) {
+      studentSupportStore.assignAreaCase({
+        caseId: detail.value.id,
+        areaLabel: detail.value.currentAreaLabel,
+        analystName: assigneeLabel,
+        actorName: auth.mockContext.userName,
+        reason,
+      })
+    } else {
+      const result = await assignTicket(detail.value.id, {
+        assignee: selectedAssignee.value,
+        area: detail.value.currentAreaLabel,
+        reason,
+      })
+      studentSupportStore.upsertLiveTicket(mapApiTicketToOperationalProtocol(result.data))
+    }
+  } catch (error) {
+    assignmentFeedback.value = {
+      type: 'error',
+      message: error?.message || 'Nao foi possivel atribuir o caso institucional.',
+    }
+    return
+  }
 
   assignmentReason.value = ''
   assignmentFeedback.value = {
     type: 'success',
-    message: `Caso atribuido para ${selectedAssignee.value}.`,
+    message: `Caso atribuido para ${assigneeLabel}.`,
   }
 }
 </script>
@@ -1640,8 +1725,8 @@ function assignCase() {
                   class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
                 >
                   <option value="">Selecione</option>
-                  <option v-for="analyst in teamMembers" :key="analyst" :value="analyst">
-                    {{ analyst }}
+                  <option v-for="analyst in teamMemberOptions" :key="analyst.value" :value="analyst.value">
+                    {{ analyst.label }}
                   </option>
                 </select>
               </label>

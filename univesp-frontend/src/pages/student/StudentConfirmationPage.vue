@@ -1,20 +1,36 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
+import { getTicket, isMockRuntimeEnabled } from '@/services/appApi'
+import { mapApiTicketToStudentProtocol } from '@/services/ticketMapper'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const route = useRoute()
 const studentSupportStore = useStudentSupportStore()
+const remoteProtocol = ref(null)
 
 const protocolId = computed(() => String(route.params.protocolId || ''))
 const protocol = computed(() =>
-  protocolId.value === 'faq-resolvida' ? null : studentSupportStore.findLocalProtocolById(protocolId.value),
+  protocolId.value === 'faq-resolvida'
+    ? null
+    : remoteProtocol.value || studentSupportStore.findLocalProtocolById(protocolId.value),
 )
 const resolvedState = computed(() =>
   protocolId.value === 'faq-resolvida' ? studentSupportStore.resolvedState : null,
 )
+
+onMounted(async () => {
+  if (isMockRuntimeEnabled() || !protocolId.value || protocolId.value === 'faq-resolvida') return
+  try {
+    const result = await getTicket(protocolId.value)
+    remoteProtocol.value = mapApiTicketToStudentProtocol(result.data)
+    studentSupportStore.upsertLiveTicket(remoteProtocol.value)
+  } catch {
+    remoteProtocol.value = null
+  }
+})
 
 const pageContent = computed(() => {
   if (protocol.value) {

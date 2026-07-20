@@ -6,6 +6,13 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const gatewayTarget = env.VITE_SSO_GATEWAY_PROXY_TARGET || ''
   const proxiedPaths = ['/api']
+  const mockRuntimeEnabled = ['1', 'true', 'yes', 'on'].includes(
+    String(env.VITE_ENABLE_MOCKS || '').trim().toLowerCase(),
+  )
+
+  if (mode === 'production' && mockRuntimeEnabled) {
+    throw new Error('VITE_ENABLE_MOCKS must be false for a production build.')
+  }
 
   const proxy = gatewayTarget
     ? Object.fromEntries(

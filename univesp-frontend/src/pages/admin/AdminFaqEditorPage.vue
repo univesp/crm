@@ -53,6 +53,7 @@ import {
   validateFaqBuilderPortalExport,
   resolveFaqBuilderNodeEffectiveOwner,
 } from '@/services/faqBuilderHybridRuntime'
+import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 const EDITOR_MODES = Object.freeze([
@@ -227,7 +228,7 @@ let hasMountedEditor = false
 let isUpdatingBundleOperationalOwner = false
 
 const backendReadiness = buildFaqBuilderBackendReadiness({
-  hasServerUpsert: false,
+  hasServerUpsert: true,
   hasServerDryRun: false,
   hasServerLock: false,
 })
@@ -888,7 +889,12 @@ function handleGlobalPointerDown(event) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    await hydrateFaqLibrary(library, currentEditorName.value)
+  } catch (error) {
+    runtimeLoadError.value = error?.message || 'Falha ao carregar a biblioteca FAQ institucional.'
+  }
   hasMountedEditor = true
   document.addEventListener('pointerdown', handleGlobalPointerDown)
 })
@@ -975,7 +981,6 @@ function getCurrentBundleOwnerDraftFieldValue(field = '') {
 }
 
 function syncBundleOwnerDraftFromWorkspace(options = {}) {
-  const source = String(options.source || 'unknown')
   if (isUpdatingBundleOperationalOwner && !options.force) {
     return
   }
@@ -1367,21 +1372,27 @@ function selectRootNode() {
   if (rootId) ui.selectedNodeId = rootId
 }
 
-function saveDraft() {
+async function saveDraft() {
   if (!workspace.value) return
+  const reason = ui.governanceSummary || 'Rascunho salvo no editor completo.'
   saveFaqBuilderDraftWorkspace(workspace.value, {
     actorName: currentEditorName.value,
-    summary: ui.governanceSummary || 'Rascunho salvo no editor completo.',
+    summary: reason,
   })
   touchWorkspace({ rebuild: 'immediate' })
-  setFeedback('success', 'Rascunho salvo sem publicar.')
+  try {
+    await persistFaqLibrary(library, reason)
+    setFeedback('success', 'Rascunho salvo no Frappe sem publicar.')
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir o rascunho FAQ.')
+  }
 }
 
-function submitReview() {
-  workflowTransition('In Review', 'Fluxo enviado para revisao.')
+async function submitReview() {
+  await workflowTransition('In Review', 'Fluxo enviado para revisao.')
 }
 
-function workflowTransition(nextStatus = 'Draft', successMessage = '') {
+async function workflowTransition(nextStatus = 'Draft', successMessage = '') {
   if (!workspace.value) return
   const result = transitionFaqBuilderWorkflow(workspace.value, {
     nextStatus,
@@ -1393,10 +1404,18 @@ function workflowTransition(nextStatus = 'Draft', successMessage = '') {
     return
   }
   touchWorkspace()
-  if (successMessage) setFeedback('success', successMessage)
+  try {
+    await persistFaqLibrary(
+      library,
+      ui.governanceSummary || `Transicao do fluxo FAQ para ${nextStatus}`,
+    )
+    if (successMessage) setFeedback('success', `${successMessage} Alteracao persistida no Frappe.`)
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir a transicao do fluxo FAQ.')
+  }
 }
 
-function publishWorkspace() {
+async function publishWorkspace() {
   if (!workspace.value) return
   const result = publishFaqBuilderWorkspace(workspace.value, {
     actorName: currentEditorName.value,
@@ -1409,7 +1428,15 @@ function publishWorkspace() {
     return
   }
   touchWorkspace()
-  setFeedback('success', 'Fluxo publicado com sucesso.')
+  try {
+    await persistFaqLibrary(
+      library,
+      ui.governanceSummary || 'Publicacao do fluxo FAQ via editor completo',
+    )
+    setFeedback('success', 'Fluxo publicado e persistido no Frappe.')
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir a publicacao FAQ.')
+  }
 }
 
 function openPreview() {

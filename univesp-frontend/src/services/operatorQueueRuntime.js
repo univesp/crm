@@ -1015,6 +1015,7 @@ function buildLocalQueueEntry(protocol, actionLogs = [], areaActionLogs = []) {
   return applyActionLogsToQueueEntry(
     {
       id: protocol.protocolNumber,
+      runtimeSource: protocol.runtimeSource || '',
       subject: protocol.subject,
       theme: titleCase(protocol.context?.theme),
       themeKey: normalizeText(protocol.context?.theme),
@@ -1033,12 +1034,16 @@ function buildLocalQueueEntry(protocol, actionLogs = [], areaActionLogs = []) {
       createdAtLabel: protocol.createdAtLabel || 'Nao informado',
       source: protocol.source || 'portal_aluno',
       originLabel: protocol.sourceLabel || resolveSourceLabel(protocol.source),
-      assignedOperator: resolveAssignedOperatorName({
-        assignedOperator: protocol.assignedOperator,
-        polo: protocolStudent.polo,
-        queue: routing.currentQueueLabel,
-        routing,
-      }),
+      assignedOperator:
+        protocol.runtimeSource === 'app_api'
+          ? protocol.assignedOperator || ''
+          : resolveAssignedOperatorName({
+              assignedOperator: protocol.assignedOperator,
+              polo: protocolStudent.polo,
+              queue: routing.currentQueueLabel,
+              routing,
+            }),
+      assignedOperatorEmail: protocol.assignedOperatorEmail || '',
       pendingLabel: protocol.pendingLabel || 'Aguardando triagem operacional',
       routing,
       ownerType: ownershipDescriptor.ownerType,
@@ -1351,6 +1356,7 @@ function mergeQueueEntryWithSeedFallback(seedEntry = null, localEntry = null) {
     source: pickFirstText(localEntry.source, seedEntry.source, 'mock_operacional'),
     originLabel: pickFirstText(localEntry.originLabel, seedEntry.originLabel, 'Nao informado'),
     assignedOperator: pickFirstText(localEntry.assignedOperator, seedEntry.assignedOperator),
+    assignedOperatorEmail: pickFirstText(localEntry.assignedOperatorEmail, seedEntry.assignedOperatorEmail),
     pendingLabel: pickFirstText(localEntry.pendingLabel, seedEntry.pendingLabel, 'Aguardando triagem operacional'),
     routing: localEntry.routing || seedEntry.routing || null,
   }
@@ -1645,10 +1651,12 @@ export function buildOperatorCaseDetail({
   caseKnowledgeUsages = [],
   caseRoutingDecisions = [],
   caseEvents = [],
+  seededQueue = seededOperatorQueue,
   viewerContext = null,
 } = {}) {
   const queueEntries = buildOperatorQueueEntries({
     protocols,
+    seededQueue,
     actionLogs,
     areaActionLogs,
     studentProfile,

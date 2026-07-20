@@ -59,6 +59,28 @@ export async function transitionTicket(ticketId, payload) {
   })
 }
 
+export async function submitAreaTicketAction(ticketId, payload) {
+  return appRequest(`/tickets/${encodeURIComponent(ticketId)}/area-actions`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function listAreaMembers(area) {
+  return appRequest(`/areas/${encodeURIComponent(area)}/members`)
+}
+
+export async function getAreaGovernance(area) {
+  return appRequest(`/areas/${encodeURIComponent(area)}/governance`)
+}
+
+export async function updateAreaGovernance(area, payload) {
+  return appRequest(`/areas/${encodeURIComponent(area)}/governance`, {
+    method: 'PATCH',
+    body: { ...payload, area },
+  })
+}
+
 export async function listQueues() {
   return appRequest('/queues')
 }
@@ -107,6 +129,26 @@ export async function getAdminCatalogs() {
 
 export async function listAccessAudit(params = {}) {
   return appRequest(withQuery('/admin/audit', params))
+}
+
+export async function listPublishedFaq(params = {}) {
+  return appRequest(withQuery('/knowledge/faq-published', params))
+}
+
+export async function getKnowledgeLibrary() {
+  return appRequest('/knowledge/library')
+}
+
+export async function updateKnowledgeLibrary(payload) {
+  return appRequest('/knowledge/library', { method: 'PATCH', body: payload })
+}
+
+export async function getRuntimeSettings() {
+  return appRequest('/admin/runtime-settings')
+}
+
+export async function updateRuntimeSettings(payload) {
+  return appRequest('/admin/runtime-settings', { method: 'PATCH', body: payload })
 }
 
 export async function appRequest(path, options = {}) {

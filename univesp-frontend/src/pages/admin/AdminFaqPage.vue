@@ -19,12 +19,12 @@ import {
   publishFaqBuilderWorkspace,
   runFaqBuilderBundleSanityCheck,
   resolveFaqBuilderActivePublishedVersion,
-  saveFaqBuilderBundleLibraryLocal,
   saveFaqBuilderDraftWorkspace,
   startFaqBuilderStudentSession,
   transitionFaqBuilderWorkflow,
   validateFaqBuilderBundle,
 } from '@/services/faqBuilderHybridRuntime'
+import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 function decodeBundleParam(value = '') {
@@ -232,9 +232,6 @@ const recommendedNextStep = computed(() => {
     ? 'Testar jornada antes de publicar nova versao.'
     : 'Testar jornada e publicar primeira versao.'
 })
-const activeVersionLabel = computed(() =>
-  activePublished.value ? activePublished.value.bundleVersionId : 'Sem versao ativa',
-)
 const flowSummaryLabel = computed(
   () => `${flowGraph.value.nodes.length} etapas - ${flowGraph.value.edgeCount} conexoes`,
 )
@@ -668,8 +665,8 @@ function goToEditor(mode = 'visual') {
   }
 }
 
-function persistLibrary() {
-  saveFaqBuilderBundleLibraryLocal(library)
+async function persistLibrary(reason) {
+  await persistFaqLibrary(library, reason)
 }
 
 function syncPublishConfigToWorkspace() {
@@ -687,18 +684,22 @@ function syncPublishConfigToWorkspace() {
   }
 }
 
-function saveDraft() {
+async function saveDraft() {
   if (!workspace.value) return
   syncPublishConfigToWorkspace()
   saveFaqBuilderDraftWorkspace(workspace.value, {
     actorName: currentEditorName.value,
     summary: publishForm.summary || 'Rascunho salvo pela visao do fluxo.',
   })
-  persistLibrary()
-  setFeedback('success', 'Rascunho salvo sem impactar a versao publicada.')
+  try {
+    await persistLibrary(publishForm.summary || 'Salvamento de rascunho do fluxo FAQ')
+    setFeedback('success', 'Rascunho salvo no Frappe sem impactar a versao publicada.')
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir o rascunho FAQ.')
+  }
 }
 
-function sendToReview() {
+async function sendToReview() {
   if (!workspace.value) return
   const result = transitionFaqBuilderWorkflow(workspace.value, {
     nextStatus: 'In Review',
@@ -709,8 +710,12 @@ function sendToReview() {
     setFeedback('error', result.message)
     return
   }
-  persistLibrary()
-  setFeedback('success', 'Fluxo enviado para revisao.')
+  try {
+    await persistLibrary(publishForm.summary || 'Envio do fluxo FAQ para revisao')
+    setFeedback('success', 'Fluxo enviado para revisao e persistido no Frappe.')
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir o envio para revisao.')
+  }
 }
 
 function openPublishModal() {
@@ -718,7 +723,7 @@ function openPublishModal() {
   ui.showPublishModal = true
 }
 
-function confirmPublish() {
+async function confirmPublish() {
   if (!workspace.value) return
   if (!ui.publishConfirm) {
     setFeedback('error', 'Confirme a publicacao para continuar.')
@@ -734,9 +739,13 @@ function confirmPublish() {
     setFeedback('error', result.message)
     return
   }
-  persistLibrary()
-  ui.showPublishModal = false
-  setFeedback('success', 'Fluxo publicado com governanca de vigencia e precedencia.')
+  try {
+    await persistLibrary(publishForm.summary || 'Publicacao do fluxo FAQ')
+    ui.showPublishModal = false
+    setFeedback('success', 'Fluxo publicado no Frappe com governanca de vigencia e precedencia.')
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir a publicacao FAQ.')
+  }
 }
 
 function startTester(mode = 'draft') {
@@ -769,7 +778,12 @@ function handleOutsideClick(event) {
   ui.showOverflow = false
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    await hydrateFaqLibrary(library, currentEditorName.value)
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao carregar a biblioteca FAQ institucional.')
+  }
   isFlowPageMounted = true
   document.addEventListener('pointerdown', handleOutsideClick)
 })

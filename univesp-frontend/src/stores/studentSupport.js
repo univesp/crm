@@ -71,8 +71,27 @@ import { isMockRuntimeEnabled } from '@/services/appApi'
 const STORAGE_KEY = 'univesp-student-support'
 
 function shouldUseLocalPersistence() {
-  const configuredValue = import.meta.env.VITE_ENABLE_MOCKS
-  return configuredValue === undefined ? true : isMockRuntimeEnabled()
+  return isMockRuntimeEnabled()
+}
+
+function runtimeOperatorActionLogs(state) {
+  return isMockRuntimeEnabled()
+    ? [...operatorAuditSeeds, ...(state.operatorActionLogs || [])]
+    : [...(state.operatorActionLogs || [])]
+}
+
+function runtimeAreaActionLogs(state) {
+  return isMockRuntimeEnabled()
+    ? [...areaActionSeeds, ...(state.areaActionLogs || [])]
+    : [...(state.areaActionLogs || [])]
+}
+
+function runtimeSeededQueue() {
+  return isMockRuntimeEnabled() ? operatorQueue : []
+}
+
+function runtimeStudentProtocols() {
+  return isMockRuntimeEnabled() ? studentProtocols : []
 }
 
 function cloneJson(value) {
@@ -406,6 +425,7 @@ function buildCanonicalProtocolsCollection({
   operatorActionLogs = [],
   areaActionLogs = [],
   knowledgeFoundation = null,
+  seededQueue = operatorQueue,
   currentDate = new Date(),
 }) {
   const localProtocols = [...protocols, ...operatorProtocols].map((protocol) => {
@@ -462,7 +482,7 @@ function buildCanonicalProtocolsCollection({
     }
   })
 
-  const seedProtocols = operatorQueue.map((entry) => {
+  const seedProtocols = seededQueue.map((entry) => {
     const base = buildCanonicalProtocolFromSeed(entry, currentDate, knowledgeFoundation)
     const latestOperatorLog = getLatestLog(operatorActionLogs, base.id)
     const latestAreaLog = getLatestLog(areaActionLogs, base.id)
@@ -754,10 +774,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
   state: () => loadPersistedState(),
   getters: {
     mergedOperatorActionLogs(state) {
-      return [...operatorAuditSeeds, ...state.operatorActionLogs]
+      return runtimeOperatorActionLogs(state)
     },
     mergedAreaActionLogs(state) {
-      return [...areaActionSeeds, ...state.areaActionLogs]
+      return runtimeAreaActionLogs(state)
     },
     latestRecord(state) {
       return state.records[0] || null
@@ -796,9 +816,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       return buildCanonicalProtocolsCollection({
         protocols: state.protocols,
         operatorProtocols: state.operatorProtocols,
-        operatorActionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-        areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+        operatorActionLogs: runtimeOperatorActionLogs(state),
+        areaActionLogs: runtimeAreaActionLogs(state),
         knowledgeFoundation: this.knowledgeFoundation,
+        seededQueue: runtimeSeededQueue(),
       })
     },
     mergedCaseKnowledgeUsages(state) {
@@ -820,8 +841,8 @@ export const useStudentSupportStore = defineStore('studentSupport', {
     mergedCaseEvents(state) {
       const seedRecords = buildSeedCaseEventCollection(
         this.canonicalCaseProtocols,
-        [...operatorAuditSeeds, ...state.operatorActionLogs],
-        [...areaActionSeeds, ...state.areaActionLogs],
+        runtimeOperatorActionLogs(state),
+        runtimeAreaActionLogs(state),
       )
       return [...new Map([...seedRecords, ...state.caseEvents].map((record) => [record.id, record])).values()]
     },
@@ -857,15 +878,16 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         records: state.records,
         protocols: state.protocols,
         protocolDraft: state.protocolDraft,
-        seededProtocols: studentProtocols,
+        seededProtocols: runtimeStudentProtocols(),
       })
     },
     operatorQueueEntries(state) {
       return (viewerContext = null) =>
         buildOperatorQueueRuntime({
           protocols: [...state.protocols, ...state.operatorProtocols],
-          actionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-          areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+          seededQueue: runtimeSeededQueue(),
+          actionLogs: runtimeOperatorActionLogs(state),
+          areaActionLogs: runtimeAreaActionLogs(state),
           canonicalCaseProtocols: this.canonicalCaseProtocols,
           caseKnowledgeUsages: this.mergedCaseKnowledgeUsages,
           viewerContext,
@@ -876,9 +898,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         buildOperatorCaseDetail({
           caseId,
           protocols: [...state.protocols, ...state.operatorProtocols],
+          seededQueue: runtimeSeededQueue(),
           records: state.records,
-          actionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-          areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+          actionLogs: runtimeOperatorActionLogs(state),
+          areaActionLogs: runtimeAreaActionLogs(state),
           canonicalCaseProtocols: this.canonicalCaseProtocols,
           caseKnowledgeUsages: this.mergedCaseKnowledgeUsages,
           caseRoutingDecisions: this.mergedCaseRoutingDecisions,
@@ -890,9 +913,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       return (viewerContext = null) =>
         buildAreaQueueRuntime({
           protocols: [...state.protocols, ...state.operatorProtocols],
+          seededQueue: runtimeSeededQueue(),
           records: state.records,
-          operatorActionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-          areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+          operatorActionLogs: runtimeOperatorActionLogs(state),
+          areaActionLogs: runtimeAreaActionLogs(state),
           subjectRules: state.areaSubjectRules,
           assignments: this.canonicalCaseAssignments,
           userAvailability: state.userAvailability,
@@ -906,9 +930,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         buildAreaCaseDetail({
           caseId,
           protocols: [...state.protocols, ...state.operatorProtocols],
+          seededQueue: runtimeSeededQueue(),
           records: state.records,
-          operatorActionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-          areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+          operatorActionLogs: runtimeOperatorActionLogs(state),
+          areaActionLogs: runtimeAreaActionLogs(state),
           subjectRules: state.areaSubjectRules,
           assignments: this.canonicalCaseAssignments,
           userAvailability: state.userAvailability,
@@ -925,9 +950,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         buildAreaManagerOverview({
           entries: buildAreaQueueRuntime({
             protocols: [...state.protocols, ...state.operatorProtocols],
+            seededQueue: runtimeSeededQueue(),
             records: state.records,
-            operatorActionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-            areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+            operatorActionLogs: runtimeOperatorActionLogs(state),
+            areaActionLogs: runtimeAreaActionLogs(state),
             subjectRules: state.areaSubjectRules,
             assignments: this.canonicalCaseAssignments,
             userAvailability: state.userAvailability,
@@ -947,9 +973,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         buildAreaSubjectGovernanceRows(
           buildAreaQueueRuntime({
             protocols: [...state.protocols, ...state.operatorProtocols],
+            seededQueue: runtimeSeededQueue(),
             records: state.records,
-            operatorActionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-            areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+            operatorActionLogs: runtimeOperatorActionLogs(state),
+            areaActionLogs: runtimeAreaActionLogs(state),
             subjectRules: state.areaSubjectRules,
             assignments: this.canonicalCaseAssignments,
             userAvailability: state.userAvailability,
@@ -966,9 +993,10 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         buildAreaKnowledgeRows(
           buildAreaQueueRuntime({
             protocols: [...state.protocols, ...state.operatorProtocols],
+            seededQueue: runtimeSeededQueue(),
             records: state.records,
-            operatorActionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-            areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+            operatorActionLogs: runtimeOperatorActionLogs(state),
+            areaActionLogs: runtimeAreaActionLogs(state),
             subjectRules: state.areaSubjectRules,
             assignments: this.canonicalCaseAssignments,
             userAvailability: state.userAvailability,
@@ -984,14 +1012,30 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       return (viewerContext = null) =>
         buildAdminDashboardData({
           protocols: [...state.protocols, ...state.operatorProtocols],
+          seededQueue: runtimeSeededQueue(),
           records: state.records,
-          actionLogs: [...operatorAuditSeeds, ...state.operatorActionLogs],
-          areaActionLogs: [...areaActionSeeds, ...state.areaActionLogs],
+          actionLogs: runtimeOperatorActionLogs(state),
+          areaActionLogs: runtimeAreaActionLogs(state),
           viewerContext,
+          includeSeeds: isMockRuntimeEnabled(),
         })
     },
   },
   actions: {
+    replaceLiveTickets(protocols = []) {
+      if (isMockRuntimeEnabled()) return
+      this.protocols = Array.isArray(protocols) ? protocols : []
+      this.operatorProtocols = []
+      this.operatorActionLogs = []
+      this.areaActionLogs = []
+    },
+    upsertLiveTicket(protocol = null) {
+      if (isMockRuntimeEnabled() || !protocol?.protocolNumber) return
+      const next = (this.protocols || []).filter(
+        (entry) => entry.protocolNumber !== protocol.protocolNumber,
+      )
+      this.protocols = [protocol, ...next]
+    },
     persistState() {
       if (typeof window === 'undefined' || !shouldUseLocalPersistence()) {
         return
@@ -1737,7 +1781,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       }
 
       if (actionType === 'conclude') {
-        const mergedAreaLogs = [...areaActionSeeds, ...this.areaActionLogs]
+        const mergedAreaLogs = runtimeAreaActionLogs(this)
         const hasFinalResponse = hasAreaTechnicalReply(mergedAreaLogs, caseId)
 
         if (!hasFinalResponse) {

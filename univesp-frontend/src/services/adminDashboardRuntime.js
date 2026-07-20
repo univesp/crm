@@ -236,9 +236,10 @@ function buildHistoricalAttendances({
   protocols = [],
   studentProfile = loggedStudent,
   viewerContext = null,
+  includeSeeds = true,
 }) {
   const entries = [
-    ...operatorCorrelationHistory.map((item) => normalizeHistoricalItem(item)),
+    ...(includeSeeds ? operatorCorrelationHistory.map((item) => normalizeHistoricalItem(item)) : []),
     ...records
       .filter((record) => record.outcome === 'resolved_by_faq')
       .map((record) => normalizeResolvedRecord(record, studentProfile)),
@@ -255,9 +256,11 @@ function buildActiveCases({
   areaActionLogs = [],
   studentProfile = loggedStudent,
   viewerContext = null,
+  seededQueue = undefined,
 }) {
   const queueEntries = buildOperatorQueueEntries({
     protocols,
+    seededQueue,
     actionLogs,
     areaActionLogs,
     studentProfile,
@@ -298,11 +301,12 @@ function buildAuditEntries({
   historicalAttendances = [],
   actionLogs = [],
   viewerContext = null,
+  includeSeeds = true,
 }) {
   const caseIndex = Object.fromEntries(activeCases.map((entry) => [entry.id, entry]))
   const historyIndex = Object.fromEntries(historicalAttendances.map((entry) => [entry.id, entry]))
 
-  const entries = [...operatorAuditSeeds, ...actionLogs]
+  const entries = [...(includeSeeds ? operatorAuditSeeds : []), ...actionLogs]
     .map((log) => {
       const caseEntry = caseIndex[log.caseId] || historyIndex[log.caseId] || null
 
@@ -388,7 +392,7 @@ function buildKpis({ activeCases = [], historicalAttendances = [], auditEntries 
     {
       label: 'Resolvidos pela FAQ',
       value: countUniqueBy(historicalAttendances.filter((entry) => entry.resolvedByFaq), 'id'),
-      hint: 'Autoatendimentos com registro institucional na base mockada.',
+      hint: 'Autoatendimentos registrados na fonte de dados ativa.',
     },
     {
       label: 'Enviados ao OP',
@@ -413,7 +417,7 @@ function buildKpis({ activeCases = [], historicalAttendances = [], auditEntries 
     {
       label: 'Concluidos',
       value: concludedIds.size,
-      hint: 'Atendimentos encerrados no historico consolidado desta base mockada.',
+      hint: 'Atendimentos encerrados no historico consolidado da fonte ativa.',
     },
     {
       label: 'Criticidade alta',
@@ -532,7 +536,7 @@ function buildGovernanceCards({ activeCases = [], auditEntries = [] }) {
   return [
     {
       title: 'Auditoria operacional viva',
-      description: `${auditEntries.length} movimentos auditaveis entre seeds e logs locais do OP nesta base mockada.`,
+      description: `${auditEntries.length} movimentos operacionais disponiveis na fonte ativa.`,
       eyebrow: 'Auditoria',
     },
     {
@@ -560,6 +564,8 @@ export function buildAdminDashboardData({
   areaActionLogs = [],
   studentProfile = loggedStudent,
   viewerContext = null,
+  seededQueue = undefined,
+  includeSeeds = true,
 } = {}) {
   const activeCases = buildActiveCases({
     protocols,
@@ -568,18 +574,21 @@ export function buildAdminDashboardData({
     areaActionLogs,
     studentProfile,
     viewerContext,
+    seededQueue,
   })
   const historicalAttendances = buildHistoricalAttendances({
     records,
     protocols,
     studentProfile,
     viewerContext,
+    includeSeeds,
   })
   const auditEntries = buildAuditEntries({
     activeCases,
     historicalAttendances,
     actionLogs,
     viewerContext,
+    includeSeeds,
   })
   const filterSource = [...activeCases, ...historicalAttendances]
 

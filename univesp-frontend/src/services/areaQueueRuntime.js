@@ -43,11 +43,11 @@ const AREA_ACTION_METADATA = {
   },
   request_complement: {
     title: 'Complementacao solicitada pela area',
-    canonicalStatusCode: CASE_PROTOCOL_STATUSES.IN_PROGRESS_OP,
-    pendingParty: 'op',
+    canonicalStatusCode: CASE_PROTOCOL_STATUSES.WAITING_STUDENT,
+    pendingParty: 'student',
     closedBy: '',
     statusLabel: 'Complementacao solicitada pela area',
-    pendingLabel: 'OP precisa complementar subsidios para nova analise',
+    pendingLabel: 'Aluno precisa complementar as informacoes para nova analise',
     channel: 'Devolucao interna para o polo',
     defaultText: () =>
       'A area precisa de mais subsidios, evidencias ou validacoes antes da resposta tecnica final.',
@@ -357,15 +357,17 @@ function buildAreaQueueEntry(
     subjectScopeLabel:
       subjectRule?.subjectLabel ||
       `${entry.theme || entry.themeKey || 'Tema'} / ${entry.subsubject || entry.subsubjectKey || 'Subassunto'}`,
-    currentAssigneeLabel: assignment?.analystName || 'Sem responsavel',
+    currentAssigneeLabel:
+      assignment?.analystName || (entry.assignedOperatorEmail ? entry.assignedOperator : '') || 'Sem responsavel',
+    currentAssigneeEmail: entry.assignedOperatorEmail || '',
     currentAssigneeMeta:
       !operationalOwner.hasOwner
         ? 'Erro estrutural: protocolo sem owner operacional efetivo'
-        : assignment?.analystName
-        ? `Responsavel atual: ${assignment.analystName}`
-        : distributionSuggestion?.analystName
-          ? `Sem dono fixo. Sugestao automatica: ${distributionSuggestion.analystName}`
-          : 'Caso sem responsavel definido na area',
+        : assignment?.analystName || (entry.assignedOperatorEmail && entry.assignedOperator)
+          ? `Responsavel atual: ${assignment?.analystName || entry.assignedOperator}`
+          : distributionSuggestion?.analystName
+            ? `Sem dono fixo. Sugestao automatica: ${distributionSuggestion.analystName}`
+            : 'Caso sem responsavel definido na area',
     currentAssignment: assignment || null,
     distributionSuggestion,
     recommendedAssigneeLabel: distributionSuggestion?.analystName || '',
@@ -546,10 +548,12 @@ export function buildAreaQueueEntries({
   userAvailability = [],
   operationalAreas = [],
   canonicalCaseProtocols = [],
+  seededQueue,
   viewerContext = null,
 } = {}) {
   const baseEntries = buildOperatorQueueEntries({
     protocols,
+    seededQueue,
     actionLogs: operatorActionLogs,
     areaActionLogs,
     canonicalCaseProtocols,
@@ -564,6 +568,7 @@ export function buildAreaQueueEntries({
         actionLogs: operatorActionLogs,
         areaActionLogs,
         canonicalCaseProtocols,
+        seededQueue,
         viewerContext: null,
       })?.operatorIntake || null,
   }))
@@ -759,6 +764,7 @@ export function buildAreaCaseDetail({
   caseKnowledgeUsages = [],
   caseRoutingDecisions = [],
   caseEvents = [],
+  seededQueue,
   viewerContext = null,
 } = {}) {
   const detail = buildOperatorCaseDetail({
@@ -771,6 +777,7 @@ export function buildAreaCaseDetail({
     caseKnowledgeUsages,
     caseRoutingDecisions,
     caseEvents,
+    seededQueue,
     viewerContext: null,
   })
 
@@ -788,6 +795,7 @@ export function buildAreaCaseDetail({
     userAvailability,
     operationalAreas,
     canonicalCaseProtocols,
+    seededQueue,
     viewerContext,
   })
 
@@ -811,6 +819,7 @@ export function buildAreaCaseDetail({
           userAvailability,
           operationalAreas,
           canonicalCaseProtocols,
+          seededQueue,
           viewerContext: relaxedViewerContext,
         })
       : []

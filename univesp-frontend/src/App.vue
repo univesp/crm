@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 
 import AppSidebar from '@/components/AppSidebar.vue'
 import MockContextBar from '@/components/MockContextBar.vue'
+import { isMockRuntimeEnabled, listPublishedFaq } from '@/services/appApi'
+import { enablePublishedFaqRuntime, setPublishedFaqBundles } from '@/services/faqRuntime'
 import { buildShellPresentation } from '@/services/mockContextRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
@@ -12,6 +14,39 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const journey = useJourneyStore()
+let publishedFaqLoadKey = ''
+
+if (!isMockRuntimeEnabled()) {
+  enablePublishedFaqRuntime()
+}
+
+async function loadPublishedFaqRuntime() {
+  if (isMockRuntimeEnabled() || !auth.isAuthenticated) return
+  const loadKey = String(auth.user?.email || 'authenticated')
+  if (publishedFaqLoadKey === loadKey) return
+  publishedFaqLoadKey = loadKey
+  try {
+    const [studentResponse, operatorResponse] = await Promise.all([
+      listPublishedFaq({ faq_type: 'aluno' }),
+      listPublishedFaq({ faq_type: 'op' }),
+    ])
+    setPublishedFaqBundles('aluno', studentResponse.data)
+    setPublishedFaqBundles('op', operatorResponse.data)
+  } catch (error) {
+    publishedFaqLoadKey = ''
+    setPublishedFaqBundles('aluno', [])
+    setPublishedFaqBundles('op', [])
+    console.error('[faq-published][load-failed]', error)
+  }
+}
+
+watch(
+  () => auth.isAuthenticated,
+  (authenticated) => {
+    if (authenticated) loadPublishedFaqRuntime()
+  },
+  { immediate: true },
+)
 
 const pageTitle = computed(() => {
   if (auth.mockContext.isOperationalShell) {

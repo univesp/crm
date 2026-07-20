@@ -1,17 +1,44 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 
 import {
   AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
   buildAreaManagerBackendReadiness,
 } from '@/contracts/areaManagerOperationalContract'
+import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
+import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
+const liveState = reactive({ loading: false, error: '' })
+
+async function loadManagerOverview() {
+  if (isMockRuntimeEnabled()) return
+  liveState.loading = true
+  liveState.error = ''
+  try {
+    const response = await listTickets({ page: 1, page_size: 100 })
+    studentSupportStore.replaceLiveTickets(
+      (response.data || []).map(mapApiTicketToOperationalProtocol),
+    )
+  } catch (error) {
+    studentSupportStore.replaceLiveTickets([])
+    liveState.error = error?.message || 'Falha ao carregar a operacao institucional da area.'
+  } finally {
+    liveState.loading = false
+  }
+}
+
+onMounted(loadManagerOverview)
 
 const overview = computed(() => studentSupportStore.areaManagerOverview(auth.mockContext))
+const serverParityNote = computed(() =>
+  isMockRuntimeEnabled()
+    ? AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE
+    : 'A home usa tickets escopados da API institucional; a carga e limitada aos 100 casos mais recentes ate existir endpoint agregado canonico.',
+)
 const backendReadiness = buildAreaManagerBackendReadiness({ hasServerOverview: false })
 const backendFieldEntries = computed(() => Object.entries(backendReadiness.minimalOverviewPayload || {}))
 
@@ -164,6 +191,14 @@ function recommendationPriorityLabel(priority = '') {
 
 <template>
   <div class="grid gap-4">
+    <section
+      v-if="liveState.loading || liveState.error"
+      class="rounded-[14px] border px-4 py-3 text-sm"
+      :class="liveState.error ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-600'"
+      :role="liveState.error ? 'alert' : 'status'"
+    >
+      {{ liveState.error || 'Carregando operacao institucional...' }}
+    </section>
     <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[780px]">
@@ -192,7 +227,7 @@ function recommendationPriorityLabel(priority = '') {
       </div>
 
       <p class="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
-        {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
+        {{ serverParityNote }}
       </p>
     </section>
 

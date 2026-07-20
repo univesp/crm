@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
 import { addTicketAttachments, createTicket, isMockRuntimeEnabled } from '@/services/appApi'
+import { mapApiTicketToStudentProtocol } from '@/services/ticketMapper'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const router = useRouter()
@@ -94,6 +95,7 @@ async function submitProtocol() {
       if (attachmentFiles.value.length) {
         await addTicketAttachments(result.data.id, attachmentFiles.value)
       }
+      studentSupportStore.upsertLiveTicket(mapApiTicketToStudentProtocol(result.data))
       isSubmitting.value = false
       router.push(`/aluno/confirmacao/${result.data.protocol}`)
     } catch (error) {
