@@ -86,6 +86,18 @@ class HomologReadinessToolingTest(unittest.TestCase):
 		self.assertIn("actions/upload-artifact@v4", self.workflow)
 		self.assertIn("if: always()", self.workflow)
 
+	def test_workflow_can_reuse_existing_idp_and_gateway_secrets(self):
+		self.assertIn("reuse_or_sync_secret", self.workflow)
+		required_block = self.workflow.split("required_secrets=(", 1)[1].split(")", 1)[0]
+		for value_name in (
+			"GATEWAY_REDIS_VALUE",
+			"AZURE_ADMIN_CLIENT_SECRET_VALUE",
+			"AZURE_ACADEMICO_CLIENT_SECRET_VALUE",
+			"SAML_IDP_CERT_VALUE",
+		):
+			self.assertNotIn(value_name, required_block)
+			self.assertIn(value_name, self.workflow)
+
 
 if __name__ == "__main__":
 	unittest.main()

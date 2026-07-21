@@ -104,8 +104,7 @@ jobs:
             DB_PASSWORD_VALUE ADMIN_PASSWORD_VALUE REDIS_CACHE_VALUE REDIS_QUEUE_VALUE
             REDIS_SOCKETIO_VALUE BFF_SHARED_SECRET_VALUE EDGE_SHARED_SECRET_VALUE
             FRAPPE_API_KEY_VALUE FRAPPE_API_SECRET_VALUE GATEWAY_SESSION_SECRET_VALUE
-            GATEWAY_JWT_SECRET_VALUE GATEWAY_REDIS_VALUE AZURE_ADMIN_CLIENT_SECRET_VALUE
-            AZURE_ACADEMICO_CLIENT_SECRET_VALUE SAML_IDP_CERT_VALUE
+            GATEWAY_JWT_SECRET_VALUE
           )
           for name in "${required_vars[@]}" "${required_secrets[@]}"; do
             if [[ -z "${!name:-}" ]]; then
@@ -159,6 +158,13 @@ jobs:
           sync_secret() {
             SECRET_NAME="$1" SECRET_VALUE="$2" ./ops/cloudrun/sync_secret.sh
           }
+          reuse_or_sync_secret() {
+            if [[ -n "$2" ]]; then
+              sync_secret "$1" "$2"
+            else
+              printf 'Reusing enabled Secret Manager value for %s.\n' "$1"
+            fi
+          }
           sync_secret "${DB_PASSWORD_SECRET_NAME:-crm-homolog-db-password}" "${DB_PASSWORD_VALUE}"
           sync_secret "${ADMIN_PASSWORD_SECRET_NAME:-crm-homolog-admin-password}" "${ADMIN_PASSWORD_VALUE}"
           sync_secret "${REDIS_CACHE_SECRET_NAME:-crm-homolog-redis-cache-url}" "${REDIS_CACHE_VALUE}"
@@ -170,10 +176,10 @@ jobs:
           sync_secret "${FRAPPE_API_SECRET_SECRET_NAME:-crm-homolog-frappe-api-secret}" "${FRAPPE_API_SECRET_VALUE}"
           sync_secret "${GATEWAY_SESSION_SECRET_NAME:-crm-homolog-gateway-session-secret}" "${GATEWAY_SESSION_SECRET_VALUE}"
           sync_secret "${GATEWAY_JWT_SECRET_NAME:-crm-homolog-gateway-jwt-secret}" "${GATEWAY_JWT_SECRET_VALUE}"
-          sync_secret "${GATEWAY_REDIS_SECRET_NAME:-crm-homolog-gateway-redis-url}" "${GATEWAY_REDIS_VALUE}"
-          sync_secret "${AZURE_ADMIN_CLIENT_SECRET_NAME:-crm-homolog-azure-admin-client-secret}" "${AZURE_ADMIN_CLIENT_SECRET_VALUE}"
-          sync_secret "${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}" "${AZURE_ACADEMICO_CLIENT_SECRET_VALUE}"
-          sync_secret "${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}" "${SAML_IDP_CERT_VALUE}"
+          reuse_or_sync_secret "${GATEWAY_REDIS_SECRET_NAME:-crm-homolog-gateway-redis-url}" "${GATEWAY_REDIS_VALUE}"
+          reuse_or_sync_secret "${AZURE_ADMIN_CLIENT_SECRET_NAME:-crm-homolog-azure-admin-client-secret}" "${AZURE_ADMIN_CLIENT_SECRET_VALUE}"
+          reuse_or_sync_secret "${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}" "${AZURE_ACADEMICO_CLIENT_SECRET_VALUE}"
+          reuse_or_sync_secret "${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}" "${SAML_IDP_CERT_VALUE}"
 
       - name: Run read-only GCP preflight
         env:
