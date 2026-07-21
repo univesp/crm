@@ -13,7 +13,7 @@ import ssoRouter from './routes/sso.js'
 export function createApp({ sessionStore } = {}) {
   validateRuntimeConfig()
   const app = express()
-  app.set('trust proxy', 'loopback')
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1))
 
   if (process.env.SAML_IDP_CERT) passport.use('univesp-saml', createSamlStrategy())
   passport.serializeUser((user, done) => done(null, user))
@@ -111,6 +111,7 @@ function validateRuntimeConfig() {
     'FRAPPE_API_KEY',
     'FRAPPE_API_SECRET',
     'UNIVESP_BFF_SHARED_SECRET',
+    'UNIVESP_EDGE_SHARED_SECRET',
     'AZURE_REDIRECT_URI',
     'AZURE_ADMIN_CLIENT_ID',
     'AZURE_ADMIN_TENANT_ID',

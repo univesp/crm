@@ -5,8 +5,8 @@ PROJECT_ID=${GCP_PROJECT_ID:-${PROJECT_ID:-}}
 SECRET_NAME=${SECRET_NAME:-}
 SECRET_VALUE=${SECRET_VALUE:-}
 
-if [[ -z "${PROJECT_ID}" || -z "${SECRET_NAME}" ]]; then
-	printf 'GCP_PROJECT_ID and SECRET_NAME are required.\n' >&2
+if [[ -z "${PROJECT_ID}" || -z "${SECRET_NAME}" || -z "${SECRET_VALUE}" ]]; then
+	printf 'GCP_PROJECT_ID, SECRET_NAME and a non-empty SECRET_VALUE are required.\n' >&2
 	exit 1
 fi
 

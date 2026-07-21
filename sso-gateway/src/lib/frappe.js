@@ -42,6 +42,7 @@ export async function callFrappe(method, options = {}) {
   const headers = {
     Accept: 'application/json',
     Authorization: `token ${required('FRAPPE_API_KEY')}:${required('FRAPPE_API_SECRET')}`,
+    'X-Univesp-Gateway-Key': required('UNIVESP_EDGE_SHARED_SECRET'),
     'X-Frappe-Site-Name': process.env.FRAPPE_SITE_NAME || 'crm.localhost',
     ...buildSignedContext(options.user || {}, requestId),
   }

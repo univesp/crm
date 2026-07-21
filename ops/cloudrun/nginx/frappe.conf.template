@@ -55,11 +55,6 @@ server {
 	location = /socket.io { return 404; }
 	location ^~ /socket.io/ { return 404; }
 
-	location = /api/sso/azure/callback {
-		root /opt/univesp/frontend;
-		try_files /index.html =404;
-	}
-
 	location = /api/me {
 		proxy_http_version 1.1;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -96,6 +91,23 @@ server {
 		proxy_set_header Host $host;
 
 		proxy_pass ${SSO_GATEWAY_ORIGIN};
+	}
+
+	# Only the SSO Gateway may reach the institutional Frappe methods. The
+	# browser-facing API remains /api/app/v1 and generic Frappe RPC stays closed.
+	location ^~ /api/method/univesp_atendimento.api.v1. {
+		if ($http_x_univesp_gateway_key != "${UNIVESP_EDGE_SHARED_SECRET}") { return 404; }
+
+		proxy_http_version 1.1;
+		proxy_set_header X-Forwarded-For $remote_addr;
+		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+		proxy_set_header X-Frappe-Site-Name ${FRAPPE_SITE_NAME_HEADER};
+		proxy_set_header Host $host;
+		proxy_set_header X-Use-X-Accel-Redirect True;
+		proxy_read_timeout ${PROXY_READ_TIMEOUT};
+		proxy_redirect off;
+
+		proxy_pass http://backend-server;
 	}
 
 	# Frappe is an internal engine; do not expose generic RPC/resource APIs.

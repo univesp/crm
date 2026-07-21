@@ -1,138 +1,134 @@
 # Handoff da TI para homologação do Atendimento UNIVESP
 
-Este é o checklist canônico para manter o candidato acadêmico atualizado e
-preparar a homologação. Os detalhes específicos de VM permanecem em
-`ops/vm/HANDOFF_TI.md`; a topologia Cloud Run está em `ops/cloudrun/README.md`.
+Este é o checklist canônico para manter o candidato acadêmico atualizado e preparar a homologação. A topologia Cloud Run está em `ops/cloudrun/README.md`; a alternativa de VM permanece em `ops/vm/HANDOFF_TI.md`.
 
 ## Estado e regra de branch
 
 - `origin/main`: espelho do upstream; não recebe customizações UNIVESP.
 - `origin/univesp/cloudrun-homolog`: linha acadêmica estável da homologação.
-- Mudanças: feature branch curta, PR com base `univesp/cloudrun-homolog`,
-  checks aprovados e revisão humana.
-- Deploy: somente manual, a partir do SHA já integrado à branch acadêmica.
-- Nunca usar `latest`; imagem e rollback usam tag/digest do commit.
+- Mudanças entram por branch curta e PR com base `univesp/cloudrun-homolog`.
+- Deploy é manual, aprovado pelo Environment `homolog`, usando SHA integrado.
+- Imagens e rollback usam SHA ou digest; nunca `latest`.
 
-## 1. Configuração única no GitHub
+## 1. O que este release passa a entregar
 
-Crie o Environment `homolog` e configure:
+O workflow constrói dois artefatos do mesmo SHA: a imagem Frappe com CRM, Helpdesk e `univesp_atendimento`, e a imagem Node do SSO Gateway/BFF.
 
-1. required reviewers da TI;
-2. branch permitida: `univesp/cloudrun-homolog`;
-3. prevenção de self-review, se disponível;
-4. tempo de espera compatível com a janela de mudança.
+O gateway é implantado primeiro. A URL é obtida pelo workflow e passada ao front door. O bootstrap instala apps ausentes, executa migrations, grava o HMAC no `site_config.json` e provisiona uma conta técnica Frappe.
 
-Variáveis obrigatórias do repositório:
+Fronteira pública:
 
-- `GCP_PROJECT_ID`, `GCP_REGION`, `ARTIFACT_REPOSITORY`, `IMAGE_NAME`;
-- `FRAPPE_SITE_NAME`, `PUBLIC_DOMAIN`, `SSO_GATEWAY_ORIGIN`;
-- `DB_TYPE`, `DB_SETUP_MODE`, `DB_NAME`, `DB_USER`,
-  `DB_ROOT_USERNAME`, `CLOUDSQL_INSTANCE`;
-- `SITES_BUCKET`, `VPC_NETWORK`, `VPC_CONNECTOR`,
-  `VPC_CONNECTOR_RANGE`, `CLOUDRUN_RUNTIME_SERVICE_ACCOUNT`;
-- nomes dos secrets de DB, administrador e Redis;
-- `CLOUDFLARE_ZONE_ID`, quando o DNS for administrado pelo workflow.
+- `/api/me`, `/api/sso/*` e `/api/app/v1/*` -> gateway;
+- gateway -> somente `univesp_atendimento.api.v1.*`, com API key, contexto HMAC e segredo de borda;
+- APIs genéricas Frappe, Desk, arquivos e Socket.IO permanecem bloqueados.
 
-`SSO_GATEWAY_ORIGIN` deve ser uma origem HTTPS alcançável pelo front door.
-O deploy falha fechado se ela estiver ausente.
+## 2. Configuração única no GitHub
 
-Secrets obrigatórios:
+Crie o Environment `homolog` com required reviewers, branch permitida `univesp/cloudrun-homolog`, prevenção de self-review e janela de mudança.
 
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOYER_SERVICE_ACCOUNT`;
-- `DB_PASSWORD`, `ADMIN_PASSWORD`;
-- `REDIS_CACHE_URL`, `REDIS_QUEUE_URL`, `REDIS_SOCKETIO_URL`;
-- `CLOUDFLARE_API_TOKEN`, quando aplicável.
+### Variables obrigatórias
 
-Não registrar valores em Git, logs, screenshots ou tickets.
+Base: `GCP_PROJECT_ID`, `GCP_REGION`, `ARTIFACT_REPOSITORY`, `IMAGE_NAME`, `GATEWAY_IMAGE_NAME`, `GATEWAY_SERVICE`, `FRAPPE_SITE_NAME`, `FRAPPE_SERVICE_USER_EMAIL` e `PUBLIC_DOMAIN`.
 
-## 2. Gateway SSO/BFF
+Dados/rede: `DB_TYPE`, `DB_SETUP_MODE`, `DB_NAME`, `DB_USER`, `DB_ROOT_USERNAME`, `CLOUDSQL_INSTANCE`, `SITES_BUCKET`, `VPC_NETWORK`, `VPC_CONNECTOR`, `VPC_CONNECTOR_RANGE` e `CLOUDRUN_RUNTIME_SERVICE_ACCOUNT`.
 
-O gateway deve estar publicado antes do front door. Confirmar:
+Nomes dos secrets:
 
-- HTTPS e certificado válidos;
-- Redis de sessão persistente;
-- conta técnica Frappe exclusiva, nunca `Administrator`;
-- `SESSION_SECRET`, `JWT_SECRET` e `UNIVESP_BFF_SHARED_SECRET`
-  independentes, com pelo menos 32 bytes;
-- o mesmo `UNIVESP_BFF_SHARED_SECRET` no gateway e no
-  `site_config.json` do Frappe;
-- callbacks Azure e SAML do domínio de homologação;
-- `FRAPPE_ORIGIN` interno/privado, API key/secret e site name corretos;
-- rotação e revogação documentadas.
+- `DB_PASSWORD_SECRET_NAME`, `ADMIN_PASSWORD_SECRET_NAME`;
+- `REDIS_CACHE_SECRET_NAME`, `REDIS_QUEUE_SECRET_NAME`, `REDIS_SOCKETIO_SECRET_NAME`;
+- `BFF_SHARED_SECRET_NAME`, `EDGE_SHARED_SECRET_NAME`;
+- `FRAPPE_API_KEY_SECRET_NAME`, `FRAPPE_API_SECRET_SECRET_NAME`;
+- `GATEWAY_SESSION_SECRET_NAME`, `GATEWAY_JWT_SECRET_NAME`, `GATEWAY_REDIS_SECRET_NAME`;
+- `AZURE_ADMIN_CLIENT_SECRET_NAME`, `AZURE_ACADEMICO_CLIENT_SECRET_NAME`, `SAML_IDP_CERT_SECRET_NAME`.
 
-Variáveis completas: `sso-gateway/.env.example`. Procedimento VM:
-`ops/vm/HANDOFF_TI.md`.
+IdPs: `AZURE_ADMIN_CLIENT_ID`, `AZURE_ADMIN_TENANT_ID`, `AZURE_ACADEMICO_CLIENT_ID`, `AZURE_ACADEMICO_TENANT_ID`, `SAML_IDP_SSO_URL`, `SAML_IDP_SLO_URL` quando houver e `SAML_ENTITY_ID`. `CLOUDFLARE_ZONE_ID` é condicional.
 
-## 3. Infraestrutura e dados
+`SSO_GATEWAY_ORIGIN` não é mais manual: o workflow lê a URL do gateway recém-publicado.
 
-Antes de marcar `provision_infra=true`, confirmar se os recursos já existem.
-Provisionamento repetido sem inventário pode alterar IAM ou rede.
+### Secrets obrigatórios
 
-Checklist:
+- Deploy: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOYER_SERVICE_ACCOUNT`.
+- Dados: `DB_PASSWORD`, `ADMIN_PASSWORD`, `REDIS_CACHE_URL`, `REDIS_QUEUE_URL`, `REDIS_SOCKETIO_URL`.
+- Frappe: `FRAPPE_API_KEY`, `FRAPPE_API_SECRET`.
+- Gateway: `GATEWAY_SESSION_SECRET`, `GATEWAY_JWT_SECRET`, `GATEWAY_REDIS_URL`.
+- Confiança: `UNIVESP_BFF_SHARED_SECRET` aleatório com mínimo de 32 bytes e `UNIVESP_EDGE_SHARED_SECRET` com exatamente 64 caracteres hexadecimais.
+- IdPs: `AZURE_ADMIN_CLIENT_SECRET`, `AZURE_ACADEMICO_CLIENT_SECRET`, `SAML_IDP_CERT`.
+- DNS: `CLOUDFLARE_API_TOKEN` quando aplicável.
 
-- Artifact Registry e Workload Identity Federation;
-- Cloud SQL e usuário/banco de homologação;
-- backup recente, restore testado e RTO/RPO registrados;
-- bucket de sites com retenção e acesso mínimo;
-- VPC connector;
-- Redis privado para cache, filas, socket.io e sessão do gateway;
-- service account de runtime com IAM mínimo;
-- quotas de Cloud Run, Cloud SQL, VPC e Artifact Registry;
-- owners e alertas para web, worker, scheduler e bootstrap.
+Use valores independentes. Nunca registre segredos em Git, logs, screenshots, vídeos ou tickets.
 
-## 4. Gate do PR
+## 3. Cadastro nos provedores de identidade
 
-O draft PR deve ter base `univesp/cloudrun-homolog` e passar:
+Azure, para cada app registration:
 
-- Atendimento CI: lint, typecheck, build, 64 foundation, 11 E2E,
-  gateway e front-door tests;
-- Semantic Commits;
-- Semgrep;
-- Pre-commit;
-- revisão de autorização, migrations/DocTypes, edge e rollback.
+```text
+https://<PUBLIC_DOMAIN>/api/sso/azure/callback
+```
 
-Antes do merge, registrar no PR:
+SAML:
 
-- SHA a implantar;
-- janela, responsável e canal de incidente;
-- imagem/digest anterior;
-- backup de banco/site;
-- critérios de sucesso e abort.
+```text
+ACS:      https://<PUBLIC_DOMAIN>/api/sso/saml/callback
+EntityID: <SAML_ENTITY_ID>
+```
 
-## 5. Deploy manual
+A TI deve entregar tenant/client IDs, secrets, certificado SAML vigente, claims institucionais, usuários sintéticos por perfil e owner de rotação/revogação.
 
-No GitHub Actions, escolha `Univesp Cloud Run Homolog`:
+## 4. Conta técnica Frappe
 
-1. selecione a branch `univesp/cloudrun-homolog`;
-2. marque `confirm_homolog_deploy=true`;
-3. use `provision_infra=false` no deploy normal;
-4. obtenha aprovação do Environment `homolog`;
-5. acompanhe build, push, bootstrap/migrate e serviços;
-6. registre SHA, digest, revisões e horário.
+Defina `FRAPPE_SERVICE_USER_EMAIL` com conta exclusiva, nunca `Administrator` ou conta pessoal. O bootstrap cria/habilita o System User e aplica as chaves.
+
+A TI deve gerar chaves próprias de homologação, limitar acesso aos secrets, rotacionar gateway e Frappe juntos e auditar chamadas pelo usuário técnico e `X-Request-ID`.
+
+## 5. Infraestrutura e dados
+
+Confirmar Artifact Registry, Workload Identity Federation, Cloud SQL, banco/usuário, backup/restore com RTO/RPO, bucket, VPC connector, Redis 7 privado, service account mínima, quotas e alertas para web, gateway, worker, scheduler e bootstrap.
+
+Use `provision_infra=true` somente depois de inventariar os recursos existentes.
+
+## 6. Gate e deploy
+
+O PR precisa passar lint, typecheck, build, foundation, E2E, gateway/front door, Semgrep, pre-commit e Semantic Commits. Revisar autorização, migrations, edge, IdP e rollback.
+
+Antes do merge, registre SHA, janela, responsável, canal de incidente, digest anterior, backup e critério de abort.
+
+No GitHub Actions:
+
+1. selecione `univesp/cloudrun-homolog`;
+2. execute `Univesp Cloud Run Homolog`;
+3. marque `confirm_homolog_deploy=true`;
+4. mantenha `provision_infra=false` no deploy normal;
+5. aprove o Environment `homolog`;
+6. acompanhe secrets, imagens, gateway, bootstrap, web, worker e scheduler;
+7. registre URLs, revisões, digests e horário.
 
 O workflow não dispara por push.
 
-## 6. Smoke obrigatório
+## 7. Smoke obrigatório
 
 Sem sessão:
 
 - `/` e `/healthz` retornam 200;
+- callback Azure é processado pelo gateway, nunca pela SPA;
 - `/api/me` e `/api/app/v1/*` retornam 401;
-- `/api/method/*`, `/api/resource/*`, `/app`, `/desk`,
-  `/files` e `/socket.io` retornam 404.
+- APIs Frappe genéricas, Desk, arquivos e Socket.IO retornam 404;
+- método institucional interno retorna 404 sem o segredo de borda.
 
 Com contas sintéticas:
 
-- aluno cria, lista e responde apenas ao próprio ticket;
-- OP vê apenas suas filas, faz claim atômico, responde e transiciona;
-- analista/gestor vê apenas sua área, atribui e salva governança;
-- admin salva parâmetros e FAQ, publica e confirma consumo no portal;
+- Azure administrativo/acadêmico e SAML concluem login, logout e expiração;
+- aluno acessa apenas os próprios tickets;
+- OP vê suas filas, faz claim atômico, responde e transiciona;
+- analista/gestor acessa apenas sua área;
+- admin salva/publica FAQ e confirma consumo no portal;
 - usuário A nunca lê ou altera objeto de B;
-- worker e scheduler processam eventos após reinício.
+- worker e scheduler processam após reinício.
 
-## 7. Rollback
+Também validar `X-Request-ID`, sessão Redis após escala, payload/anexo inválido, negativas de autorização e mocks desligados.
 
-Rollback de código:
+## 8. Rollback
+
+Para web, worker e scheduler:
 
 ```bash
 export GCP_PROJECT_ID=<projeto>
@@ -142,31 +138,10 @@ export CONFIRM_ROLLBACK=homolog
 ./ops/cloudrun/rollback.sh
 ```
 
-O script troca somente a imagem de web, worker e scheduler e preserva a
-configuração dos serviços. Ele não desfaz migration.
+O gateway deve ser revertido explicitamente ao digest anterior com `gcloud run services update <GATEWAY_SERVICE> --image <digest-anterior>`. Migrations não são desfeitas. Restore exige owner, backup identificado e smoke completo.
 
-Rollback de dados:
+## 9. Critério de prontidão
 
-1. interromper novas mudanças;
-2. avaliar forward-fix primeiro;
-3. para migration incompatível, restaurar banco e conteúdo do bucket seguindo
-   o runbook institucional;
-4. validar invariantes e smoke antes de reabrir o ambiente.
+CI comprova o contrato, não a integração real. Homologação assistida exige IdPs configurados, serviços saudáveis, apps/conta técnica provisionados, smoke por perfil, negativos de autorização, observabilidade e restore/rollback exercitados.
 
-Nunca executar restore sem owner, backup identificado e confirmação explícita.
-
-## 8. Rotina para permanecer atualizado
-
-1. sincronizar upstream em janela própria;
-2. rebase/merge da branch acadêmica com revisão;
-3. atualizar dependências em PR separado;
-4. executar gates e smoke em cada promoção;
-5. revisar secrets, certificados, IdPs e acessos trimestralmente;
-6. testar restore e rollback periodicamente;
-7. manter este documento e `ops/cloudrun/README.md` alinhados ao workflow.
-
-## 9. Carga de conteúdo
-
-O processo rápido e auditável para FAQs está em
-`docs/FAQ_CARGA_RAPIDA.md`. Conteúdo entra como rascunho, passa por dry-run,
-revisão e só depois é publicado.
+A carga rápida de FAQs por XLSX ou JSON, com imagem/vídeo por HTTPS, está em `docs/FAQ_CARGA_RAPIDA.md`.

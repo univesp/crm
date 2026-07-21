@@ -5,8 +5,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "ops" / "cloudrun" / "nginx" / "frappe.conf.template"
 DEPLOY = ROOT / "ops" / "cloudrun" / "deploy.sh"
+DEPLOY_GATEWAY = ROOT / "ops" / "cloudrun" / "deploy-sso-gateway.sh"
+COMMON = ROOT / "ops" / "cloudrun" / "scripts" / "common.sh"
+CONTAINERFILE = ROOT / "ops" / "cloudrun" / "Containerfile"
 ROLLBACK = ROOT / "ops" / "cloudrun" / "rollback.sh"
 WORKFLOW = ROOT / ".github" / "workflows" / "univesp-cloudrun-homolog.yml"
+SYNC_SECRET = ROOT / "ops" / "cloudrun" / "sync_secret.sh"
 
 
 class CloudRunFrontDoorTest(unittest.TestCase):
@@ -14,8 +18,12 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 	def setUpClass(cls):
 		cls.config = CONFIG.read_text(encoding="utf-8")
 		cls.deploy = DEPLOY.read_text(encoding="utf-8")
+		cls.deploy_gateway = DEPLOY_GATEWAY.read_text(encoding="utf-8")
+		cls.common = COMMON.read_text(encoding="utf-8")
+		cls.containerfile = CONTAINERFILE.read_text(encoding="utf-8")
 		cls.rollback = ROLLBACK.read_text(encoding="utf-8")
 		cls.workflow = WORKFLOW.read_text(encoding="utf-8")
+		cls.sync_secret = SYNC_SECRET.read_text(encoding="utf-8")
 
 	def test_academic_api_precedes_generic_api_block(self):
 		academic = self.config.index("location ^~ /api/app/v1/")
@@ -36,13 +44,53 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 			pattern = rf"location\s+(?:\^~\s+|=\s+)?{re.escape(path)}[^{{]*\{{\s*return\s+(?:302|404)"
 			self.assertRegex(self.config, pattern, path)
 
+	def test_sso_callbacks_reach_gateway(self):
+		self.assertNotIn("location = /api/sso/azure/callback", self.config)
+		block = self.config.split("location ^~ /api/sso/", 1)[1].split("\n\t}", 1)[0]
+		self.assertIn("proxy_pass ${SSO_GATEWAY_ORIGIN};", block)
+
 	def test_academic_api_targets_sso_gateway(self):
 		block = self.config.split("location ^~ /api/app/v1/", 1)[1].split("\n\t}", 1)[0]
 		self.assertIn("proxy_pass ${SSO_GATEWAY_ORIGIN};", block)
 
+	def test_only_gateway_can_reach_institutional_frappe_methods(self):
+		institutional = self.config.index("location ^~ /api/method/univesp_atendimento.api.v1.")
+		generic = self.config.index("location ^~ /api/method/ { return 404; }")
+		self.assertLess(institutional, generic)
+		block = self.config[institutional:generic]
+		self.assertIn("$http_x_univesp_gateway_key", block)
+		self.assertIn("${UNIVESP_EDGE_SHARED_SECRET}", block)
+
+	def test_cloudrun_image_contains_academic_apps(self):
+		self.assertIn("test -d apps/helpdesk", self.containerfile)
+		self.assertIn("HELPDESK_REF", self.containerfile)
+		self.assertIn("COPY --chown=frappe:frappe univesp_atendimento_app", self.containerfile)
+		self.assertIn('install-app "${app}"', self.common)
+		self.assertIn("configure_bff_service_account", self.common)
+
+	def test_gateway_is_built_and_deployed_with_managed_secrets(self):
+		self.assertIn("Build and push SSO Gateway image", self.workflow)
+		self.assertIn("./ops/cloudrun/deploy-sso-gateway.sh", self.workflow)
+		self.assertIn("https://github.com/frappe/helpdesk", self.workflow)
+		self.assertIn("GATEWAY_REDIS_URL", self.deploy_gateway)
+		self.assertIn("UNIVESP_EDGE_SHARED_SECRET", self.deploy_gateway)
+		self.assertIn("--allow-unauthenticated", self.deploy_gateway)
+
+	def test_workflow_fails_before_mutation_when_configuration_is_missing(self):
+		preflight = self.workflow.index("Validate required deploy configuration")
+		authenticate = self.workflow.index("Authenticate to Google Cloud")
+		sync = self.workflow.index("Sync runtime secrets to Secret Manager")
+		self.assertLess(preflight, authenticate)
+		self.assertLess(preflight, sync)
+		self.assertIn("EDGE_SHARED_SECRET_VALUE", self.workflow[preflight:authenticate])
+		self.assertIn("64 hexadecimal characters", self.workflow[preflight:authenticate])
+		self.assertIn('-z "${SECRET_VALUE}"', self.sync_secret)
+
 	def test_deploy_requires_https_gateway_origin(self):
-		self.assertIn("SSO_GATEWAY_ORIGIN are required.", self.deploy)
+		self.assertIn("SSO_GATEWAY_ORIGIN and FRAPPE_SERVICE_USER_EMAIL are required.", self.deploy)
 		self.assertIn("https://*)", self.deploy)
+		self.assertIn("UNIVESP_BFF_SHARED_SECRET", self.deploy)
+		self.assertIn("UNIVESP_EDGE_SHARED_SECRET", self.deploy)
 
 	def test_workflow_requires_manual_confirmation_on_academic_branch(self):
 		self.assertIn("workflow_dispatch:", self.workflow)

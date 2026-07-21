@@ -8,7 +8,7 @@ const originalFetch = globalThis.fetch
 
 afterEach(() => {
   globalThis.fetch = originalFetch
-  for (const name of ['FRAPPE_API_KEY', 'FRAPPE_API_SECRET', 'UNIVESP_BFF_SHARED_SECRET']) {
+  for (const name of ['FRAPPE_API_KEY', 'FRAPPE_API_SECRET', 'UNIVESP_BFF_SHARED_SECRET', 'UNIVESP_EDGE_SHARED_SECRET']) {
     delete process.env[name]
   }
 })
@@ -35,9 +35,11 @@ test('chama somente o metodo institucional com conta tecnica e contexto assinado
   process.env.FRAPPE_API_KEY = 'gateway-key'
   process.env.FRAPPE_API_SECRET = 'gateway-secret'
   process.env.UNIVESP_BFF_SHARED_SECRET = 'shared-test-secret'
+  process.env.UNIVESP_EDGE_SHARED_SECRET = 'a'.repeat(64)
   globalThis.fetch = async (url, options) => {
     assert.match(String(url), /univesp_atendimento\.api\.v1\.tickets\.list_tickets/)
     assert.equal(options.headers.Authorization, 'token gateway-key:gateway-secret')
+    assert.equal(options.headers['X-Univesp-Gateway-Key'], 'a'.repeat(64))
     assert.ok(options.headers['X-Univesp-Signature'])
     return new Response(JSON.stringify({ message: { data: [{ id: 'HD-TCK-1' }], error: null } }), {
       status: 200,

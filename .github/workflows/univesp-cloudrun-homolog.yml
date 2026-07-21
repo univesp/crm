@@ -29,7 +29,10 @@ jobs:
       GCP_REGION: ${{ vars.GCP_REGION }}
       ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY }}
       IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+      GATEWAY_IMAGE_NAME: ${{ vars.GATEWAY_IMAGE_NAME }}
+      GATEWAY_SERVICE: ${{ vars.GATEWAY_SERVICE }}
       FRAPPE_SITE_NAME: ${{ vars.FRAPPE_SITE_NAME }}
+      FRAPPE_SERVICE_USER_EMAIL: ${{ vars.FRAPPE_SERVICE_USER_EMAIL }}
       PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
       DOMAIN_MAPPING_MODE: none
       DB_TYPE: ${{ vars.DB_TYPE }}
@@ -48,12 +51,76 @@ jobs:
       REDIS_SOCKETIO_SECRET_NAME: ${{ vars.REDIS_SOCKETIO_SECRET_NAME }}
       DB_PASSWORD_SECRET_NAME: ${{ vars.DB_PASSWORD_SECRET_NAME }}
       ADMIN_PASSWORD_SECRET_NAME: ${{ vars.ADMIN_PASSWORD_SECRET_NAME }}
+      BFF_SHARED_SECRET_NAME: ${{ vars.BFF_SHARED_SECRET_NAME }}
+      EDGE_SHARED_SECRET_NAME: ${{ vars.EDGE_SHARED_SECRET_NAME }}
+      FRAPPE_API_KEY_SECRET_NAME: ${{ vars.FRAPPE_API_KEY_SECRET_NAME }}
+      FRAPPE_API_SECRET_SECRET_NAME: ${{ vars.FRAPPE_API_SECRET_SECRET_NAME }}
+      GATEWAY_SESSION_SECRET_NAME: ${{ vars.GATEWAY_SESSION_SECRET_NAME }}
+      GATEWAY_JWT_SECRET_NAME: ${{ vars.GATEWAY_JWT_SECRET_NAME }}
+      GATEWAY_REDIS_SECRET_NAME: ${{ vars.GATEWAY_REDIS_SECRET_NAME }}
+      AZURE_ADMIN_CLIENT_SECRET_NAME: ${{ vars.AZURE_ADMIN_CLIENT_SECRET_NAME }}
+      AZURE_ACADEMICO_CLIENT_SECRET_NAME: ${{ vars.AZURE_ACADEMICO_CLIENT_SECRET_NAME }}
+      SAML_IDP_CERT_SECRET_NAME: ${{ vars.SAML_IDP_CERT_SECRET_NAME }}
+      AZURE_ADMIN_CLIENT_ID: ${{ vars.AZURE_ADMIN_CLIENT_ID }}
+      AZURE_ADMIN_TENANT_ID: ${{ vars.AZURE_ADMIN_TENANT_ID }}
+      AZURE_ACADEMICO_CLIENT_ID: ${{ vars.AZURE_ACADEMICO_CLIENT_ID }}
+      AZURE_ACADEMICO_TENANT_ID: ${{ vars.AZURE_ACADEMICO_TENANT_ID }}
+      SAML_IDP_SSO_URL: ${{ vars.SAML_IDP_SSO_URL }}
+      SAML_IDP_SLO_URL: ${{ vars.SAML_IDP_SLO_URL }}
+      SAML_ENTITY_ID: ${{ vars.SAML_ENTITY_ID }}
       CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
-      SSO_GATEWAY_ORIGIN: ${{ vars.SSO_GATEWAY_ORIGIN }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate required deploy configuration
+        env:
+          DB_PASSWORD_VALUE: ${{ secrets.DB_PASSWORD }}
+          ADMIN_PASSWORD_VALUE: ${{ secrets.ADMIN_PASSWORD }}
+          REDIS_CACHE_VALUE: ${{ secrets.REDIS_CACHE_URL }}
+          REDIS_QUEUE_VALUE: ${{ secrets.REDIS_QUEUE_URL }}
+          REDIS_SOCKETIO_VALUE: ${{ secrets.REDIS_SOCKETIO_URL }}
+          BFF_SHARED_SECRET_VALUE: ${{ secrets.UNIVESP_BFF_SHARED_SECRET }}
+          EDGE_SHARED_SECRET_VALUE: ${{ secrets.UNIVESP_EDGE_SHARED_SECRET }}
+          FRAPPE_API_KEY_VALUE: ${{ secrets.FRAPPE_API_KEY }}
+          FRAPPE_API_SECRET_VALUE: ${{ secrets.FRAPPE_API_SECRET }}
+          GATEWAY_SESSION_SECRET_VALUE: ${{ secrets.GATEWAY_SESSION_SECRET }}
+          GATEWAY_JWT_SECRET_VALUE: ${{ secrets.GATEWAY_JWT_SECRET }}
+          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL }}
+          AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
+          AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
+          SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
+        run: |
+          required_vars=(
+            GCP_PROJECT_ID GCP_REGION ARTIFACT_REPOSITORY FRAPPE_SITE_NAME
+            FRAPPE_SERVICE_USER_EMAIL PUBLIC_DOMAIN DB_TYPE DB_SETUP_MODE DB_NAME DB_USER
+            CLOUDSQL_INSTANCE SITES_BUCKET VPC_CONNECTOR CLOUDRUN_RUNTIME_SERVICE_ACCOUNT
+            AZURE_ADMIN_CLIENT_ID AZURE_ADMIN_TENANT_ID
+            AZURE_ACADEMICO_CLIENT_ID AZURE_ACADEMICO_TENANT_ID
+            SAML_IDP_SSO_URL SAML_ENTITY_ID
+          )
+          required_secrets=(
+            DB_PASSWORD_VALUE ADMIN_PASSWORD_VALUE REDIS_CACHE_VALUE REDIS_QUEUE_VALUE
+            REDIS_SOCKETIO_VALUE BFF_SHARED_SECRET_VALUE EDGE_SHARED_SECRET_VALUE
+            FRAPPE_API_KEY_VALUE FRAPPE_API_SECRET_VALUE GATEWAY_SESSION_SECRET_VALUE
+            GATEWAY_JWT_SECRET_VALUE GATEWAY_REDIS_VALUE AZURE_ADMIN_CLIENT_SECRET_VALUE
+            AZURE_ACADEMICO_CLIENT_SECRET_VALUE SAML_IDP_CERT_VALUE
+          )
+          for name in "${required_vars[@]}" "${required_secrets[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              printf 'Missing required homolog configuration: %s\n' "${name}" >&2
+              exit 1
+            fi
+          done
+          [[ "${BFF_SHARED_SECRET_VALUE}" =~ ^[^[:space:]]{32,}$ ]] ||
+            { printf 'UNIVESP_BFF_SHARED_SECRET must contain at least 32 non-space characters.\n' >&2; exit 1; }
+          [[ "${EDGE_SHARED_SECRET_VALUE}" =~ ^[[:xdigit:]]{64}$ ]] ||
+            { printf 'UNIVESP_EDGE_SHARED_SECRET must contain exactly 64 hexadecimal characters.\n' >&2; exit 1; }
+          [[ ${#FRAPPE_API_KEY_VALUE} -ge 15 && ${#FRAPPE_API_SECRET_VALUE} -ge 32 ]] ||
+            { printf 'Frappe technical credentials are below the minimum length.\n' >&2; exit 1; }
+          [[ ${#GATEWAY_SESSION_SECRET_VALUE} -ge 32 && ${#GATEWAY_JWT_SECRET_VALUE} -ge 32 ]] ||
+            { printf 'Gateway session/JWT secrets must contain at least 32 characters.\n' >&2; exit 1; }
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -71,45 +138,59 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
         run: ./ops/cloudrun/provision.sh
 
-      - name: Sync DB password to Secret Manager
+      - name: Sync runtime secrets to Secret Manager
         env:
-          SECRET_NAME: ${{ vars.DB_PASSWORD_SECRET_NAME }}
-          SECRET_VALUE: ${{ secrets.DB_PASSWORD }}
-        run: ./ops/cloudrun/sync_secret.sh
-
-      - name: Sync administrator password to Secret Manager
-        env:
-          SECRET_NAME: ${{ vars.ADMIN_PASSWORD_SECRET_NAME }}
-          SECRET_VALUE: ${{ secrets.ADMIN_PASSWORD }}
-        run: ./ops/cloudrun/sync_secret.sh
-
-      - name: Sync Redis cache URL to Secret Manager
-        env:
-          SECRET_NAME: ${{ vars.REDIS_CACHE_SECRET_NAME }}
-          SECRET_VALUE: ${{ secrets.REDIS_CACHE_URL }}
-        run: ./ops/cloudrun/sync_secret.sh
-
-      - name: Sync Redis queue URL to Secret Manager
-        env:
-          SECRET_NAME: ${{ vars.REDIS_QUEUE_SECRET_NAME }}
-          SECRET_VALUE: ${{ secrets.REDIS_QUEUE_URL }}
-        run: ./ops/cloudrun/sync_secret.sh
-
-      - name: Sync Redis socket.io URL to Secret Manager
-        env:
-          SECRET_NAME: ${{ vars.REDIS_SOCKETIO_SECRET_NAME }}
-          SECRET_VALUE: ${{ secrets.REDIS_SOCKETIO_URL }}
-        run: ./ops/cloudrun/sync_secret.sh
+          DB_PASSWORD_VALUE: ${{ secrets.DB_PASSWORD }}
+          ADMIN_PASSWORD_VALUE: ${{ secrets.ADMIN_PASSWORD }}
+          REDIS_CACHE_VALUE: ${{ secrets.REDIS_CACHE_URL }}
+          REDIS_QUEUE_VALUE: ${{ secrets.REDIS_QUEUE_URL }}
+          REDIS_SOCKETIO_VALUE: ${{ secrets.REDIS_SOCKETIO_URL }}
+          BFF_SHARED_SECRET_VALUE: ${{ secrets.UNIVESP_BFF_SHARED_SECRET }}
+          EDGE_SHARED_SECRET_VALUE: ${{ secrets.UNIVESP_EDGE_SHARED_SECRET }}
+          FRAPPE_API_KEY_VALUE: ${{ secrets.FRAPPE_API_KEY }}
+          FRAPPE_API_SECRET_VALUE: ${{ secrets.FRAPPE_API_SECRET }}
+          GATEWAY_SESSION_SECRET_VALUE: ${{ secrets.GATEWAY_SESSION_SECRET }}
+          GATEWAY_JWT_SECRET_VALUE: ${{ secrets.GATEWAY_JWT_SECRET }}
+          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL }}
+          AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
+          AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
+          SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
+        run: |
+          sync_secret() {
+            SECRET_NAME="$1" SECRET_VALUE="$2" ./ops/cloudrun/sync_secret.sh
+          }
+          sync_secret "${DB_PASSWORD_SECRET_NAME:-crm-homolog-db-password}" "${DB_PASSWORD_VALUE}"
+          sync_secret "${ADMIN_PASSWORD_SECRET_NAME:-crm-homolog-admin-password}" "${ADMIN_PASSWORD_VALUE}"
+          sync_secret "${REDIS_CACHE_SECRET_NAME:-crm-homolog-redis-cache-url}" "${REDIS_CACHE_VALUE}"
+          sync_secret "${REDIS_QUEUE_SECRET_NAME:-crm-homolog-redis-queue-url}" "${REDIS_QUEUE_VALUE}"
+          sync_secret "${REDIS_SOCKETIO_SECRET_NAME:-crm-homolog-redis-socketio-url}" "${REDIS_SOCKETIO_VALUE}"
+          sync_secret "${BFF_SHARED_SECRET_NAME:-crm-homolog-bff-shared-secret}" "${BFF_SHARED_SECRET_VALUE}"
+          sync_secret "${EDGE_SHARED_SECRET_NAME:-crm-homolog-edge-shared-secret}" "${EDGE_SHARED_SECRET_VALUE}"
+          sync_secret "${FRAPPE_API_KEY_SECRET_NAME:-crm-homolog-frappe-api-key}" "${FRAPPE_API_KEY_VALUE}"
+          sync_secret "${FRAPPE_API_SECRET_SECRET_NAME:-crm-homolog-frappe-api-secret}" "${FRAPPE_API_SECRET_VALUE}"
+          sync_secret "${GATEWAY_SESSION_SECRET_NAME:-crm-homolog-gateway-session-secret}" "${GATEWAY_SESSION_SECRET_VALUE}"
+          sync_secret "${GATEWAY_JWT_SECRET_NAME:-crm-homolog-gateway-jwt-secret}" "${GATEWAY_JWT_SECRET_VALUE}"
+          sync_secret "${GATEWAY_REDIS_SECRET_NAME:-crm-homolog-gateway-redis-url}" "${GATEWAY_REDIS_VALUE}"
+          sync_secret "${AZURE_ADMIN_CLIENT_SECRET_NAME:-crm-homolog-azure-admin-client-secret}" "${AZURE_ADMIN_CLIENT_SECRET_VALUE}"
+          sync_secret "${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}" "${AZURE_ACADEMICO_CLIENT_SECRET_VALUE}"
+          sync_secret "${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}" "${SAML_IDP_CERT_VALUE}"
 
       - name: Compute image metadata
         id: meta
         run: |
-          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          image_name="${IMAGE_NAME:-frappe-crm}"
+          gateway_image_name="${GATEWAY_IMAGE_NAME:-crm-sso-gateway}"
+          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${image_name}:${GITHUB_SHA}"
+          GATEWAY_IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${gateway_image_name}:${GITHUB_SHA}"
           echo "image_uri=${IMAGE_URI}" >> "${GITHUB_OUTPUT}"
-          APPS_JSON=$(jq -cn --arg url "https://github.com/${GITHUB_REPOSITORY}" --arg branch "${GITHUB_REF_NAME}" '[{url: $url, branch: $branch}]')
+          echo "gateway_image_uri=${GATEWAY_IMAGE_URI}" >> "${GITHUB_OUTPUT}"
+          APPS_JSON=$(jq -cn \
+            --arg crm_url "https://github.com/${GITHUB_REPOSITORY}" \
+            --arg crm_branch "${GITHUB_REF_NAME}" \
+            '[{url: $crm_url, branch: $crm_branch}, {url: "https://github.com/frappe/helpdesk", branch: "main"}]')
           echo "apps_json_base64=$(printf '%s' "${APPS_JSON}" | base64 -w 0)" >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push Cloud Run image
+      - name: Build and push Frappe image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -118,9 +199,33 @@ jobs:
           tags: ${{ steps.meta.outputs.image_uri }}
           build-args: |
             FRAPPE_BRANCH=version-16
+            HELPDESK_REF=6b423f8fba6d4c7f8ff5db56f197243f6549d450
             APPS_JSON_BASE64=${{ steps.meta.outputs.apps_json_base64 }}
 
-      - name: Deploy Cloud Run services and job
+      - name: Build and push SSO Gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: sso-gateway
+          file: sso-gateway/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.gateway_image_uri }}
+
+      - name: Deploy SSO Gateway
+        env:
+          GATEWAY_IMAGE_URI: ${{ steps.meta.outputs.gateway_image_uri }}
+          APP_BASE_URL: https://${{ vars.PUBLIC_DOMAIN }}
+          FRAPPE_ORIGIN: https://${{ vars.PUBLIC_DOMAIN }}
+        run: |
+          ./ops/cloudrun/deploy-sso-gateway.sh
+          gateway_service="${GATEWAY_SERVICE:-crm-homolog-sso-gateway}"
+          gateway_origin=$(gcloud run services describe "${gateway_service}" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --format='value(status.url)')
+          test -n "${gateway_origin}"
+          echo "SSO_GATEWAY_ORIGIN=${gateway_origin}" >> "${GITHUB_ENV}"
+
+      - name: Deploy Frappe services and bootstrap academic apps
         env:
           IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

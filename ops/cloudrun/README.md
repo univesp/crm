@@ -5,7 +5,8 @@ Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
 - `web`: Cloud Run público com `nginx + gunicorn + socket.io` no mesmo container. O nginx serve o `univesp-frontend`; Frappe permanece como motor interno e não expõe CRM/Desk/APIs genéricas no domínio acadêmico.
 - `worker`: Cloud Run privado, instância fixa, CPU sempre alocada, processando filas Redis.
 - `scheduler`: Cloud Run privado, instância fixa, CPU sempre alocada, executando `bench schedule`.
-- `bootstrap`: Cloud Run Job idempotente para criar o site, instalar o app e rodar `migrate`.
+- `bootstrap`: Cloud Run Job idempotente para criar o site, instalar CRM/Helpdesk/`univesp_atendimento`, rodar `migrate` e provisionar a conta técnica.
+- `sso-gateway`: Cloud Run público com OIDC/SAML, sessão Redis e BFF institucional.
 
 ## Modo econômico para homolog
 
@@ -63,6 +64,10 @@ MODE=full ./ops/cloudrun/set-service-mode.sh
   - `REDIS_CACHE_URL`
   - `REDIS_QUEUE_URL`
   - `REDIS_SOCKETIO_URL`
+  - `UNIVESP_BFF_SHARED_SECRET`, `UNIVESP_EDGE_SHARED_SECRET`
+  - `FRAPPE_API_KEY`, `FRAPPE_API_SECRET`
+  - `GATEWAY_SESSION_SECRET`, `GATEWAY_JWT_SECRET`, `GATEWAY_REDIS_URL`
+  - secrets Azure/SAML descritos em `docs/TI_HOMOLOGACAO.md`
   - `CLOUDFLARE_API_TOKEN`
 
 ### GitHub Variables
@@ -73,7 +78,10 @@ MODE=full ./ops/cloudrun/set-service-mode.sh
 - `IMAGE_NAME=frappe-crm`
 - `FRAPPE_SITE_NAME=homolog-crm.univesp.br`
 - `PUBLIC_DOMAIN=homolog-crm.univesp.br`
-- `SSO_GATEWAY_ORIGIN=https://<origem-do-sso-gateway>`
+- `GATEWAY_IMAGE_NAME=crm-sso-gateway`
+- `GATEWAY_SERVICE=crm-homolog-sso-gateway`
+- `FRAPPE_SERVICE_USER_EMAIL=<conta-tecnica>`
+- IDs/tenants e nomes de secrets descritos em `docs/TI_HOMOLOGACAO.md`
 - `DB_TYPE=postgres`
 - `DB_SETUP_MODE=existing`
 - `DB_NAME=crm_homolog`
@@ -97,12 +105,13 @@ MODE=full ./ops/cloudrun/set-service-mode.sh
 O nginx do serviço público fica como entrada única do ambiente:
 
 - `/` e `/login` servem o `univesp-frontend`.
-- `/api/me`, `/api/sso/*` e `/api/app/v1/*` vão para `SSO_GATEWAY_ORIGIN`.
+- `/api/me`, `/api/sso/*` e `/api/app/v1/*` vão para a URL do gateway calculada no deploy.
+- `/api/method/univesp_atendimento.api.v1.*` chega ao Frappe somente com o segredo de borda enviado pelo gateway.
 - `/api/method/*`, `/api/resource/*`, `/app*`, `/desk*`, `/assets*`, `/files*`, `/private/files*` e `/socket.io*` retornam `404` externamente.
 - `/crm*` redireciona para o portal acadêmico.
-- O gateway usa uma origem interna/privada do Frappe com credencial técnica e contexto institucional assinado; ela não deve ser o front door público bloqueado por este nginx.
+- O gateway usa o front door como origem Frappe; somente o namespace institucional protegido pelo segredo de borda chega ao gunicorn.
 
-`SSO_GATEWAY_ORIGIN` é obrigatório e deve usar HTTPS. O deploy falha antes de alterar serviços quando essa integração não está configurada.
+No workflow, `SSO_GATEWAY_ORIGIN` é obtido automaticamente após publicar o gateway. Em execução manual de `deploy.sh`, ele continua obrigatório e deve ser HTTPS.
 
 ### Google Cloud / domínio
 
@@ -159,9 +168,10 @@ Use `SYNC_MODE=rebase` quando a branch for basicamente sua e você quiser histó
 3. Após PR aprovado e merge em `univesp/cloudrun-homolog`, rode manualmente o workflow `Univesp Cloud Run Homolog`, confirme o deploy e obtenha a aprovação do Environment `homolog`.
 4. O workflow:
    - autentica no GCP via Workload Identity Federation,
-   - builda a imagem em Artifact Registry,
+   - constrói e publica as imagens Frappe e SSO Gateway por SHA,
    - sincroniza os secrets no Secret Manager,
-   - executa o job de bootstrap,
+   - publica o gateway e calcula sua origem,
+   - executa o job de bootstrap dos três apps e da conta técnica,
    - publica `web`, `worker` e `scheduler`,
    - cria o `domain mapping`,
    - sincroniza os registros DNS no Cloudflare.
