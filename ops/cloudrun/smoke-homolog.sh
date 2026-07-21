@@ -24,7 +24,8 @@ check anonymous /desk 404
 check anonymous /files/private.txt 404
 check anonymous /socket.io/ 404
 check anonymous /api/internal/institutional 404
-check anonymous /api/sso/azure/start 302,303,307,308
+check anonymous '/api/sso/azure/start?tenant=admin' 302,303,307,308
+check anonymous '/api/sso/azure/start?tenant=academico' 302,303,307,308
 check anonymous /api/sso/saml/start 302,303,307,308
 if [[ -n "${STUDENT_COOKIE_JAR:-}" ]]; then check student /api/me 200 "$STUDENT_COOKIE_JAR"; check student /api/app/v1/tickets 200 "$STUDENT_COOKIE_JAR"; check student /api/app/v1/knowledge/faq-published 200 "$STUDENT_COOKIE_JAR"; fi
 if [[ -n "${OP_COOKIE_JAR:-}" ]]; then check op /api/me 200 "$OP_COOKIE_JAR"; check op /api/app/v1/queues 200 "$OP_COOKIE_JAR"; check op /api/app/v1/tickets 200 "$OP_COOKIE_JAR"; fi
