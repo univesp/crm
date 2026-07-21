@@ -1,0 +1,76 @@
+name: Univesp Cloud Run Readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    environment: homolog
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY }}
+      CLOUDSQL_INSTANCE: ${{ vars.CLOUDSQL_INSTANCE }}
+      SITES_BUCKET: ${{ vars.SITES_BUCKET }}
+      VPC_CONNECTOR: ${{ vars.VPC_CONNECTOR }}
+      CLOUDRUN_RUNTIME_SERVICE_ACCOUNT: ${{ vars.CLOUDRUN_RUNTIME_SERVICE_ACCOUNT }}
+      DB_PASSWORD_SECRET_NAME: ${{ vars.DB_PASSWORD_SECRET_NAME }}
+      ADMIN_PASSWORD_SECRET_NAME: ${{ vars.ADMIN_PASSWORD_SECRET_NAME }}
+      REDIS_CACHE_SECRET_NAME: ${{ vars.REDIS_CACHE_SECRET_NAME }}
+      REDIS_QUEUE_SECRET_NAME: ${{ vars.REDIS_QUEUE_SECRET_NAME }}
+      REDIS_SOCKETIO_SECRET_NAME: ${{ vars.REDIS_SOCKETIO_SECRET_NAME }}
+      BFF_SHARED_SECRET_NAME: ${{ vars.BFF_SHARED_SECRET_NAME }}
+      EDGE_SHARED_SECRET_NAME: ${{ vars.EDGE_SHARED_SECRET_NAME }}
+      FRAPPE_API_KEY_SECRET_NAME: ${{ vars.FRAPPE_API_KEY_SECRET_NAME }}
+      FRAPPE_API_SECRET_SECRET_NAME: ${{ vars.FRAPPE_API_SECRET_SECRET_NAME }}
+      GATEWAY_SESSION_SECRET_NAME: ${{ vars.GATEWAY_SESSION_SECRET_NAME }}
+      GATEWAY_JWT_SECRET_NAME: ${{ vars.GATEWAY_JWT_SECRET_NAME }}
+      GATEWAY_REDIS_SECRET_NAME: ${{ vars.GATEWAY_REDIS_SECRET_NAME }}
+      AZURE_ADMIN_CLIENT_SECRET_NAME: ${{ vars.AZURE_ADMIN_CLIENT_SECRET_NAME }}
+      AZURE_ACADEMICO_CLIENT_SECRET_NAME: ${{ vars.AZURE_ACADEMICO_CLIENT_SECRET_NAME }}
+      SAML_IDP_CERT_SECRET_NAME: ${{ vars.SAML_IDP_CERT_SECRET_NAME }}
+      PUBLIC_URL: https://${{ vars.PUBLIC_DOMAIN }}
+      INITIAL_ADMIN_EMAIL: ${{ vars.INITIAL_ADMIN_EMAIL }}
+      AZURE_ADMIN_CLIENT_ID: ${{ vars.AZURE_ADMIN_CLIENT_ID }}
+      AZURE_ADMIN_TENANT_ID: ${{ vars.AZURE_ADMIN_TENANT_ID }}
+      AZURE_ACADEMICO_CLIENT_ID: ${{ vars.AZURE_ACADEMICO_CLIENT_ID }}
+      AZURE_ACADEMICO_TENANT_ID: ${{ vars.AZURE_ACADEMICO_TENANT_ID }}
+      SAML_IDP_SSO_URL: ${{ vars.SAML_IDP_SSO_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Collect read-only readiness evidence
+        run: |
+          mkdir -p artifacts/homolog/readiness
+          failures=0
+          if [[ "${INITIAL_ADMIN_EMAIL}" =~ ^[^@[:space:]]+@univesp\.br$ ]]; then
+            jq -n '{schema_version:1,passed:true,domain:"univesp.br"}' >artifacts/homolog/readiness/initial-admin.json
+          else
+            jq -n '{schema_version:1,passed:false,reason:"missing-or-invalid-institutional-email"}' >artifacts/homolog/readiness/initial-admin.json
+            failures=$((failures + 1))
+          fi
+          PREFLIGHT_MODE=gcp OUTPUT_PATH=artifacts/homolog/readiness/preflight.json ./ops/cloudrun/preflight-homolog.sh || failures=$((failures + 1))
+          OUTPUT_PATH=artifacts/homolog/readiness/idp-redirects.json ./ops/cloudrun/ti/verify-idp-redirects.sh || failures=$((failures + 1))
+          VALIDATION_MODE=template OUTPUT_PATH=artifacts/homolog/readiness/synthetic-template.json ./ops/cloudrun/ti/validate-synthetic-accounts.sh || failures=$((failures + 1))
+          jq -n --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson failures "$failures" \
+            '{schema_version:1,generated_at:$generated_at,passed:($failures==0),failure_count:$failures}' >artifacts/homolog/readiness/summary.json
+          (cd artifacts/homolog/readiness && sha256sum ./*.json >SHA256SUMS)
+          ((failures == 0))
+      - name: Upload readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homolog-readiness-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/homolog/readiness/
+          if-no-files-found: error
+          retention-days: 30
