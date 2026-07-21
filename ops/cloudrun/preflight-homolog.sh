@@ -40,10 +40,13 @@ for name in "${required_values[@]}"; do if [[ -n "${!name:-}" ]]; then record "e
 if [[ "$PREFLIGHT_MODE" == gcp ]]; then
  command -v gcloud >/dev/null || { printf 'gcloud is required in gcp mode.\n' >&2; exit 1; }
  if gcloud artifacts repositories describe "$ARTIFACT_REPOSITORY" --project "$PROJECT_ID" --location "$REGION" >/dev/null 2>&1; then record artifact_repository pass found; else record artifact_repository fail not-found; fi
+ current_web_json=$(mktemp); trap 'rm -f "$current_web_json"' EXIT
+ if ! gcloud run services describe "$WEB_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json >"$current_web_json" 2>/dev/null; then printf '{}' >"$current_web_json"; fi
+ service_references(){ jq -e --arg expected "$1" '[.. | strings] | any(. == $expected or contains($expected))' "$current_web_json" >/dev/null; }
  cloudsql_instance_name=${CLOUDSQL_INSTANCE##*:}
- if gcloud sql instances describe "$cloudsql_instance_name" --project "$PROJECT_ID" >/dev/null 2>&1; then record cloudsql pass found; else record cloudsql fail not-found; fi
- if gcloud storage buckets describe "gs://$SITES_BUCKET" --project "$PROJECT_ID" >/dev/null 2>&1; then record sites_bucket pass found; else record sites_bucket fail not-found; fi
- if gcloud compute networks vpc-access connectors describe "$VPC_CONNECTOR" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then record vpc_connector pass found; else record vpc_connector fail not-found; fi
+ if gcloud sql instances describe "$cloudsql_instance_name" --project "$PROJECT_ID" >/dev/null 2>&1; then record cloudsql pass found; elif service_references "$CLOUDSQL_INSTANCE"; then record cloudsql pass attached-current-service; else record cloudsql fail not-found-or-not-attached; fi
+ if gcloud storage buckets describe "gs://$SITES_BUCKET" --project "$PROJECT_ID" >/dev/null 2>&1; then record sites_bucket pass found; elif service_references "$SITES_BUCKET"; then record sites_bucket pass attached-current-service; else record sites_bucket fail not-found-or-not-attached; fi
+ if gcloud compute networks vpc-access connectors describe "$VPC_CONNECTOR" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then record vpc_connector pass found; elif service_references "$VPC_CONNECTOR"; then record vpc_connector pass attached-current-service; else record vpc_connector fail not-found-or-not-attached; fi
  if gcloud iam service-accounts describe "$CLOUDRUN_RUNTIME_SERVICE_ACCOUNT" --project "$PROJECT_ID" >/dev/null 2>&1; then record runtime_service_account pass found; else record runtime_service_account fail not-found; fi
  for secret_name in "${secret_names[@]}"; do if gcloud secrets versions describe latest --secret "$secret_name" --project "$PROJECT_ID" --format='value(state)' 2>/dev/null | grep -qx ENABLED; then record "secret:$secret_name" pass latest-enabled; else record "secret:$secret_name" fail missing-or-disabled; fi; done
  if [[ "$CHECK_DEPLOYED_SERVICES" == true ]]; then

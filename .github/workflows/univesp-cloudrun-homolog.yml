@@ -137,6 +137,14 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
         run: ./ops/cloudrun/provision.sh
 
+      - name: Resolve existing gateway secret references
+        env:
+          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL }}
+          AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
+          AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
+          SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
+        run: ./ops/cloudrun/resolve-runtime-secret-names.sh
+
       - name: Sync runtime secrets to Secret Manager
         env:
           DB_PASSWORD_VALUE: ${{ secrets.DB_PASSWORD }}
