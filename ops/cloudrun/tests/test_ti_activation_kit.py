@@ -12,7 +12,9 @@ class TiActivationKitTest(unittest.TestCase):
 		cls.iam = (TI / "manage-deployer-iam.sh").read_text(encoding="utf-8")
 		cls.idp = (TI / "verify-idp-redirects.sh").read_text(encoding="utf-8")
 		cls.validator = (TI / "validate-synthetic-accounts.sh").read_text(encoding="utf-8")
-		cls.workflow = (ROOT / ".github" / "workflows" / "univesp-cloudrun-readiness.yml").read_text(encoding="utf-8")
+		cls.workflow = (ROOT / ".github" / "workflows" / "univesp-cloudrun-readiness.yml").read_text(
+			encoding="utf-8"
+		)
 		cls.manifest = json.loads((TI / "synthetic-accounts.example.json").read_text(encoding="utf-8"))
 
 	def test_iam_defaults_to_check_and_has_manifest_based_rollback(self):
@@ -20,7 +22,12 @@ class TiActivationKitTest(unittest.TestCase):
 		self.assertIn("CONFIRM_IAM=homolog", self.iam)
 		self.assertIn("CONFIRM_IAM_ROLLBACK=homolog", self.iam)
 		self.assertIn("roles_added", self.iam)
-		for role in ("roles/cloudsql.client", "roles/storage.bucketViewer", "roles/vpcaccess.user", "roles/compute.viewer"):
+		for role in (
+			"roles/cloudsql.client",
+			"roles/storage.bucketViewer",
+			"roles/vpcaccess.user",
+			"roles/compute.viewer",
+		):
 			self.assertIn(role, self.iam)
 		for broad_role in ("roles/owner", "roles/editor", "roles/storage.admin", "roles/cloudsql.admin"):
 			self.assertNotIn(broad_role, self.iam)
@@ -39,9 +46,14 @@ class TiActivationKitTest(unittest.TestCase):
 		self.assertIn("redirect-contract-ok", self.idp)
 
 	def test_synthetic_manifest_has_exact_profiles_and_no_credentials(self):
-		self.assertEqual({account["profile"] for account in self.manifest["accounts"]}, {"student", "operator", "area", "admin"})
+		self.assertEqual(
+			{account["profile"] for account in self.manifest["accounts"]},
+			{"student", "operator", "area", "admin"},
+		)
 		mapping = {account["profile"]: account["frappe_profile_key"] for account in self.manifest["accounts"]}
-		self.assertEqual(mapping, {"student": "aluno", "operator": "op", "area": "analista_area", "admin": "admin_central"})
+		self.assertEqual(
+			mapping, {"student": "aluno", "operator": "op", "area": "analista_area", "admin": "admin_central"}
+		)
 		self.assertIn("INITIAL_ADMIN_EMAIL", self.workflow)
 		serialized = json.dumps(self.manifest).lower()
 		for forbidden in ("password", "secret", "token", "cookie"):
