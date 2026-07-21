@@ -15,7 +15,9 @@ def configure_bff_service_account():
 	if "@" not in email:
 		frappe.throw(_("Email da conta tecnica Frappe invalido."), frappe.ValidationError)
 	if len(api_key) < MIN_API_KEY_LENGTH or len(api_secret) < MIN_SECRET_LENGTH:
-		frappe.throw(_("Credenciais da conta tecnica Frappe abaixo do tamanho minimo."), frappe.ValidationError)
+		frappe.throw(
+			_("Credenciais da conta tecnica Frappe abaixo do tamanho minimo."), frappe.ValidationError
+		)
 
 	if frappe.db.exists("User", email):
 		user = frappe.get_doc("User", email)
@@ -35,7 +37,8 @@ def configure_bff_service_account():
 	user.api_key = api_key
 	user.api_secret = api_secret
 	user.save(ignore_permissions=True)
-	frappe.db.commit()
+	# bench execute has no HTTP transaction lifecycle; persist before the process exits.
+	frappe.db.commit()  # nosemgrep
 	return {"email": email, "configured": True}
 
 
