@@ -247,3 +247,25 @@ export CONFIRM_ROLLBACK=homolog
 
 Após o rollback, execute smoke completo. Migration incompatível exige decisão
 de forward-fix ou restore seguindo `docs/TI_HOMOLOGACAO.md`.
+## Gates e evidências de homologação
+
+Os scripts abaixo são fail-closed e não leem valores de secrets:
+
+```bash
+# Contrato de configuração local
+./ops/cloudrun/preflight-homolog.sh
+
+# Inventário GCP somente leitura (requer ambiente configurado)
+PREFLIGHT_MODE=gcp ./ops/cloudrun/preflight-homolog.sh
+
+# Smoke HTTP anônimo e opcionalmente por perfil
+PUBLIC_URL=https://<dominio-homolog> ./ops/cloudrun/smoke-homolog.sh
+
+# Estado implantado: revisão, imagem, URL e tráfego
+./ops/cloudrun/release-manifest.sh
+
+# Pacote JSON com preflight, manifesto, smoke e checksums
+PUBLIC_URL=https://<dominio-homolog> ./ops/cloudrun/collect-homolog-evidence.sh
+```
+
+O workflow manual executa o preflight depois de sincronizar os secrets e coleta as evidências depois do deploy. O artefato fica disponível no GitHub Actions por 30 dias. Consulte `docs/HOMOLOG_READINESS.md` para os gates que continuam sob responsabilidade da TI.

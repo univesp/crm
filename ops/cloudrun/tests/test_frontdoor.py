@@ -100,11 +100,13 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		trigger_block = self.workflow.split("permissions:", 1)[0]
 		self.assertNotRegex(trigger_block, r"(?m)^  push:")
 
-	def test_rollback_requires_confirmation_and_immutable_image(self):
-		self.assertIn('CONFIRM_ROLLBACK" != "homolog"', self.rollback)
-		self.assertIn("*:latest)", self.rollback)
+	def test_rollback_requires_confirmation_and_immutable_images(self):
+		self.assertIn('CONFIRM_ROLLBACK" != homolog', self.rollback)
+		self.assertIn("ROLLBACK_GATEWAY_IMAGE_URI", self.rollback)
+		self.assertIn("@sha256:", self.rollback)
+		self.assertIn("{7,64}", self.rollback)
 		self.assertIn("gcloud run services update", self.rollback)
-		self.assertIn("nao desfaz migrations", self.rollback)
+		self.assertIn("does not reverse migrations", self.rollback)
 
 
 if __name__ == "__main__":

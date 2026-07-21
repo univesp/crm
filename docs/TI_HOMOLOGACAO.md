@@ -126,19 +126,22 @@ Com contas sintéticas:
 
 Também validar `X-Request-ID`, sessão Redis após escala, payload/anexo inválido, negativas de autorização e mocks desligados.
 
-## 8. Rollback
+## 8. Evidências e rollback
 
-Para web, worker e scheduler:
+Após o deploy, o workflow executa o preflight GCP, o smoke anônimo, captura o manifesto de todos os serviços e publica o artefato `homolog-evidence-<run>-<attempt>`. A TI deve guardar a evidência junto da janela de mudança e complementar os testes por perfil conforme `docs/HOMOLOG_READINESS.md`.
+
+O rollback cobre web, worker, scheduler e gateway e exige duas imagens imutáveis:
 
 ```bash
 export GCP_PROJECT_ID=<projeto>
 export GCP_REGION=<regiao>
-export ROLLBACK_IMAGE_URI=<imagem-anterior-por-sha-ou-digest>
+export ROLLBACK_IMAGE_URI=<imagem-frappe-anterior-por-sha-ou-digest>
+export ROLLBACK_GATEWAY_IMAGE_URI=<imagem-gateway-anterior-por-sha-ou-digest>
 export CONFIRM_ROLLBACK=homolog
 ./ops/cloudrun/rollback.sh
 ```
 
-O gateway deve ser revertido explicitamente ao digest anterior com `gcloud run services update <GATEWAY_SERVICE> --image <digest-anterior>`. Migrations não são desfeitas. Restore exige owner, backup identificado e smoke completo.
+O script registra manifestos pré e pós-rollback. Migrations não são desfeitas. Restore exige owner, backup identificado e smoke completo.
 
 ## 9. Critério de prontidão
 
