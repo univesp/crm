@@ -2,6 +2,60 @@
 
 Este é o checklist canônico para manter o candidato acadêmico atualizado e preparar a homologação. A topologia Cloud Run está em `ops/cloudrun/README.md`; a alternativa de VM permanece em `ops/vm/HANDOFF_TI.md`.
 
+## Estado verificado em 21/07/2026
+
+Os PRs de prontidão, descoberta e migração de segredos foram integrados até o merge `3d5f0dbe`. A execução [29850321560](https://github.com/univesp/crm/actions/runs/29850321560) comprovou:
+
+- autenticação OIDC do GitHub no projeto `univesp-201808`;
+- Artifact Registry e runtime service account acessíveis;
+- 15 secrets com versão `latest` habilitada, incluindo Redis, conta técnica Frappe, Azure administrativo, Azure acadêmico e certificado SAML;
+- descoberta do gateway legado `sgp` e migração dos valores IdP legados ao Secret Manager sem registrá-los em log;
+- nenhuma imagem construída e nenhum tráfego alterado, pois o preflight interrompeu a execução antes do build.
+
+O deploy está bloqueado somente pela leitura/uso de três dependências GCP pela service account armazenada em `GCP_DEPLOYER_SERVICE_ACCOUNT`: Cloud SQL `pgsql17-prod`, bucket `univesp-201808-crm-homolog-sites` e VPC connector `crm-homolog-connector`.
+
+Um administrador GCP deve conceder à identidade de deploy os papéis mínimos abaixo no projeto:
+
+```bash
+export PROJECT_ID=univesp-201808
+export DEPLOYER_SA=<valor-de-GCP_DEPLOYER_SERVICE_ACCOUNT>
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member "serviceAccount:${DEPLOYER_SA}" \
+  --role roles/cloudsql.client
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member "serviceAccount:${DEPLOYER_SA}" \
+  --role roles/storage.bucketViewer
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member "serviceAccount:${DEPLOYER_SA}" \
+  --role roles/vpcaccess.user
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member "serviceAccount:${DEPLOYER_SA}" \
+  --role roles/compute.viewer
+```
+
+`roles/cloudsql.client` inclui `cloudsql.instances.get`; `roles/storage.bucketViewer` permite somente metadados/listagem de buckets; e o Google exige Serverless VPC Access User mais Compute Viewer para implantar Cloud Run com connector. Referências oficiais: [Cloud SQL IAM](https://docs.cloud.google.com/sql/docs/postgres/iam-roles), [Cloud Storage IAM](https://docs.cloud.google.com/storage/docs/access-control/iam-roles) e [Serverless VPC Access](https://docs.cloud.google.com/vpc/docs/configure-serverless-vpc-access).
+
+Depois da concessão, execute novamente `Univesp Cloud Run Homolog` com `confirm_homolog_deploy=true` e `provision_infra=false`. Não é necessário rotacionar ou recadastrar os segredos já migrados.
+
+Um administrador do repositório também deve endurecer o Environment `homolog` com reviewers obrigatórios, branch permitida e prevenção de self-review. A conta atual conseguiu publicar variables/secrets e PRs, mas recebeu `403 Must have admin rights to Repository` ao tentar administrar Environments.
+
+### Contas sintéticas que a TI deve criar nos IdPs
+
+Criar contas exclusivas de homologação, sem reutilizar pessoas reais, com MFA e owner de expiração:
+
+| Perfil | IdP/claim esperado | Escopo mínimo |
+|---|---|---|
+| aluno | Azure acadêmico ou SAML; identificador acadêmico estável | próprios tickets e FAQ publicada |
+| operador | Azure administrativo; grupo/claim de OP | filas atribuídas, claim e resposta |
+| área | Azure administrativo; área explícita | somente tickets da própria área |
+| admin | Azure administrativo; grupo administrativo | catálogos, parâmetros e publicação de FAQ |
+
+A criação automática dessas identidades não deve ser feita pelo CRM: ela exige governança do tenant/IdP. Após o primeiro login, validar o usuário espelhado no Frappe, registrar os identificadores no cofre de testes e executar a matriz de `docs/HOMOLOG_READINESS.md`. Não armazenar senhas no repositório ou em variables do GitHub.
+
 ## Estado e regra de branch
 
 - `origin/main`: espelho do upstream; não recebe customizações UNIVESP.
