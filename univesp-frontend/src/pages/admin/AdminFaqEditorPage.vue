@@ -53,6 +53,8 @@ import {
   validateFaqBuilderPortalExport,
   resolveFaqBuilderNodeEffectiveOwner,
 } from '@/services/faqBuilderHybridRuntime'
+import { readFaqBuilderJson } from '@/services/faqJsonImport'
+import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 const EDITOR_MODES = Object.freeze([
@@ -203,6 +205,7 @@ const sanitizedState = reactive({
 })
 const importState = reactive({
   fileName: '',
+  sourceType: '',
   isLoading: false,
   result: null,
 })
@@ -227,7 +230,7 @@ let hasMountedEditor = false
 let isUpdatingBundleOperationalOwner = false
 
 const backendReadiness = buildFaqBuilderBackendReadiness({
-  hasServerUpsert: false,
+  hasServerUpsert: true,
   hasServerDryRun: false,
   hasServerLock: false,
 })
@@ -888,7 +891,12 @@ function handleGlobalPointerDown(event) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    await hydrateFaqLibrary(library, currentEditorName.value)
+  } catch (error) {
+    runtimeLoadError.value = error?.message || 'Falha ao carregar a biblioteca FAQ institucional.'
+  }
   hasMountedEditor = true
   document.addEventListener('pointerdown', handleGlobalPointerDown)
 })
@@ -975,7 +983,6 @@ function getCurrentBundleOwnerDraftFieldValue(field = '') {
 }
 
 function syncBundleOwnerDraftFromWorkspace(options = {}) {
-  const source = String(options.source || 'unknown')
   if (isUpdatingBundleOperationalOwner && !options.force) {
     return
   }
@@ -1367,21 +1374,27 @@ function selectRootNode() {
   if (rootId) ui.selectedNodeId = rootId
 }
 
-function saveDraft() {
+async function saveDraft() {
   if (!workspace.value) return
+  const reason = ui.governanceSummary || 'Rascunho salvo no editor completo.'
   saveFaqBuilderDraftWorkspace(workspace.value, {
     actorName: currentEditorName.value,
-    summary: ui.governanceSummary || 'Rascunho salvo no editor completo.',
+    summary: reason,
   })
   touchWorkspace({ rebuild: 'immediate' })
-  setFeedback('success', 'Rascunho salvo sem publicar.')
+  try {
+    await persistFaqLibrary(library, reason)
+    setFeedback('success', 'Rascunho salvo no Frappe sem publicar.')
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir o rascunho FAQ.')
+  }
 }
 
-function submitReview() {
-  workflowTransition('In Review', 'Fluxo enviado para revisao.')
+async function submitReview() {
+  await workflowTransition('In Review', 'Fluxo enviado para revisao.')
 }
 
-function workflowTransition(nextStatus = 'Draft', successMessage = '') {
+async function workflowTransition(nextStatus = 'Draft', successMessage = '') {
   if (!workspace.value) return
   const result = transitionFaqBuilderWorkflow(workspace.value, {
     nextStatus,
@@ -1393,10 +1406,18 @@ function workflowTransition(nextStatus = 'Draft', successMessage = '') {
     return
   }
   touchWorkspace()
-  if (successMessage) setFeedback('success', successMessage)
+  try {
+    await persistFaqLibrary(
+      library,
+      ui.governanceSummary || `Transicao do fluxo FAQ para ${nextStatus}`,
+    )
+    if (successMessage) setFeedback('success', `${successMessage} Alteracao persistida no Frappe.`)
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir a transicao do fluxo FAQ.')
+  }
 }
 
-function publishWorkspace() {
+async function publishWorkspace() {
   if (!workspace.value) return
   const result = publishFaqBuilderWorkspace(workspace.value, {
     actorName: currentEditorName.value,
@@ -1409,7 +1430,15 @@ function publishWorkspace() {
     return
   }
   touchWorkspace()
-  setFeedback('success', 'Fluxo publicado com sucesso.')
+  try {
+    await persistFaqLibrary(
+      library,
+      ui.governanceSummary || 'Publicacao do fluxo FAQ via editor completo',
+    )
+    setFeedback('success', 'Fluxo publicado e persistido no Frappe.')
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir a publicacao FAQ.')
+  }
 }
 
 function openPreview() {
@@ -1557,6 +1586,7 @@ async function onSpreadsheetSelected(event) {
   if (!file || !workspace.value || !currentBundleEntry.value) return
 
   importState.fileName = file.name
+  importState.sourceType = 'spreadsheet'
   importState.isLoading = true
 
   try {
@@ -1566,6 +1596,25 @@ async function onSpreadsheetSelected(event) {
     })
   } catch (error) {
     setFeedback('error', error?.message || 'Falha ao processar o dry-run.')
+  } finally {
+    importState.isLoading = false
+  }
+}
+async function onJsonSelected(event) {
+  const file = event.target.files?.[0] || null
+  if (!file || !workspace.value || !currentBundleEntry.value) return
+
+  importState.fileName = file.name
+  importState.sourceType = 'json'
+  importState.isLoading = true
+
+  try {
+    importState.result = await readFaqBuilderJson(file, {
+      faqType: currentBundleEntry.value.faqType,
+      baseBundle: workspace.value.draftBundle,
+    })
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao processar o JSON.')
   } finally {
     importState.isLoading = false
   }
@@ -1585,7 +1634,8 @@ function applySpreadsheetImport() {
   workspace.value.canvasSnapshot = importState.result.canvasSnapshot
   workspace.value.workflowStatus = 'Draft'
   touchWorkspace()
-  setFeedback('success', 'Planilha aplicada no fluxo atual.')
+  const sourceLabel = importState.sourceType === 'json' ? 'JSON' : 'Planilha'
+  setFeedback('success', `${sourceLabel} aplicado no fluxo atual como rascunho.`)
   switchMode('visual')
 }
 </script>
@@ -2377,10 +2427,10 @@ function applySpreadsheetImport() {
           <section class="mt-3 grid gap-3 xl:grid-cols-[0.92fr_1.08fr]">
             <article class="rounded-[18px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">
-                Importacao por planilha para este fluxo
+                Importacao por planilha ou JSON para este fluxo
               </p>
               <p class="mt-1 text-xs text-slate-600">
-                A importacao e contextual ao bundle atual e funciona em modo tudo-ou-nada.
+                O dry-run aceita XLSX, bundle canonico JSON ou procedure-capture-v1. Nada e publicado automaticamente.
               </p>
               <button
                 type="button"
@@ -2389,11 +2439,25 @@ function applySpreadsheetImport() {
               >
                 Baixar template oficial
               </button>
+              <label class="mt-4 block text-xs font-semibold text-slate-700" for="faq-xlsx-import">
+                Planilha oficial
+              </label>
               <input
+                id="faq-xlsx-import"
                 type="file"
                 accept=".xlsx,.xls"
-                class="mt-4 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
+                class="mt-2 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
                 @change="onSpreadsheetSelected"
+              />
+              <label class="mt-4 block text-xs font-semibold text-slate-700" for="faq-json-import">
+                JSON canonico ou capturado
+              </label>
+              <input
+                id="faq-json-import"
+                type="file"
+                accept="application/json,.json"
+                class="mt-2 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
+                @change="onJsonSelected"
               />
               <p class="mt-2 text-xs text-slate-500">
                 {{ importState.fileName || 'Nenhum arquivo selecionado.' }}
@@ -2403,13 +2467,14 @@ function applySpreadsheetImport() {
             <article class="rounded-[18px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">Resultado do dry-run</p>
               <p v-if="importState.isLoading" class="mt-2 text-sm text-slate-600">
-                Processando planilha...
+                Processando arquivo e validando o rascunho...
               </p>
               <template v-else-if="importState.result">
                 <p class="mt-2 text-xs text-slate-600">
                   Linhas: {{ importState.result.summary?.totalRows || 0 }} | Nos:
                   {{ importState.result.summary?.totalNodes || 0 }} | Links:
-                  {{ importState.result.summary?.totalLinks || 0 }}
+                  {{ importState.result.summary?.totalLinks || 0 }} | Midias:
+                  {{ importState.result.summary?.mediaItems || 0 }}
                 </p>
                 <div class="mt-3 max-h-[280px] overflow-auto rounded-[12px] border border-slate-200">
                   <table class="w-full text-left text-xs">
@@ -2454,7 +2519,7 @@ function applySpreadsheetImport() {
                   :disabled="!importState.result.ok"
                   @click="applySpreadsheetImport"
                 >
-                  Aplicar importacao neste fluxo
+                  Aplicar arquivo neste fluxo como rascunho
                 </button>
               </template>
             </article>

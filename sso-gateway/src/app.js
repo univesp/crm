@@ -13,7 +13,7 @@ import ssoRouter from './routes/sso.js'
 export function createApp({ sessionStore } = {}) {
   validateRuntimeConfig()
   const app = express()
-  app.set('trust proxy', 'loopback')
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1))
 
   if (process.env.SAML_IDP_CERT) passport.use('univesp-saml', createSamlStrategy())
   passport.serializeUser((user, done) => done(null, user))
@@ -21,7 +21,7 @@ export function createApp({ sessionStore } = {}) {
 
   app.use(cookieParser())
   app.use(express.urlencoded({ extended: false }))
-  app.use(express.json({ limit: '1mb' }))
+  app.use(express.json({ limit: process.env.MAX_JSON_BODY || '3mb' }))
   app.use(
     session({
       name: 'crm_session',
@@ -48,12 +48,18 @@ export function createApp({ sessionStore } = {}) {
   app.use((error, _req, res, _next) => {
     const requestId = randomUUID()
     const invalidJson = error?.type === 'entity.parse.failed'
+    const bodyTooLarge = error?.type === 'entity.too.large'
+    const status = bodyTooLarge ? 413 : invalidJson ? 400 : 500
     res.setHeader('X-Request-ID', requestId)
-    res.status(invalidJson ? 400 : 500).json({
+    res.status(status).json({
       data: null,
       error: {
-        code: invalidJson ? 'INVALID_JSON' : 'INTERNAL_ERROR',
-        message: invalidJson ? 'Corpo JSON invalido.' : 'Falha interna no Gateway.',
+        code: bodyTooLarge ? 'PAYLOAD_TOO_LARGE' : invalidJson ? 'INVALID_JSON' : 'INTERNAL_ERROR',
+        message: bodyTooLarge
+          ? 'Corpo JSON maior que o limite permitido.'
+          : invalidJson
+            ? 'Corpo JSON invalido.'
+            : 'Falha interna no Gateway.',
       },
       meta: {},
       request_id: requestId,
@@ -105,6 +111,7 @@ function validateRuntimeConfig() {
     'FRAPPE_API_KEY',
     'FRAPPE_API_SECRET',
     'UNIVESP_BFF_SHARED_SECRET',
+    'UNIVESP_EDGE_SHARED_SECRET',
     'AZURE_REDIRECT_URI',
     'AZURE_ADMIN_CLIENT_ID',
     'AZURE_ADMIN_TENANT_ID',

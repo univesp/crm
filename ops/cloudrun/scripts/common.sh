@@ -48,6 +48,29 @@ require_env() {
 	done
 }
 
+ensure_required_apps() {
+	local app
+
+	for app in helpdesk univesp_atendimento; do
+		if ! bench --site "${SITE_NAME}" list-apps | grep -qx "${app}"; then
+			log "Installing required app ${app}"
+			bench --site "${SITE_NAME}" install-app "${app}"
+		fi
+	done
+}
+
+configure_academic_integration() {
+	require_env UNIVESP_BFF_SHARED_SECRET FRAPPE_API_KEY FRAPPE_API_SECRET FRAPPE_SERVICE_USER_EMAIL
+
+	if [[ ! "${UNIVESP_BFF_SHARED_SECRET}" =~ ^[[:graph:]]{32,}$ ]]; then
+		printf 'UNIVESP_BFF_SHARED_SECRET must contain at least 32 non-space characters.\n' >&2
+		exit 1
+	fi
+
+	bench --site "${SITE_NAME}" set-config univesp_bff_shared_secret "${UNIVESP_BFF_SHARED_SECRET}"
+	bench --site "${SITE_NAME}" execute univesp_atendimento.provisioning.configure_bff_service_account
+}
+
 wait_for_tcp() {
 	local host=$1
 	local port=$2
@@ -132,7 +155,9 @@ bootstrap_site() {
 	cd "${BENCH_DIR}"
 
 	if site_bootstrapped; then
-		log "Site ${SITE_NAME} already exists, running migrate"
+		log "Site ${SITE_NAME} already exists, ensuring academic apps and running migrate"
+		ensure_required_apps
+		configure_academic_integration
 		bench --site "${SITE_NAME}" migrate
 		if [[ -n "${HOST_NAME:-}" ]]; then
 			bench --site "${SITE_NAME}" set-config host_name "${HOST_NAME}"
@@ -193,6 +218,8 @@ bootstrap_site() {
 	log "Bootstrapping site ${SITE_NAME} with ${DB_TYPE} (${DB_SETUP_MODE})"
 	"${create_site_cmd[@]}"
 
+	ensure_required_apps
+	configure_academic_integration
 	bench --site "${SITE_NAME}" set-config mute_emails 1
 	bench --site "${SITE_NAME}" set-config server_script_enabled 1
 	if [[ -n "${HOST_NAME:-}" ]]; then
@@ -275,7 +302,17 @@ start_socketio() {
 start_nginx() {
 	export BACKEND=127.0.0.1:8000
 	export SOCKETIO=127.0.0.1:${SOCKETIO_PORT}
-	export SSO_GATEWAY_ORIGIN=${SSO_GATEWAY_ORIGIN:-http://127.0.0.1:4000}
+	if [[ -z "${SSO_GATEWAY_ORIGIN:-}" ]]; then
+		printf 'SSO_GATEWAY_ORIGIN is required for the academic front door.\n' >&2
+		return 1
+	fi
+	export SSO_GATEWAY_ORIGIN
+	require_env UNIVESP_EDGE_SHARED_SECRET
+	if [[ ! "${UNIVESP_EDGE_SHARED_SECRET}" =~ ^[[:xdigit:]]{64}$ ]]; then
+		printf 'UNIVESP_EDGE_SHARED_SECRET must be a 64-character hexadecimal value.\n' >&2
+		return 1
+	fi
+	export UNIVESP_EDGE_SHARED_SECRET
 	export PROXY_READ_TIMEOUT=${PROXY_READ_TIMEOUT:-3600}
 	export CLIENT_MAX_BODY_SIZE=${CLIENT_MAX_BODY_SIZE:-50m}
 

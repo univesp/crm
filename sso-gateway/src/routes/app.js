@@ -18,8 +18,15 @@ router.post('/tickets/:ticketId/messages', forward('tickets.add_message', { rout
 router.post('/tickets/:ticketId/attachments', forward('tickets.attach', { routeParams: { ticket_id: 'ticketId' }, rawBody: true }))
 router.post('/tickets/:ticketId/assign', forward('tickets.assign', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/transition', forward('tickets.transition', { routeParams: { ticket_id: 'ticketId' } }))
+router.post('/tickets/:ticketId/area-actions', forward('tickets.area_action', { routeParams: { ticket_id: 'ticketId' } }))
 router.get('/queues', forward('queues.list_queues'))
+router.get('/areas/:area/members', forward('queues.list_area_members', { routeParams: { area: 'area' } }))
+router.get('/areas/:area/governance', forward('governance.get_area_state', { routeParams: { area: 'area' } }))
+router.patch('/areas/:area/governance', forward('governance.update_area_state', { routeParams: { area: 'area' }, wrapPayload: true }))
 router.get('/knowledge/published', forward('knowledge.published', { query: true }))
+router.get('/knowledge/faq-published', forward('knowledge.published_faq', { query: true }))
+router.get('/knowledge/library', forward('knowledge.get_library'))
+router.patch('/knowledge/library', forward('knowledge.update_library', { wrapPayload: true }))
 router.get('/admin/users', forward('admin.list_users', { query: true }))
 router.post('/admin/users', forward('admin.create_user', { wrapPayload: true }))
 router.get('/admin/users/:email', forward('admin.get_user', { routeParams: { email: 'email' } }))
@@ -35,6 +42,8 @@ router.post('/admin/access-requests/:requestId/reject', forward('admin.reject_ac
 }))
 router.get('/admin/catalogs', forward('admin.catalogs'))
 router.get('/admin/audit', forward('admin.list_audit', { query: true }))
+router.get('/admin/runtime-settings', forward('settings.get_settings'))
+router.patch('/admin/runtime-settings', forward('settings.update_settings', { wrapPayload: true }))
 
 function forward(method, options = {}) {
   return async (req, res) => {

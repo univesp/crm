@@ -1,7 +1,9 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { getTicket, isMockRuntimeEnabled, transitionTicket } from '@/services/appApi'
+import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -464,7 +466,32 @@ function ensureEscalationReason() {
   return false
 }
 
-function submitOperatorAction(actionType) {
+async function submitLiveOperatorAction(actionType) {
+  const ticketId = detail.value.id
+  let currentStatus = detail.value.statusCode || 'open'
+  if (['open', 'waiting_student', 'waiting_internal', 'resolved'].includes(currentStatus)) {
+    await transitionTicket(ticketId, { status: 'in_analysis' })
+    currentStatus = 'in_analysis'
+  }
+
+  const targetStatus = {
+    reply: 'resolved',
+    request_info: 'waiting_student',
+    escalate: 'waiting_internal',
+  }[actionType]
+  if (!targetStatus) throw new Error('Acao operacional sem transicao institucional.')
+
+  const result = await transitionTicket(ticketId, {
+    status: targetStatus,
+    message: operatorNote.value.trim(),
+  })
+  studentSupportStore.upsertLiveTicket(mapApiTicketToOperationalProtocol(result.data))
+  return {
+    destinationLabel: detail.value.lastMileAreaLabel || detail.value.queue || 'Area interna',
+  }
+}
+
+async function submitOperatorAction(actionType) {
   if (!detail.value || isSubmittingAction.value || !actionAvailability.value.canAct) {
     return
   }
@@ -488,15 +515,25 @@ function submitOperatorAction(actionType) {
   isSubmittingAction.value = true
   clearActionFeedback()
 
-  const actionLog = studentSupportStore.registerOperatorAction({
-    caseId: detail.value.id,
-    actionType,
-    note: operatorNote.value,
-    playbook: detail.value.playbook,
-    actorName: auth.mockContext.userName,
-  })
-
-  isSubmittingAction.value = false
+  let actionLog = null
+  try {
+    actionLog = isMockRuntimeEnabled()
+      ? studentSupportStore.registerOperatorAction({
+          caseId: detail.value.id,
+          actionType,
+          note: operatorNote.value,
+          playbook: detail.value.playbook,
+          actorName: auth.mockContext.userName,
+        })
+      : await submitLiveOperatorAction(actionType)
+  } catch (error) {
+    actionFeedback.value = {
+      type: 'error',
+      message: error?.message || 'Nao foi possivel registrar a acao institucional.',
+    }
+  } finally {
+    isSubmittingAction.value = false
+  }
 
   if (!actionLog) {
     actionFeedback.value = {
@@ -534,6 +571,23 @@ function submitOperatorAction(actionType) {
   lastSuggestedNote.value = ''
   syncSuggestedNote(true)
 }
+
+async function loadLiveTicket() {
+  if (isMockRuntimeEnabled()) return
+  try {
+    const result = await getTicket(route.params.caseId)
+    studentSupportStore.upsertLiveTicket(mapApiTicketToOperationalProtocol(result.data))
+  } catch (error) {
+    actionFeedback.value = {
+      type: 'error',
+      message: error?.message || 'Nao foi possivel carregar o atendimento institucional.',
+    }
+  }
+}
+
+onMounted(() => {
+  void loadLiveTicket()
+})
 
 function handleActionClick(actionType) {
   if (!actionAvailability.value.canAct) {

@@ -1,0 +1,16 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Runtime Settings",
+  "module": "Univesp Atendimento",
+  "issingle": 1,
+  "track_changes": 1,
+  "field_order": ["parameters_json", "updated_by_email", "updated_at"],
+  "fields": [
+    {"fieldname": "parameters_json", "fieldtype": "Long Text", "label": "Parametros JSON", "read_only": 1},
+    {"fieldname": "updated_by_email", "fieldtype": "Data", "label": "Atualizado por", "options": "Email", "read_only": 1},
+    {"fieldname": "updated_at", "fieldtype": "Datetime", "label": "Atualizado em", "read_only": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1}
+  ]
+}

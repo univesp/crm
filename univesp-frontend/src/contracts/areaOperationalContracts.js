@@ -4,19 +4,19 @@ function normalizeText(value = '') {
 
 const ACTION_CONTRACTS = Object.freeze({
   technical_reply: Object.freeze({
-    requiredActions: ['reply'],
+    requiredActions: ['transition_ticket'],
     serverChecks: ['profile', 'scope', 'action', 'case_state'],
   }),
   request_complement: Object.freeze({
-    requiredActions: ['request_info'],
+    requiredActions: ['transition_ticket'],
     serverChecks: ['profile', 'scope', 'action', 'case_state'],
   }),
   conclude: Object.freeze({
-    requiredActions: ['reply'],
+    requiredActions: ['transition_ticket'],
     serverChecks: ['profile', 'scope', 'action', 'case_state', 'response_requirement'],
   }),
   reassign: Object.freeze({
-    requiredActions: ['reassign'],
+    requiredActions: ['transition_ticket', 'manager_override_route'],
     serverChecks: ['profile', 'scope', 'action', 'case_state', 'routing_exception_policy'],
   }),
   assign_case: Object.freeze({
@@ -26,7 +26,7 @@ const ACTION_CONTRACTS = Object.freeze({
 })
 
 export const AREA_OPERATIONAL_SERVER_PARITY_NOTE =
-  'Ambiente mock: o frontend valida perfil, escopo e acao. Em backend real, a mesma regra deve ser revalidada no servidor.'
+  'A API institucional revalida perfil, escopo, estado do caso e excecoes de roteamento no servidor.'
 
 export function resolveAreaActionContract(actionType = '') {
   return ACTION_CONTRACTS[actionType] || null

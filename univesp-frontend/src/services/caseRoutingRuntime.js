@@ -120,9 +120,17 @@ export function isCaseVisibleForMockContext(caseEntry, mockContext = null) {
     }
 
     if (mockContext.profileKey === 'op') {
+      const notEscalated = normalizeText(caseEntry.escalationState) !== normalizeText('Escalado')
+      if (caseEntry.runtimeSource === 'app_api') {
+        const assigneeEmail = normalizeText(caseEntry.assignedOperatorEmail)
+        return (
+          notEscalated &&
+          (!assigneeEmail || assigneeEmail === normalizeText(mockContext.userEmail))
+        )
+      }
       return (
         normalizeText(caseEntry.assignedOperator) === normalizeText(mockContext.userName) &&
-        normalizeText(caseEntry.escalationState) !== normalizeText('Escalado')
+        notEscalated
       )
     }
 

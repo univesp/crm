@@ -6,6 +6,7 @@ FROM frappe/build:${FRAPPE_BRANCH} AS builder
 ARG FRAPPE_BRANCH=version-16
 ARG FRAPPE_PATH=https://github.com/frappe/frappe
 ARG APPS_JSON_BASE64
+ARG HELPDESK_REF=6b423f8fba6d4c7f8ff5db56f197243f6549d450
 
 USER root
 
@@ -28,7 +29,15 @@ RUN export APP_INSTALL_ARGS="" && \
     --verbose \
     /home/frappe/frappe-bench && \
   cd /home/frappe/frappe-bench && \
-  echo "{}" > sites/common_site_config.json && \
+  test -d apps/helpdesk && \
+  git -C apps/helpdesk fetch --depth 1 origin "${HELPDESK_REF}" && \
+  git -C apps/helpdesk checkout --detach "${HELPDESK_REF}" && \
+  echo "{}" > sites/common_site_config.json
+
+COPY --chown=frappe:frappe univesp_atendimento_app /home/frappe/frappe-bench/apps/univesp_atendimento
+
+RUN cd /home/frappe/frappe-bench && \
+  ./env/bin/pip install --no-cache-dir --editable apps/univesp_atendimento && \
   find apps -mindepth 1 -path "*/.git" | xargs rm -fr
 
 FROM node:20-alpine AS univesp_frontend_builder
@@ -39,6 +48,14 @@ COPY univesp-frontend/package*.json ./
 RUN npm ci
 
 COPY univesp-frontend/ ./
+
+ARG VITE_ENABLE_MOCKS=false
+ARG VITE_SSO_DEV_BYPASS=false
+ARG VITE_APP_API_BASE=/api/app/v1
+ENV VITE_ENABLE_MOCKS=${VITE_ENABLE_MOCKS}
+ENV VITE_SSO_DEV_BYPASS=${VITE_SSO_DEV_BYPASS}
+ENV VITE_APP_API_BASE=${VITE_APP_API_BASE}
+
 RUN npm run build
 
 FROM frappe/base:${FRAPPE_BRANCH}

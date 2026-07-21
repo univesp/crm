@@ -11,6 +11,7 @@ import {
   getCatalogKeys,
   hasCatalogValue,
 } from '@/services/faqCatalogs'
+import { normalizeFaqMediaList, validateFaqNodeMedia } from '@/services/faqMedia'
 import {
   buildOperationalOwnershipReferenceCatalog,
   hasOperationalOwnershipReference,
@@ -143,15 +144,27 @@ const HEADER_ALIAS_MAP = Object.freeze({
   bundle_observacao_operacional: 'bundle_owner_fallback_note',
 })
 
-let xlsxModulePromise = null
+let excelJsModulePromise = null
 
-async function loadXlsx() {
-  if (!xlsxModulePromise) {
-    xlsxModulePromise = import('xlsx')
+async function loadExcelJs() {
+  if (!excelJsModulePromise) {
+    excelJsModulePromise = import('exceljs')
   }
 
-  const module = await xlsxModulePromise
+  const module = await excelJsModulePromise
   return module.default || module
+}
+
+function normalizeExcelCellValue(value) {
+  if (value === null || value === undefined) return ''
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value !== 'object') return value
+  if ('text' in value) return value.text
+  if ('result' in value) return value.result ?? ''
+  if (Array.isArray(value.richText)) {
+    return value.richText.map((entry) => entry.text || '').join('')
+  }
+  return String(value)
 }
 
 export const FAQ_BUILDER_WORKFLOW_OPTIONS = Object.freeze([
@@ -689,6 +702,7 @@ function ensureBundleCollections(bundle = {}) {
     if (normalizedNodeId) {
       node.id = normalizedNodeId
     }
+    node.media = normalizeFaqMediaList(node.media)
   }
 
   if (!Array.isArray(bundle.links)) {
@@ -2030,6 +2044,10 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
         blocksImport: true,
         blocksPublish: true,
       })
+    }
+
+    for (const mediaIssue of validateFaqNodeMedia(node)) {
+      issues.push({ ...mediaIssue, nodeId: node.id })
     }
 
     const nodeMode = inferNodeMode(node)
@@ -4138,11 +4156,28 @@ export async function readFaqBuilderSpreadsheet(file, { faqType = 'aluno', baseB
   }
 
   const arrayBuffer = await file.arrayBuffer()
-  const XLSX = await loadXlsx()
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-  const sheetName = workbook.SheetNames[0]
-  const worksheet = workbook.Sheets[sheetName]
-  const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+  const ExcelJS = await loadExcelJs()
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(arrayBuffer)
+  const worksheet = workbook.worksheets[0]
+  const rawRows = []
+
+  if (worksheet) {
+    const headers = worksheet
+      .getRow(1)
+      .values.slice(1)
+      .map((value) => String(normalizeExcelCellValue(value) || '').trim())
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return
+      const record = Object.fromEntries(
+        headers
+          .map((header, index) => [header, normalizeExcelCellValue(row.getCell(index + 1).value)])
+          .filter(([header]) => header),
+      )
+      if (Object.values(record).some((value) => String(value ?? '').trim())) rawRows.push(record)
+    })
+  }
 
   return dryRunFaqBuilderImport(rawRows, { faqType, baseBundle })
 }
@@ -4534,18 +4569,32 @@ export function dryRunFaqBuilderImport(rawRows = [], { faqType = 'aluno', baseBu
 }
 
 export async function downloadFaqBuilderTemplateXlsx({ faqType = 'aluno' } = {}) {
-  const XLSX = await loadXlsx()
-  const workbook = XLSX.utils.book_new()
+  const ExcelJS = await loadExcelJs()
+  const workbook = new ExcelJS.Workbook()
   const templateRows = buildImportTemplateRows(faqType)
   const instructionRows = buildImportInstructionsRows()
-  const templateSheet = XLSX.utils.json_to_sheet(templateRows, {
-    header: FAQ_BUILDER_SPREADSHEET_COLUMNS.map((column) => column.key),
-  })
-  const instructionSheet = XLSX.utils.json_to_sheet(instructionRows, {
-    header: ['column', 'required', 'description'],
-  })
+  const templateColumns = FAQ_BUILDER_SPREADSHEET_COLUMNS.map((column) => column.key)
 
-  XLSX.utils.book_append_sheet(workbook, templateSheet, 'faq_builder_template')
-  XLSX.utils.book_append_sheet(workbook, instructionSheet, 'instructions')
-  XLSX.writeFile(workbook, `faq-builder-template-${faqType}.xlsx`)
+  const templateSheet = workbook.addWorksheet('faq_builder_template')
+  templateSheet.columns = templateColumns.map((key) => ({ header: key, key, width: 28 }))
+  templateSheet.addRows(templateRows)
+
+  const instructionSheet = workbook.addWorksheet('instructions')
+  instructionSheet.columns = ['column', 'required', 'description'].map((key) => ({
+    header: key,
+    key,
+    width: key === 'description' ? 72 : 24,
+  }))
+  instructionSheet.addRows(instructionRows)
+
+  const output = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([output], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `faq-builder-template-${faqType}.xlsx`
+  anchor.click()
+  URL.revokeObjectURL(url)
 }

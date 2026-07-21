@@ -28,6 +28,11 @@ REDIS_QUEUE_SECRET_NAME=${REDIS_QUEUE_SECRET_NAME:-crm-homolog-redis-queue-url}
 REDIS_SOCKETIO_SECRET_NAME=${REDIS_SOCKETIO_SECRET_NAME:-crm-homolog-redis-socketio-url}
 DB_PASSWORD_SECRET_NAME=${DB_PASSWORD_SECRET_NAME:-crm-homolog-db-password}
 ADMIN_PASSWORD_SECRET_NAME=${ADMIN_PASSWORD_SECRET_NAME:-crm-homolog-admin-password}
+BFF_SHARED_SECRET_NAME=${BFF_SHARED_SECRET_NAME:-crm-homolog-bff-shared-secret}
+EDGE_SHARED_SECRET_NAME=${EDGE_SHARED_SECRET_NAME:-crm-homolog-edge-shared-secret}
+FRAPPE_API_KEY_SECRET_NAME=${FRAPPE_API_KEY_SECRET_NAME:-crm-homolog-frappe-api-key}
+FRAPPE_API_SECRET_SECRET_NAME=${FRAPPE_API_SECRET_SECRET_NAME:-crm-homolog-frappe-api-secret}
+FRAPPE_SERVICE_USER_EMAIL=${FRAPPE_SERVICE_USER_EMAIL:-}
 WEB_CPU=${WEB_CPU:-}
 WEB_MEMORY=${WEB_MEMORY:-}
 WEB_CONCURRENCY=${WEB_CONCURRENCY:-}
@@ -52,10 +57,18 @@ SCHEDULER_TIMEOUT=${SCHEDULER_TIMEOUT:-}
 SCHEDULER_CPU_ALWAYS_ALLOCATED=${SCHEDULER_CPU_ALWAYS_ALLOCATED:-}
 SSO_GATEWAY_ORIGIN=${SSO_GATEWAY_ORIGIN:-}
 
-if [[ -z "${PROJECT_ID}" || -z "${IMAGE_URI}" || -z "${CLOUDSQL_INSTANCE}" || -z "${SITES_BUCKET}" || -z "${VPC_CONNECTOR}" || -z "${RUNTIME_SERVICE_ACCOUNT}" ]]; then
-	printf 'GCP_PROJECT_ID, IMAGE_URI, CLOUDSQL_INSTANCE, SITES_BUCKET, VPC_CONNECTOR and CLOUDRUN_RUNTIME_SERVICE_ACCOUNT are required.\n' >&2
+if [[ -z "${PROJECT_ID}" || -z "${IMAGE_URI}" || -z "${CLOUDSQL_INSTANCE}" || -z "${SITES_BUCKET}" || -z "${VPC_CONNECTOR}" || -z "${RUNTIME_SERVICE_ACCOUNT}" || -z "${SSO_GATEWAY_ORIGIN}" || -z "${FRAPPE_SERVICE_USER_EMAIL}" ]]; then
+	printf 'GCP_PROJECT_ID, IMAGE_URI, CLOUDSQL_INSTANCE, SITES_BUCKET, VPC_CONNECTOR, CLOUDRUN_RUNTIME_SERVICE_ACCOUNT, SSO_GATEWAY_ORIGIN and FRAPPE_SERVICE_USER_EMAIL are required.\n' >&2
 	exit 1
 fi
+
+case "${SSO_GATEWAY_ORIGIN}" in
+https://*) ;;
+*)
+	printf 'SSO_GATEWAY_ORIGIN must be an https:// origin for Cloud Run.\n' >&2
+	exit 1
+	;;
+esac
 
 if [[ -z "${DB_PORT}" ]]; then
 	if [[ "${DB_TYPE}" == "postgres" ]]; then
@@ -164,6 +177,7 @@ web_env=$(append_env_var "${web_env}" GUNICORN_WORKERS "${WEB_GUNICORN_WORKERS}"
 web_env=$(append_env_var "${web_env}" GUNICORN_THREADS "${WEB_GUNICORN_THREADS}")
 web_env=$(append_env_var "${web_env}" SSO_GATEWAY_ORIGIN "${SSO_GATEWAY_ORIGIN}")
 redis_secrets="REDIS_CACHE_URL=${REDIS_CACHE_SECRET_NAME}:latest,REDIS_QUEUE_URL=${REDIS_QUEUE_SECRET_NAME}:latest,REDIS_SOCKETIO_URL=${REDIS_SOCKETIO_SECRET_NAME}:latest"
+integration_secrets="UNIVESP_BFF_SHARED_SECRET=${BFF_SHARED_SECRET_NAME}:latest,FRAPPE_API_KEY=${FRAPPE_API_KEY_SECRET_NAME}:latest,FRAPPE_API_SECRET=${FRAPPE_API_SECRET_SECRET_NAME}:latest"
 
 gcloud run jobs deploy "${BOOTSTRAP_JOB}" \
 	--project "${PROJECT_ID}" \
@@ -178,8 +192,8 @@ gcloud run jobs deploy "${BOOTSTRAP_JOB}" \
 	--add-volume-mount "${mount_arg}" \
 	--cpu 2 \
 	--memory 4Gi \
-	--set-env-vars "${common_env},DB_NAME=${DB_NAME},DB_USER=${DB_USER},DB_ROOT_USERNAME=${DB_ROOT_USERNAME}" \
-	--set-secrets "DB_PASSWORD=${DB_PASSWORD_SECRET_NAME}:latest,ADMIN_PASSWORD=${ADMIN_PASSWORD_SECRET_NAME}:latest,${redis_secrets}" \
+	--set-env-vars "${common_env},DB_NAME=${DB_NAME},DB_USER=${DB_USER},DB_ROOT_USERNAME=${DB_ROOT_USERNAME},FRAPPE_SERVICE_USER_EMAIL=${FRAPPE_SERVICE_USER_EMAIL}" \
+	--set-secrets "DB_PASSWORD=${DB_PASSWORD_SECRET_NAME}:latest,ADMIN_PASSWORD=${ADMIN_PASSWORD_SECRET_NAME}:latest,${redis_secrets},${integration_secrets}" \
 	--command /usr/local/bin/start-bootstrap.sh
 
 gcloud run jobs execute "${BOOTSTRAP_JOB}" \
@@ -207,7 +221,7 @@ gcloud run deploy "${WEB_SERVICE}" \
 	--add-volume "${volume_arg}" \
 	--add-volume-mount "${mount_arg}" \
 	--set-env-vars "${web_env}" \
-	--set-secrets "${redis_secrets}" \
+	--set-secrets "${redis_secrets},UNIVESP_EDGE_SHARED_SECRET=${EDGE_SHARED_SECRET_NAME}:latest" \
 	--startup-probe=timeoutSeconds=5,periodSeconds=10,failureThreshold=30,httpGet.port=8080,httpGet.path=/healthz \
 	--command /usr/local/bin/start-web.sh
 

@@ -9,6 +9,8 @@ import {
 import { AREA_OPERATIONAL_SERVER_PARITY_NOTE } from '@/contracts/areaOperationalContracts'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
+import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import {
   AREA_QUEUE_DEFAULT_PAGE_SIZE,
   buildAreaQueueFilterOptions,
@@ -39,6 +41,8 @@ const stateStorageKey = computed(() => `univesp-area-queue:${auth.mockContext.pr
 const flashStorageKey = computed(() => `univesp-area-queue-flash:${auth.mockContext.profileKey}`)
 const flashMessage = ref('')
 const refreshTick = ref(0)
+const liveQueueLoading = ref(false)
+const liveQueueMessage = ref('')
 
 const bucketDefinitions = [
   {
@@ -698,6 +702,26 @@ watch(
   { deep: true },
 )
 
+async function loadLiveQueue() {
+  if (isMockRuntimeEnabled()) return
+
+  liveQueueLoading.value = true
+  liveQueueMessage.value = ''
+  try {
+    const result = await listTickets({ page: 1, page_size: 100 })
+    const protocols = (result.data || []).map(mapApiTicketToOperationalProtocol)
+    studentSupportStore.replaceLiveTickets(protocols)
+    refreshTick.value += 1
+    if (Number(result.meta?.total || 0) > protocols.length) {
+      liveQueueMessage.value = `Exibindo os ${protocols.length} atendimentos mais recentes de ${result.meta.total}.`
+    }
+  } catch (error) {
+    liveQueueMessage.value = error?.message || 'Nao foi possivel carregar a fila da area.'
+  } finally {
+    liveQueueLoading.value = false
+  }
+}
+
 onMounted(() => {
   if (typeof window !== 'undefined') {
     flashMessage.value = window.sessionStorage.getItem(flashStorageKey.value) || ''
@@ -707,6 +731,7 @@ onMounted(() => {
 
   applyRouteFilters(route.query || {})
   restoreQueueScroll()
+  void loadLiveQueue()
 })
 
 onUnmounted(() => {
@@ -718,6 +743,14 @@ onUnmounted(() => {
 
 <template>
   <div class="grid gap-3">
+    <div
+      v-if="liveQueueLoading || liveQueueMessage"
+      role="status"
+      aria-live="polite"
+      class="rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+    >
+      {{ liveQueueLoading ? 'Carregando fila da area...' : liveQueueMessage }}
+    </div>
     <div
       v-if="flashMessage"
       role="status"

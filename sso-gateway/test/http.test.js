@@ -25,6 +25,20 @@ test('protege sessao e nao encaminha chamada anonima ao Frappe', async () => {
   assert.equal(payload.error.code, 'SESSION_REQUIRED')
 })
 
+test('protege dashboard e biblioteca FAQ contra sessao anonima', async () => {
+  for (const [path, options] of [
+    ['/api/app/v1/knowledge/library', {}],
+    ['/api/app/v1/knowledge/library', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}' }],
+    ['/api/app/v1/admin/runtime-settings', {}],
+    ['/api/app/v1/areas/Secretaria%20Academica/governance', {}],
+  ]) {
+    const response = await fetch(`${origin}${path}`, options)
+    const payload = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(payload.error.code, 'SESSION_REQUIRED')
+  }
+})
+
 test('health check permanece independente do Frappe', async () => {
   const response = await fetch(`${origin}/health`)
   assert.equal(response.status, 200)
@@ -41,6 +55,17 @@ test('responde JSON consistente para corpo invalido', async () => {
   assert.equal(response.status, 400)
   assert.equal(payload.error.code, 'INVALID_JSON')
   assert.ok(payload.request_id)
+})
+
+test('responde 413 para JSON acima do limite do gateway', async () => {
+  const response = await fetch(`${origin}/api/app/v1/knowledge/library`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: 'x'.repeat(3 * 1024 * 1024) }),
+  })
+  const payload = await response.json()
+  assert.equal(response.status, 413)
+  assert.equal(payload.error.code, 'PAYLOAD_TOO_LARGE')
 })
 
 test('bloqueia corpo acima do limite antes do Frappe', async () => {

@@ -8,6 +8,13 @@ const STATUS_PENDING = {
   cancelled: 'Atendimento cancelado.',
 }
 
+const PRIORITY_LABELS = {
+  low: 'Baixa',
+  medium: 'Media',
+  high: 'Alta',
+  urgent: 'Critica',
+}
+
 export function mapApiTicketToStudentProtocol(ticket = {}) {
   const updatedAt = ticket.updated_at || ticket.created_at || new Date().toISOString()
   return {
@@ -19,19 +26,89 @@ export function mapApiTicketToStudentProtocol(ticket = {}) {
     updatedAt,
     updatedAtLabel: formatDateTime(updatedAt),
     interactions: ticket.description ? [{ actor: 'Aluno', text: ticket.description }] : [],
-    timeline: (ticket.timeline || []).map((event) => ({
-      id: event.id,
-      title: event.actor || 'Atualizacao',
-      description: event.message || '',
-      atLabel: formatDateTime(event.created_at),
-    })),
-    attachments: (ticket.attachments || []).map((file) => ({
-      id: file.id,
-      name: file.file_name,
-      createdAtLabel: formatDateTime(file.created_at),
-    })),
+    timeline: normalizeTimeline(ticket.timeline),
+    attachments: normalizeAttachments(ticket.attachments),
     context: { breadcrumb: [] },
   }
+}
+
+export function mapApiTicketToOperationalProtocol(ticket = {}) {
+  const student = ticket.student || {}
+  const createdAt = ticket.created_at || ticket.updated_at || new Date().toISOString()
+  const updatedAt = ticket.updated_at || createdAt
+  const protocolNumber = ticket.protocol || ticket.id
+  const queueLabel = ticket.queue || ''
+  const areaLabel = ticket.area || ''
+  const priorityKey = String(ticket.priority || 'medium').trim().toLowerCase()
+  const statusCode = ticket.status || 'open'
+
+  return {
+    id: protocolNumber,
+    protocolNumber,
+    runtimeSource: 'app_api',
+    subject: ticket.subject || 'Atendimento sem assunto',
+    description: ticket.description || '',
+    statusCode,
+    statusLabel: ticket.status_label || 'Aberto',
+    pendingLabel: STATUS_PENDING[statusCode] || 'Aguardando atendimento.',
+    priorityLabel: PRIORITY_LABELS[priorityKey] || ticket.priority || 'Media',
+    slaLabel: 'SLA nao calculado',
+    queueLabel,
+    currentAreaLabel: areaLabel,
+    lastMileAreaLabel: areaLabel,
+    source: ticket.source || 'portal',
+    sourceLabel: ticket.source || 'Portal',
+    createdAt,
+    createdAtLabel: formatDateTime(createdAt),
+    updatedAt,
+    updatedAtLabel: formatDateTime(updatedAt),
+    assignedOperator: ticket.assignee || '',
+    assignedOperatorEmail: ticket.assignee_email || '',
+    studentData: {
+      nome: student.name || 'Aluno nao informado',
+      email: student.email || '',
+      ra: student.ra || '',
+      curso: student.course || '',
+      polo: student.polo || 'Nao informado',
+    },
+    routing: {
+      currentQueueLabel: queueLabel,
+      targetAreaLabel: areaLabel,
+    },
+    context: {
+      breadcrumb: [],
+      routing: {
+        currentQueueLabel: queueLabel,
+        targetAreaLabel: areaLabel,
+      },
+    },
+    interactions: ticket.description ? [{ actor: student.name || 'Aluno', text: ticket.description }] : [],
+    timeline: normalizeTimeline(ticket.timeline),
+    attachments: normalizeAttachments(ticket.attachments),
+  }
+}
+
+function normalizeTimeline(timeline = []) {
+  return (timeline || []).map((event) => ({
+    id: event.id,
+    title: event.actor || 'Atualizacao',
+    actor: event.actor || 'Atualizacao',
+    description: event.message || '',
+    message: event.message || '',
+    at: event.created_at,
+    atLabel: formatDateTime(event.created_at),
+  }))
+}
+
+function normalizeAttachments(attachments = []) {
+  return (attachments || []).map((file) => ({
+    id: file.id,
+    name: file.file_name,
+    fileName: file.file_name,
+    size: file.file_size,
+    createdAt: file.created_at,
+    createdAtLabel: formatDateTime(file.created_at),
+  }))
 }
 
 function formatDateTime(value) {

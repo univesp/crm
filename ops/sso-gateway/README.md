@@ -1,47 +1,50 @@
 # Contrato do SSO Gateway / BFF
 
-O codigo executavel do gateway esta em `sso-gateway/`. Ele e a unica borda
-autenticada do atendimento. O navegador nao recebe
-tokens tecnicos do Frappe e nao acessa `/api/resource` ou `/api/method`.
+O código executável está em `sso-gateway/`. Ele é a única borda autenticada do atendimento: o navegador não recebe tokens técnicos do Frappe nem acessa APIs genéricas.
 
 ## Responsabilidades
 
-1. concluir OIDC/SAML no servidor, validando assinatura, issuer, audience,
-   `state` e `nonce`;
-2. manter a sessao em cookie `Secure`, `HttpOnly` e `SameSite=Lax`;
+1. concluir OIDC/SAML no servidor, validando assinatura, issuer, audience, `state` e `nonce`;
+2. manter sessão em cookie `Secure`, `HttpOnly` e `SameSite=Lax`;
 3. consultar o perfil autorizado no app `univesp_atendimento`;
-4. expor `/api/me` e `/api/app/v1/*` no mesmo dominio do portal;
-5. assinar o contexto enviado ao Frappe e encaminhar `X-Request-ID`;
-6. persistir sessoes no Redis e limitar o corpo JSON a 1 MB;
-7. usar uma conta tecnica Frappe exclusiva, mantida apenas no `.env` da VM.
+4. expor `/api/me` e `/api/app/v1/*` no domínio do portal;
+5. assinar contexto Frappe e propagar `X-Request-ID`;
+6. persistir sessões no Redis e limitar JSON a 3 MB;
+7. usar conta técnica Frappe exclusiva;
+8. autenticar a passagem pelo front door com `UNIVESP_EDGE_SHARED_SECRET`.
 
-## Contexto assinado
+## Contexto e dupla confiança
 
-Antes de chamar um metodo whitelisted do Frappe, o gateway envia:
+O gateway envia:
 
-- `X-Univesp-User-Context`: JSON em base64url com `email`, `name`, `ra` e `timestamp`;
-- `X-Univesp-Timestamp`: epoch em segundos;
-- `X-Univesp-Signature`: HMAC-SHA256 hexadecimal de
-  `<timestamp>.<X-Univesp-User-Context>`;
-- `X-Request-ID`: UUID propagado durante toda a requisicao.
+- `X-Univesp-User-Context`: JSON base64url com identidade;
+- `X-Univesp-Timestamp`;
+- `X-Univesp-Signature`: HMAC-SHA256 de `<timestamp>.<contexto>`;
+- `X-Univesp-Gateway-Key`: segredo de borda;
+- `X-Request-ID`: correlação ponta a ponta.
 
-O segredo HMAC fica somente no secret manager/gateway e em
-`univesp_bff_shared_secret` no `site_config.json`. A janela aceita pelo Frappe e
-de 60 segundos.
+`UNIVESP_BFF_SHARED_SECRET` fica no gateway e em `univesp_bff_shared_secret` do site. `UNIVESP_EDGE_SHARED_SECRET` fica no gateway e no nginx do serviço web. São segredos diferentes.
 
-## Configuracao interna
+A API key autentica a conta técnica; o HMAC identifica o usuário final; o app aplica ação/perfil/escopo. Uma camada não substitui outra.
 
-O Gateway chama somente metodos `univesp_atendimento.api.v1.*` com
-`FRAPPE_API_KEY` e `FRAPPE_API_SECRET`. A conta tecnica autentica a chamada; o
-contexto HMAC identifica o usuario e o app Frappe aplica perfil, acao e escopo.
-Uma camada nao substitui a outra.
+## Cloud Run
 
-Antes do deploy, preencher as variaveis de `sso-gateway/.env.example` no `.env`
-existente da VM. As sessoes usam o prefixo exclusivo
-`univesp:crm:session:` e podem compartilhar o endpoint Redis gerenciado do
-Frappe quando a infraestrutura aceitar apenas o banco padrao.
+A imagem é construída por `sso-gateway/Dockerfile` e publicada por `ops/cloudrun/deploy-sso-gateway.sh`. O serviço:
 
-## Bloqueio de liberacao
+- escuta em `0.0.0.0:$PORT`;
+- confia em um hop do proxy Cloud Run;
+- usa Redis persistente;
+- expõe `/health`;
+- recebe secrets do Secret Manager;
+- é publicado antes do front door Frappe.
 
-Nao aplicar o Nginx restritivo antes de instalar o app Frappe, cadastrar os
-perfis de teste, publicar o Gateway e validar aluno/OP ponta a ponta.
+O workflow calcula automaticamente a URL Cloud Run do gateway. Os callbacks externos continuam no domínio do portal:
+
+- `https://<PUBLIC_DOMAIN>/api/sso/azure/callback`;
+- `https://<PUBLIC_DOMAIN>/api/sso/saml/callback`.
+
+A origem Frappe configurada no gateway pode ser o front door público porque somente o namespace institucional protegido pelo header de borda é liberado até o gunicorn.
+
+## Bloqueio de liberação
+
+Não liberar sem app Frappe instalado, conta técnica, Redis, callbacks nos IdPs e smoke por aluno/OP/área/admin. Os valores completos estão em `sso-gateway/.env.example`; o handoff canônico está em `docs/TI_HOMOLOGACAO.md`.

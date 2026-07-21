@@ -1,20 +1,18 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
-  archiveFaqBuilderBundleEntry,
   clearFaqBuilderBundleLibraryLocal,
   createFaqBuilderBundleLibrary,
   createFaqBuilderBundleEntry,
-  duplicateFaqBuilderBundleEntry,
   getFaqBuilderCatalogOptions,
   listFaqBuilderBundles,
   loadFaqBuilderBundleLibraryLocal,
-  saveFaqBuilderBundleLibraryLocal,
 } from '@/services/faqBuilderHybridRuntime'
+import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -50,6 +48,21 @@ const library = reactive(
     () => createFaqBuilderBundleLibrary(currentEditorName.value),
   ) || createFaqBuilderBundleLibrary(currentEditorName.value),
 )
+
+const institutionalState = reactive({ loading: false, ready: false })
+
+onMounted(async () => {
+  institutionalState.loading = true
+  runtimeError.value = ''
+  try {
+    await hydrateFaqLibrary(library, currentEditorName.value)
+    institutionalState.ready = true
+  } catch (error) {
+    runtimeError.value = error?.message || 'Falha ao carregar a biblioteca FAQ institucional.'
+  } finally {
+    institutionalState.loading = false
+  }
+})
 
 const filters = reactive({
   search: '',
@@ -120,15 +133,18 @@ function setFeedback(type = '', message = '') {
   feedback.message = message
 }
 
-function resetLibraryState() {
+async function resetLibraryState() {
   clearFaqBuilderBundleLibraryLocal()
-  const restored = safeRuntimeCall(
-    () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
-    () => createFaqBuilderBundleLibrary(currentEditorName.value),
-  )
-  Object.assign(library, restored || createFaqBuilderBundleLibrary(currentEditorName.value))
+  const restored = createFaqBuilderBundleLibrary(currentEditorName.value)
+  Object.assign(library, restored)
   runtimeError.value = ''
-  setFeedback('success', 'Biblioteca local reinicializada com sucesso.')
+  try {
+    await persistFaqLibrary(library, 'Reinicializacao administrativa da biblioteca FAQ')
+    setFeedback('success', 'Biblioteca reinicializada e persistida com sucesso.')
+  } catch (error) {
+    runtimeError.value = error?.message || 'Falha ao reinicializar a biblioteca institucional.'
+    setFeedback('error', runtimeError.value)
+  }
 }
 
 function openBundle(bundleId = '', query = {}) {
@@ -148,49 +164,7 @@ function openBundle(bundleId = '', query = {}) {
   })
 }
 
-function openBundleEditor(bundleId = '', query = {}) {
-  const normalizedBundleId = (() => {
-    try {
-      return decodeURIComponent(
-        String(bundleId || '')
-          .split('?')[0]
-          .split('#')[0]
-          .split('/')[0]
-          .trim(),
-      )
-    } catch {
-      return String(bundleId || '')
-        .split('?')[0]
-        .split('#')[0]
-        .split('/')[0]
-        .trim()
-    }
-  })()
-  if (!normalizedBundleId) {
-    setFeedback('error', 'Fluxo invalido: identificador ausente.')
-    return
-  }
-  const nextQuery = { ...query }
-  const targetRoute = {
-    name: 'admin-faq-builder',
-    params: {
-      bundleId: normalizedBundleId,
-    },
-    ...(Object.keys(nextQuery).length ? { query: nextQuery } : {}),
-  }
-  try {
-    const resolved = router.resolve(targetRoute)
-    window.location.assign(resolved.href)
-  } catch (error) {
-    console.error('[faq-library][open-editor-failed]', error)
-    setFeedback(
-      'error',
-      'Falha de navegacao para o editor.',
-    )
-  }
-}
-
-function createFlow() {
+async function createFlow() {
   const result = createFaqBuilderBundleEntry(library, {
     faqType: createForm.faqType,
     title: createForm.title,
@@ -201,45 +175,15 @@ function createFlow() {
     setFeedback('error', result.message)
     return
   }
-  saveFaqBuilderBundleLibraryLocal(library)
-  createForm.title = ''
-  createForm.subjectKey = ''
-  setFeedback('success', 'Novo fluxo criado com sucesso.')
-  openBundle(result.entry.bundleId)
-}
-
-function duplicateFlow(bundleId = '') {
-  const result = duplicateFaqBuilderBundleEntry(
-    library,
-    bundleId,
-    currentEditorName.value,
-  )
-  if (!result.ok) {
-    setFeedback('error', result.message)
-    return
+  try {
+    await persistFaqLibrary(library, 'Criacao de novo fluxo na biblioteca FAQ')
+    createForm.title = ''
+    createForm.subjectKey = ''
+    setFeedback('success', 'Novo fluxo criado e persistido com sucesso.')
+    openBundle(result.entry.bundleId)
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao persistir o novo fluxo FAQ.')
   }
-  saveFaqBuilderBundleLibraryLocal(library)
-  setFeedback('success', 'Fluxo duplicado com sucesso.')
-}
-
-function archiveFlow(bundleId = '') {
-  const confirmed = window.confirm(
-    'Arquivar este fluxo? Ele sai da lista de operacao ativa, mas a versao atual e o historico permanecem preservados.',
-  )
-  if (!confirmed) {
-    return
-  }
-  const result = archiveFaqBuilderBundleEntry(
-    library,
-    bundleId,
-    currentEditorName.value,
-  )
-  if (!result.ok) {
-    setFeedback('error', result.message)
-    return
-  }
-  saveFaqBuilderBundleLibraryLocal(library)
-  setFeedback('success', 'Fluxo arquivado.')
 }
 
 function statusLabel(status = '') {
@@ -252,16 +196,6 @@ function statusLabel(status = '') {
     archived: 'Arquivado',
   }
   return labels[normalized] || status || 'Nao informado'
-}
-
-function faqTypeLabel(type = '') {
-  const normalized = String(type || '').toLowerCase()
-  const labels = {
-    op: 'Orientador de Polo',
-    aluno: 'Aluno',
-    admin: 'Administrativo',
-  }
-  return labels[normalized] || type || 'Nao informado'
 }
 
 function formatDate(dateValue = '') {
@@ -367,6 +301,22 @@ function situationTone(row = {}) {
       </div>
     </SectionPanel>
 
+    <details open class="rounded-[14px] border border-indigo-200 bg-indigo-50/70 px-4 py-3">
+      <summary class="cursor-pointer text-sm font-semibold text-slate-900">
+        Carga rapida por planilha
+      </summary>
+      <ol class="mt-3 grid gap-2 text-xs text-slate-700 md:grid-cols-5">
+        <li><strong>1.</strong> Crie um fluxo por assunto.</li>
+        <li><strong>2.</strong> Abra o fluxo e baixe o template XLSX.</li>
+        <li><strong>3.</strong> Preencha perguntas, respostas e ownership.</li>
+        <li><strong>4.</strong> Rode o dry-run no modo Importacao.</li>
+        <li><strong>5.</strong> Aplique, salve, revise e publique.</li>
+      </ol>
+      <p class="mt-3 text-xs text-slate-600">
+        A importacao e tudo-ou-nada, substitui apenas o rascunho do fluxo aberto e nunca publica automaticamente.
+      </p>
+    </details>
+
     <section
       v-if="feedback.message"
       class="rounded-[14px] border px-4 py-3 text-sm"
@@ -432,7 +382,7 @@ function situationTone(row = {}) {
 
     <section class="rounded-[18px] border border-slate-200 bg-white p-4">
       <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
-        <div class="mt-3 overflow-auto rounded-[12px] border border-slate-200">
+      <div class="mt-3 overflow-auto rounded-[12px] border border-slate-200">
         <table class="w-full min-w-[900px] text-left text-xs">
           <thead class="bg-slate-100 text-slate-600">
             <tr>
@@ -474,9 +424,9 @@ function situationTone(row = {}) {
               </td>
               <td class="px-3 py-2">
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
+                  <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
                     Ver fluxo
-                    </button>
+                  </button>
                 </div>
               </td>
             </tr>

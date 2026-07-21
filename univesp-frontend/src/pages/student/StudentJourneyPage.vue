@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
+import { resolveFaqMediaUrl } from '@/services/faqMedia'
 import { buildStudentFaqHomeEntries, buildStudentFaqRuntime } from '@/services/faqRuntime'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -42,6 +43,11 @@ const activeLineage = computed(() =>
 
 const activeChildren = computed(() => activeNode.value?.children || [])
 const activeNodeIsLeaf = computed(() => Boolean(activeNode.value) && activeChildren.value.length === 0)
+const activeMedia = computed(() =>
+  (Array.isArray(activeNode.value?.media) ? activeNode.value.media : [])
+    .map((item) => ({ ...item, resolvedUrl: resolveFaqMediaUrl(item) }))
+    .filter((item) => item.resolvedUrl),
+)
 
 const stageCopy = computed(() => {
   if (!activeNode.value) {
@@ -404,9 +410,50 @@ watch(
             <h3 class="mt-3 text-[1.7rem] font-semibold leading-tight text-slate-950">
               {{ activeNode.titulo_exibido }}
             </h3>
-            <p class="mt-4 text-sm leading-7 text-slate-700">
+            <p class="mt-4 whitespace-pre-line text-sm leading-7 text-slate-700">
               {{ activeNode.resposta }}
             </p>
+
+            <div v-if="activeMedia.length" class="mt-5 grid gap-4">
+              <figure
+                v-for="(media, index) in activeMedia"
+                :key="media.asset_id || media.resolvedUrl || `faq-media-${index}`"
+                class="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50"
+              >
+                <img
+                  v-if="media.type === 'image'"
+                  :src="media.resolvedUrl"
+                  :alt="media.alt"
+                  loading="lazy"
+                  decoding="async"
+                  class="h-auto max-h-[520px] w-full object-contain"
+                />
+                <video
+                  v-else-if="media.type === 'video'"
+                  :src="media.resolvedUrl"
+                  :poster="media.thumbnail_url || undefined"
+                  controls
+                  playsinline
+                  preload="metadata"
+                  class="max-h-[520px] w-full bg-slate-950"
+                ></video>
+                <figcaption
+                  v-if="media.caption"
+                  class="border-t border-slate-200 px-4 py-3 text-xs leading-5 text-slate-600"
+                >
+                  {{ media.caption }}
+                </figcaption>
+                <details
+                  v-if="media.type === 'video' && media.transcript"
+                  class="border-t border-slate-200 px-4 py-3 text-xs text-slate-600"
+                >
+                  <summary class="cursor-pointer font-semibold text-slate-700">
+                    Ler transcricao do video
+                  </summary>
+                  <p class="mt-2 whitespace-pre-line leading-5">{{ media.transcript }}</p>
+                </details>
+              </figure>
+            </div>
           </section>
 
           <section class="rounded-[22px] border border-slate-200 bg-white/92 p-5">

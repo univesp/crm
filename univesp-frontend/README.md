@@ -5,12 +5,18 @@ Frontend institucional do Sistema de Atendimento da Univesp, construido em Vue 3
 ## Stack atual
 
 - Framework: Vue 3
-- Bundler e dev server: Vite 5
+- Bundler e dev server: Vite 6
 - Estado: Pinia
 - Rotas: Vue Router
 - Estilizacao: Tailwind CSS + tokens locais em `src/index.css`
 - Linguagem: JavaScript com componentes `.vue`
 - Package manager recomendado: `npm`
+
+## Estado das integracoes do candidato
+
+Integrado no codigo e coberto localmente: sessao/gateway, tickets do aluno, filas e acoes OP/area, atribuicao de area, usuarios, parametros versionados, dashboard paginado, biblioteca FAQ versionada e consumo de snapshots publicados/vigentes no portal. A biblioteca usa localStorage apenas como rascunho de seguranca; salvar/revisar/publicar grava no Frappe.
+
+Ainda bloqueia homologacao integrada: migrate e testes em bench/Helpdesk real, segregacao autor/aprovador e rollback editorial, sugestoes/revisao de conhecimento, agregados canonicos de gestao, IdPs/Redis/GCP reais, smoke/carga/restore/rollback. Regras e disponibilidade de area ja sao versionadas no Frappe. Nenhum deploy foi feito nesta revisao.
 
 ## Requisitos locais
 
@@ -63,9 +69,11 @@ As variaveis base estao em:
 - `.env.development`: compose e Vite local em `http://localhost:8080/crm`
 - `.env.production`: espelho da homolog em `https://homolog-crm.univesp.br/`
 
-Nesta fase:
+Modo de runtime:
 
-- `VITE_ENABLE_MOCKS=true` mantem o frontend desacoplado de backend real
+- mocks so existem quando `VITE_ENABLE_MOCKS=true` e sao destinados a desenvolvimento/testes locais
+- o default de `appApi.js` e `false`; o store tambem falha fechado quando a flag nao esta definida
+- o build de producao falha se `VITE_ENABLE_MOCKS=true`
 - `VITE_APP_BASE`, `VITE_DEV_PORT` e `VITE_PREVIEW_PORT` ajudam no encaixe futuro como modulo
 - `VITE_APP_API_BASE=/api/app/v1` usa o BFF no mesmo host publico
 - `SSO_GATEWAY_ORIGIN` aponta o Nginx para o gateway interno
@@ -80,8 +88,7 @@ O `univesp-frontend` fica na frente do dominio publico, mas o Nginx do container
 encaminha somente as rotas publicas do gateway:
 
 - `/api/app/v1/*` -> SSO Gateway/BFF -> app Frappe interno
-- `/api/method/*`, `/api/resource/*`, `/private/files/*` -> bloqueados externamente
-- `/socket.io/*` -> Frappe socket.io
+- `/api/method/*`, `/api/resource/*`, `/app*`, `/desk*`, `/assets*`, `/files*`, `/private/files/*` e `/socket.io/*` -> bloqueados externamente
 - `/api/me`, `/api/sso/*` -> SSO gateway
 - `/`, `/login` e demais rotas institucionais -> frontend UNIVESP
 
@@ -245,7 +252,7 @@ Observacao: esse compose e para dev local. Ele deixa a API funcionando sem depen
 Depois do deploy por GitHub Actions:
 
 - tela inicial do `univesp-frontend`: `https://homolog-crm.univesp.br/`
-- CRM nativo do Frappe: `https://homolog-crm.univesp.br/crm`
+- `/crm*` redireciona para o portal academico; o CRM/Desk nativo nao e exposto nesse dominio
 
 ## Credenciais do Frappe
 
@@ -294,6 +301,8 @@ As rotas ficam centralizadas em `src/router.js`.
 - `docs/ambiente-local.md`
 - `docs/frappe-crm-auth.md`
 - `docs/ti-checklist-frontend.md`
+- `../docs/TI_HOMOLOGACAO.md`
+- `../docs/FAQ_CARGA_RAPIDA.md`
 
 ## Limites desta fase
 

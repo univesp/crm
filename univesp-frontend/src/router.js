@@ -1,4 +1,5 @@
 import AdminFaqEditorPage from '@/pages/admin/AdminFaqEditorPage.vue'
+import { isMockRuntimeEnabled } from '@/services/appApi'
 
 function normalizeFaqBuilderBundleId(rawValue = '') {
   let decoded = ''
@@ -441,6 +442,7 @@ const routes = [
     path: '/admin/publicacao',
     name: 'admin-versioning',
     component: () => import('@/pages/admin/AdminVersioningPage.vue'),
+    beforeEnter: () => (isMockRuntimeEnabled() ? true : { name: 'admin-faq' }),
     meta: {
       title: 'Publicacao e historico de versoes',
       stage: 'admin-versioning',

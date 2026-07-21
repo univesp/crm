@@ -9,3 +9,7 @@ dist/
 .codex-temp/
 preview*.log
 tmp-*
+
+# Playwright runtime artifacts.
+test-results/
+playwright-report/
