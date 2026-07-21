@@ -71,6 +71,11 @@ configure_academic_integration() {
 	bench --site "${SITE_NAME}" execute univesp_atendimento.provisioning.configure_bff_service_account
 }
 
+configure_initial_access_admin() {
+	require_env INITIAL_ADMIN_EMAIL
+	bench --site "${SITE_NAME}" execute univesp_atendimento.provisioning.configure_initial_access_admin
+}
+
 wait_for_tcp() {
 	local host=$1
 	local port=$2
@@ -159,6 +164,7 @@ bootstrap_site() {
 		ensure_required_apps
 		configure_academic_integration
 		bench --site "${SITE_NAME}" migrate
+		configure_initial_access_admin
 		if [[ -n "${HOST_NAME:-}" ]]; then
 			bench --site "${SITE_NAME}" set-config host_name "${HOST_NAME}"
 		fi
@@ -227,6 +233,7 @@ bootstrap_site() {
 	fi
 	bench --site "${SITE_NAME}" clear-cache
 	bench --site "${SITE_NAME}" migrate
+	configure_initial_access_admin
 	clear_site_runtime_cache
 	refresh_assets_runtime_cache
 }
