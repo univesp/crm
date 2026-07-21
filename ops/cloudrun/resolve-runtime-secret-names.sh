@@ -50,7 +50,18 @@ resolve_secret() {
     resolved_name=$desired_name
   else
     resolved_name=$(jq -r --arg env_name "$env_name" '[.. | objects | select(.name? == $env_name) | (.valueFrom.secretKeyRef.name? // .valueSource.secretKeyRef.secret?)] | map(select(type == "string" and length > 0)) | first // empty' "$service_json")
-    [[ -n "$resolved_name" ]] || { printf 'No enabled desired secret or deployed secret reference found for %s.\n' "$env_name" >&2; exit 1; }
+    if [[ -z "$resolved_name" ]]; then
+      legacy_value=$(jq -r --arg env_name "$env_name" '[.. | objects | select(.name? == $env_name) | .value?] | map(select(type == "string" and length > 0)) | first // empty' "$service_json")
+      if [[ -n "$legacy_value" ]]; then
+        SECRET_NAME="$desired_name" SECRET_VALUE="$legacy_value" ./ops/cloudrun/sync_secret.sh
+        unset legacy_value
+        resolved_name=$desired_name
+        printf 'Migrated legacy %s value to Secret Manager without exposing it.\n' "$env_name"
+      else
+        printf 'No enabled desired secret or deployed value/reference found for %s.\n' "$env_name" >&2
+        exit 1
+      fi
+    fi
     if ! secret_enabled "$resolved_name"; then
       resolved_name=$(jq -r --arg secret_ref "$resolved_name" '[.. | strings | select(contains($secret_ref) and contains("/secrets/")) | capture("/secrets/(?<name>[^,]+)").name | gsub("\\s+$"; "")] | first // empty' "$service_json")
     fi
