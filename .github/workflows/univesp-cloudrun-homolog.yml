@@ -87,7 +87,7 @@ jobs:
           FRAPPE_API_SECRET_VALUE: ${{ secrets.FRAPPE_API_SECRET }}
           GATEWAY_SESSION_SECRET_VALUE: ${{ secrets.GATEWAY_SESSION_SECRET }}
           GATEWAY_JWT_SECRET_VALUE: ${{ secrets.GATEWAY_JWT_SECRET }}
-          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL }}
+          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL || secrets.REDIS_CACHE_URL }}
           AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
           AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
           SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
@@ -139,7 +139,7 @@ jobs:
 
       - name: Resolve existing gateway secret references
         env:
-          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL }}
+          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL || secrets.REDIS_CACHE_URL }}
           AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
           AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
           SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
@@ -158,7 +158,7 @@ jobs:
           FRAPPE_API_SECRET_VALUE: ${{ secrets.FRAPPE_API_SECRET }}
           GATEWAY_SESSION_SECRET_VALUE: ${{ secrets.GATEWAY_SESSION_SECRET }}
           GATEWAY_JWT_SECRET_VALUE: ${{ secrets.GATEWAY_JWT_SECRET }}
-          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL }}
+          GATEWAY_REDIS_VALUE: ${{ secrets.GATEWAY_REDIS_URL || secrets.REDIS_CACHE_URL }}
           AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
           AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
           SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
