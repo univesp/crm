@@ -2,6 +2,8 @@
 
 Este é o checklist canônico para manter o candidato acadêmico atualizado e preparar a homologação. A topologia Cloud Run está em `ops/cloudrun/README.md`; a alternativa de VM permanece em `ops/vm/HANDOFF_TI.md`.
 
+O kit executável para administradores GitHub, GCP e IdP está em `ops/cloudrun/ti/README.md`. Comece pelo workflow somente leitura `Univesp Cloud Run Readiness`; o deploy deve permanecer bloqueado até o artefato de readiness ficar verde.
+
 ## Estado verificado em 21/07/2026
 
 Os PRs de prontidão, descoberta e migração de segredos foram integrados até o merge `3d5f0dbe`. A execução [29850321560](https://github.com/univesp/crm/actions/runs/29850321560) comprovou:
@@ -54,7 +56,7 @@ Criar contas exclusivas de homologação, sem reutilizar pessoas reais, com MFA 
 | área | Azure administrativo; área explícita | somente tickets da própria área |
 | admin | Azure administrativo; grupo administrativo | catálogos, parâmetros e publicação de FAQ |
 
-A criação automática dessas identidades não deve ser feita pelo CRM: ela exige governança do tenant/IdP. Após o primeiro login, validar o usuário espelhado no Frappe, registrar os identificadores no cofre de testes e executar a matriz de `docs/HOMOLOG_READINESS.md`. Não armazenar senhas no repositório ou em variables do GitHub.
+A criação automática dessas identidades não deve ser feita pelo CRM: ela exige governança do tenant/IdP. Configure `INITIAL_ADMIN_EMAIL` com a conta sintética administrativa; o bootstrap cria somente o primeiro `admin_central`. Os outros logins geram solicitações que o admin deve aprovar como `aluno`, `op` e `analista_area`, com filas/áreas explícitas. Registre os identificadores no cofre de testes e execute `docs/HOMOLOG_READINESS.md`. Não armazenar senhas no repositório ou em variables do GitHub.
 
 ## Estado e regra de branch
 
@@ -68,7 +70,7 @@ A criação automática dessas identidades não deve ser feita pelo CRM: ela exi
 
 O workflow constrói dois artefatos do mesmo SHA: a imagem Frappe com CRM, Helpdesk e `univesp_atendimento`, e a imagem Node do SSO Gateway/BFF.
 
-O gateway é implantado primeiro. A URL é obtida pelo workflow e passada ao front door. O bootstrap instala apps ausentes, executa migrations, grava o HMAC no `site_config.json` e provisiona uma conta técnica Frappe.
+O gateway é implantado primeiro. A URL é obtida pelo workflow e passada ao front door. O bootstrap instala apps ausentes, executa migrations, grava o HMAC no `site_config.json`, provisiona a conta técnica Frappe e cria o primeiro `admin_central` de forma idempotente quando ainda não existe administrador ativo.
 
 Fronteira pública:
 
@@ -82,7 +84,7 @@ Crie o Environment `homolog` com required reviewers, branch permitida `univesp/c
 
 ### Variables obrigatórias
 
-Base: `GCP_PROJECT_ID`, `GCP_REGION`, `ARTIFACT_REPOSITORY`, `IMAGE_NAME`, `GATEWAY_IMAGE_NAME`, `GATEWAY_SERVICE`, `FRAPPE_SITE_NAME`, `FRAPPE_SERVICE_USER_EMAIL` e `PUBLIC_DOMAIN`.
+Base: `GCP_PROJECT_ID`, `GCP_REGION`, `ARTIFACT_REPOSITORY`, `IMAGE_NAME`, `GATEWAY_IMAGE_NAME`, `GATEWAY_SERVICE`, `FRAPPE_SITE_NAME`, `FRAPPE_SERVICE_USER_EMAIL`, `INITIAL_ADMIN_EMAIL` e `PUBLIC_DOMAIN`.
 
 Dados/rede: `DB_TYPE`, `DB_SETUP_MODE`, `DB_NAME`, `DB_USER`, `DB_ROOT_USERNAME`, `CLOUDSQL_INSTANCE`, `SITES_BUCKET`, `VPC_NETWORK`, `VPC_CONNECTOR`, `VPC_CONNECTOR_RANGE` e `CLOUDRUN_RUNTIME_SERVICE_ACCOUNT`.
 

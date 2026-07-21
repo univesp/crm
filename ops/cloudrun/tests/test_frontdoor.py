@@ -87,7 +87,7 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		self.assertIn('-z "${SECRET_VALUE}"', self.sync_secret)
 
 	def test_deploy_requires_https_gateway_origin(self):
-		self.assertIn("SSO_GATEWAY_ORIGIN and FRAPPE_SERVICE_USER_EMAIL are required.", self.deploy)
+		self.assertIn("SSO_GATEWAY_ORIGIN, FRAPPE_SERVICE_USER_EMAIL and INITIAL_ADMIN_EMAIL are required.", self.deploy)
 		self.assertIn("https://*)", self.deploy)
 		self.assertIn("UNIVESP_BFF_SHARED_SECRET", self.deploy)
 		self.assertIn("UNIVESP_EDGE_SHARED_SECRET", self.deploy)
