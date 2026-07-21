@@ -53,6 +53,7 @@ import {
   validateFaqBuilderPortalExport,
   resolveFaqBuilderNodeEffectiveOwner,
 } from '@/services/faqBuilderHybridRuntime'
+import { readFaqBuilderJson } from '@/services/faqJsonImport'
 import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
@@ -204,6 +205,7 @@ const sanitizedState = reactive({
 })
 const importState = reactive({
   fileName: '',
+  sourceType: '',
   isLoading: false,
   result: null,
 })
@@ -1584,6 +1586,7 @@ async function onSpreadsheetSelected(event) {
   if (!file || !workspace.value || !currentBundleEntry.value) return
 
   importState.fileName = file.name
+  importState.sourceType = 'spreadsheet'
   importState.isLoading = true
 
   try {
@@ -1593,6 +1596,25 @@ async function onSpreadsheetSelected(event) {
     })
   } catch (error) {
     setFeedback('error', error?.message || 'Falha ao processar o dry-run.')
+  } finally {
+    importState.isLoading = false
+  }
+}
+async function onJsonSelected(event) {
+  const file = event.target.files?.[0] || null
+  if (!file || !workspace.value || !currentBundleEntry.value) return
+
+  importState.fileName = file.name
+  importState.sourceType = 'json'
+  importState.isLoading = true
+
+  try {
+    importState.result = await readFaqBuilderJson(file, {
+      faqType: currentBundleEntry.value.faqType,
+      baseBundle: workspace.value.draftBundle,
+    })
+  } catch (error) {
+    setFeedback('error', error?.message || 'Falha ao processar o JSON.')
   } finally {
     importState.isLoading = false
   }
@@ -1612,7 +1634,8 @@ function applySpreadsheetImport() {
   workspace.value.canvasSnapshot = importState.result.canvasSnapshot
   workspace.value.workflowStatus = 'Draft'
   touchWorkspace()
-  setFeedback('success', 'Planilha aplicada no fluxo atual.')
+  const sourceLabel = importState.sourceType === 'json' ? 'JSON' : 'Planilha'
+  setFeedback('success', `${sourceLabel} aplicado no fluxo atual como rascunho.`)
   switchMode('visual')
 }
 </script>
@@ -2404,10 +2427,10 @@ function applySpreadsheetImport() {
           <section class="mt-3 grid gap-3 xl:grid-cols-[0.92fr_1.08fr]">
             <article class="rounded-[18px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">
-                Importacao por planilha para este fluxo
+                Importacao por planilha ou JSON para este fluxo
               </p>
               <p class="mt-1 text-xs text-slate-600">
-                A importacao e contextual ao bundle atual e funciona em modo tudo-ou-nada.
+                O dry-run aceita XLSX, bundle canonico JSON ou procedure-capture-v1. Nada e publicado automaticamente.
               </p>
               <button
                 type="button"
@@ -2416,11 +2439,25 @@ function applySpreadsheetImport() {
               >
                 Baixar template oficial
               </button>
+              <label class="mt-4 block text-xs font-semibold text-slate-700" for="faq-xlsx-import">
+                Planilha oficial
+              </label>
               <input
+                id="faq-xlsx-import"
                 type="file"
                 accept=".xlsx,.xls"
-                class="mt-4 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
+                class="mt-2 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
                 @change="onSpreadsheetSelected"
+              />
+              <label class="mt-4 block text-xs font-semibold text-slate-700" for="faq-json-import">
+                JSON canonico ou capturado
+              </label>
+              <input
+                id="faq-json-import"
+                type="file"
+                accept="application/json,.json"
+                class="mt-2 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
+                @change="onJsonSelected"
               />
               <p class="mt-2 text-xs text-slate-500">
                 {{ importState.fileName || 'Nenhum arquivo selecionado.' }}
@@ -2430,13 +2467,14 @@ function applySpreadsheetImport() {
             <article class="rounded-[18px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">Resultado do dry-run</p>
               <p v-if="importState.isLoading" class="mt-2 text-sm text-slate-600">
-                Processando planilha...
+                Processando arquivo e validando o rascunho...
               </p>
               <template v-else-if="importState.result">
                 <p class="mt-2 text-xs text-slate-600">
                   Linhas: {{ importState.result.summary?.totalRows || 0 }} | Nos:
                   {{ importState.result.summary?.totalNodes || 0 }} | Links:
-                  {{ importState.result.summary?.totalLinks || 0 }}
+                  {{ importState.result.summary?.totalLinks || 0 }} | Midias:
+                  {{ importState.result.summary?.mediaItems || 0 }}
                 </p>
                 <div class="mt-3 max-h-[280px] overflow-auto rounded-[12px] border border-slate-200">
                   <table class="w-full text-left text-xs">
@@ -2481,7 +2519,7 @@ function applySpreadsheetImport() {
                   :disabled="!importState.result.ok"
                   @click="applySpreadsheetImport"
                 >
-                  Aplicar importacao neste fluxo
+                  Aplicar arquivo neste fluxo como rascunho
                 </button>
               </template>
             </article>

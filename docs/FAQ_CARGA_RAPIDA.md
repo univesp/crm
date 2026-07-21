@@ -1,94 +1,165 @@
-# Carga rápida de FAQs por planilha
+# Carga rápida de FAQs por XLSX ou JSON
 
-O FAQ Builder já possui importação XLSX por fluxo. Esse é o caminho recomendado
-para carregar conteúdo em lote sem gravar linhas parcialmente inválidas.
+O FAQ Builder aceita XLSX e JSON no modo **Importação**. Os dois executam dry-run, usam o mesmo validador canônico e sempre entram como rascunho; upload não publica automaticamente.
+
+## Quando usar cada formato
+
+- **XLSX**: curadoria em massa pela equipe de negócio.
+- **JSON canônico**: integração, automação ou migração entre ambientes.
+- **`procedure-capture-v1`**: transformar gravação de tela, voz, anotações e passos extraídos por ferramenta externa em rascunho revisável.
+
+Vale manter a captura/análise de vídeo fora do CRM. O CRM recebe o resultado estruturado, valida e aplica revisão humana. Isso desacopla processamento pesado e evita acesso direto do capturador ao Frappe.
 
 ## Pré-requisitos
 
 - usuário com ação `edit_faq`;
-- biblioteca institucional acessível em `/admin/faq`;
+- biblioteca em `/admin/faq`;
 - filas/áreas responsáveis cadastradas;
-- conteúdo revisado sem dados pessoais, segredos ou links internos restritos.
+- conteúdo sem dados pessoais, segredos ou links internos restritos;
+- mídia em origem HTTPS institucional compatível com o público da FAQ.
 
 ## Fluxo recomendado
 
-1. Abra **Admin > FAQ Builder > Biblioteca**.
-2. Crie um fluxo por assunto amplo, por exemplo “Matrícula” ou “Provas”.
-3. Abra o fluxo e baixe **Template XLSX**.
-4. Preencha uma linha para cada nó/pergunta/resposta.
-5. Acesse o modo **Importação**, selecione a planilha e aguarde o dry-run.
-6. Corrija todos os erros bloqueadores.
-7. Clique em **Aplicar importação neste fluxo**.
-8. Revise o canvas e salve como rascunho institucional.
-9. Envie para revisão; publique somente após aprovação.
-10. Confirme a resposta no portal de aluno ou no playbook do OP.
+1. Abra **Admin > FAQ Builder > Biblioteca** e crie/abra o fluxo.
+2. Entre no modo **Importação**.
+3. Selecione XLSX ou JSON; JSON tem limite de 2 MiB.
+4. Aguarde o dry-run e corrija os bloqueios.
+5. Aplique no fluxo aberto.
+6. Revise texto, ordem, ownership, links, imagens, legendas e transcrição.
+7. Salve como rascunho, envie à revisão e publique só após aprovação.
+8. Confirme no portal do aluno e, quando aplicável, no playbook do OP.
 
-A importação é tudo-ou-nada e substitui o rascunho do fluxo aberto. Ela não
-publica automaticamente.
+A importação é tudo-ou-nada e substitui o rascunho do fluxo aberto.
 
-## Estrutura mínima
+## JSON canônico
 
-| Coluna | Uso |
+O arquivo pode conter o bundle diretamente ou dentro de `generatedFaqBundle`/`bundle`:
+
+```json
+{
+  "schema_version": "2.0.0",
+  "faq_id": "acesso-ava",
+  "tipo_faq": "aluno",
+  "metadata": {
+    "title": "Acesso ao AVA",
+    "defaultOwnerType": "queue",
+    "defaultOwnerId": "atendimento-geral"
+  },
+  "versioning": {"publication_status": "draft"},
+  "nodes": [
+    {
+      "id": "acesso-ava-root",
+      "node_kind": "path",
+      "titulo_exibido": "Acesso ao AVA"
+    },
+    {
+      "id": "acesso-ava-final",
+      "node_kind": "final",
+      "titulo_exibido": "Como recuperar o acesso?",
+      "resposta": "Siga o procedimento institucional.",
+      "media": [
+        {
+          "type": "image",
+          "source_url": "https://conteudo.univesp.br/faq/ava/passo-1.png",
+          "alt": "Tela de recuperação com o botão Continuar destacado",
+          "caption": "Passo 1"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "link_id": "acesso-ava-link-1",
+      "parent_node_id": "acesso-ava-root",
+      "child_node_id": "acesso-ava-final",
+      "ordem": 1,
+      "ativo": true
+    }
+  ],
+  "calendar_highlights": []
+}
+```
+
+O importador força `tipo_faq` igual ao fluxo aberto, `publication_status=draft` e `import_source=json`.
+
+## Contrato `procedure-capture-v1`
+
+Uma ferramenta externa pode observar tela/voz/anotações, gerar passos e entregar. Um arquivo pronto para copiar e adaptar está em `docs/examples/procedure-capture-v1.json`:
+
+```json
+{
+  "schema": "procedure-capture-v1",
+  "procedure_id": "recuperar-senha-ava",
+  "title": "Recuperar senha do AVA",
+  "summary": "Procedimento validado pela equipe de acesso.",
+  "owner": {"type": "queue", "id": "atendimento-geral"},
+  "steps": [
+    {
+      "order": 1,
+      "title": "Abra a recuperação de senha",
+      "instruction": "Selecione Esqueci minha senha.",
+      "notes": "Não informe credenciais na gravação.",
+      "media": [
+        {
+          "type": "video",
+          "source_url": "https://conteudo.univesp.br/faq/ava/recuperacao.mp4",
+          "caption": "Demonstração completa",
+          "transcript": "Abra o portal. Selecione Esqueci minha senha."
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Confirme o e-mail",
+      "instruction": "Use o e-mail institucional e conclua a validação."
+    }
+  ],
+  "sources": [
+    {
+      "type": "image",
+      "source_url": "https://conteudo.univesp.br/faq/ava/confirmacao.png",
+      "alt": "Mensagem enviada ao e-mail institucional"
+    }
+  ]
+}
+```
+
+A conversão gera uma FAQ linear com entrada e resposta final numerada. É um rascunho inicial, não aprovação automática da interpretação do vídeo.
+
+## Mídia em respostas
+
+Cada nó aceita até 8 itens em `media`.
+
+| Campo | Regra |
 |---|---|
-| `node_id` | identificador único e estável |
-| `short_title` | pergunta ou rótulo exibido |
-| `node_type` | `path` para navegação; `final` para resposta |
-| `parent_id` | nó pai; vazio apenas para raiz |
-| `response_content` | obrigatório para nó final |
-| `closing_action` | ação ao concluir |
-| `child_order` | ordem entre irmãos |
-| `theme` / `subtheme` | classificação |
-| `status` | use `draft` durante a carga |
-| `queue_destination` | fila de atendimento |
-| `criticality` / `sla` | criticidade e prazo |
-| `bundle_owner_*` | responsável padrão do fluxo |
+| `type` | `image` ou `video` |
+| `source_url` | HTTPS; caminho recomendado nesta versão |
+| `asset_id` | identificador interno reservado |
+| `alt` | obrigatório para imagem |
+| `caption` | obrigatório para vídeo |
+| `transcript` | recomendado; ausência gera aviso |
+| `poster_url` | HTTPS opcional para vídeo |
 
-O template traz todas as colunas, exemplos e uma aba de instruções.
+HTTP, esquemas inseguros e mídia sem texto acessível bloqueiam importação/publicação. Imagens usam carregamento tardio; vídeos usam `preload=metadata`.
 
-## Exemplo simples
+Para homologação imediata, publique arquivos no storage/CDN institucional por HTTPS. Upload binário interno e entrega por `asset_id` ainda exigem backend, antivírus, retenção, autorização e CDN.
 
-| node_id | short_title | node_type | parent_id | response_content |
-|---|---|---|---|---|
-| matricula-raiz | Matrícula | path | | |
-| matricula-prazo | Qual é o prazo? | final | matricula-raiz | Consulte o calendário acadêmico vigente. |
-| matricula-docs | Quais documentos enviar? | final | matricula-raiz | Envie os documentos listados no edital vigente. |
+## Planilha XLSX
 
-Complete também fila, criticidade, SLA, ação e ownership usando os valores
-válidos do template.
+No modo XLSX, baixe o template do editor. Uma linha representa cada nó; complete identificador, título, tipo, pai, resposta, ação, ordem, tema/subtema, fila, criticidade, SLA e ownership.
 
-## Estratégia para volume
+Para volume:
 
-- separar por assunto, com um workbook por fluxo;
-- carregar primeiro 5 a 10 fluxos prioritários;
-- manter todos como rascunho;
-- revisar links, datas, linguagem e responsável;
-- publicar em lotes pequenos;
-- testar aluno e OP após cada lote;
-- usar identificadores estáveis para facilitar atualizações futuras.
+- um fluxo por assunto;
+- começar pelos 5 a 10 assuntos prioritários;
+- usar identificadores estáveis;
+- publicar lotes pequenos;
+- testar aluno e OP após cada lote.
 
-Prioridade inicial sugerida:
+Prioridades: matrícula/rematrícula, calendário/provas, AVA, documentos/declarações, estágio/TCC, bolsas/pagamentos, polo e acesso/senha.
 
-1. matrícula/rematrícula;
-2. calendário e provas;
-3. acesso ao AVA;
-4. documentos e declarações;
-5. estágio/TCC;
-6. bolsas e pagamentos;
-7. atendimento do polo;
-8. problemas de acesso e senha.
+## Segurança e rollback editorial
 
-## Segurança e rollback de conteúdo
+Antes de carga grande, mantenha backup do `Univesp Knowledge Library` e banco. O salvamento usa versão otimista e rejeita escrita desatualizada.
 
-Antes de uma carga grande, a TI deve manter backup do DocType
-`Univesp Knowledge Library` e do banco. O salvamento usa versão otimista:
-se outra pessoa alterar a biblioteca, a API rejeita a escrita desatualizada.
-
-Para desfazer:
-
-1. não publique o lote com erro;
-2. restaure o rascunho anterior ou o backup institucional;
-3. se já publicado, arquive/corrija e gere nova versão;
-4. valide novamente no portal.
-
-Até existir segregação editorial completa, autor e aprovador devem ser pessoas
-diferentes por procedimento operacional.
+Para desfazer: não publique lote com erro; restaure o rascunho/backup; se publicado, arquive/corrija e gere nova versão; valide novamente no portal. Autor e aprovador devem ser pessoas diferentes.

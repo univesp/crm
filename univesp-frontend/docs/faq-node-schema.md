@@ -425,3 +425,32 @@ Este schema deve permitir que a FAQ:
 - seja versionada e publicada com seguranca
 - reordene temas por calendario academico
 - sirva de base para persistencia futura no Frappe sem reescrever a UI
+
+---
+
+## 16. Importação JSON e mídia guiada
+
+Além da planilha, o editor aceita o pacote canônico como JSON, diretamente ou sob `bundle`/`generatedFaqBundle`. Também aceita `schema: "procedure-capture-v1"`, convertido em FAQ linear revisável. Toda importação força rascunho e passa pelo mesmo gate de publicação.
+
+Um nó pode declarar até 8 itens em `media`:
+
+```json
+{
+  "media": [
+    {
+      "type": "image",
+      "source_url": "https://conteudo.univesp.br/faq/passo.png",
+      "alt": "Descrição objetiva da tela",
+      "caption": "Passo 1"
+    },
+    {
+      "type": "video",
+      "source_url": "https://conteudo.univesp.br/faq/procedimento.mp4",
+      "caption": "Demonstração do procedimento",
+      "transcript": "Transcrição textual do conteúdo."
+    }
+  ]
+}
+```
+
+Regras: `type` é `image` ou `video`; URLs devem usar HTTPS; imagem exige `alt`; vídeo exige `caption` e deve ter transcrição; mídia insegura bloqueia importação/publicação. `asset_id` é reservado para backend de mídia futuro. O contrato completo e o formato de captura estão em `docs/FAQ_CARGA_RAPIDA.md`.

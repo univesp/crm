@@ -69,6 +69,7 @@ const loadModule = (modulePath) => server.ssrLoadModule(modulePath)
 
 const foundationRuntime = await loadModule('/src/services/canonicalFoundationRuntime.js')
 const faqBuilderRuntime = await loadModule('/src/services/faqBuilderHybridRuntime.js')
+const faqJsonImportRuntime = await loadModule('/src/services/faqJsonImport.js')
 const distributionEngine = await loadModule('/src/services/distributionEngine.js')
 const areaGovernanceRuntime = await loadModule('/src/services/areaGovernanceRuntime.js')
 const areaQueueRuntime = await loadModule('/src/services/areaQueueRuntime.js')
@@ -113,6 +114,7 @@ const {
   validateFaqBuilderPortalExport,
   validateFaqBuilderBundle,
 } = faqBuilderRuntime
+const { buildProcedureCaptureBundle, normalizeImportedPayload } = faqJsonImportRuntime
 const { buildDistributionDecision, resolveEligibleUsers } = distributionEngine
 const { canViewerAccessAreaSubject } = areaGovernanceRuntime
 const { resolveAreaQueueBucket, filterAreaQueueEntries } = areaQueueRuntime
@@ -2000,6 +2002,105 @@ test('home gerencial da area carrega visao consolidada com backlog e distribuica
   assert.ok(Array.isArray(overview.loadByAnalyst))
   assert.ok(Array.isArray(overview.subjectBottlenecks))
   assert.ok(Array.isArray(overview.redistributionSuggestions))
+})
+
+test('importacao JSON canonica preserva rascunho e valida midia segura', async () => {
+  const source = cloneFaqBuilderPackage('aluno')
+  const finalNode = source.nodes.find((node) => node.node_kind === 'leaf')
+  assert.ok(finalNode)
+  finalNode.media = [
+    {
+      type: 'image',
+      source_url: 'https://conteudo.univesp.br/guias/matricula.png',
+      alt: 'Tela de matricula com o botao de confirmacao destacado',
+      caption: 'Confirmacao da matricula',
+    },
+  ]
+
+  const imported = normalizeImportedPayload(source, {
+    faqType: 'aluno',
+    baseBundle: cloneFaqBuilderPackage('aluno'),
+  })
+  const validation = validateFaqBuilderBundle(imported, { mode: 'import' })
+
+  assert.equal(imported.versioning.import_source, 'json')
+  assert.equal(imported.versioning.publication_status, 'draft')
+  assert.equal(validation.hasBlockingImportError, false)
+})
+
+test('importacao JSON bloqueia URL insegura e imagem sem texto alternativo', async () => {
+  const source = cloneFaqBuilderPackage('aluno')
+  const finalNode = source.nodes.find((node) => node.node_kind === 'leaf')
+  assert.ok(finalNode)
+  finalNode.media = [{ type: 'image', source_url: 'http://inseguro.example/imagem.png' }]
+
+  const imported = normalizeImportedPayload(source, {
+    faqType: 'aluno',
+    baseBundle: cloneFaqBuilderPackage('aluno'),
+  })
+  const validation = validateFaqBuilderBundle(imported, { mode: 'import' })
+
+  assert.equal(validation.hasBlockingImportError, true)
+  assert.ok(validation.errors.some((issue) => issue.code === 'unsafe_media_url'))
+  assert.ok(validation.errors.some((issue) => issue.code === 'image_without_alt'))
+})
+
+test('procedure-capture-v1 gera FAQ linear revisavel sem publicar automaticamente', async () => {
+  const bundle = buildProcedureCaptureBundle(
+    {
+      schemaVersion: 'procedure-capture-v1',
+      checksum: 'sha256-demo',
+      procedure: {
+        id: 'emitir-declaracao',
+        title: 'Emitir declaracao de matricula',
+        system: 'Portal do Aluno',
+      },
+      sources: [
+        {
+          type: 'video',
+          source_url: 'https://conteudo.univesp.br/guias/declaracao.mp4',
+          caption: 'Emissao da declaracao',
+          transcript: 'Acesse Documentos e escolha Declaracao de matricula.',
+        },
+      ],
+      steps: [
+        { order: 1, action: 'Abra o menu Documentos.' },
+        { order: 2, action: 'Selecione Declaracao de matricula.', expectedResult: 'PDF gerado.' },
+      ],
+    },
+    { faqType: 'aluno', baseBundle: cloneFaqBuilderPackage('aluno') },
+  )
+  const validation = validateFaqBuilderBundle(bundle, { mode: 'import' })
+
+  assert.equal(bundle.nodes.length, 2)
+  assert.equal(bundle.links.length, 1)
+  assert.equal(bundle.versioning.import_source, 'procedure-capture-json')
+  assert.equal(bundle.versioning.publication_status, 'draft')
+  assert.equal(validation.hasBlockingImportError, false)
+  assert.match(bundle.nodes[1].resposta, /PDF gerado/)
+})
+test('procedure-capture documentado aceita schema no topo e owner de fila', async () => {
+  const baseBundle = cloneFaqBuilderPackage('aluno')
+  const ownerId = baseBundle.operational_owner.queueKey
+  const bundle = normalizeImportedPayload(
+    {
+      schema: 'procedure-capture-v1',
+      procedure_id: 'recuperar-senha',
+      title: 'Recuperar senha',
+      summary: 'Procedimento de recuperacao.',
+      owner: { type: 'queue', id: ownerId },
+      steps: [
+        { order: 1, instruction: 'Selecione Esqueci minha senha.' },
+        { order: 2, instruction: 'Confirme o e-mail institucional.' },
+      ],
+    },
+    { faqType: 'aluno', baseBundle },
+  )
+
+  assert.equal(bundle.metadata.title, 'Recuperar senha')
+  assert.equal(bundle.operational_owner.queueKey, ownerId)
+  assert.ok(bundle.nodes.every((node) => node.fila_destino === ownerId))
+  assert.equal(bundle.versioning.publication_status, 'draft')
 })
 
 test('biblioteca do FAQ Builder renderiza sem loop reativo e sem tela vazia', async () => {

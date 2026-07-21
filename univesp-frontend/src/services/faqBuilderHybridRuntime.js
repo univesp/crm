@@ -11,6 +11,7 @@ import {
   getCatalogKeys,
   hasCatalogValue,
 } from '@/services/faqCatalogs'
+import { normalizeFaqMediaList, validateFaqNodeMedia } from '@/services/faqMedia'
 import {
   buildOperationalOwnershipReferenceCatalog,
   hasOperationalOwnershipReference,
@@ -701,6 +702,7 @@ function ensureBundleCollections(bundle = {}) {
     if (normalizedNodeId) {
       node.id = normalizedNodeId
     }
+    node.media = normalizeFaqMediaList(node.media)
   }
 
   if (!Array.isArray(bundle.links)) {
@@ -2042,6 +2044,10 @@ export function validateFaqBuilderBundle(bundle = {}, options = {}) {
         blocksImport: true,
         blocksPublish: true,
       })
+    }
+
+    for (const mediaIssue of validateFaqNodeMedia(node)) {
+      issues.push({ ...mediaIssue, nodeId: node.id })
     }
 
     const nodeMode = inferNodeMode(node)
