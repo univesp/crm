@@ -175,6 +175,11 @@ jobs:
           sync_secret "${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}" "${AZURE_ACADEMICO_CLIENT_SECRET_VALUE}"
           sync_secret "${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}" "${SAML_IDP_CERT_VALUE}"
 
+      - name: Run read-only GCP preflight
+        env:
+          PREFLIGHT_MODE: gcp
+        run: ./ops/cloudrun/preflight-homolog.sh
+
       - name: Compute image metadata
         id: meta
         run: |
@@ -230,3 +235,19 @@ jobs:
           IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: ./ops/cloudrun/deploy.sh
+
+      - name: Collect post-deploy homolog evidence
+        env:
+          PUBLIC_URL: https://${{ vars.PUBLIC_DOMAIN }}
+          RELEASE_SHA: ${{ github.sha }}
+          EVIDENCE_DIR: artifacts/homolog/${{ github.run_id }}-${{ github.run_attempt }}
+        run: ./ops/cloudrun/collect-homolog-evidence.sh
+
+      - name: Upload homolog evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homolog-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/homolog/
+          if-no-files-found: warn
+          retention-days: 30
