@@ -95,7 +95,7 @@ const kpiCards = computed(() => [
     id: 'unassigned',
     label: 'Sem responsavel',
     value: overview.value.kpis.unassigned,
-    helper: 'Exigem intervencao de ownership.',
+    helper: 'Precisam de responsável definido.',
   },
   {
     id: 'exceptions',
@@ -114,7 +114,7 @@ const kpiCards = computed(() => [
 const quickActions = computed(() => [
   {
     id: 'owner_missing',
-    title: 'Corrigir ownership estrutural',
+    title: 'Definir responsáveis pendentes',
     description: 'Abrir fila focando casos sem owner operacional efetivo.',
     route: buildQueueRoute({ scopeState: 'owner_missing', bucket: 'all', owner: 'todos' }),
   },
@@ -254,7 +254,7 @@ function recommendationPriorityLabel(priority = '') {
       <div class="border-b border-slate-200 px-5 py-4">
         <p class="text-base font-semibold text-slate-950">Intervencao recomendada agora</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
-          Acao gerencial sugerida com base em risco de SLA, ownership e desequilibrio da fila.
+          Ação sugerida com base em prazo, responsáveis e distribuição da fila.
         </p>
       </div>
       <div class="grid gap-3 px-5 py-4">
@@ -279,7 +279,7 @@ function recommendationPriorityLabel(priority = '') {
         </article>
 
         <p v-if="!overview.interventionQueue.length" class="text-sm leading-6 text-slate-600">
-          Sem excecao forte no momento. Mantenha monitoramento de risco de SLA e ownership.
+          Sem exceção importante no momento. Acompanhe prazos e responsáveis.
         </p>
       </div>
     </section>

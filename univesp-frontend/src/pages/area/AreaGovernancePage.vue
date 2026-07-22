@@ -282,7 +282,7 @@ function rowRiskState(row = {}) {
   if (restricted && allowedCount === 0) {
     return {
       label: 'Risco alto',
-      helper: 'Regra restrita sem analista autorizado gera bloqueio de visibilidade e ownership.',
+      helper: 'Uma regra sem analista autorizado bloqueia a distribuição do atendimento.',
       toneClass: 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.72)] text-[var(--color-danger)]',
     }
   }
@@ -385,7 +385,7 @@ async function saveAvailability() {
             Use esta camada para definir quem pode tratar cada assunto e quem esta disponivel para receber novos casos. Aqui ficam as regras operacionais da area, sem misturar aprovacao de conteudo.
           </p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            Conteudo vigente fica em outra camada. Mudancas pendentes e aprovacao tambem. Esta pagina deve servir para segurar distribuicao, ownership e excecao operacional do time.
+            Use esta página para controlar distribuição, responsáveis e exceções da equipe.
           </p>
         </div>
 
@@ -425,7 +425,7 @@ async function saveAvailability() {
       <div class="border-b border-slate-200 px-5 py-4">
         <p class="text-base font-semibold text-slate-950">Sinais de impacto operacional</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
-          Antes de mudar regra, veja o que ja esta pressionando backlog, ownership e SLA.
+          Antes de mudar uma regra, confira filas, responsáveis e prazos.
         </p>
       </div>
       <div class="grid gap-3 px-5 py-4">

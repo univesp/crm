@@ -730,7 +730,7 @@ function getRiskLabel(row) {
     <section class="rounded-[16px] border border-slate-200 bg-white p-4">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 class="text-xl font-semibold text-slate-950">Dashboard admin</h1>
+          <p class="text-base font-semibold text-slate-950">Indicadores do atendimento</p>
           <p class="text-xs text-slate-500">Visao rapida da operacao</p>
           <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
             <span

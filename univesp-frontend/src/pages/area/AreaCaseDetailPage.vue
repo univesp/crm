@@ -636,7 +636,7 @@ const decisionStateBadges = computed(() => {
   if (!isAreaManager.value && analystOperationalState.value?.value === 'Atribuido a outro analista') {
     badges.push({
       id: 'assignment_conflict',
-      label: 'Conflito de ownership',
+      label: 'Responsável indefinido',
       toneClass: 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.55)] text-[var(--color-danger)]',
     })
   }
@@ -1087,7 +1087,7 @@ const analystOperationalState = computed(() => {
     return {
       title: 'Voce pode atuar agora?',
       value: 'Caso atribuido a voce',
-      helper: 'Voce esta com ownership da tratativa neste momento.',
+      helper: 'Você é responsável por este atendimento neste momento.',
       toneClass: 'border-[rgba(26,111,67,0.18)] bg-[rgba(220,252,231,0.35)] text-[var(--color-success)]',
     }
   }
@@ -1604,7 +1604,7 @@ async function assignCase() {
         >
           <p class="text-sm font-semibold text-slate-950">Intervencao gerencial no caso</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Esta camada e para ownership, excecao e risco operacional. A decisao tecnica continua no fluxo principal da area.
+            Use esta área para definir responsável, tratar exceções e acompanhar riscos.
           </p>
 
           <div class="mt-3 grid gap-2">
@@ -1619,7 +1619,7 @@ async function assignCase() {
               v-if="!managerCaseInterventionSummary.hasAlerts"
               class="rounded-[12px] border border-[rgba(26,111,67,0.16)] bg-[rgba(220,252,231,0.5)] px-3 py-2 text-xs leading-5 text-[var(--color-success)]"
             >
-              Sem alerta forte neste caso. Mantenha apenas monitoramento de prazo e ownership.
+              Sem alerta importante neste caso. Acompanhe apenas o prazo e o responsável.
             </p>
           </div>
 
@@ -1714,7 +1714,7 @@ async function assignCase() {
           class="order-41 overflow-hidden rounded-[14px] border border-slate-200 bg-slate-50/70"
         >
           <div class="bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Intervencao de ownership</h3>
+            <h3 class="text-base font-semibold text-slate-950">Alterar responsável</h3>
           </div>
           <div class="grid gap-4 border-t border-slate-200 px-4 py-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
             <div class="grid gap-3">
@@ -1737,7 +1737,7 @@ async function assignCase() {
                   v-model="assignmentReason"
                   rows="3"
                   class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
-                  placeholder="Explique a redistribuicao, excecao ou ajuste de ownership."
+                  placeholder="Explique a redistribuição, exceção ou mudança de responsável."
                 ></textarea>
               </label>
 

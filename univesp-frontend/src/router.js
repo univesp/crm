@@ -328,7 +328,7 @@ const routes = [
     name: 'admin-dashboard',
     component: () => import('@/pages/admin/AdminDashboardPage.vue'),
     meta: {
-      title: 'Dashboard geral',
+      title: 'Visao geral',
       stage: 'admin-dashboard',
       requiresAuth: true,
       shellKey: 'governance',
@@ -341,7 +341,7 @@ const routes = [
     name: 'admin-faq',
     component: () => import('@/pages/admin/AdminFaqLibraryPage.vue'),
     meta: {
-      title: 'Biblioteca de fluxos FAQ',
+      title: 'FAQs e orientacoes',
       stage: 'admin-faq',
       requiresAuth: true,
       shellKey: 'governance',
@@ -360,7 +360,7 @@ const routes = [
     name: 'admin-faq-builder',
     component: AdminFaqEditorPage,
     meta: {
-      title: 'Builder de fluxo FAQ',
+      title: 'Editar FAQ',
       stage: 'admin-faq',
       layout: 'auth',
       requiresAuth: true,
@@ -403,7 +403,7 @@ const routes = [
     name: 'admin-faq-flow',
     component: () => import('@/pages/admin/AdminFaqPage.vue'),
     meta: {
-      title: 'Visao do fluxo FAQ',
+      title: 'FAQ e orientacao',
       stage: 'admin-faq',
       requiresAuth: true,
       shellKey: 'governance',
@@ -416,7 +416,7 @@ const routes = [
     name: 'admin-parameters',
     component: () => import('@/pages/admin/AdminParametersPage.vue'),
     meta: {
-      title: 'Parametros de SLA e criticidade',
+      title: 'Regras e prazos',
       stage: 'admin-parameters',
       requiresAuth: true,
       shellKey: 'governance',
@@ -429,7 +429,7 @@ const routes = [
     name: 'admin-permissions',
     component: () => import('@/pages/admin/AdminPermissionsPage.vue'),
     meta: {
-      title: 'Permissoes e visibilidade',
+      title: 'Pessoas e acessos',
       stage: 'admin-permissions',
       requiresAuth: true,
       shellKey: 'governance',

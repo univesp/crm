@@ -498,7 +498,7 @@ function clearFeedback() {
       <p class="text-xs font-semibold uppercase text-slate-500">Admin</p>
       <div class="mt-1 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 class="text-2xl font-semibold text-slate-950">Usuarios e autorizacoes</h1>
+          <p class="text-base font-semibold text-slate-950">Gerencie perfis, grupos e permissões.</p>
           <p class="mt-1 text-sm text-slate-600">SSO para identidade; perfil e escopo para acesso ao atendimento.</p>
         </div>
         <nav class="flex flex-wrap gap-1" aria-label="Modulos de autorizacao">

@@ -402,7 +402,7 @@ function resolveBundleRuntime({ safeMode = false } = {}) {
       return
     }
     openState.failed = true
-    openState.issueCode = 'bundle_not_found'
+    openState.issueCode = 'faq_not_found'
     openState.issueMessage = 'Bundle inexistente ou sem workspace.'
     return
   }
@@ -811,7 +811,7 @@ watch(
     >
       <p class="text-sm font-semibold text-slate-900">Abrindo fluxo...</p>
       <p class="mt-2 text-xs text-slate-600">
-        Preparando bundle, validacao, preview e canvas em modo seguro.
+        Preparando conteúdo, validação e visualização da FAQ.
       </p>
     </section>
 
