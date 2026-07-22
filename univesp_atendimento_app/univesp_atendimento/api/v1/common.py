@@ -180,6 +180,7 @@ def verify_signed_identity():
 		"flow": str(payload.get("flow") or ""),
 	}
 
+
 def verify_signed_simulation():
 	encoded = frappe.get_request_header("X-Univesp-Simulation-Context") or ""
 	if not encoded:
