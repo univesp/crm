@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onErrorCaptured, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onErrorCaptured, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AppSidebar from '@/components/AppSidebar.vue'
@@ -13,7 +13,9 @@ import { useJourneyStore } from '@/stores/journey'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const SimulationControl = defineAsyncComponent(() => import('@/components/SimulationControl.vue'))
 const journey = useJourneyStore()
+const showRouteDebug = import.meta.env.DEV && String(import.meta.env.VITE_SHOW_ROUTE_DEBUG || '').toLowerCase() === 'true'
 let publishedFaqLoadKey = ''
 
 if (!isMockRuntimeEnabled()) {
@@ -91,7 +93,7 @@ const pageTitle = computed(() => {
     }
   }
 
-  return route.meta.title || 'UNIVESP Service Blueprint'
+  return route.meta.title || 'Central de Atendimento UNIVESP'
 })
 const isAuthLayout = computed(() => route.meta.layout === 'auth')
 const isWireframeLayout = computed(() => route.meta.layout === 'wireframe')
@@ -147,6 +149,7 @@ const operationalAreaModel = computed({
   },
 })
 
+const mobileNavigationOpen = ref(false)
 const routeRenderError = ref('')
 const routeRecoveryAttemptedFor = ref('')
 const routeRecoveryHardReloadFor = ref('')
@@ -175,6 +178,11 @@ const routeViewRenderKey = computed(() => {
   }
   return routeName
 })
+watch(
+  () => route.fullPath,
+  () => { mobileNavigationOpen.value = false },
+)
+
 
 function clearRouteRenderError() {
   routeRenderError.value = ''
@@ -442,12 +450,46 @@ onErrorCaptured((error) => {
             : 'max-w-[1540px] gap-5 lg:px-6',
       ]"
     >
-      <div :class="isStudentShell ? 'hidden lg:block' : ''">
+      <button
+        v-if="!isStudentShell"
+        type="button"
+        class="fixed left-4 top-4 z-[190] rounded-xl border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-900 shadow-lg lg:hidden"
+        :aria-expanded="mobileNavigationOpen"
+        aria-controls="main-navigation"
+        @click="mobileNavigationOpen = true"
+      >
+        Menu
+      </button>
+      <div
+        v-if="mobileNavigationOpen && !isStudentShell"
+        class="fixed inset-0 z-[180] bg-slate-950/35 lg:hidden"
+        aria-hidden="true"
+        @click="mobileNavigationOpen = false"
+      ></div>
+      <div
+        id="main-navigation"
+        :class="
+          isStudentShell
+            ? 'hidden lg:block'
+            : [
+              'fixed inset-y-0 left-0 z-[200] w-[min(88vw,320px)] overflow-y-auto bg-white p-3 shadow-2xl transition-transform lg:static lg:z-auto lg:w-auto lg:translate-x-0 lg:overflow-visible lg:bg-transparent lg:p-0 lg:shadow-none',
+              mobileNavigationOpen ? 'translate-x-0' : '-translate-x-full',
+            ]
+        "
+      >
+        <button
+          type="button"
+          class="mb-2 ml-auto flex rounded-xl border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-800 lg:hidden"
+          @click="mobileNavigationOpen = false"
+        >
+          Fechar menu
+        </button>
         <AppSidebar />
       </div>
 
-      <main id="main-content" class="flex-1 pb-8">
+      <main id="main-content" class="min-w-0 flex-1 pb-8 pt-14 lg:pt-0">
         <MockContextBar v-if="!isStudentShell && !isOperationalShell" />
+        <SimulationControl />
 
         <header
           v-if="!isStudentShell"
@@ -574,13 +616,10 @@ onErrorCaptured((error) => {
                 Tela indisponivel
               </p>
               <h2 class="mt-2 text-lg font-semibold text-slate-950">
-                Nao foi possivel carregar este modulo agora.
+                Nao foi possivel carregar esta tela agora.
               </h2>
               <p class="mt-2 text-sm leading-6">
-                {{ routeRenderError || 'A rota atual nao encontrou um componente valido para renderizar.' }}
-              </p>
-              <p class="mt-2 text-xs text-slate-600">
-                Rota: {{ route.fullPath }} · Itens reconhecidos: {{ route.matched.length }}
+                {{ routeRenderError || 'Tente novamente. Se o problema continuar, informe o horario ao suporte.' }}
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
                 <button
@@ -595,19 +634,13 @@ onErrorCaptured((error) => {
                   class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                   @click="forceRouteReload"
                 >
-                  Recarregar app
+                  Recarregar pagina
                 </button>
                 <RouterLink
                   :to="fallbackRoute"
                   class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Voltar para modulo seguro
-                </RouterLink>
-                <RouterLink
-                  to="/acesso-local"
-                  class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Ir para acesso local
+                  Voltar
                 </RouterLink>
               </div>
             </section>
@@ -616,13 +649,13 @@ onErrorCaptured((error) => {
               class="rounded-[18px] border border-slate-200 bg-white p-5 text-slate-700"
             >
               <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Carregando modulo
+                Carregando
               </p>
               <h2 class="mt-2 text-lg font-semibold text-slate-950">
                 Preparando a tela selecionada
               </h2>
               <p class="mt-2 text-sm leading-6">
-                Aguarde alguns segundos. Se o carregamento nao concluir, use "Recarregar app".
+                Aguarde alguns segundos. Se o carregamento nao concluir, recarregue a pagina.
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
                 <button
@@ -630,13 +663,13 @@ onErrorCaptured((error) => {
                   class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                   @click="forceRouteReload"
                 >
-                  Recarregar app
+                  Recarregar pagina
                 </button>
                 <RouterLink
                   :to="fallbackRoute"
                   class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Voltar para modulo seguro
+                  Voltar
                 </RouterLink>
               </div>
             </section>
@@ -647,7 +680,7 @@ onErrorCaptured((error) => {
     </div>
   </div>
 
-  <div class="pointer-events-none fixed bottom-3 left-3 z-[260] rounded-[10px] border border-slate-300 bg-white/95 px-3 py-2 text-[11px] text-slate-700 shadow">
+  <div v-if="showRouteDebug" class="pointer-events-none fixed bottom-3 left-3 z-[260] rounded-[10px] border border-slate-300 bg-white/95 px-3 py-2 text-sm text-slate-700 shadow">
     <p><span class="font-semibold">route.name:</span> {{ String(route.name || 'undefined') }}</p>
     <p><span class="font-semibold">route.fullPath:</span> {{ route.fullPath }}</p>
   </div>

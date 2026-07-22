@@ -1,1 +1,2 @@
 univesp_atendimento.patches.v0_1.setup_schema.execute
+univesp_atendimento.patches.v0_2.seed_permission_profiles.execute

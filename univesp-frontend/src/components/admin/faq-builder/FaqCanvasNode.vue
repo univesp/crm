@@ -21,7 +21,7 @@ const hasWarning = computed(() => props.data?.issueSeverity === 'warning')
 const cardStatusLabel = computed(() => {
   if (hasError.value) return 'Erro estrutural'
   if (hasWarning.value) return 'Revisar alerta'
-  return props.data?.nodeMode === 'final' ? 'No final' : 'No de caminho'
+  return props.data?.nodeMode === 'final' ? 'Resposta final' : 'Etapa da orientacao'
 })
 const cardToneClass = computed(() => {
   if (hasError.value) {

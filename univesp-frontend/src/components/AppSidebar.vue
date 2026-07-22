@@ -30,7 +30,7 @@ const shellCopy = computed(() => {
 
   return {
     chip: '',
-    title: 'CRM Univesp',
+    title: 'Central de Atendimento UNIVESP',
     description: '',
   }
 })

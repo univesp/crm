@@ -157,16 +157,16 @@ export function buildShellPresentation(mockContext = null) {
 
   if (mockContext.isOperationalShell) {
     return {
-      label: 'Shell operacional',
-      title: 'Operacao de polos',
-      description: 'Fila do OP, leitura do caso e acoes por polo ou multi-polo.',
+      label: 'Atendimento operacional',
+      title: 'Atendimento dos polos',
+      description: 'Fila de trabalho, leitura do caso e acoes conforme o escopo autorizado.',
     }
   }
 
   return {
-    label: 'Shell administrativo',
-    title: 'Administracao e governanca',
-    description: 'Dashboard, regras, permissoes e publicacao sob a mesma governanca.',
+    label: 'Administracao',
+    title: 'Central de Atendimento UNIVESP',
+    description: 'Visao geral, conteudo, regras e acessos em um unico lugar.',
   }
 }
 

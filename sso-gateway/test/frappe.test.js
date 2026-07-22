@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
 import { afterEach, test } from 'node:test'
 
-import { buildSignedContext, callFrappe, FrappeApiError } from '../src/lib/frappe.js'
+import { buildSignedContext, buildSignedSimulationContext, callFrappe, FrappeApiError } from '../src/lib/frappe.js'
 
 const originalFetch = globalThis.fetch
 
@@ -29,6 +29,29 @@ test('assina identidade sem expor o segredo', () => {
   assert.equal(headers['X-Request-ID'], 'request-123')
   assert.equal(payload.email, 'student@example.edu')
   assert.equal(payload.flow, 'aluno')
+})
+
+test('assina o contexto de simulacao separadamente da identidade real', () => {
+  process.env.UNIVESP_BFF_SHARED_SECRET = 'shared-test-secret'
+  const headers = buildSignedSimulationContext(
+    {
+      id: 'simulation-123',
+      actor_email: 'admin@example.edu',
+      persona: 'aluno',
+      mode: 'person',
+      target_internal_id: 'student@example.edu',
+    },
+    1700000000,
+  )
+  const encoded = headers['X-Univesp-Simulation-Context']
+  const expected = createHmac('sha256', 'shared-test-secret')
+    .update(`1700000000.simulation.${encoded}`)
+    .digest('hex')
+  const payload = JSON.parse(Buffer.from(encoded, 'base64url'))
+
+  assert.equal(headers['X-Univesp-Simulation-Signature'], expected)
+  assert.equal(payload.actor_email, 'admin@example.edu')
+  assert.equal(payload.target_internal_id, 'student@example.edu')
 })
 
 test('chama somente o metodo institucional com conta tecnica e contexto assinado', async () => {

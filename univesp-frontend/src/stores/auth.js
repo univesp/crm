@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore, getActivePinia } from 'pinia'
 
 import { buildMockAccessContext } from '@/services/mockContextRuntime'
+import { getActiveSimulation } from '@/services/appApi'
 import {
   buildAzureStartUrl,
   buildSamlStartUrl,
@@ -36,7 +37,21 @@ export const useAuthStore = defineStore('auth', () => {
   const localBypassProfiles = computed(() => getDevBypassProfiles())
   const selectedLocalBypassProfile = computed(() => getSelectedDevBypassProfile())
   const mockContext = computed(() => {
-    const baseContext = buildMockAccessContext(user.value)
+    const activeSimulation = getActiveSimulation()
+    const simulationActions =
+      activeSimulation?.persona === 'aluno'
+        ? ['create_ticket', 'view_ticket', 'reply_ticket', 'attach_ticket']
+        : ['view_ticket', 'reply_ticket', 'attach_ticket', 'transition_ticket']
+    const contextUser = activeSimulation
+      ? {
+          ...user.value,
+          profileKey: activeSimulation.persona,
+          scopes: activeSimulation.scope || {},
+          allowedActions: simulationActions,
+          raw: { ...(user.value?.raw || {}), source: 'sso-gateway' },
+        }
+      : user.value
+    const baseContext = buildMockAccessContext(contextUser)
 
     if (
       baseContext.isOperationalShell &&

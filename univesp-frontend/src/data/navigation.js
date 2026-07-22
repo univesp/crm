@@ -141,7 +141,7 @@ export function buildNavigationSections(mockContext) {
   const adminItems = [
     {
       id: 'admin-dashboard',
-      label: 'Dashboard',
+      label: 'Visao geral',
       route: '/admin/dashboard',
       icon: ICON_DASHBOARD,
     },
@@ -150,19 +150,16 @@ export function buildNavigationSections(mockContext) {
   if (hasAction(mockContext, 'edit_faq')) {
     adminItems.push({
       id: 'admin-faq',
-      label: 'FAQ & Conhecimento',
+      label: 'FAQs e orientacoes',
       route: '/admin/faq',
       icon: ICON_FAQ,
-      children: hasAction(mockContext, 'publish_version')
-        ? [{ id: 'admin-versioning', label: 'Publicacao', route: '/admin/publicacao' }]
-        : [],
     })
   }
 
   if (hasAction(mockContext, 'edit_parameters')) {
     adminItems.push({
       id: 'admin-parameters',
-      label: 'SLA e regras',
+      label: 'Regras e prazos',
       route: '/admin/parametros',
       icon: ICON_SLA,
     })
@@ -171,7 +168,7 @@ export function buildNavigationSections(mockContext) {
   if (hasAction(mockContext, 'view_audit')) {
     adminItems.push({
       id: 'admin-permissions',
-      label: 'Permissoes',
+      label: 'Pessoas e acessos',
       route: '/admin/permissoes',
       icon: ICON_PERMISSIONS,
     })
