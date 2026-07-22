@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import AppSidebar from '@/components/AppSidebar.vue'
 import MockContextBar from '@/components/MockContextBar.vue'
-import { isMockRuntimeEnabled, listPublishedFaq } from '@/services/appApi'
+import { getTicket, isMockRuntimeEnabled, listPublishedFaq } from '@/services/appApi'
 import { enablePublishedFaqRuntime, setPublishedFaqBundles } from '@/services/faqRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
@@ -56,35 +56,35 @@ const pageTitle = computed(() => {
     }
 
     if (route.name === 'area-manager-home') {
-      return 'Operacao da area'
+      return 'Operação da área'
     }
 
     if (route.name === 'area-queue') {
-      return auth.mockContext.profileKey === 'gestor_area' ? 'Casos da area' : 'Minha fila da area'
+      return auth.mockContext.profileKey === 'gestor_area' ? 'Casos da área' : 'Minha fila da área'
     }
 
     if (route.name === 'operator-case-detail') {
-      return 'Analise do caso'
+      return 'Análise do caso'
     }
 
     if (route.name === 'area-case-detail') {
-      return 'Analise da area'
+      return 'Análise da área'
     }
 
     if (route.name === 'area-guidance') {
-      return 'Conteudo vigente da area'
+      return 'Conteúdo vigente da área'
     }
 
     if (route.name === 'area-knowledge-review') {
-      return 'Mudancas pendentes'
+      return 'Mudanças pendentes'
     }
 
     if (route.name === 'area-governance') {
-      return 'Regras operacionais da area'
+      return 'Regras operacionais da área'
     }
 
     if (route.name === 'operator-playbook') {
-      return 'Consultar orientacao'
+      return 'Consultar orientação'
     }
 
     if (route.name === 'operator-assisted-intake') {
@@ -148,6 +148,38 @@ const operationalAreaModel = computed({
 })
 
 const mobileNavigationOpen = ref(false)
+const protocolSearch = ref({ query: '', loading: false, error: '' })
+const canSearchProtocol = computed(() =>
+  !isStudentShell.value && (auth.mockContext.allowedActions || []).includes('view_ticket'),
+)
+
+async function searchProtocol() {
+  const query = String(protocolSearch.value.query || '').trim()
+  if (query.length < 3) {
+    protocolSearch.value.error = 'Informe um número de protocolo válido.'
+    return
+  }
+
+  protocolSearch.value.loading = true
+  protocolSearch.value.error = ''
+  try {
+    const response = await getTicket(query)
+    const ticketId = String(response.data?.protocol || response.data?.id || query).trim()
+    if (!ticketId) throw new Error('Protocolo não encontrado ou fora do seu escopo.')
+
+    protocolSearch.value.query = ticketId
+    const destination = isAreaOperationalShell.value
+      ? '/area/fila/' + encodeURIComponent(ticketId)
+      : isOperationalShell.value
+        ? '/op/fila/' + encodeURIComponent(ticketId)
+        : '/admin/protocolos/' + encodeURIComponent(ticketId)
+    await router.push(destination)
+  } catch (error) {
+    protocolSearch.value.error = error?.message || 'Protocolo não encontrado ou fora do seu escopo.'
+  } finally {
+    protocolSearch.value.loading = false
+  }
+}
 const routeRenderError = ref('')
 const routeRecoveryAttemptedFor = ref('')
 const routeRecoveryHardReloadFor = ref('')
@@ -429,7 +461,7 @@ onErrorCaptured((error) => {
       href="#main-content"
       class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[120] focus:rounded-full focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-slate-950"
     >
-      Pular para o conteudo principal
+      Pular para o conteúdo principal
     </a>
 
     <div class="pointer-events-none absolute inset-0">
@@ -509,7 +541,24 @@ onErrorCaptured((error) => {
             </h1>
           </div>
 
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3">
+            <form v-if="canSearchProtocol" class="grid w-full min-w-0 gap-1 sm:w-auto sm:min-w-[300px]" @submit.prevent="searchProtocol">
+              <label for="global-protocol-search" class="sr-only">Buscar protocolo</label>
+              <div class="flex min-w-0 items-center gap-2">
+                <input
+                  id="global-protocol-search"
+                  v-model="protocolSearch.query"
+                  type="search"
+                  autocomplete="off"
+                  placeholder="Buscar protocolo"
+                  class="min-h-11 min-w-0 flex-1 rounded-[10px] border border-slate-300 bg-white px-3 text-base text-slate-900"
+                />
+                <button type="submit" :disabled="protocolSearch.loading" class="min-h-11 shrink-0 rounded-[10px] bg-[var(--color-primary)] px-4 font-semibold text-white disabled:opacity-60">
+                  {{ protocolSearch.loading ? 'Buscando...' : 'Buscar' }}
+                </button>
+              </div>
+              <p v-if="protocolSearch.error" class="text-xs font-semibold text-red-700" role="alert">{{ protocolSearch.error }}</p>
+            </form>
             <template v-if="isOperationalShell">
               <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700">
                 <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
@@ -518,7 +567,7 @@ onErrorCaptured((error) => {
                 <select
                   v-if="showAreaSelector"
                   v-model="operationalAreaModel"
-                  :aria-label="isAreaManagerOperationalShell ? 'Selecionar area do gestor' : 'Selecionar area de trabalho'"
+                  :aria-label="isAreaManagerOperationalShell ? 'Selecionar área do gestor' : 'Selecionar área de trabalho'"
                   class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
                 >
                   <option v-for="area in auth.mockContext.linkedAreas" :key="area" :value="area">
@@ -535,7 +584,7 @@ onErrorCaptured((error) => {
                   v-else-if="(auth.mockContext.linkedAreas || []).length > 1"
                   class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
                 >
-                  Todas as suas areas
+                  Todas as suas áreas
                 </div>
                 <div
                   v-else
@@ -595,13 +644,13 @@ onErrorCaptured((error) => {
               class="rounded-[18px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-5 text-slate-800"
             >
               <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-danger)]">
-                Tela indisponivel
+                Tela indisponível
               </p>
               <h2 class="mt-2 text-lg font-semibold text-slate-950">
-                Nao foi possivel carregar esta tela agora.
+                Não foi possível carregar esta tela agora.
               </h2>
               <p class="mt-2 text-sm leading-6">
-                {{ routeRenderError || 'Tente novamente. Se o problema continuar, informe o horario ao suporte.' }}
+                {{ routeRenderError || 'Tente novamente. Se o problema continuar, informe o horário ao suporte.' }}
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
                 <button
@@ -616,7 +665,7 @@ onErrorCaptured((error) => {
                   class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                   @click="forceRouteReload"
                 >
-                  Recarregar pagina
+                  Recarregar página
                 </button>
                 <RouterLink
                   :to="fallbackRoute"
@@ -637,7 +686,7 @@ onErrorCaptured((error) => {
                 Preparando a tela selecionada
               </h2>
               <p class="mt-2 text-sm leading-6">
-                Aguarde alguns segundos. Se o carregamento nao concluir, recarregue a pagina.
+                Aguarde alguns segundos. Se o carregamento não concluir, recarregue a página.
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
                 <button
@@ -645,7 +694,7 @@ onErrorCaptured((error) => {
                   class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                   @click="forceRouteReload"
                 >
-                  Recarregar pagina
+                  Recarregar página
                 </button>
                 <RouterLink
                   :to="fallbackRoute"

@@ -45,18 +45,18 @@ export function buildNavigationSections(mockContext) {
     const isAreaProfile = ['analista_area', 'gestor_area'].includes(mockContext.profileKey)
     const queueLabel = isAreaProfile
       ? mockContext.profileKey === 'gestor_area'
-        ? 'Casos da area'
-        : 'Minha fila da area'
+        ? 'Casos da área'
+        : 'Minha fila da área'
       : mockContext.profileKey === 'gestor_polos'
         ? 'Atendimentos do polo'
         : 'Meus atendimentos'
     const sectionLabel = isAreaProfile
       ? mockContext.profileKey === 'gestor_area'
-        ? 'Gestao de areas'
-        : 'Area especializada'
+        ? 'Gestão de áreas'
+        : 'Área especializada'
       : mockContext.profileKey === 'gestor_polos'
         ? 'Gestao de polos'
-        : 'Operacao do polo'
+        : 'Operação do polo'
 
     return [
       {
@@ -68,7 +68,7 @@ export function buildNavigationSections(mockContext) {
                 ? [
                     {
                       id: 'area-manager-home',
-                      label: 'Operacao da area',
+                      label: 'Operação da área',
                       route: '/area/operacao',
                       description: 'Backlog, gargalos, redistribuicao e excecoes no escopo atual.',
                     },
@@ -83,7 +83,7 @@ export function buildNavigationSections(mockContext) {
               },
               {
                 id: 'area-guidance',
-                label: 'Conteudo vigente',
+                label: 'Conteúdo vigente',
                 route: '/area/orientacao',
                 description: 'Consulta da FAQ, da orientacao operacional e do playbook vigente da area.',
               },
@@ -91,7 +91,7 @@ export function buildNavigationSections(mockContext) {
                 ? [
                     {
                       id: 'area-knowledge-review',
-                      label: 'Mudancas pendentes',
+                      label: 'Mudanças pendentes',
                       route: '/area/mudancas',
                       description: 'Sugestoes aguardando decisao e leitura da trilha vigente de publicacao.',
                     },
@@ -120,7 +120,7 @@ export function buildNavigationSections(mockContext) {
           },
           {
             id: 'operator-playbook',
-            label: 'Consultar orientacao',
+            label: 'Consultar orientação',
             route: '/op/playbook',
             description: 'Consultar a FAQ do aluno e a orientacao do OP antes de decidir.',
           },
@@ -141,7 +141,7 @@ export function buildNavigationSections(mockContext) {
   const adminItems = [
     {
       id: 'admin-dashboard',
-      label: 'Visao geral',
+      label: 'Visão geral',
       route: '/admin/dashboard',
       icon: ICON_DASHBOARD,
     },
@@ -150,7 +150,7 @@ export function buildNavigationSections(mockContext) {
   if (hasAction(mockContext, 'edit_faq')) {
     adminItems.push({
       id: 'admin-faq',
-      label: 'FAQs e orientacoes',
+      label: 'FAQs e orientações',
       route: '/admin/faq',
       icon: ICON_FAQ,
     })

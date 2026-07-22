@@ -211,7 +211,7 @@ const routes = [
     name: 'operator-case-detail',
     component: () => import('@/pages/operator/OperatorCaseDetailPage.vue'),
     meta: {
-      title: 'Analise do caso',
+      title: 'Análise do caso',
       stage: 'operator-case-detail',
       requiresAuth: true,
       shellKey: 'operational',
@@ -224,7 +224,7 @@ const routes = [
     name: 'operator-playbook',
     component: () => import('@/pages/operator/OperatorGuidancePage.vue'),
     meta: {
-      title: 'Consultar orientacao',
+      title: 'Consultar orientação',
       stage: 'operator-playbook',
       requiresAuth: true,
       shellKey: 'operational',
@@ -250,7 +250,7 @@ const routes = [
     name: 'area-manager-home',
     component: () => import('@/pages/area/AreaManagerHomePage.vue'),
     meta: {
-      title: 'Operacao da area',
+      title: 'Operação da área',
       stage: 'area-manager-home',
       requiresAuth: true,
       shellKey: 'operational',
@@ -263,7 +263,7 @@ const routes = [
     name: 'area-queue',
     component: () => import('@/pages/area/AreaQueuePage.vue'),
     meta: {
-      title: 'Fila da area',
+      title: 'Fila da área',
       stage: 'area-queue',
       requiresAuth: true,
       shellKey: 'operational',
@@ -276,7 +276,7 @@ const routes = [
     name: 'area-case-detail',
     component: () => import('@/pages/area/AreaCaseDetailPage.vue'),
     meta: {
-      title: 'Analise da area',
+      title: 'Análise da área',
       stage: 'area-case-detail',
       requiresAuth: true,
       shellKey: 'operational',
@@ -289,7 +289,7 @@ const routes = [
     name: 'area-guidance',
     component: () => import('@/pages/area/AreaGuidancePage.vue'),
     meta: {
-      title: 'Conteudo vigente da area',
+      title: 'Conteúdo vigente da área',
       stage: 'area-guidance',
       requiresAuth: true,
       shellKey: 'operational',
@@ -302,7 +302,7 @@ const routes = [
     name: 'area-knowledge-review',
     component: () => import('@/pages/area/AreaKnowledgeReviewPage.vue'),
     meta: {
-      title: 'Mudancas pendentes',
+      title: 'Mudanças pendentes',
       stage: 'area-knowledge-review',
       requiresAuth: true,
       shellKey: 'operational',
@@ -315,7 +315,7 @@ const routes = [
     name: 'area-governance',
     component: () => import('@/pages/area/AreaGovernancePage.vue'),
     meta: {
-      title: 'Regras operacionais da area',
+      title: 'Regras operacionais da área',
       stage: 'area-governance',
       requiresAuth: true,
       shellKey: 'operational',
@@ -328,8 +328,21 @@ const routes = [
     name: 'admin-dashboard',
     component: () => import('@/pages/admin/AdminDashboardPage.vue'),
     meta: {
-      title: 'Visao geral',
+      title: 'Visão geral',
       stage: 'admin-dashboard',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['view_ticket'],
+    },
+  },
+  {
+    path: '/admin/protocolos/:protocolId',
+    name: 'admin-protocol-detail',
+    component: () => import('@/pages/admin/AdminProtocolDetailPage.vue'),
+    meta: {
+      title: 'Consulta de protocolo',
+      stage: 'admin-protocol-detail',
       requiresAuth: true,
       shellKey: 'governance',
       allowedProfiles: ['admin_central'],
@@ -341,7 +354,7 @@ const routes = [
     name: 'admin-faq',
     component: () => import('@/pages/admin/AdminFaqLibraryPage.vue'),
     meta: {
-      title: 'FAQs e orientacoes',
+      title: 'FAQs e orientações',
       stage: 'admin-faq',
       requiresAuth: true,
       shellKey: 'governance',
@@ -403,7 +416,7 @@ const routes = [
     name: 'admin-faq-flow',
     component: () => import('@/pages/admin/AdminFaqPage.vue'),
     meta: {
-      title: 'FAQ e orientacao',
+      title: 'FAQ e orientação',
       stage: 'admin-faq',
       requiresAuth: true,
       shellKey: 'governance',
