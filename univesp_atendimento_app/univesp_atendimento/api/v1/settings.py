@@ -53,6 +53,21 @@ def update_settings(payload: dict | str | None = None):
 	return response(_serialize(doc), request_id=context.request_id)
 
 
+@frappe.whitelist(methods=["GET"])
+def health():
+	context = get_request_context()
+	states = {"frappe": "saudavel", "database": "indisponivel", "redis": "indisponivel"}
+	try:
+		frappe.db.sql("select 1")
+		states["database"] = "saudavel"
+	except Exception:
+		pass
+	try:
+		frappe.cache.ping()
+		states["redis"] = "saudavel"
+	except Exception:
+		pass
+	return response(states, request_id=context.request_id)
 def _settings_context():
 	context = get_request_context("edit_parameters")
 	if context.profile_key != "admin_central":

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -36,7 +36,7 @@
   --color-sla-soon-soft: #fff3df;
   --color-sla-ontrack: #005f99;
   --color-sla-ontrack-soft: #e8f2fb;
-  --font-heading: 'Barlow', sans-serif;
+  --font-heading: 'Open Sans', sans-serif;
   --font-body: 'Open Sans', sans-serif;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -72,6 +72,8 @@ body {
     linear-gradient(180deg, #fafafb 0%, #ffffff 56%, #f6f7f8 100%);
   color: var(--color-text);
   font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
 }
 
 a {
@@ -97,6 +99,16 @@ input,
 textarea,
 select {
   font: inherit;
+  font-size: var(--font-size-md);
+}
+
+button,
+a,
+input,
+textarea,
+select,
+summary {
+  min-height: 44px;
 }
 
 #app {

@@ -221,6 +221,8 @@ jobs:
             FRAPPE_BRANCH=version-16
             HELPDESK_REF=6b423f8fba6d4c7f8ff5db56f197243f6549d450
             APPS_JSON_BASE64=${{ steps.meta.outputs.apps_json_base64 }}
+            VITE_ENABLE_PRODUCTION_SIMULATOR=${{ vars.VITE_ENABLE_PRODUCTION_SIMULATOR || 'false' }}
+            VITE_ENABLE_CUSTOM_PERMISSION_PROFILES=${{ vars.VITE_ENABLE_CUSTOM_PERMISSION_PROFILES || 'false' }}
 
       - name: Build and push SSO Gateway image
         uses: docker/build-push-action@v6
@@ -235,6 +237,8 @@ jobs:
           GATEWAY_IMAGE_URI: ${{ steps.meta.outputs.gateway_image_uri }}
           APP_BASE_URL: https://${{ vars.PUBLIC_DOMAIN }}
           FRAPPE_ORIGIN: https://${{ vars.PUBLIC_DOMAIN }}
+          ENABLE_PRODUCTION_SIMULATOR: ${{ vars.ENABLE_PRODUCTION_SIMULATOR || 'false' }}
+          ENABLE_CUSTOM_PERMISSION_PROFILES: ${{ vars.ENABLE_CUSTOM_PERMISSION_PROFILES || 'false' }}
         run: |
           ./ops/cloudrun/deploy-sso-gateway.sh
           gateway_service="${GATEWAY_SERVICE:-crm-homolog-sso-gateway}"

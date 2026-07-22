@@ -73,6 +73,12 @@ PROFILE_DEFINITIONS = {
 			"publish_knowledge_version",
 			"manage_user_availability",
 			"manage_assignment_policies",
+			"manage_permission_profiles",
+			"simulate_student_generic",
+			"simulate_student_real",
+			"simulate_op_generic",
+			"simulate_op_real",
+			"simulate_view_attachments",
 		],
 	},
 }

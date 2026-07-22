@@ -136,7 +136,15 @@ const healthScore = computed(() =>
   metricValue('Escalados para area interna') * 2 +
   metricValue('Reincidencia de tema'),
 )
+const hasOperationalData = computed(() =>
+  (dashboardView.value.metrics || []).some((metric) => Number(metric.value || 0) > 0) ||
+  activeCasesFull.value.length > 0,
+)
 const healthState = computed(() => {
+  if (!hasOperationalData.value) {
+    return 'Sem dados'
+  }
+
   if (healthScore.value >= 10) {
     return 'Critico'
   }
@@ -148,6 +156,15 @@ const healthState = computed(() => {
   return 'Normal'
 })
 const operationHealth = computed(() => {
+  if (healthState.value === 'Sem dados') {
+    return {
+      label: healthState.value,
+      score: null,
+      tone: 'empty',
+      hint: 'aguardando integracao',
+    }
+  }
+
   if (healthState.value === 'Critico') {
     return {
       label: healthState.value,
@@ -687,7 +704,10 @@ function applyThemeFilter(theme) {
 }
 
 // --- novos computed/helpers locais ---
-const healthScoreDisplay = computed(() => Math.min(100, Math.max(0, operationHealth.value.score || 0)))
+const healthScoreDisplay = computed(() => {
+  if (operationHealth.value.score === null) return null
+  return Math.min(100, Math.max(0, operationHealth.value.score || 0))
+})
 
 const demandFillPoints = computed(() => {
   const pts = demandTrendPoints.value
@@ -768,8 +788,8 @@ function getRiskLabel(row) {
               <div>
                 <p class="text-xs font-semibold text-slate-500">Saude da operacao</p>
                 <div class="flex items-baseline gap-1">
-                  <strong class="text-2xl text-slate-950">{{ healthScoreDisplay }}</strong>
-                  <span class="text-xs text-slate-500">/100</span>
+                  <strong class="text-xl text-slate-950">{{ healthScoreDisplay === null ? 'Sem dados para calcular' : healthScoreDisplay }}</strong>
+                  <span v-if="healthScoreDisplay !== null" class="text-sm text-slate-500">/100</span>
                 </div>
               </div>
               <span

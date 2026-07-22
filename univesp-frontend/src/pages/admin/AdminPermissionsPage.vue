@@ -13,21 +13,63 @@ import {
   rejectAccessRequest,
   updateAdminUser,
 } from '@/services/appApi'
+import {
+  createAccessGroup,
+  createPermissionProfile,
+  listAccessGroups,
+  listPermissionProfiles,
+} from '@/services/appApi'
+
+const customAccessEnabled =
+  String(import.meta.env.VITE_ENABLE_CUSTOM_PERMISSION_PROFILES || '').toLowerCase() === 'true'
 
 const tabs = Object.freeze([
-  { key: 'profiles', label: 'Perfis' },
-  { key: 'users', label: 'Usuarios' },
-  { key: 'requests', label: 'Pendencias' },
+  ...(customAccessEnabled
+    ? [{ key: 'profiles', label: 'Perfis de acesso' }, { key: 'groups', label: 'Grupos' }]
+    : []),
+  { key: 'people', label: 'Pessoas' },
+  { key: 'requests', label: 'Solicitacoes pendentes' },
   { key: 'audit', label: 'Auditoria' },
 ])
 
-const activeTab = ref('users')
+const capabilityLabels = Object.freeze({
+  create_ticket: 'Abrir solicitacao',
+  view_ticket: 'Consultar solicitacoes',
+  reply_ticket: 'Responder solicitacoes',
+  attach_ticket: 'Adicionar anexos',
+  assign_ticket: 'Atribuir atendimento',
+  transition_ticket: 'Alterar etapa do atendimento',
+  manage_users: 'Gerenciar pessoas',
+  view_audit: 'Consultar auditoria',
+  view_area_guidance: 'Consultar orientacao interna',
+  manage_area_scope: 'Gerenciar escopos de area',
+  edit_faq: 'Editar FAQs',
+  edit_parameters: 'Editar regras e prazos',
+  publish_version: 'Publicar versoes',
+  approve_knowledge: 'Aprovar conhecimento',
+  publish_knowledge_version: 'Publicar conhecimento',
+  manage_user_availability: 'Gerenciar disponibilidade',
+  manage_assignment_policies: 'Gerenciar distribuicao',
+  manage_permission_profiles: 'Gerenciar perfis e grupos',
+  simulate_student_generic: 'Visualizar aluno generico',
+  simulate_student_real: 'Visualizar aluno real',
+  simulate_op_generic: 'Visualizar OP generico',
+  simulate_op_real: 'Visualizar OP real',
+  simulate_view_attachments: 'Visualizar conteudo de anexo simulado',
+})
+const activeTab = ref('people')
 const loading = ref(false)
 const saving = ref(false)
 const feedback = reactive({ type: '', message: '', requestId: '' })
 const catalogs = reactive({ profiles: [], queues: [], polos: [], areas: [] })
 const users = ref([])
 const requests = ref([])
+const permissionProfiles = ref([])
+const accessGroups = ref([])
+const profileEditorOpen = ref(false)
+const groupEditorOpen = ref(false)
+const permissionProfileForm = reactive(emptyPermissionProfileForm())
+const accessGroupForm = reactive(emptyAccessGroupForm())
 const auditRows = ref([])
 const userMeta = reactive({ page: 1, pageSize: 25, total: 0 })
 const requestMeta = reactive({ page: 1, pageSize: 25, total: 0 })
@@ -49,6 +91,12 @@ const selectedApprovalProfile = computed(
 const scopeOptions = computed(() => optionsForScope(selectedProfile.value?.scope_key))
 const approvalScopeOptions = computed(() => optionsForScope(selectedApprovalProfile.value?.scope_key))
 const totalPages = computed(() => Math.max(Math.ceil(userMeta.total / userMeta.pageSize), 1))
+const availableCapabilities = computed(() => {
+  const profile = catalogs.profiles.find(
+    (item) => item.key === permissionProfileForm.basePersona,
+  )
+  return profile?.actions || []
+})
 const requestTotalPages = computed(() =>
   Math.max(Math.ceil(requestMeta.total / requestMeta.pageSize), 1),
 )
@@ -59,16 +107,24 @@ async function loadInitial() {
   loading.value = true
   clearFeedback()
   try {
-    const [catalogResult, userResult, requestResult, auditResult] = await Promise.all([
+    const [catalogResult, userResult, requestResult, auditResult, profileResult, groupResult] = await Promise.all([
       getAdminCatalogs(),
       listAdminUsers({ page: 1, page_size: userMeta.pageSize }),
       listAccessRequests({ page: 1, page_size: requestMeta.pageSize, status: 'pending' }),
       listAccessAudit({ page: 1, page_size: 25 }),
+      customAccessEnabled
+        ? listPermissionProfiles()
+        : Promise.resolve({ data: [] }),
+      customAccessEnabled
+        ? listAccessGroups()
+        : Promise.resolve({ data: [] }),
     ])
     Object.assign(catalogs, catalogResult.data || {})
     applyUserResult(userResult)
     applyRequestResult(requestResult)
     auditRows.value = auditResult.data || []
+    permissionProfiles.value = profileResult.data || []
+    accessGroups.value = groupResult.data || []
   } catch (error) {
     showError(error)
   } finally {
@@ -283,6 +339,93 @@ function valuesForProfile(profileKey, scopes = {}) {
 function scopesPayload(scopeKey, values) {
   return scopeKey ? { [scopeKey]: [...values] } : {}
 }
+async function refreshPermissionProfiles() {
+  const result = await listPermissionProfiles()
+  permissionProfiles.value = result.data || []
+}
+
+async function refreshAccessGroups() {
+  const result = await listAccessGroups()
+  accessGroups.value = result.data || []
+}
+
+function openPermissionProfileCreate() {
+  Object.assign(permissionProfileForm, emptyPermissionProfileForm())
+  profileEditorOpen.value = true
+  clearFeedback()
+}
+
+async function savePermissionProfile() {
+  saving.value = true
+  clearFeedback()
+  try {
+    const base = catalogs.profiles.find((item) => item.key === permissionProfileForm.basePersona)
+    await createPermissionProfile({
+      label: permissionProfileForm.label,
+      base_persona: permissionProfileForm.basePersona,
+      scope_type: base?.scope_key || '',
+      capabilities: permissionProfileForm.capabilities,
+      reason: permissionProfileForm.reason,
+    })
+    profileEditorOpen.value = false
+    await refreshPermissionProfiles()
+    showSuccess('Perfil de acesso criado.')
+  } catch (error) {
+    showError(error)
+  } finally {
+    saving.value = false
+  }
+}
+
+function openAccessGroupCreate() {
+  Object.assign(accessGroupForm, emptyAccessGroupForm())
+  groupEditorOpen.value = true
+  clearFeedback()
+}
+
+async function saveAccessGroup() {
+  saving.value = true
+  clearFeedback()
+  try {
+    const members = accessGroupForm.membersText
+      .split(/\r?\n|,|;/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+    await createAccessGroup({
+      label: accessGroupForm.label,
+      permission_profile: accessGroupForm.permissionProfile,
+      members,
+      scopes: {},
+      external_id: accessGroupForm.externalId,
+      reason: accessGroupForm.reason,
+    })
+    groupEditorOpen.value = false
+    await refreshAccessGroups()
+    showSuccess('Grupo criado.')
+  } catch (error) {
+    showError(error)
+  } finally {
+    saving.value = false
+  }
+}
+
+function toggleCapability(capability, enabled) {
+  const current = permissionProfileForm.capabilities
+  if (enabled && !current.includes(capability)) current.push(capability)
+  if (!enabled) permissionProfileForm.capabilities = current.filter((item) => item !== capability)
+}
+
+function capabilityLabel(capability) {
+  return capabilityLabels[capability] || 'Permissao adicional'
+}
+
+function emptyPermissionProfileForm() {
+  return { label: '', basePersona: '', capabilities: [], reason: '' }
+}
+
+function emptyAccessGroupForm() {
+  return { label: '', permissionProfile: '', membersText: '', externalId: '', reason: '' }
+}
 
 function validateEditor(target, profile) {
   if (!target.displayName.trim() || !target.profileKey) {
@@ -387,22 +530,93 @@ function clearFeedback() {
     <p v-if="loading" class="py-8 text-center text-sm font-semibold text-slate-500">Carregando dados...</p>
 
     <template v-else-if="activeTab === 'profiles'">
-      <section class="overflow-x-auto border border-slate-200 bg-white">
-        <div class="min-w-[760px]">
-          <div class="grid grid-cols-[1.1fr_0.8fr_2fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
-            <span>Perfil</span><span>Escopo</span><span>Acoes efetivas</span>
-          </div>
-          <div v-for="profile in catalogs.profiles" :key="profile.key" class="grid grid-cols-[1.1fr_0.8fr_2fr] gap-4 border-b border-slate-100 px-4 py-4 text-sm last:border-0">
-            <div><p class="font-semibold text-slate-950">{{ profile.label }}</p><p class="text-xs text-slate-500">{{ profile.key }}</p></div>
-            <p class="text-slate-700">{{ profile.scope_key || 'Global' }}</p>
-            <div class="flex flex-wrap gap-1"><span v-for="action in profile.actions" :key="action" class="bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ action }}</span></div>
-          </div>
+      <section v-if="!profileEditorOpen" class="grid gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm text-slate-600">Crie conjuntos de permissoes que possam ser reutilizados.</p>
+          <button type="button" class="rounded-xl bg-[var(--color-primary)] px-4 py-2 font-semibold text-white" @click="openPermissionProfileCreate">
+            Novo perfil
+          </button>
+        </div>
+        <div class="grid gap-3 lg:grid-cols-2">
+          <article v-for="profile in permissionProfiles" :key="profile.id" class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h2 class="font-semibold text-slate-950">{{ profile.label }}</h2>
+                <p class="mt-1 text-sm text-slate-600">Base: {{ profileLabel(profile.base_persona) }}</p>
+              </div>
+              <StatusBadge :label="profile.active ? 'ativo' : 'inativo'" />
+            </div>
+            <p v-if="profile.system_profile" class="mt-3 text-xs font-semibold text-slate-500">Perfil institucional protegido</p>
+            <div class="mt-3 flex flex-wrap gap-1">
+              <span v-for="capability in profile.capabilities" :key="capability" class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                {{ capabilityLabel(capability) }}
+              </span>
+            </div>
+          </article>
+          <p v-if="permissionProfiles.length === 0" class="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+            Nenhum perfil cadastrado. Execute a migracao da aplicacao antes de liberar esta tela.
+          </p>
         </div>
       </section>
-      <p class="text-sm text-slate-600">Os modelos sao fixos nesta versao. O Admin atribui perfil e escopo, sem editar acoes individualmente.</p>
+      <section v-else class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <div>
+          <button type="button" class="font-semibold text-[var(--color-primary)]" @click="profileEditorOpen = false">Voltar</button>
+          <h2 class="mt-2 text-xl font-semibold text-slate-950">Novo perfil de acesso</h2>
+        </div>
+        <label class="grid gap-1 font-semibold text-slate-800">Nome
+          <input v-model="permissionProfileForm.label" class="rounded-xl border border-slate-300 px-3 py-2" />
+        </label>
+        <label class="grid gap-1 font-semibold text-slate-800">Perfil base
+          <select v-model="permissionProfileForm.basePersona" class="rounded-xl border border-slate-300 px-3 py-2">
+            <option value="">Selecione</option>
+            <option v-for="profile in catalogs.profiles" :key="profile.key" :value="profile.key">{{ profile.label }}</option>
+          </select>
+        </label>
+        <fieldset class="grid gap-2">
+          <legend class="font-semibold text-slate-800">Permissoes</legend>
+          <label v-for="capability in availableCapabilities" :key="capability" class="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 px-3">
+            <input type="checkbox" :checked="permissionProfileForm.capabilities.includes(capability)" @change="toggleCapability(capability, $event.target.checked)" />
+            <span>{{ capabilityLabel(capability) }}</span>
+          </label>
+        </fieldset>
+        <label class="grid gap-1 font-semibold text-slate-800">Motivo
+          <textarea v-model="permissionProfileForm.reason" rows="3" class="rounded-xl border border-slate-300 px-3 py-2"></textarea>
+        </label>
+        <div class="flex justify-end">
+          <button type="button" class="rounded-xl bg-[var(--color-primary)] px-5 py-2 font-semibold text-white" :disabled="saving" @click="savePermissionProfile">Criar perfil</button>
+        </div>
+      </section>
     </template>
 
-    <template v-else-if="activeTab === 'users'">
+    <template v-else-if="activeTab === 'groups'">
+      <section v-if="!groupEditorOpen" class="grid gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm text-slate-600">Agrupe pessoas que precisam do mesmo perfil e escopo.</p>
+          <button type="button" class="rounded-xl bg-[var(--color-primary)] px-4 py-2 font-semibold text-white" @click="openAccessGroupCreate">Novo grupo</button>
+        </div>
+        <div class="grid gap-3 lg:grid-cols-2">
+          <article v-for="group in accessGroups" :key="group.id" class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div><h2 class="font-semibold text-slate-950">{{ group.label }}</h2><p class="mt-1 text-sm text-slate-600">{{ group.member_count }} pessoa(s)</p></div>
+              <StatusBadge :label="group.active ? 'ativo' : 'inativo'" />
+            </div>
+            <p class="mt-3 text-sm text-slate-700">Perfil: {{ permissionProfiles.find((item) => item.id === group.permission_profile)?.label || 'Nao encontrado' }}</p>
+          </article>
+          <p v-if="accessGroups.length === 0" class="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Nenhum grupo cadastrado.</p>
+        </div>
+      </section>
+      <section v-else class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <div><button type="button" class="font-semibold text-[var(--color-primary)]" @click="groupEditorOpen = false">Voltar</button><h2 class="mt-2 text-xl font-semibold">Novo grupo</h2></div>
+        <label class="grid gap-1 font-semibold">Nome<input v-model="accessGroupForm.label" class="rounded-xl border border-slate-300 px-3 py-2" /></label>
+        <label class="grid gap-1 font-semibold">Perfil de acesso<select v-model="accessGroupForm.permissionProfile" class="rounded-xl border border-slate-300 px-3 py-2"><option value="">Selecione</option><option v-for="profile in permissionProfiles.filter((item) => item.active)" :key="profile.id" :value="profile.id">{{ profile.label }}</option></select></label>
+        <label class="grid gap-1 font-semibold">E-mails das pessoas, um por linha<textarea v-model="accessGroupForm.membersText" rows="6" class="rounded-xl border border-slate-300 px-3 py-2"></textarea></label>
+        <label class="grid gap-1 font-semibold">Identificador externo opcional<input v-model="accessGroupForm.externalId" class="rounded-xl border border-slate-300 px-3 py-2" /></label>
+        <label class="grid gap-1 font-semibold">Motivo<textarea v-model="accessGroupForm.reason" rows="3" class="rounded-xl border border-slate-300 px-3 py-2"></textarea></label>
+        <div class="flex justify-end"><button type="button" class="rounded-xl bg-[var(--color-primary)] px-5 py-2 font-semibold text-white" :disabled="saving" @click="saveAccessGroup">Criar grupo</button></div>
+      </section>
+    </template>
+
+    <template v-else-if="activeTab === 'people'">
       <section v-if="!editorOpen" class="grid gap-3">
         <div class="grid gap-2 border-b border-slate-200 pb-3 lg:grid-cols-[1.4fr_1fr_1fr_1fr_auto]">
           <input v-model="filters.search" type="search" class="min-h-10 border border-slate-200 px-3 text-sm" placeholder="Buscar nome ou email" @keyup.enter="loadUsers(1)" />
