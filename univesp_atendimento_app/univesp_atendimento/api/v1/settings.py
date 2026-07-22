@@ -68,6 +68,8 @@ def health():
 	except Exception:
 		pass
 	return response(states, request_id=context.request_id)
+
+
 def _settings_context():
 	context = get_request_context("edit_parameters")
 	if context.profile_key != "admin_central":

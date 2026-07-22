@@ -306,7 +306,18 @@ def list_permission_profiles():
 	context = _permissions_context()
 	rows = frappe.get_all(
 		"Univesp Permission Profile",
-		fields=["name", "profile_key", "label", "base_persona", "scope_type", "capabilities_json", "active", "system_profile", "external_id", "modified"],
+		fields=[
+			"name",
+			"profile_key",
+			"label",
+			"base_persona",
+			"scope_type",
+			"capabilities_json",
+			"active",
+			"system_profile",
+			"external_id",
+			"modified",
+		],
 		order_by="system_profile desc, label asc",
 		limit_page_length=0,
 	)
@@ -324,17 +335,19 @@ def create_permission_profile(payload: dict | str | None = None):
 	if frappe.db.exists("Univesp Permission Profile", key):
 		raise UnivespConflictError(_("Ja existe um perfil com este identificador."))
 	persona, capabilities = _permission_profile_values(data)
-	doc = frappe.get_doc({
-		"doctype": "Univesp Permission Profile",
-		"profile_key": key,
-		"label": str(data.get("label") or key).strip()[:140],
-		"base_persona": persona,
-		"scope_type": str(data.get("scope_type") or "").strip(),
-		"capabilities_json": json.dumps(capabilities),
-		"active": cint(data.get("active", 1)),
-		"system_profile": 0,
-		"external_id": str(data.get("external_id") or "").strip()[:140],
-	}).insert(ignore_permissions=True)
+	doc = frappe.get_doc(
+		{
+			"doctype": "Univesp Permission Profile",
+			"profile_key": key,
+			"label": str(data.get("label") or key).strip()[:140],
+			"base_persona": persona,
+			"scope_type": str(data.get("scope_type") or "").strip(),
+			"capabilities_json": json.dumps(capabilities),
+			"active": cint(data.get("active", 1)),
+			"system_profile": 0,
+			"external_id": str(data.get("external_id") or "").strip()[:140],
+		}
+	).insert(ignore_permissions=True)
 	_write_audit(context, context.email, "permission_profile_created", reason, None, {"profile_key": key})
 	return response(_serialize_permission_profile(doc), request_id=context.request_id)
 
@@ -350,7 +363,6 @@ def update_permission_profile(profile_id: str, payload: dict | str | None = None
 	if doc.system_profile:
 		raise UnivespValidationError(_("Perfis do sistema nao podem ser alterados."))
 	persona, capabilities = _permission_profile_values(data, doc)
-	before = _serialize_permission_profile(doc)
 	doc.label = str(data.get("label", doc.label) or "").strip()[:140]
 	doc.base_persona = persona
 	doc.scope_type = str(data.get("scope_type", doc.scope_type) or "").strip()
@@ -358,7 +370,14 @@ def update_permission_profile(profile_id: str, payload: dict | str | None = None
 	doc.active = cint(data.get("active", doc.active))
 	doc.external_id = str(data.get("external_id", doc.external_id) or "").strip()[:140]
 	doc.save(ignore_permissions=True)
-	_write_audit(context, context.email, "permission_profile_updated", reason, {"profile_key": doc.name}, {"active": bool(doc.active)})
+	_write_audit(
+		context,
+		context.email,
+		"permission_profile_updated",
+		reason,
+		{"profile_key": doc.name},
+		{"active": bool(doc.active)},
+	)
 	return response(_serialize_permission_profile(doc), request_id=context.request_id)
 
 
@@ -367,7 +386,17 @@ def list_access_groups():
 	context = _permissions_context()
 	rows = frappe.get_all(
 		"Univesp Access Group",
-		fields=["name", "group_key", "label", "permission_profile", "scopes_json", "members_json", "external_id", "active", "modified"],
+		fields=[
+			"name",
+			"group_key",
+			"label",
+			"permission_profile",
+			"scopes_json",
+			"members_json",
+			"external_id",
+			"active",
+			"modified",
+		],
 		order_by="label asc",
 		limit_page_length=0,
 	)
@@ -386,17 +415,26 @@ def create_access_group(payload: dict | str | None = None):
 	if not frappe.db.exists("Univesp Permission Profile", {"name": profile, "active": 1}):
 		raise UnivespValidationError(_("Perfil de acesso invalido."))
 	members = _member_emails(data.get("members"))
-	doc = frappe.get_doc({
-		"doctype": "Univesp Access Group",
-		"group_key": key,
-		"label": str(data.get("label") or key).strip()[:140],
-		"permission_profile": profile,
-		"scopes_json": json.dumps(data.get("scopes") if isinstance(data.get("scopes"), dict) else {}),
-		"members_json": json.dumps(members),
-		"external_id": str(data.get("external_id") or "").strip()[:140],
-		"active": cint(data.get("active", 1)),
-	}).insert(ignore_permissions=True)
-	_write_audit(context, context.email, "access_group_created", reason, None, {"group_key": key, "member_count": len(members)})
+	doc = frappe.get_doc(
+		{
+			"doctype": "Univesp Access Group",
+			"group_key": key,
+			"label": str(data.get("label") or key).strip()[:140],
+			"permission_profile": profile,
+			"scopes_json": json.dumps(data.get("scopes") if isinstance(data.get("scopes"), dict) else {}),
+			"members_json": json.dumps(members),
+			"external_id": str(data.get("external_id") or "").strip()[:140],
+			"active": cint(data.get("active", 1)),
+		}
+	).insert(ignore_permissions=True)
+	_write_audit(
+		context,
+		context.email,
+		"access_group_created",
+		reason,
+		None,
+		{"group_key": key, "member_count": len(members)},
+	)
 	return response(_serialize_group(doc), request_id=context.request_id)
 
 
@@ -416,7 +454,14 @@ def update_access_group(group_id: str, payload: dict | str | None = None):
 	doc.external_id = str(data.get("external_id", doc.external_id) or "").strip()[:140]
 	doc.active = cint(data.get("active", doc.active))
 	doc.save(ignore_permissions=True)
-	_write_audit(context, context.email, "access_group_updated", reason, {"group_key": doc.name}, {"member_count": len(members), "active": bool(doc.active)})
+	_write_audit(
+		context,
+		context.email,
+		"access_group_updated",
+		reason,
+		{"group_key": doc.name},
+		{"member_count": len(members), "active": bool(doc.active)},
+	)
 	return response(_serialize_group(doc), request_id=context.request_id)
 
 
@@ -432,22 +477,35 @@ def create_profile_assignment(payload: dict | str | None = None):
 		raise UnivespValidationError(_("Pessoa ou grupo invalido."))
 	if not frappe.db.exists("Univesp Permission Profile", {"name": profile, "active": 1}):
 		raise UnivespValidationError(_("Perfil de acesso invalido."))
-	if subject_type == "person" and not frappe.db.exists("Univesp Access Profile", {"user_email": subject_id, "active": 1}):
+	if subject_type == "person" and not frappe.db.exists(
+		"Univesp Access Profile", {"user_email": subject_id, "active": 1}
+	):
 		raise UnivespValidationError(_("Pessoa nao cadastrada ou inativa."))
-	if subject_type == "group" and not frappe.db.exists("Univesp Access Group", {"name": subject_id, "active": 1}):
+	if subject_type == "group" and not frappe.db.exists(
+		"Univesp Access Group", {"name": subject_id, "active": 1}
+	):
 		raise UnivespValidationError(_("Grupo nao cadastrado ou inativo."))
-	doc = frappe.get_doc({
-		"doctype": "Univesp Permission Assignment",
-		"subject_type": subject_type,
-		"subject_id": subject_id,
-		"permission_profile": profile,
-		"scopes_json": json.dumps(data.get("scopes") if isinstance(data.get("scopes"), dict) else {}),
-		"valid_from": data.get("valid_from"),
-		"valid_until": data.get("valid_until"),
-		"justification": reason,
-		"active": 1,
-	}).insert(ignore_permissions=True)
-	_write_audit(context, context.email, "permission_assignment_created", reason, None, {"assignment_id": doc.name, "subject_reference": _subject_reference(subject_id)})
+	doc = frappe.get_doc(
+		{
+			"doctype": "Univesp Permission Assignment",
+			"subject_type": subject_type,
+			"subject_id": subject_id,
+			"permission_profile": profile,
+			"scopes_json": json.dumps(data.get("scopes") if isinstance(data.get("scopes"), dict) else {}),
+			"valid_from": data.get("valid_from"),
+			"valid_until": data.get("valid_until"),
+			"justification": reason,
+			"active": 1,
+		}
+	).insert(ignore_permissions=True)
+	_write_audit(
+		context,
+		context.email,
+		"permission_assignment_created",
+		reason,
+		None,
+		{"assignment_id": doc.name, "subject_reference": _subject_reference(subject_id)},
+	)
 	return response({"id": doc.name, "active": True}, request_id=context.request_id)
 
 
@@ -457,7 +515,14 @@ def delete_profile_assignment(assignment_id: str):
 	doc = frappe.get_doc("Univesp Permission Assignment", str(assignment_id))
 	doc.active = 0
 	doc.save(ignore_permissions=True)
-	_write_audit(context, context.email, "permission_assignment_revoked", "Revogacao administrativa", {"assignment_id": doc.name}, {"active": False})
+	_write_audit(
+		context,
+		context.email,
+		"permission_assignment_revoked",
+		"Revogacao administrativa",
+		{"assignment_id": doc.name},
+		{"active": False},
+	)
 	return response({"id": doc.name, "active": False}, request_id=context.request_id)
 
 
@@ -519,6 +584,8 @@ def _serialize_group(value):
 		"active": bool(row.get("active")),
 		"version": str(row.get("modified") or ""),
 	}
+
+
 SIMULATION_CAPABILITIES = {
 	("aluno", "generic"): "simulate_student_generic",
 	("aluno", "person"): "simulate_student_real",
@@ -627,18 +694,28 @@ def list_simulation_audit(page: int | str = 1, page_size: int | str = 25):
 	rows = _audit_rows(filters=filters, start=(page - 1) * page_size, page_size=page_size)
 	return response(
 		rows,
-		meta={"page": page, "page_size": page_size, "total": frappe.db.count("Univesp Access Audit", filters)},
+		meta={
+			"page": page,
+			"page_size": page_size,
+			"total": frappe.db.count("Univesp Access Audit", filters),
+		},
 		request_id=context.request_id,
 	)
 
 
 def _subject_reference(email):
 	secret = str(frappe.conf.get("univesp_bff_shared_secret") or frappe.local.site)
-	return __import__("hmac").new(
-		secret.encode("utf-8"),
-		str(email or "").strip().lower().encode("utf-8"),
-		__import__("hashlib").sha256,
-	).hexdigest()[:24]
+	return (
+		__import__("hmac")
+		.new(
+			secret.encode("utf-8"),
+			str(email or "").strip().lower().encode("utf-8"),
+			__import__("hashlib").sha256,
+		)
+		.hexdigest()[:24]
+	)
+
+
 def _admin_context():
 	context = get_request_context("manage_users")
 	if context.profile_key != "admin_central":
