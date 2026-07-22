@@ -74,9 +74,9 @@ const ui = reactive({
 
 const periodOptions = [
   { value: 'today', label: 'Hoje', summary: 'hoje' },
-  { value: '7d', label: '7 dias', summary: 'ultimos 7 dias' },
-  { value: '30d', label: '30 dias', summary: 'ultimos 30 dias' },
-  { value: 'base', label: 'Periodo', summary: 'base atual' },
+  { value: '7d', label: '7 dias', summary: 'últimos 7 dias' },
+  { value: '30d', label: '30 dias', summary: 'últimos 30 dias' },
+  { value: 'base', label: 'Período', summary: 'base atual' },
 ]
 
 const dashboardBase = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
@@ -89,7 +89,7 @@ const criticalKpiCards = computed(() => [
   {
     label: 'SLA vencido',
     value: metricValue('SLA vencido'),
-    trend: 'atencao',
+    trend: 'atenção',
     tone: 'danger',
     focus: 'sla',
   },
@@ -108,7 +108,7 @@ const criticalKpiCards = computed(() => [
     focus: 'escalated',
   },
   {
-    label: 'Reincidencia',
+    label: 'Reincidência',
     value: metricValue('Reincidencia de tema'),
     trend: 'revisar FAQ',
     tone: 'warning',
@@ -146,11 +146,11 @@ const healthState = computed(() => {
   }
 
   if (healthScore.value >= 10) {
-    return 'Critico'
+    return 'Crítico'
   }
 
   if (healthScore.value >= 4) {
-    return 'Atencao'
+    return 'Atenção'
   }
 
   return 'Normal'
@@ -161,20 +161,20 @@ const operationHealth = computed(() => {
       label: healthState.value,
       score: null,
       tone: 'empty',
-      hint: 'aguardando integracao',
+      hint: 'aguardando integração',
     }
   }
 
-  if (healthState.value === 'Critico') {
+  if (healthState.value === 'Crítico') {
     return {
       label: healthState.value,
       score: healthScore.value,
       tone: 'danger',
-      hint: 'acao imediata',
+      hint: 'ação imediata',
     }
   }
 
-  if (healthState.value === 'Atencao') {
+  if (healthState.value === 'Atenção') {
     return {
       label: healthState.value,
       score: healthScore.value,
@@ -187,7 +187,7 @@ const operationHealth = computed(() => {
     label: healthState.value,
     score: healthScore.value,
     tone: 'normal',
-    hint: 'estavel',
+    hint: 'estável',
   }
 })
 const demandDistribution = computed(() => {
@@ -200,7 +200,7 @@ const demandDistribution = computed(() => {
   const entries = [
     { label: 'FAQ resolveu', value: resolvedByFaq, color: '#0f766e' },
     { label: 'Passou ao OP', value: sentToOp, color: '#2563eb' },
-    { label: 'Escalou area', value: escalated, color: '#ca8a04' },
+    { label: 'Escalou à área', value: escalated, color: '#ca8a04' },
     { label: 'Em andamento', value: activeVolume, color: '#d13239' },
   ]
 
@@ -221,20 +221,20 @@ const clusterRiskRows = computed(() => {
   const clusterIndex = new Map()
 
   for (const item of activeCasesFull.value) {
-    const cluster = item.lastMileAreaLabel || item.queue || 'Nao informado'
+    const cluster = item.lastMileAreaLabel || item.queue || 'Não informado'
     const key = `cluster:${cluster}`
     const current = clusterIndex.get(key) || {
       key,
       cluster,
-      type: item.lastMileAreaLabel ? 'Area interna' : 'Fila',
+      type: item.lastMileAreaLabel ? 'Área interna' : 'Fila',
       volume: 0,
       slaOverdueCount: 0,
       highCriticalityCount: 0,
       escalationsCount: 0,
       recurrenceCount: 0,
       themes: {},
-      dominantTheme: 'Nao informado',
-      dominantQueue: item.queue || 'Nao informado',
+      dominantTheme: 'Não informado',
+      dominantQueue: item.queue || 'Não informado',
       examples: [],
       riskScore: 0,
     }
@@ -243,7 +243,7 @@ const clusterRiskRows = computed(() => {
     current.slaOverdueCount += String(item.sla || '').toLowerCase().includes('vencid') ? 1 : 0
     current.highCriticalityCount += ['alta', 'critica'].includes(String(item.criticality || '').toLowerCase()) ? 1 : 0
     current.recurrenceCount += item.recurrenceSignals?.repeatedTheme || item.recurrenceSignals?.repeatedSubsubject ? 1 : 0
-    current.themes[item.theme || 'Nao informado'] = (current.themes[item.theme || 'Nao informado'] || 0) + 1
+    current.themes[item.theme || 'Não informado'] = (current.themes[item.theme || 'Não informado'] || 0) + 1
 
     if (current.examples.length < 3) {
       current.examples.push(item)
@@ -257,22 +257,22 @@ const clusterRiskRows = computed(() => {
       continue
     }
 
-    const cluster = entry.lastMileAreaLabel || entry.queueBefore || entry.queue || 'Nao informado'
+    const cluster = entry.lastMileAreaLabel || entry.queueBefore || entry.queue || 'Não informado'
     const key = `cluster:${cluster}`
 
     if (!clusterIndex.has(key)) {
       clusterIndex.set(key, {
         key,
         cluster,
-        type: entry.lastMileAreaLabel ? 'Area interna' : 'Fila',
+        type: entry.lastMileAreaLabel ? 'Área interna' : 'Fila',
         volume: 0,
         slaOverdueCount: 0,
         highCriticalityCount: 0,
         escalationsCount: 0,
         recurrenceCount: 0,
         themes: {},
-        dominantTheme: entry.theme || 'Nao informado',
-        dominantQueue: entry.queueBefore || entry.queue || 'Nao informado',
+        dominantTheme: entry.theme || 'Não informado',
+        dominantQueue: entry.queueBefore || entry.queue || 'Não informado',
         examples: [],
         riskScore: 0,
       })
@@ -307,7 +307,7 @@ function buildRiskRows(items, keyGetter, type) {
   const index = new Map()
 
   for (const item of items) {
-    const cluster = keyGetter(item) || 'Nao informado'
+    const cluster = keyGetter(item) || 'Não informado'
     const key = `${type}:${cluster}`
     const current = index.get(key) || {
       key,
@@ -319,7 +319,7 @@ function buildRiskRows(items, keyGetter, type) {
       escalationsCount: 0,
       recurrenceCount: 0,
       themes: {},
-      dominantTheme: 'Nao informado',
+      dominantTheme: 'Não informado',
       examples: [],
       riskScore: 0,
     }
@@ -328,7 +328,7 @@ function buildRiskRows(items, keyGetter, type) {
     current.slaOverdueCount += String(item.sla || '').toLowerCase().includes('vencid') ? 1 : 0
     current.highCriticalityCount += ['alta', 'critica'].includes(String(item.criticality || '').toLowerCase()) ? 1 : 0
     current.recurrenceCount += item.recurrenceSignals?.repeatedTheme || item.recurrenceSignals?.repeatedSubsubject ? 1 : 0
-    current.themes[item.theme || 'Nao informado'] = (current.themes[item.theme || 'Nao informado'] || 0) + 1
+    current.themes[item.theme || 'Não informado'] = (current.themes[item.theme || 'Não informado'] || 0) + 1
 
     if (current.examples.length < 3) {
       current.examples.push(item)
@@ -374,7 +374,7 @@ const faqRiskRows = computed(() => [{
   highCriticalityCount: metricValue('Criticidade alta'),
   escalationsCount: metricValue('Escalados para area interna'),
   recurrenceCount: selfServiceEscape.value.recurrence,
-  dominantTheme: themeRanking.value[0]?.theme || 'Nao informado',
+  dominantTheme: themeRanking.value[0]?.theme || 'Não informado',
   trend: selfServiceEscape.value.recurrence > 0 ? 'subindo' : 'estavel',
   riskScore:
     selfServiceEscape.value.sentToOp +
@@ -414,9 +414,9 @@ const selectedClusterDetails = computed(() => {
   const reason = selected.slaOverdueCount > 0
     ? `${selected.slaOverdueCount} SLA vencido(s) no recorte.`
     : selected.highCriticalityCount > 0
-      ? `${selected.highCriticalityCount} caso(s) critico(s) no recorte.`
+      ? `${selected.highCriticalityCount} caso(s) crítico(s) no recorte.`
       : selected.recurrenceCount > 0
-        ? `Reincidencia no tema ${selected.dominantTheme}.`
+        ? `Reincidência no tema ${selected.dominantTheme}.`
         : 'Risco calculado pela pressao operacional atual.'
   const nextSteps = [
     selected.slaOverdueCount > 0 ? 'Revisar casos com SLA vencido.' : '',
@@ -458,7 +458,7 @@ const recommendedActions = computed(() => {
     if (cluster.highCriticalityCount > 0) {
       clusterActions.push({
         title: `Priorizar ${cluster.cluster}`,
-        reason: `${cluster.highCriticalityCount} critico(s) no recorte.`,
+        reason: `${cluster.highCriticalityCount} crítico(s) no recorte.`,
         risk: 'alto',
         clusterKey: cluster.key,
         viewMode,
@@ -495,13 +495,13 @@ const recommendedActions = computed(() => {
 
   return uniqueActions.length
     ? uniqueActions
-    : [{ title: 'Monitorar visao atual', reason: 'Nao ha alerta critico nos filtros atuais.', risk: 'baixo', clusterKey: topRiskItems.value[0]?.key || '', viewMode: ui.viewMode }]
+    : [{ title: 'Monitorar visão atual', reason: 'Não há alerta crítico nos filtros atuais.', risk: 'baixo', clusterKey: topRiskItems.value[0]?.key || '', viewMode: ui.viewMode }]
 })
 const themeRanking = computed(() => {
   const themeIndex = new Map()
 
   for (const item of activeCasesFull.value) {
-    const theme = item.theme || 'Nao informado'
+    const theme = item.theme || 'Não informado'
     const current = themeIndex.get(theme) || {
       theme,
       count: 0,
@@ -624,7 +624,7 @@ const operationalAlerts = computed(() => {
   if (selfServiceEscape.value.sentToOp > 0 || selfServiceEscape.value.recurrence > 0) {
     alerts.push({
       title: 'FAQ com sinal de falha',
-      detail: `${selfServiceEscape.value.sentToOp} foram ao OP apos FAQ.`,
+      detail: `${selfServiceEscape.value.sentToOp} foram ao OP após a FAQ.`,
       clusterKey: mainCluster?.key || '',
     })
   }
@@ -719,8 +719,34 @@ const demandFillPoints = computed(() => {
 
 function getRiskLabel(row) {
   if (row.slaOverdueCount > 0 || row.highCriticalityCount > 1) return 'Alto'
-  if (row.highCriticalityCount > 0 || row.escalationsCount > 0) return 'Medio'
+  if (row.highCriticalityCount > 0 || row.escalationsCount > 0) return 'Médio'
   return 'Baixo'
+}
+
+const displayReplacements = [
+  ['Suporte Academico Digital', 'Suporte Acadêmico Digital'],
+  ['Secretaria Academica', 'Secretaria Acadêmica'],
+  ['Sao Jose dos Campos', 'São José dos Campos'],
+  ['Matricula', 'Matrícula'],
+  ['Estagio', 'Estágio'],
+  ['Colacao', 'Colação'],
+  ['Aguardando acao do OP', 'Aguardando ação do OP'],
+  ['Prioridade maxima', 'Prioridade máxima'],
+  ['Escalado para area interna', 'Escalado para área interna'],
+  ['Aguardando complementacao do aluno', 'Aguardando complementação do aluno'],
+  ['Em validacao operacional', 'Em validação operacional'],
+  ['Complementacao solicitada pela area', 'Complementação solicitada pela área'],
+  ['Respondido pela area', 'Respondido pela área'],
+  ['Reencaminhado para outra area', 'Reencaminhado para outra área'],
+  ['Concluido pela area', 'Concluído pela área'],
+  ['Concluido', 'Concluído'],
+]
+
+function displayLabel(value) {
+  return displayReplacements.reduce(
+    (label, [source, target]) => label.replaceAll(source, target),
+    String(value || ''),
+  )
 }
 </script>
 
@@ -731,7 +757,7 @@ function getRiskLabel(row) {
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p class="text-base font-semibold text-slate-950">Indicadores do atendimento</p>
-          <p class="text-xs text-slate-500">Visao rapida da operacao</p>
+          <p class="text-xs text-slate-500">Visão rápida da operação</p>
           <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
             <span
               class="rounded-full px-2 py-1 font-semibold"
@@ -756,7 +782,7 @@ function getRiskLabel(row) {
             {{ liveState.error }}
           </p>
           <p v-else-if="liveState.truncated" class="mt-2 text-xs text-amber-700">
-            Visao limitada aos {{ liveState.loaded }} tickets mais recentes para preservar desempenho.
+            Visão limitada aos {{ liveState.loaded }} tickets mais recentes para preservar desempenho.
           </p>
         </div>
 
@@ -786,7 +812,7 @@ function getRiskLabel(row) {
           >
             <div class="flex items-center justify-between gap-3">
               <div>
-                <p class="text-xs font-semibold text-slate-500">Saude da operacao</p>
+                <p class="text-xs font-semibold text-slate-500">Saúde da operação</p>
                 <div class="flex items-baseline gap-1">
                   <strong class="text-xl text-slate-950">{{ healthScoreDisplay === null ? 'Sem dados para calcular' : healthScoreDisplay }}</strong>
                   <span v-if="healthScoreDisplay !== null" class="text-sm text-slate-500">/100</span>
@@ -819,12 +845,12 @@ function getRiskLabel(row) {
 
       <div class="mt-3 flex flex-wrap items-end gap-2">
         <label class="grid min-w-[130px] gap-1">
-          <span class="text-xs font-semibold text-slate-500">Area interna</span>
+          <span class="text-xs font-semibold text-slate-500">Área interna</span>
           <select
             v-model="filters.queue"
             class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
-            <option v-for="o in filterOptions.queue" :key="o.value" :value="o.value">{{ o.label }}</option>
+            <option v-for="o in filterOptions.queue" :key="o.value" :value="o.value">{{ displayLabel(o.label) }}</option>
           </select>
         </label>
 
@@ -844,7 +870,7 @@ function getRiskLabel(row) {
             v-model="filters.theme"
             class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
-            <option v-for="o in filterOptions.theme" :key="o.value" :value="o.value">{{ o.label }}</option>
+            <option v-for="o in filterOptions.theme" :key="o.value" :value="o.value">{{ displayLabel(o.label) }}</option>
           </select>
         </label>
 
@@ -854,7 +880,7 @@ function getRiskLabel(row) {
             v-model="filters.status"
             class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
-            <option v-for="o in filterOptions.status" :key="o.value" :value="o.value">{{ o.label }}</option>
+            <option v-for="o in filterOptions.status" :key="o.value" :value="o.value">{{ displayLabel(o.label) }}</option>
           </select>
         </label>
 
@@ -891,16 +917,16 @@ function getRiskLabel(row) {
     <!-- 3. DISTRIBUICAO + TENDENCIA -->
     <div class="grid gap-4 lg:grid-cols-[0.38fr_0.62fr]">
       <!-- Donut distribuicao -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Fluxo</p>
-          <p class="text-sm font-semibold text-slate-950">Distribuicao da demanda</p>
-          <p class="mt-0.5 text-xs text-slate-400">Caminho dos atendimentos na visao atual.</p>
+          <p class="text-sm font-semibold text-slate-950">Distribuição da demanda</p>
+          <p class="mt-0.5 text-xs text-slate-400">Caminho dos atendimentos na visão atual.</p>
         </div>
 
         <div class="mt-4 flex flex-1 items-center gap-5">
           <div class="relative h-[120px] w-[120px] shrink-0">
-            <svg viewBox="0 0 42 42" class="h-full w-full -rotate-90" aria-label="Distribuicao da demanda">
+            <svg viewBox="0 0 42 42" class="h-full w-full -rotate-90" aria-label="Distribuição da demanda">
               <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="#e2e8f0" stroke-width="5" />
               <circle
                 v-for="segment in demandDistribution"
@@ -951,21 +977,21 @@ function getRiskLabel(row) {
       </div>
 
       <!-- Grafico de evolucao -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold text-slate-500">Tendencia</p>
-            <p class="text-sm font-semibold text-slate-950">Evolucao da demanda</p>
+            <p class="text-xs font-semibold text-slate-500">Tendência</p>
+            <p class="text-sm font-semibold text-slate-950">Evolução da demanda</p>
             <p class="mt-0.5 text-xs text-slate-400">Demanda nos {{ selectedPeriodLabel }}. Estimativa com a base atual.</p>
           </div>
           <div class="flex items-center gap-3 text-xs text-slate-500">
             <span class="flex items-center gap-1.5">
               <span class="inline-block h-2 w-5 rounded-full bg-[var(--color-primary)]"></span>
-              Periodo atual
+              Período atual
             </span>
             <span class="flex items-center gap-1.5">
               <span class="inline-block h-2 w-5 rounded-full bg-slate-200"></span>
-              Periodo anterior
+              Período anterior
             </span>
           </div>
         </div>
@@ -978,7 +1004,7 @@ function getRiskLabel(row) {
         <svg
           viewBox="0 0 100 48"
           class="mt-2 h-28 w-full overflow-visible"
-          aria-label="Tendencia de demanda"
+          aria-label="Tendência de demanda"
         >
           <defs>
             <linearGradient id="cockpit-trend-fill" x1="0" y1="0" x2="0" y2="1">
@@ -1017,7 +1043,7 @@ function getRiskLabel(row) {
             class="text-xs font-semibold text-[var(--color-primary)]"
             @click="selectViewMode('areas')"
           >
-            Ver evolucao completa &rarr;
+            Ver evolução completa &rarr;
           </button>
         </div>
       </div>
@@ -1026,21 +1052,21 @@ function getRiskLabel(row) {
     <!-- 4. AREAS INTERNAS + POLOS EM ATENCAO (tabelas compactas) -->
     <div class="grid gap-4 md:grid-cols-2">
       <!-- Areas internas em risco -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Risco</p>
-          <p class="text-sm font-semibold text-slate-950">Areas internas em risco</p>
+          <p class="text-sm font-semibold text-slate-950">Áreas internas em risco</p>
         </div>
 
         <div v-if="areaRiskRows.length" class="mt-3 overflow-x-auto">
-          <div class="min-w-[420px]">
+          <div class="min-w-0">
             <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
-              <span>Area interna</span>
+              <span>Área interna</span>
               <span class="text-center">Risco</span>
               <span class="text-center">SLA</span>
               <span class="text-center">Crit.</span>
               <span class="text-center">Escal.</span>
-              <span class="text-center">Acao</span>
+              <span class="text-center">Ação</span>
             </div>
             <div
               v-for="area in areaRiskRows"
@@ -1048,7 +1074,7 @@ function getRiskLabel(row) {
               class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
             >
               <div class="min-w-0">
-                <p class="truncate text-xs font-semibold text-slate-900">{{ area.cluster }}</p>
+                <p class="truncate text-xs font-semibold text-slate-900">{{ displayLabel(area.cluster) }}</p>
                 <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
                   <span
                     class="block h-full rounded-full bg-[var(--color-primary)]"
@@ -1060,7 +1086,7 @@ function getRiskLabel(row) {
                 class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
                 :class="getRiskLabel(area) === 'Alto'
                   ? 'bg-red-100 text-red-700'
-                  : getRiskLabel(area) === 'Medio'
+                  : getRiskLabel(area) === 'Médio'
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-emerald-100 text-emerald-700'"
               >
@@ -1081,7 +1107,7 @@ function getRiskLabel(row) {
         </div>
 
         <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
-          Ajuste os filtros para retomar a leitura por area.
+          Ajuste os filtros para retomar a leitura por área.
         </div>
 
         <div class="mt-auto flex justify-end border-t border-slate-50 pt-3">
@@ -1090,27 +1116,27 @@ function getRiskLabel(row) {
             class="text-xs font-semibold text-[var(--color-primary)]"
             @click="selectViewMode('areas')"
           >
-            Ver todas as areas internas &rarr;
+            Ver todas as áreas internas &rarr;
           </button>
         </div>
       </div>
 
       <!-- Polos em atencao -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Polos</p>
-          <p class="text-sm font-semibold text-slate-950">Polos em atencao</p>
+          <p class="text-sm font-semibold text-slate-950">Polos em atenção</p>
         </div>
 
         <div v-if="poloRiskRows.length" class="mt-3 overflow-x-auto">
-          <div class="min-w-[420px]">
+          <div class="min-w-0">
             <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
               <span>Polo</span>
               <span class="text-center">Risco</span>
               <span class="text-center">SLA</span>
               <span class="text-center">Crit.</span>
               <span class="text-center">Volume</span>
-              <span class="text-center">Acao</span>
+              <span class="text-center">Ação</span>
             </div>
             <div
               v-for="polo in poloRiskRows.slice(0, 6)"
@@ -1118,7 +1144,7 @@ function getRiskLabel(row) {
               class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
             >
               <div class="min-w-0">
-                <p class="truncate text-xs font-semibold text-slate-900">{{ polo.cluster }}</p>
+                <p class="truncate text-xs font-semibold text-slate-900">{{ displayLabel(polo.cluster) }}</p>
                 <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
                   <span
                     class="block h-full rounded-full bg-[var(--color-primary)]"
@@ -1130,7 +1156,7 @@ function getRiskLabel(row) {
                 class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
                 :class="getRiskLabel(polo) === 'Alto'
                   ? 'bg-red-100 text-red-700'
-                  : getRiskLabel(polo) === 'Medio'
+                  : getRiskLabel(polo) === 'Médio'
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-emerald-100 text-emerald-700'"
               >
@@ -1167,9 +1193,9 @@ function getRiskLabel(row) {
     </div>
 
     <!-- 5. TEMAS + ACOES + ESCAPE DA FAQ -->
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
       <!-- Temas em alta -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Temas</p>
           <p class="text-sm font-semibold text-slate-950">Temas em alta</p>
@@ -1184,7 +1210,7 @@ function getRiskLabel(row) {
             @click="applyThemeFilter(theme.theme)"
           >
             <div class="flex items-center gap-2">
-              <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-900">{{ theme.theme }}</span>
+              <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-900">{{ displayLabel(theme.theme) }}</span>
               <span class="shrink-0 text-xs font-semibold text-slate-700">{{ theme.count }}</span>
               <span class="shrink-0 text-[11px] text-slate-400">{{ Math.round((theme.count / totalThemeCount) * 100) }}%</span>
             </div>
@@ -1213,10 +1239,10 @@ function getRiskLabel(row) {
       </div>
 
       <!-- Acoes recomendadas -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Agora</p>
-          <p class="text-sm font-semibold text-slate-950">Acoes recomendadas</p>
+          <p class="text-sm font-semibold text-slate-950">Ações recomendadas</p>
         </div>
 
         <div class="mt-3 flex-1 grid gap-2">
@@ -1224,7 +1250,7 @@ function getRiskLabel(row) {
             v-for="action in recommendedActions"
             :key="action.title"
             type="button"
-            class="flex items-center gap-3 rounded-[12px] border px-3 py-2.5 text-left transition hover:shadow-sm"
+            class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-start gap-x-2 rounded-[12px] border px-3 py-2.5 text-left transition hover:shadow-sm"
             :class="action.risk === 'alto'
               ? 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.5)]'
               : action.risk === 'medio'
@@ -1239,8 +1265,8 @@ function getRiskLabel(row) {
               {{ action.risk === 'alto' ? '⚡' : action.risk === 'medio' ? '▲' : '●' }}
             </span>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-xs font-semibold text-slate-900">{{ action.title }}</p>
-              <p class="mt-0.5 truncate text-[11px] text-slate-500">{{ action.reason }}</p>
+              <p class="break-words text-xs font-semibold leading-5 text-slate-900">{{ displayLabel(action.title) }}</p>
+              <p class="mt-0.5 break-words text-[11px] leading-4 text-slate-500">{{ action.reason }}</p>
             </div>
             <span
               class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
@@ -1250,7 +1276,7 @@ function getRiskLabel(row) {
                   ? 'bg-amber-100 text-amber-700'
                   : 'bg-slate-100 text-slate-600'"
             >
-              {{ action.risk === 'alto' ? 'Alta' : action.risk === 'medio' ? 'Media' : 'Baixa' }}
+              {{ action.risk === 'alto' ? 'Alta' : action.risk === 'medio' ? 'Média' : 'Baixa' }}
             </span>
             <span class="shrink-0 text-slate-400 text-sm">›</span>
           </button>
@@ -1268,10 +1294,10 @@ function getRiskLabel(row) {
       </div>
 
       <!-- Escape da FAQ -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Escape da FAQ</p>
-          <p class="text-sm font-semibold text-slate-950">Saida apos FAQ</p>
+          <p class="text-sm font-semibold text-slate-950">Saída após a FAQ</p>
         </div>
 
         <!-- Dois indicadores de escape lado a lado -->
@@ -1279,18 +1305,18 @@ function getRiskLabel(row) {
           <div class="rounded-[12px] bg-slate-50 px-3 py-2 text-center">
             <p class="text-2xl font-semibold text-slate-950">{{ faqEscapeRate }}%</p>
             <p class="text-xs font-semibold text-slate-700">{{ selfServiceEscape.sentToOp }} casos</p>
-            <p class="mt-0.5 text-[10px] text-slate-400">OP apos FAQ</p>
+            <p class="mt-0.5 text-[10px] text-slate-400">OP após a FAQ</p>
           </div>
           <div class="rounded-[12px] bg-amber-50 px-3 py-2 text-center">
             <p class="text-2xl font-semibold text-slate-950">{{ areaEscapeRate }}%</p>
             <p class="text-xs font-semibold text-slate-700">{{ areaEscapeCount }} casos</p>
-            <p class="mt-0.5 text-[10px] text-slate-400">Area interna</p>
+            <p class="mt-0.5 text-[10px] text-slate-400">Área interna</p>
           </div>
         </div>
 
         <!-- Secundarios compactos -->
         <div class="mt-2 flex items-center gap-4 text-xs text-slate-600">
-          <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.recurrence }}</strong> reincidencias</span>
+          <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.recurrence }}</strong> reincidências</span>
           <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.resolvedByFaq }}</strong> resolv. FAQ</span>
         </div>
 
@@ -1323,7 +1349,7 @@ function getRiskLabel(row) {
             class="text-xs font-semibold text-[var(--color-primary)]"
             @click="selectViewMode('faq')"
           >
-            Ver analise completa &rarr;
+            Ver análise completa &rarr;
           </button>
         </div>
       </div>
@@ -1345,7 +1371,7 @@ function getRiskLabel(row) {
           class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
           @click="selectCluster('')"
         >
-          Voltar para visao geral
+          Voltar para visão geral
         </button>
       </div>
       <div class="mt-3 grid gap-4 xl:grid-cols-2">
@@ -1369,7 +1395,7 @@ function getRiskLabel(row) {
 
     <!-- 7. ALERTAS RAPIDOS -->
     <section class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
-      <p class="mb-2 text-xs font-semibold text-slate-500">Alertas rapidos</p>
+      <p class="mb-2 text-xs font-semibold text-slate-500">Alertas rápidos</p>
 
       <div v-if="operationalAlerts.length" class="grid gap-3 md:grid-cols-3">
         <button
@@ -1381,7 +1407,7 @@ function getRiskLabel(row) {
         >
           <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary)]"></span>
           <div class="min-w-0 flex-1">
-            <p class="text-xs font-semibold text-slate-900">{{ alert.title }}</p>
+            <p class="text-xs font-semibold text-slate-900">{{ displayLabel(alert.title) }}</p>
             <p class="mt-0.5 text-[11px] text-slate-500">{{ alert.detail }}</p>
           </div>
           <span class="shrink-0 text-xs font-semibold text-[var(--color-primary)]">Ver agora &rarr;</span>
@@ -1396,7 +1422,7 @@ function getRiskLabel(row) {
     <!-- 8. ANALISE AVANCADA E AUDITORIA (recolhida) -->
     <details class="rounded-[16px] border border-slate-200 bg-white p-4">
       <summary class="cursor-pointer text-sm font-semibold text-slate-700">
-        Analise avancada e auditoria
+        Análise avançada e auditoria
       </summary>
 
       <section class="mt-5">
@@ -1413,7 +1439,7 @@ function getRiskLabel(row) {
       </section>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Movimentacoes auditaveis</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Movimentações auditáveis</h3>
         <div v-if="auditEntries.length" class="mt-3 grid gap-3">
           <article
             v-for="entry in auditEntries"
@@ -1456,7 +1482,7 @@ function getRiskLabel(row) {
       </section>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Casos que pedem atencao</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Casos que pedem atenção</h3>
         <div v-if="activeCases.length" class="mt-3 grid gap-3">
           <article
             v-for="item in activeCases"
@@ -1492,7 +1518,7 @@ function getRiskLabel(row) {
       </section>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Frentes de governanca</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Frentes de governança</h3>
         <div class="mt-3 grid gap-3 md:grid-cols-2">
           <ActionTile
             v-for="card in governanceCards"

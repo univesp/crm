@@ -23,7 +23,7 @@ const primaryIdentity = computed(() => {
 
   return {
     id: 'user',
-    label: 'Usuario',
+    label: 'Usuário',
     value: mockContext.value.userName,
   }
 })
@@ -31,8 +31,8 @@ const primaryIdentity = computed(() => {
 const barItems = computed(() => [
   { id: 'origin', label: 'Entrada', value: mockContext.value.entryOrigin },
   { id: 'polo', label: 'Polo', value: mockContext.value.currentPolo },
-  { id: 'queues', label: 'Filas visiveis', value: scopeSummary.value.queues.join(', ') || 'Nenhuma' },
-  { id: 'areas', label: 'Areas visiveis', value: scopeSummary.value.areas.join(', ') || 'Nenhuma' },
+  { id: 'queues', label: 'Filas visíveis', value: scopeSummary.value.queues.join(', ') || 'Nenhuma' },
+  { id: 'areas', label: 'Áreas visíveis', value: scopeSummary.value.areas.join(', ') || 'Nenhuma' },
 ])
 
 const summaryItems = computed(() => [
@@ -44,7 +44,7 @@ const summaryItems = computed(() => [
       ]
     : [
         { id: 'profile', label: 'Perfil', value: mockContext.value.profileLabel },
-        { id: 'user', label: 'Usuario', value: mockContext.value.userName },
+        { id: 'user', label: 'Usuário', value: mockContext.value.userName },
         { id: 'mode', label: 'Ambiente', value: mockContext.value.mockMode ? 'Modo local' : 'Ambiente real' },
         { id: 'ai', label: 'IA', value: mockContext.value.aiEnabled ? 'Ligada' : 'Desligada' },
       ]),
