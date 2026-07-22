@@ -290,7 +290,7 @@ const managerQueueCards = computed(() =>
           id: 'owner_missing',
           label: 'Sem owner operacional',
           value: managerOverview.value.summary.find((item) => item.id === 'owner_missing')?.value || 0,
-          helper: 'Erro estrutural de ownership no fluxo.',
+          helper: 'Fluxo sem responsável definido.',
         },
         {
           id: 'unassigned',
@@ -974,7 +974,7 @@ onUnmounted(() => {
           class="rounded-[14px] border border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.66)] px-4 py-3 text-sm leading-6 text-[var(--color-danger)]"
         >
           <p class="font-semibold">Sem owner operacional: {{ ownerMissingCount }} caso(s)</p>
-          <p class="mt-1">Erro estrutural de fluxo/roteamento. Corrija ownership no bundle e reprocese a fila.</p>
+          <p class="mt-1">O fluxo não tem responsável válido. Corrija a FAQ e atualize a fila.</p>
         </div>
 
         <div
@@ -1154,7 +1154,7 @@ onUnmounted(() => {
         Nenhum caso da area foi encontrado neste recorte.
       </h2>
       <p class="mt-3 text-sm leading-7 text-slate-600">
-        Ajuste a busca, mude o bucket selecionado ou revise o escopo atual da area.
+        Ajuste a busca, altere o filtro ou confira a área selecionada.
       </p>
     </section>
   </div>

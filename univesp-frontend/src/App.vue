@@ -6,7 +6,6 @@ import AppSidebar from '@/components/AppSidebar.vue'
 import MockContextBar from '@/components/MockContextBar.vue'
 import { isMockRuntimeEnabled, listPublishedFaq } from '@/services/appApi'
 import { enablePublishedFaqRuntime, setPublishedFaqBundles } from '@/services/faqRuntime'
-import { buildShellPresentation } from '@/services/mockContextRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
 
@@ -97,7 +96,6 @@ const pageTitle = computed(() => {
 })
 const isAuthLayout = computed(() => route.meta.layout === 'auth')
 const isWireframeLayout = computed(() => route.meta.layout === 'wireframe')
-const shellPresentation = computed(() => buildShellPresentation(auth.mockContext))
 const isStudentShell = computed(() => auth.mockContext.isStudentShell)
 const isOperationalShell = computed(() => auth.mockContext.isOperationalShell)
 const shellThemeClass = computed(() => {
@@ -496,35 +494,19 @@ onErrorCaptured((error) => {
           :class="[
             isOperationalShell
               ? 'mb-2 flex flex-col gap-2 px-1 py-0.5 md:flex-row md:items-center md:justify-between'
-              : 'surface-panel rise-in mb-4 flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between',
+              : 'surface-panel rise-in mb-4 flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between',
           ]"
         >
           <div>
-            <div v-if="!isOperationalShell" class="flex flex-wrap items-center gap-2">
-              <span
-                :class="[
-                  'rounded-full px-3 py-1 text-xs font-semibold',
-                  'soft-chip',
-                ]"
-              >
-                {{ shellPresentation.label }}
-              </span>
-            </div>
             <h1
               :class="[
                 'font-semibold text-slate-950',
-                !isOperationalShell ? 'mt-3' : '',
+                !isOperationalShell ? '' : '',
                 isOperationalShell ? 'text-[1.35rem] md:text-[1.5rem]' : 'text-[2rem] md:text-[2.3rem]',
               ]"
             >
               {{ pageTitle }}
             </h1>
-            <p
-              v-if="!isOperationalShell"
-              class="mt-2 max-w-3xl text-sm leading-6 text-slate-600"
-            >
-              {{ shellPresentation.description }}
-            </p>
           </div>
 
           <div class="flex flex-wrap items-center gap-3">

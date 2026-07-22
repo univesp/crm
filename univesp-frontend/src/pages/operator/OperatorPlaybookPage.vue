@@ -452,7 +452,7 @@ function submitAssistedAction() {
       type: 'error',
       message:
         result?.errorMessage ||
-        'Nao foi possivel registrar o atendimento agora. Verifique ownership operacional e tente novamente.',
+        'Não foi possível registrar o atendimento agora. Verifique o responsável e tente novamente.',
     }
     return
   }

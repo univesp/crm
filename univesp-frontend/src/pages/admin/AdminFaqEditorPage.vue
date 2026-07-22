@@ -360,7 +360,7 @@ const selectedNodeEffectiveOwner = computed(() => {
   } catch (error) {
     console.warn(
       '[faq-builder][effective-owner-failed]',
-      String(error?.message || 'Falha ao resolver ownership do no selecionado.'),
+      String(error?.message || 'Não foi possível identificar o responsável pela etapa selecionada.'),
     )
     return null
   }
@@ -551,14 +551,14 @@ function rebuildRenderArtifacts({ safeMode = false } = {}) {
   } catch (error) {
     appendOpenMarker(
       'validation failed',
-      String(error?.message || 'Falha ao validar bundle.'),
+      String(error?.message || 'Não foi possível validar a FAQ.'),
     )
     nextValidation.errors = [
       {
         severity: 'error',
         code: 'runtime_validation_failed',
         nodeId: '',
-        message: String(error?.message || 'Falha ao validar bundle.'),
+        message: String(error?.message || 'Não foi possível validar a FAQ.'),
         blocksImport: false,
         blocksPublish: true,
       },
@@ -582,7 +582,7 @@ function rebuildRenderArtifacts({ safeMode = false } = {}) {
   } catch (error) {
     appendOpenMarker(
       'graph failed',
-      String(error?.message || 'Falha ao montar canvas.'),
+      String(error?.message || 'Não foi possível montar a visualização do fluxo.'),
     )
   }
 
@@ -1595,7 +1595,7 @@ async function onSpreadsheetSelected(event) {
       baseBundle: workspace.value.draftBundle,
     })
   } catch (error) {
-    setFeedback('error', error?.message || 'Falha ao processar o dry-run.')
+    setFeedback('error', error?.message || 'Não foi possível validar o arquivo.')
   } finally {
     importState.isLoading = false
   }
@@ -1659,7 +1659,7 @@ function applySpreadsheetImport() {
           {{ currentBundleEntry.title }}
         </h1>
         <p class="mt-1 text-xs text-slate-500">
-          {{ currentBundleEntry.subjectKey }} | {{ currentBundleEntry.bundleId }}
+          {{ currentBundleEntry.faqTypeLabel || currentBundleEntry.title }}
         </p>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           <StatusBadge :label="`Status: ${workspace.workflowStatus}`" />
@@ -1776,7 +1776,7 @@ function applySpreadsheetImport() {
             {{ `${sanitizedState.warnings.length} ajuste(s) aplicados para manter o fluxo editavel.` }}
           </p>
           <p class="mt-1 text-xs text-slate-600">
-            O modo seguro preserva a edicao e reduz o uso do canvas interativo. Reconstruir a organizacao visual refaz apenas a posicao dos nos.
+            A visualização simplificada mantém a edição disponível. Reorganizar o fluxo altera apenas a posição das etapas.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -1839,7 +1839,7 @@ function applySpreadsheetImport() {
         Fluxo nao encontrado
       </h2>
       <p class="mt-2 text-sm text-[var(--color-danger)]/80">
-        O bundle solicitado nao existe ou foi removido da biblioteca.
+        A FAQ solicitada não existe ou foi removida.
       </p>
       <button
         type="button"
@@ -1913,7 +1913,7 @@ function applySpreadsheetImport() {
             <article class="faq-canvas-shell rounded-[18px] border border-slate-200 bg-white">
               <div class="faq-canvas-shell__meta">
                 <p class="text-xs text-slate-600">
-                  Edite a estrutura no canvas. Clique no no para abrir detalhes.
+                  Selecione uma etapa para editar seu conteúdo e encaminhamento.
                 </p>
                 <div class="flex flex-wrap gap-2">
                   <button
@@ -1929,7 +1929,7 @@ function applySpreadsheetImport() {
                     class="rounded-[10px] border border-[#0b6e8c] px-3 py-1.5 text-[11px] font-semibold text-[#0b6e8c]"
                     @click="setSafeMode(false, { source: 'user' })"
                   >
-                    Tentar canvas interativo
+                    Usar visualização completa
                   </button>
                 </div>
               </div>
@@ -1939,7 +1939,7 @@ function applySpreadsheetImport() {
                   class="flex h-full min-h-[420px] flex-col rounded-[14px] border border-slate-200 bg-slate-50 p-3"
                 >
                   <p class="text-xs font-semibold text-slate-800">
-                    Modo seguro ativo: canvas interativo desativado para evitar travamento.
+                    Visualização simplificada ativa para manter a tela estável.
                   </p>
                   <p class="mt-1 text-xs text-slate-600">
                     Selecione um no abaixo para editar no painel lateral.
@@ -1981,14 +1981,14 @@ function applySpreadsheetImport() {
                   v-else
                   class="flex h-full min-h-[420px] items-center justify-center rounded-[14px] border border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm text-slate-600"
                 >
-                  Nenhum no valido para renderizar no canvas. Use o modo seguro ou reconstrua o snapshot.
+                  Nenhuma etapa válida foi encontrada. Reorganize o fluxo ou adicione uma etapa.
                 </div>
               </div>
             </article>
 
             <aside class="faq-node-drawer rounded-[18px] border border-slate-200 bg-white">
               <header class="faq-node-drawer__header">
-                <h2 class="text-sm font-semibold text-slate-900">Edicao do no</h2>
+                <h2 class="text-sm font-semibold text-slate-900">Editar etapa</h2>
                 <p class="text-xs text-slate-500">Ajuste apenas o no selecionado.</p>
               </header>
 
@@ -2326,7 +2326,7 @@ function applySpreadsheetImport() {
               <div v-else class="faq-node-drawer__empty">
                 <p class="text-sm font-semibold text-slate-900">Nenhum no selecionado</p>
                 <p class="mt-1 text-xs text-slate-600">
-                  Selecione um no no canvas para editar. Voce tambem pode começar pelo no raiz.
+                  Selecione uma etapa para editar. Você também pode começar pela primeira etapa.
                 </p>
                 <div class="mt-3 flex flex-wrap gap-2">
                   <button
@@ -2430,7 +2430,7 @@ function applySpreadsheetImport() {
                 Importacao por planilha ou JSON para este fluxo
               </p>
               <p class="mt-1 text-xs text-slate-600">
-                O dry-run aceita XLSX, bundle canonico JSON ou procedure-capture-v1. Nada e publicado automaticamente.
+                A validação aceita planilha ou arquivo JSON. Nada é publicado automaticamente.
               </p>
               <button
                 type="button"
@@ -2465,7 +2465,7 @@ function applySpreadsheetImport() {
             </article>
 
             <article class="rounded-[18px] border border-slate-200 bg-white p-4">
-              <p class="text-sm font-semibold text-slate-900">Resultado do dry-run</p>
+              <p class="text-sm font-semibold text-slate-900">Resultado da validação</p>
               <p v-if="importState.isLoading" class="mt-2 text-sm text-slate-600">
                 Processando arquivo e validando o rascunho...
               </p>
@@ -2574,11 +2574,11 @@ function applySpreadsheetImport() {
             <article class="rounded-[18px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">Diff do draft atual</p>
               <div class="mt-3 grid gap-1 text-xs text-slate-600 md:grid-cols-2">
-                <p>Nos criados: {{ bundleDiff.summary.createdNodes }}</p>
-                <p>Nos removidos: {{ bundleDiff.summary.removedNodes }}</p>
-                <p>Nos alterados: {{ bundleDiff.summary.updatedNodes }}</p>
-                <p>Links criados: {{ bundleDiff.summary.createdLinks }}</p>
-                <p>Links removidos: {{ bundleDiff.summary.removedLinks }}</p>
+                <p>Etapas criadas: {{ bundleDiff.summary.createdNodes }}</p>
+                <p>Etapas removidas: {{ bundleDiff.summary.removedNodes }}</p>
+                <p>Etapas alteradas: {{ bundleDiff.summary.updatedNodes }}</p>
+                <p>Conexões criadas: {{ bundleDiff.summary.createdLinks }}</p>
+                <p>Conexões removidas: {{ bundleDiff.summary.removedLinks }}</p>
               </div>
               <details class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 p-3">
                 <summary class="cursor-pointer text-xs font-semibold text-slate-700">
@@ -2589,7 +2589,7 @@ function applySpreadsheetImport() {
               <p class="mt-3 text-xs text-slate-500">
                 Readiness backend/Frappe: upsert
                 {{ backendReadiness.hasServerUpsert ? 'ativo' : 'mockado' }} |
-                dry-run server
+                validação do servidor
                 {{ backendReadiness.hasServerDryRun ? 'ativo' : 'mockado' }} |
                 lock server
                 {{ backendReadiness.hasServerLock ? 'ativo' : 'mockado' }}.

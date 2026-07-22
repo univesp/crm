@@ -54,7 +54,7 @@ test('edita e desativa usuario com motivo auditavel', async ({ page }) => {
   })
 
   await page.goto('/crm/admin/permissoes')
-  await expect(page.getByRole('heading', { name: 'Usuarios e autorizacoes' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Pessoas e acessos' })).toBeVisible()
   await page.getByRole('button', { name: /Ana Administradora/ }).click()
   await page.getByLabel('Usuario ativo').uncheck()
   await page.getByPlaceholder('Obrigatorio para auditoria').fill('Desativacao solicitada pela gestao')
@@ -74,7 +74,7 @@ test('aprova solicitacao pendente com perfil e fila', async ({ page }) => {
   })
 
   await page.goto('/crm/admin/permissoes')
-  await page.getByRole('button', { name: /Pendencias/ }).click()
+  await page.getByRole('button', { name: 'Solicitacoes pendentes' }).click()
   await page.getByRole('button', { name: /Operador Pendente/ }).click()
   await page.getByLabel('Perfil').selectOption('op')
   await page.getByText('Atendimento Geral', { exact: true }).locator('..').getByRole('checkbox').check()

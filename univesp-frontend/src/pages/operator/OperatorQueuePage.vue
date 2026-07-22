@@ -304,6 +304,9 @@ const quickBuckets = computed(() =>
   })),
 )
 
+const visibleQuickBuckets = computed(() =>
+  quickBuckets.value.filter((bucket) => bucket.id === 'all' || bucket.count > 0),
+)
 function lookupFilterLabel(field, value) {
   if (!value || value === 'todos') {
     return ''
@@ -554,9 +557,9 @@ onUnmounted(() => {
           </span>
         </div>
 
-        <div class="flex flex-wrap gap-2">
+        <div v-if="operatorQueueEntries.length" class="flex flex-wrap gap-2">
           <button
-            v-for="bucket in quickBuckets"
+            v-for="bucket in visibleQuickBuckets"
             :key="bucket.id"
             type="button"
             :aria-pressed="bucket.active ? 'true' : 'false'"
@@ -1052,10 +1055,10 @@ onUnmounted(() => {
         Nenhum atendimento encontrado
       </p>
       <h3 class="mt-3 text-2xl font-semibold text-slate-950">
-        O recorte atual nao retornou itens operacionais.
+        Nenhum atendimento corresponde aos filtros.
       </h3>
       <p class="mt-3 text-sm leading-7 text-slate-600">
-        Ajuste busca ou bucket para retomar a leitura da fila.
+        Limpe os filtros ou faça uma nova busca.
       </p>
     </div>
 

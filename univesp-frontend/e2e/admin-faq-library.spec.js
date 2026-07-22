@@ -35,12 +35,12 @@ test('biblioteca FAQ carrega e cria fluxo pela API institucional versionada', as
   })
 
   await page.goto('/crm/admin/faq')
-  await expect(page.getByText('Carga rapida por planilha')).toBeVisible()
-  await expect(page.getByText('A importacao e tudo-ou-nada')).toBeVisible()
-  await page.getByText('Criar novo fluxo').click()
-  await page.getByLabel('Nome do fluxo').fill('Fluxo institucional E2E')
-  await page.getByLabel('Chave do assunto (opcional)').fill('fluxo_e2e')
-  await page.getByRole('button', { name: 'Criar fluxo' }).click()
+  await expect(page.getByRole('button', { name: 'Importar arquivo' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Nova FAQ' })).toBeVisible()
+  await page.getByRole('button', { name: 'Nova FAQ' }).click()
+  await page.getByLabel('Nome da FAQ').fill('Fluxo institucional E2E')
+
+  await page.getByRole('button', { name: 'Criar FAQ' }).click()
 
   await expect.poll(() => savedPayload).not.toBeNull()
   expect(savedPayload.version).toBe('faq-version-1')

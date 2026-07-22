@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
   clearFaqBuilderBundleLibraryLocal,
@@ -81,6 +80,9 @@ const feedback = reactive({
   message: '',
 })
 
+const createOpen = ref(false)
+const importOpen = ref(false)
+
 const allRows = computed(() =>
   safeRuntimeCall(
     () =>
@@ -107,27 +109,22 @@ const rows = computed(() =>
   ),
 )
 
-const summary = computed(() => {
-  const base = {
-    total: allRows.value.length,
-    draft: 0,
-    review: 0,
-    published: 0,
-    archived: 0,
-    withErrors: 0,
-  }
+function uniqueById(items = []) {
+  return Array.from(new Map(items.map((item) => [item.bundleId, item])).values())
+}
 
-  for (const item of allRows.value) {
-    if (item.statusKey === 'draft') base.draft += 1
-    if (item.statusKey === 'in review') base.review += 1
-    if (item.statusKey === 'published') base.published += 1
-    if (item.statusKey === 'archived') base.archived += 1
-    if (item.hasBlockingError) base.withErrors += 1
+const uniqueRows = computed(() => uniqueById(rows.value))
+const uniqueSummary = computed(() => {
+  const result = { total: 0, draft: 0, review: 0, published: 0, withErrors: 0 }
+  for (const item of uniqueById(allRows.value)) {
+    result.total += 1
+    if (item.statusKey === 'draft') result.draft += 1
+    if (item.statusKey === 'in review') result.review += 1
+    if (item.statusKey === 'published') result.published += 1
+    if (item.hasBlockingError) result.withErrors += 1
   }
-
-  return base
+  return result
 })
-
 function setFeedback(type = '', message = '') {
   feedback.type = type
   feedback.message = message
@@ -256,183 +253,88 @@ function situationTone(row = {}) {
 </script>
 
 <template>
-  <div class="grid gap-5">
-    <section
-      v-if="runtimeError"
-      class="rounded-[14px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
-    >
-      <p class="font-semibold">Nao foi possivel carregar a biblioteca local.</p>
-      <p class="mt-1">{{ runtimeError }}</p>
-      <button
-        type="button"
-        class="mt-3 rounded-[10px] border border-[rgba(166,31,40,0.28)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
-        @click="resetLibraryState"
-      >
-        Reinicializar dados locais do FAQ Builder
-      </button>
+  <div class="grid gap-4">
+    <section v-if="runtimeError" class="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+      <p class="font-semibold">Os dados não puderam ser carregados.</p>
+      <p class="mt-1">Tente novamente. Se o problema continuar, informe o horário ao suporte.</p>
+      <button type="button" class="mt-3 min-h-11 rounded-[10px] border border-red-300 bg-white px-4 font-semibold" @click="resetLibraryState">Tentar novamente</button>
     </section>
 
-    <SectionPanel
-      eyebrow="Admin / FAQ Builder"
-      title="Biblioteca de fluxos da base de conhecimento"
-      description="Escolha um fluxo para editar. O canvas abre apenas um bundle por vez em tela dedicada."
-    >
-      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Fluxos</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+    <section class="rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p class="font-semibold text-slate-950">
+            {{ uniqueSummary.total }} FAQs
+            <span class="font-normal text-slate-500">· {{ uniqueSummary.draft }} rascunhos · {{ uniqueSummary.review }} em revisão · {{ uniqueSummary.published }} publicadas</span>
+          </p>
+          <p v-if="uniqueSummary.withErrors" class="mt-1 text-sm font-semibold text-red-700">
+            {{ uniqueSummary.withErrors }} {{ uniqueSummary.withErrors === 1 ? 'FAQ precisa' : 'FAQs precisam' }} de correção antes da publicação.
+          </p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Rascunhos</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.draft }}</p>
-        </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Em revisao</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.review }}</p>
-        </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Publicados</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.published }}</p>
-        </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Com erro estrutural</p>
-          <p class="mt-1 text-xl font-semibold text-[var(--color-danger)]">{{ summary.withErrors }}</p>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="min-h-11 rounded-[10px] border border-slate-300 bg-white px-4 font-semibold text-slate-800" @click="importOpen = !importOpen">Importar arquivo</button>
+          <button type="button" class="min-h-11 rounded-[10px] bg-[var(--color-primary)] px-4 font-semibold text-white" @click="createOpen = !createOpen">Nova FAQ</button>
         </div>
       </div>
-    </SectionPanel>
 
-    <details open class="rounded-[14px] border border-indigo-200 bg-indigo-50/70 px-4 py-3">
-      <summary class="cursor-pointer text-sm font-semibold text-slate-900">
-        Carga rapida por planilha
-      </summary>
-      <ol class="mt-3 grid gap-2 text-xs text-slate-700 md:grid-cols-5">
-        <li><strong>1.</strong> Crie um fluxo por assunto.</li>
-        <li><strong>2.</strong> Abra o fluxo e baixe o template XLSX.</li>
-        <li><strong>3.</strong> Preencha perguntas, respostas e ownership.</li>
-        <li><strong>4.</strong> Rode o dry-run no modo Importacao.</li>
-        <li><strong>5.</strong> Aplique, salve, revise e publique.</li>
-      </ol>
-      <p class="mt-3 text-xs text-slate-600">
-        A importacao e tudo-ou-nada, substitui apenas o rascunho do fluxo aberto e nunca publica automaticamente.
-      </p>
-    </details>
+      <div v-if="importOpen" class="mt-4 rounded-[12px] bg-slate-50 p-4 text-sm text-slate-700">
+        <p class="font-semibold text-slate-950">Importar conteúdo</p>
+        <p class="mt-1">Abra a FAQ que será atualizada e escolha “Importar conteúdo”. O arquivo será validado antes de substituir o rascunho e nunca será publicado automaticamente.</p>
+      </div>
 
-    <section
-      v-if="feedback.message"
-      class="rounded-[14px] border px-4 py-3 text-sm"
-      :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'"
-    >
+      <form v-if="createOpen" class="mt-4 grid gap-3 rounded-[12px] bg-slate-50 p-4 md:grid-cols-[200px_1fr_auto] md:items-end" @submit.prevent="createFlow">
+        <label class="grid gap-1">
+          <span class="text-sm font-semibold text-slate-700">Público</span>
+          <select v-model="createForm.faqType" class="min-h-11 rounded-[10px] border border-slate-300 bg-white px-3">
+            <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
+        </label>
+        <label class="grid gap-1">
+          <span class="text-sm font-semibold text-slate-700">Nome da FAQ</span>
+          <input v-model="createForm.title" type="text" required class="min-h-11 rounded-[10px] border border-slate-300 bg-white px-3" placeholder="Ex.: Segunda chamada de prova" />
+        </label>
+        <button type="submit" class="min-h-11 rounded-[10px] bg-slate-950 px-5 font-semibold text-white">Criar FAQ</button>
+      </form>
+    </section>
+
+    <section v-if="feedback.message" class="rounded-[14px] border px-4 py-3 text-sm" :class="feedback.type === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'" role="status">
       {{ feedback.message }}
     </section>
 
-    <section class="grid gap-3">
-      <article class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
-        <p class="text-sm font-semibold text-slate-900">Filtros da biblioteca</p>
-        <div class="mt-2 grid gap-2 md:grid-cols-[minmax(220px,1fr)_minmax(150px,180px)_minmax(150px,180px)]">
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Buscar</span>
-            <input v-model="filters.search" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Nome do fluxo, assunto ou tipo" />
-          </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Status</span>
-            <select v-model="filters.status" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
-              <option value="all">Todos</option>
-              <option value="draft">Rascunho</option>
-              <option value="in review">Em revisao</option>
-              <option value="published">Publicado</option>
-              <option value="archived">Arquivado</option>
-            </select>
-          </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo de FAQ</span>
-            <select v-model="filters.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
-              <option value="all">Todos</option>
-              <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
-        </div>
-      </article>
+    <section class="rounded-[16px] border border-slate-200 bg-white">
+      <div class="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_180px_180px]">
+        <label class="grid gap-1">
+          <span class="text-sm font-semibold text-slate-700">Buscar FAQ</span>
+          <input v-model="filters.search" type="search" class="min-h-11 rounded-[10px] border border-slate-300 px-3" placeholder="Nome ou assunto" />
+        </label>
+        <label class="grid gap-1">
+          <span class="text-sm font-semibold text-slate-700">Estado</span>
+          <select v-model="filters.status" class="min-h-11 rounded-[10px] border border-slate-300 px-3">
+            <option value="all">Todos</option><option value="draft">Rascunho</option><option value="in review">Em revisão</option><option value="published">Publicado</option><option value="archived">Arquivado</option>
+          </select>
+        </label>
+        <label class="grid gap-1">
+          <span class="text-sm font-semibold text-slate-700">Público</span>
+          <select v-model="filters.faqType" class="min-h-11 rounded-[10px] border border-slate-300 px-3">
+            <option value="all">Todos</option>
+            <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
+        </label>
+      </div>
 
-      <details class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
-        <summary class="cursor-pointer text-sm font-semibold text-slate-900">
-          Criar novo fluxo
-          <span class="ml-2 text-xs font-normal text-slate-500">Cadastre um novo fluxo quando nao houver fluxo equivalente.</span>
-        </summary>
-        <div class="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_140px] lg:items-end">
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo</span>
-            <select v-model="createForm.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
-              <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Nome do fluxo</span>
-            <input v-model="createForm.title" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: Provas e segunda chamada" />
-          </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Chave do assunto (opcional)</span>
-            <input v-model="createForm.subjectKey" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: provas_segunda_chamada" />
-          </label>
-          <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white" @click="createFlow">
-            Criar fluxo
-          </button>
-        </div>
-      </details>
-    </section>
-
-    <section class="rounded-[18px] border border-slate-200 bg-white p-4">
-      <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
-      <div class="mt-3 overflow-auto rounded-[12px] border border-slate-200">
-        <table class="w-full min-w-[900px] text-left text-xs">
-          <thead class="bg-slate-100 text-slate-600">
-            <tr>
-              <th class="px-3 py-2">Fluxo</th>
-              <th class="px-3 py-2">Status</th>
-              <th class="px-3 py-2">Area responsavel</th>
-              <th class="px-3 py-2">Situacao</th>
-              <th class="px-3 py-2">Atualizado em</th>
-              <th class="px-3 py-2">Acao</th>
-            </tr>
-          </thead>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[760px] text-left text-sm">
+          <thead class="bg-slate-50 text-slate-600"><tr><th class="px-4 py-3">FAQ</th><th class="px-4 py-3">Estado</th><th class="px-4 py-3">Responsável</th><th class="px-4 py-3">Pendência</th><th class="px-4 py-3">Atualização</th><th class="px-4 py-3"><span class="sr-only">Ação</span></th></tr></thead>
           <tbody>
-            <tr v-for="row in rows" :key="row.bundleId" class="border-t border-slate-200">
-              <td class="px-3 py-2">
-                <p class="font-semibold text-slate-900">{{ row.title }}</p>
-              </td>
-              <td class="px-3 py-2">
-                <StatusBadge :label="statusLabel(row.statusKey || row.workflowStatus)" />
-              </td>
-              <td class="px-3 py-2">
-                <p class="font-semibold text-slate-900">{{ row.bundleOwnerLabel || '-' }}</p>
-              </td>
-              <td class="px-3 py-2">
-                <p
-                  :class="
-                    situationTone(row) === 'danger'
-                      ? 'text-[var(--color-danger)] font-semibold'
-                      : situationTone(row) === 'warning'
-                        ? 'text-amber-700 font-semibold'
-                        : 'text-[var(--color-success)] font-semibold'
-                  "
-                >
-                  {{ situationLabel(row) }}
-                </p>
-                <p class="mt-1 text-slate-600">{{ situationHint(row) }}</p>
-              </td>
-              <td class="px-3 py-2">
-                <p>{{ formatDate(row.updatedAt) }}</p>
-              </td>
-              <td class="px-3 py-2">
-                <div class="flex flex-wrap gap-2">
-                  <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
-                    Ver fluxo
-                  </button>
-                </div>
-              </td>
+            <tr v-for="row in uniqueRows" :key="row.bundleId" class="border-t border-slate-200">
+              <td class="px-4 py-3 font-semibold text-slate-950">{{ row.title }}</td>
+              <td class="px-4 py-3"><StatusBadge :label="statusLabel(row.statusKey || row.workflowStatus)" /></td>
+              <td class="px-4 py-3 text-slate-700">{{ row.bundleOwnerLabel || 'Não definido' }}</td>
+              <td class="px-4 py-3"><span :class="situationTone(row) === 'danger' ? 'font-semibold text-red-700' : situationTone(row) === 'warning' ? 'font-semibold text-amber-700' : 'text-green-700'">{{ situationHint(row) }}</span></td>
+              <td class="px-4 py-3 text-slate-600">{{ formatDate(row.updatedAt) }}</td>
+              <td class="px-4 py-3 text-right"><button type="button" class="min-h-11 rounded-[10px] border border-slate-300 px-4 font-semibold text-slate-900" @click="openBundle(row.bundleId)">Abrir</button></td>
             </tr>
-            <tr v-if="!rows.length" class="border-t border-slate-200">
-              <td colspan="6" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
-            </tr>
+            <tr v-if="!uniqueRows.length" class="border-t border-slate-200"><td colspan="6" class="px-4 py-8 text-center text-slate-600">Nenhuma FAQ encontrada. Ajuste os filtros ou crie uma nova FAQ.</td></tr>
           </tbody>
         </table>
       </div>
