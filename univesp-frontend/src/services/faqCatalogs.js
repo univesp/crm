@@ -111,6 +111,10 @@ export const QUEUE_DESTINATION_CATALOG = Object.freeze({
     label: 'Fila do OP',
     owner: 'operacao',
   }),
+  'atendimento-geral': Object.freeze({
+    label: 'Atendimento geral',
+    owner: 'operacao',
+  }),
   sra: Object.freeze({
     label: 'Secretaria e registro academico',
     owner: 'area_interna',
