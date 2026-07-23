@@ -36,13 +36,13 @@
       "fieldtype": "Select",
       "label": "Perfil base",
       "reqd": 1,
-      "options": "aluno\nop\ngestor_polos\nanalista_area\ngestor_area\nadmin_central"
+      "options": "aluno\nop\nop_externo\ngestor_polos\nanalista_area\ngestor_area\nadmin_central"
     },
     {
       "fieldname": "scope_type",
       "fieldtype": "Select",
       "label": "Tipo de escopo",
-      "options": "\nqueues\npolos\nareas"
+      "options": "\nqueues\npolos\nareas\nregional_pools"
     },
     {
       "fieldname": "capabilities_json",

@@ -13,6 +13,8 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 ## FAQ e conhecimento
 
 - [x] Seeds JSON: `docs/seeds/faq-{aluno,op,publico}-seed.json`
+- [x] Filas HD Team homolog: `atendimento-geral`, `sra` (tickets recebem `agent_group`)
+- [x] Catalogo frontend inclui `atendimento-geral` (`faqCatalogs.js`) — redeploy frontend antes do import
 - [ ] Bundles publicados no Admin (você)
 - [ ] Aluno consome FAQ real do Frappe
 
@@ -21,7 +23,8 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 - [x] API tickets + anexos + transições (Vue ↔ BFF ↔ Frappe)
 - [x] Perfil `op_externo` + escopo `regional_pools`
 - [x] `POST /tickets/:id/escalate` (BPO → `waiting_internal`)
-- [ ] Smoke E2E validado em ambiente real (`ops/smoke/mvp-e2e.md`)
+- [x] Smoke E2E estrutural em homolog (health + FAQ publico vazia) — `ops/smoke/mvp-e2e.ps1`
+- [ ] Smoke E2E fluxos UI secoes 2–5 (`ops/smoke/mvp-e2e.md`)
 
 ## Cadastro aluno (Trilha D)
 
@@ -37,7 +40,8 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 ## Infra (Trilha A/F)
 
 - [x] `docker-compose.vm.yml` + `ops/vm/bootstrap.sh`
-- [ ] `.env.vm` preenchido + deploy VM
+- [x] Deploy VM homolog (`/var/crm`, site `crm.localhost`, migrate OK)
+- [ ] `.env.vm` completo (Trino, GCS, IdP)
 - [ ] Bucket GCS + `site_config` Frappe (TI)
 
 ## Critério de aceite
