@@ -241,10 +241,6 @@ export function buildSsoStartUrl({
 }
 
 export async function fetchCurrentSsoUser() {
-  if (devBypassConfig.enabled) {
-    return buildDevBypassUser()
-  }
-
   const response = await fetch(runtimeConfig.sessionPath, {
     method: 'GET',
     credentials: 'include',
@@ -254,6 +250,9 @@ export async function fetchCurrentSsoUser() {
   const payload = await parseResponsePayload(response)
 
   if (response.status === 401 || response.status === 403) {
+    if (devBypassConfig.enabled) {
+      return buildDevBypassUser()
+    }
     return null
   }
   if (!response.ok) {
@@ -266,6 +265,9 @@ export async function fetchCurrentSsoUser() {
 
   const session = unwrapEnvelope(payload)
   if (!session || session.authenticated === false) {
+    if (devBypassConfig.enabled) {
+      return buildDevBypassUser()
+    }
     return null
   }
 
