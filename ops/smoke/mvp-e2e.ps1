@@ -33,7 +33,7 @@ Invoke-Smoke "FAQ publico (visitante)" {
   } catch {
     $status = $_.Exception.Response.StatusCode.value__
     if ($status -eq 404) {
-      Write-Host "    AVISO: 404 — branch MVP ainda nao deployada neste ambiente" -ForegroundColor Yellow
+      Write-Host "    AVISO: 404 - branch MVP ainda nao deployada neste ambiente" -ForegroundColor Yellow
       return
     }
     throw
