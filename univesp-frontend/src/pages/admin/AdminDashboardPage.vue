@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive } from 'vue'
+import { RouterLink } from 'vue-router'
 import ActionTile from '@/components/ActionTile.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import PriorityBadge from '@/components/PriorityBadge.vue'
@@ -1440,44 +1441,14 @@ function displayLabel(value) {
 
       <section class="mt-5">
         <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Movimentações auditáveis</h3>
-        <div v-if="auditEntries.length" class="mt-3 grid gap-3">
-          <article
-            v-for="entry in auditEntries"
-            :key="entry.id"
-            class="inner-panel p-4"
-          >
-            <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-xs font-semibold text-slate-500">{{ entry.caseId }}</p>
-                  <StatusBadge :label="entry.actionLabel" />
-                </div>
-                <h3 class="mt-2 text-base font-semibold text-slate-950">{{ entry.subject }}</h3>
-                <p class="mt-1 text-xs text-slate-600">{{ entry.actor }} - {{ entry.occurredAtLabel }}</p>
-                <p class="mt-0.5 text-xs text-slate-600">{{ entry.student }} - Polo {{ entry.polo }} - {{ entry.theme }}</p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <StatusBadge :label="entry.criticality" />
-                <StatusBadge :label="entry.queueAfter" />
-              </div>
-            </div>
-            <div class="mt-3 grid gap-2 md:grid-cols-2">
-              <div class="rounded-[14px] bg-slate-50 px-3 py-2">
-                <p class="text-xs font-semibold text-slate-400">Antes</p>
-                <p class="mt-1 text-xs font-semibold text-slate-900">{{ entry.statusBefore }}</p>
-                <p class="mt-0.5 text-xs text-slate-500">{{ entry.queueBefore }}</p>
-              </div>
-              <div class="rounded-[14px] bg-slate-50 px-3 py-2">
-                <p class="text-xs font-semibold text-slate-400">Depois</p>
-                <p class="mt-1 text-xs font-semibold text-slate-900">{{ entry.statusAfter }}</p>
-                <p class="mt-0.5 text-xs text-slate-500">{{ entry.queueAfter }}</p>
-              </div>
-            </div>
-          </article>
-        </div>
-
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
-          Nenhum evento auditavel nos filtros atuais.
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4">
+          <p class="text-sm text-slate-600">
+            {{ auditEntries.length }} movimentação(ões) nos filtros atuais. A lista completa com busca e
+            paginação está em uma tela dedicada.
+          </p>
+          <RouterLink to="/admin/auditoria" class="button button-secondary button-compact shrink-0">
+            Abrir auditoria
+          </RouterLink>
         </div>
       </section>
 

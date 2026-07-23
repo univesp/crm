@@ -2095,6 +2095,18 @@ function applySpreadsheetImport() {
                     class="mt-2 min-h-[140px] rounded-[12px] border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-700"
                     @input="updateNodeField('resposta', $event.target.innerHTML)"
                   ></div>
+                  <label class="mt-3 flex items-start gap-2 text-xs text-slate-700">
+                    <input
+                      type="checkbox"
+                      class="mt-0.5"
+                      :checked="Boolean(selectedNode.show_vigent_rule)"
+                      @change="updateNodeField('show_vigent_rule', $event.target.checked)"
+                    />
+                    <span>
+                      Mostrar prazo/regra vigente nesta resposta, referenciando a governança central
+                      por tema/subtema (sem duplicar o texto da regra).
+                    </span>
+                  </label>
                 </section>
 
                 <details class="faq-advanced-panel">

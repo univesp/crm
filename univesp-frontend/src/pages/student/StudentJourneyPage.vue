@@ -3,6 +3,9 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
+import SlaBadge from '@/components/SlaBadge.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import { buildFaqVigentRuleSummary } from '@/services/faqRulesRuntime'
 import { resolveFaqMediaUrl } from '@/services/faqMedia'
 import { buildStudentFaqHomeEntries, buildStudentFaqRuntime } from '@/services/faqRuntime'
 import { useStudentSupportStore } from '@/stores/studentSupport'
@@ -204,6 +207,10 @@ const studentMeaning = computed(() => {
 
   return 'Esta orientacao fica registrada no portal e voce pode decidir se precisa ou nao seguir para atendimento.'
 })
+
+const vigentRuleSummary = computed(() =>
+  activeNodeIsLeaf.value ? buildFaqVigentRuleSummary(activeNode.value) : null,
+)
 
 function syncFaqContext(node) {
   if (!node) {
@@ -461,6 +468,37 @@ watch(
             <p class="mt-3 text-sm leading-7 text-slate-700">
               {{ studentMeaning }}
             </p>
+          </section>
+
+          <section
+            v-if="vigentRuleSummary"
+            class="rounded-[22px] border border-[rgba(0,95,153,0.18)] bg-[rgba(232,242,251,0.72)] p-5"
+          >
+            <p class="student-section-label text-[var(--color-info)]">
+              {{ vigentRuleSummary.title }}
+            </p>
+            <p class="mt-3 text-sm leading-7 text-slate-700">
+              {{ vigentRuleSummary.message }}
+            </p>
+            <div v-if="vigentRuleSummary.slaLabel || vigentRuleSummary.criticalityLabel" class="mt-4 flex flex-wrap gap-2">
+              <SlaBadge v-if="vigentRuleSummary.slaLabel" :label="vigentRuleSummary.slaLabel" />
+              <StatusBadge
+                v-if="vigentRuleSummary.criticalityLabel"
+                :label="`Criticidade ${vigentRuleSummary.criticalityLabel}`"
+              />
+            </div>
+            <ul v-if="vigentRuleSummary.references.length" class="mt-4 grid gap-2 text-sm text-slate-700">
+              <li
+                v-for="reference in vigentRuleSummary.references"
+                :key="reference.id"
+                class="rounded-[16px] border border-slate-200 bg-white/90 px-4 py-3"
+              >
+                <p class="font-semibold text-slate-900">
+                  {{ reference.targetLabel }}
+                </p>
+                <p v-if="reference.note" class="mt-1 text-xs text-slate-600">{{ reference.note }}</p>
+              </li>
+            </ul>
           </section>
 
           <section class="rounded-[22px] border border-slate-200 bg-white/92 p-5">

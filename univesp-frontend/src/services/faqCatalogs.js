@@ -81,6 +81,10 @@ export const FAQ_TYPE_CATALOG = Object.freeze({
     label: 'FAQ operacional do OP',
     profile: 'op',
   }),
+  publico: Object.freeze({
+    label: 'FAQ publica (nao-aluno)',
+    profile: 'publico',
+  }),
 })
 
 export const NODE_TYPE_CATALOG = Object.freeze({

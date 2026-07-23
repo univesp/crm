@@ -184,6 +184,10 @@ export async function listAccessAudit(params = {}) {
   return appRequest(withQuery('/admin/audit', params))
 }
 
+export async function listTicketAudit(params = {}) {
+  return appRequest(withQuery('/admin/ticket-audit', params))
+}
+
 export async function listPublishedFaq(params = {}) {
   return appRequest(withQuery('/knowledge/faq-published', params))
 }
@@ -251,6 +255,43 @@ export async function revokeProfileAssignment(assignmentId) {
 export async function listSimulationAudit(params = {}) {
   return appRequest(withQuery('/admin/simulation-audit', params))
 }
+
+export async function validateStudent(payload) {
+  return appRequest('/students/validate', { method: 'POST', body: payload })
+}
+
+const publicApiBase = normalizeBasePath(import.meta.env.VITE_PUBLIC_API_BASE || '/api/public/v1')
+
+export async function listPublicFaq(params = {}) {
+  return publicRequest(withQuery('/knowledge/faq-published', { faq_type: 'publico', ...params }))
+}
+
+export async function createPublicTicket(payload) {
+  return publicRequest('/tickets', { method: 'POST', body: payload })
+}
+
+async function publicRequest(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase()
+  const headers = new Headers(options.headers || {})
+  headers.set('Accept', 'application/json')
+  headers.set('X-Requested-With', 'XMLHttpRequest')
+  const body = normalizeRequestBody(options.body, headers)
+  const normalized = String(path || '').trim()
+  const url = `${publicApiBase}${normalized.startsWith('/') ? normalized : `/${normalized}`}`
+  const response = await fetch(url, { method, body, headers, cache: 'no-store' })
+  const payload = await parseResponsePayload(response)
+  const requestId =
+    response.headers.get('X-Request-ID') || payload?.request_id || payload?.meta?.request_id || ''
+  if (!response.ok || payload?.error) {
+    const error = payload?.error || {}
+    throw new AppApiError(
+      error.user_message || error.message || `A API publica respondeu com erro HTTP ${response.status}.`,
+      { status: response.status, code: error.code || 'PUBLIC_API_ERROR', requestId, payload },
+    )
+  }
+  return { data: payload?.data ?? payload, meta: payload?.meta || {}, requestId }
+}
+
 export async function appRequest(path, options = {}) {
   const method = String(options.method || 'GET').toUpperCase()
   const headers = new Headers(options.headers || {})
