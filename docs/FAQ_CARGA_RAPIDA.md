@@ -158,6 +158,12 @@ Para volume:
 
 Prioridades: matrícula/rematrícula, calendário/provas, AVA, documentos/declarações, estágio/TCC, bolsas/pagamentos, polo e acesso/senha.
 
+## FAQ tipo `publico`
+
+- Use `"tipo_faq": "publico"` no JSON canônico (candidato, ex-aluno, visitante).
+- Seed de referência: `univesp-frontend/mocks/faq-publico.json`.
+- Publicar no Admin FAQ Builder; consumo em `/publico` via `/api/public/v1/knowledge/faq-published`.
+
 ## Segurança e rollback editorial
 
 Antes de carga grande, mantenha backup do `Univesp Knowledge Library` e banco. O salvamento usa versão otimista e rejeita escrita desatualizada.

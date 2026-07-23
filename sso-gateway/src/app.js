@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { createSamlStrategy } from './lib/saml.js'
 import appRouter from './routes/app.js'
 import meRouter from './routes/me.js'
+import publicRouter from './routes/public.js'
 import ssoRouter from './routes/sso.js'
 
 export function createApp({ sessionStore } = {}) {
@@ -43,6 +44,7 @@ export function createApp({ sessionStore } = {}) {
   app.use(passport.session())
   app.use('/api/sso', requestLimit(60), ssoRouter)
   app.use('/api/me', meRouter)
+  app.use('/api/public/v1', requestLimit(120), publicRouter)
   app.use('/api/app/v1', requestLimit(300), enforceBodySize, appRouter)
   app.get('/health', (_req, res) => res.json({ status: 'ok' }))
   app.use((error, _req, res, _next) => {

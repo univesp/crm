@@ -43,6 +43,15 @@ const routes = [
     },
   },
   {
+    path: '/publico',
+    name: 'public-visitor',
+    component: () => import('@/pages/public/PublicVisitorPage.vue'),
+    meta: {
+      title: 'Atendimento publico',
+      layout: 'auth',
+    },
+  },
+  {
     path: '/acesso-pendente',
     name: 'access-pending',
     component: () => import('@/pages/AccessPendingPage.vue'),
@@ -337,12 +346,38 @@ const routes = [
     },
   },
   {
+    path: '/admin/protocolos',
+    name: 'admin-protocols',
+    component: () => import('@/pages/admin/AdminProtocolsPage.vue'),
+    meta: {
+      title: 'Protocolos',
+      stage: 'admin-protocols',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['view_ticket'],
+    },
+  },
+  {
     path: '/admin/protocolos/:protocolId',
     name: 'admin-protocol-detail',
     component: () => import('@/pages/admin/AdminProtocolDetailPage.vue'),
     meta: {
       title: 'Consulta de protocolo',
       stage: 'admin-protocol-detail',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['view_ticket'],
+    },
+  },
+  {
+    path: '/admin/auditoria',
+    name: 'admin-audit',
+    component: () => import('@/pages/admin/AdminAuditPage.vue'),
+    meta: {
+      title: 'Auditoria operacional',
+      stage: 'admin-audit',
       requiresAuth: true,
       shellKey: 'governance',
       allowedProfiles: ['admin_central'],

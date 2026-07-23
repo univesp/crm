@@ -41,6 +41,24 @@ resultado e nunca ampliam o escopo.
 
 - `GET /api/app/v1/queues`
 - `GET /api/app/v1/knowledge/published`
+- `GET /api/app/v1/knowledge/faq-published?faq_type=aluno|op|publico`
+
+## Cadastro aluno (pos-SSO)
+
+- `POST /api/app/v1/students/validate`
+
+Corpo: `{ "email", "cpf", "ra" }`. Resposta: `{ "found", "student": { "ra", "nome", "polo_id", "polo_nome", "curso", "situacao" } }`.
+
+## Visitante (sem SSO)
+
+Rotas em `/api/public/v1/` (rate limit no BFF):
+
+- `GET /api/public/v1/knowledge/faq-published?faq_type=publico`
+- `POST /api/public/v1/tickets` — exige `lgpd_consent: true` e `visitor: { nome, cpf, email, tipo }`; ticket com `custom_univesp_source = publico`.
+
+## Campos de origem em tickets
+
+- `source` / `custom_univesp_source`: `portal` (default), `publico`, futuro `whatsapp|email|phone`
 
 Anexos sao privados. A resposta da API fornece um identificador para download
 autorizado pelo BFF, nunca uma URL publica do Frappe.

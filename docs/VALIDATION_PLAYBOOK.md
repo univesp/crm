@@ -26,3 +26,10 @@ Validar exatamente o que mudou, com evidência suficiente e sem custo operaciona
 - Mudança pequena e revisável.
 - Sem efeito colateral não solicitado.
 - Caminho de rollback simples.
+
+## Smoke MVP (Trilhas D e E)
+
+- Import Trino piloto: `python ops/import/students-from-trino.py --dry-run --limit 10`
+- Pós-SSO: `POST /api/app/v1/students/validate` com CPF/email de teste
+- Visitante: `/publico` → registro → FAQ → protocolo (`custom_univesp_source=publico`)
+- VM interim: `ops/vm/bootstrap.sh` + `curl /healthz`

@@ -138,6 +138,13 @@ def resolve_ticket_name(ticket_id: str) -> str:
 	return name
 
 
+def verify_gateway_only():
+	secret = str(frappe.conf.get("univesp_edge_shared_secret") or "")
+	gateway_key = frappe.get_request_header("X-Univesp-Gateway-Key") or ""
+	if not secret or not gateway_key or not hmac.compare_digest(gateway_key, secret):
+		raise frappe.AuthenticationError(_("Gateway nao autorizado."))
+
+
 def verify_signed_identity():
 	encoded = frappe.get_request_header("X-Univesp-User-Context") or ""
 	timestamp = frappe.get_request_header("X-Univesp-Timestamp") or ""
