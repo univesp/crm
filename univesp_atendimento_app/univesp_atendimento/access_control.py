@@ -15,6 +15,18 @@ PROFILE_DEFINITIONS = {
 		"scope_key": "queues",
 		"actions": ["view_ticket", "reply_ticket", "attach_ticket", "transition_ticket"],
 	},
+	"op_externo": {
+		"label": "Operador externo (BPO)",
+		"scope_key": "regional_pools",
+		"actions": [
+			"view_ticket",
+			"reply_ticket",
+			"attach_ticket",
+			"transition_ticket",
+			"escalate_to_internal",
+			"view_area_guidance",
+		],
+	},
 	"gestor_polos": {
 		"label": "Gestor de polos",
 		"scope_key": "polos",

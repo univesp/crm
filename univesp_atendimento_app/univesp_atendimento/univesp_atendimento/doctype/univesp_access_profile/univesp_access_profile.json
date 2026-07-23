@@ -26,7 +26,7 @@
     {"fieldname": "user_email", "fieldtype": "Data", "label": "Email", "options": "Email", "reqd": 1, "unique": 1, "in_list_view": 1},
     {"fieldname": "display_name", "fieldtype": "Data", "label": "Nome", "reqd": 1, "in_list_view": 1},
     {"fieldname": "ra", "fieldtype": "Data", "label": "RA", "in_list_view": 1},
-    {"fieldname": "profile_key", "fieldtype": "Select", "label": "Perfil", "reqd": 1, "in_list_view": 1, "options": "aluno\nop\ngestor_polos\nanalista_area\ngestor_area\nadmin_central"},
+    {"fieldname": "profile_key", "fieldtype": "Select", "label": "Perfil", "reqd": 1, "in_list_view": 1, "options": "aluno\nop\nop_externo\ngestor_polos\nanalista_area\ngestor_area\nadmin_central"},
     {"fieldname": "active", "fieldtype": "Check", "label": "Ativo", "default": "1", "in_list_view": 1},
     {"fieldname": "provisioning_source", "fieldtype": "Select", "label": "Origem", "options": "manual\naccess_request\nacademic", "default": "manual", "reqd": 1},
     {"fieldname": "approved_by", "fieldtype": "Data", "label": "Aprovado por", "read_only": 1},

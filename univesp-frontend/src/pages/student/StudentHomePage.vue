@@ -1,8 +1,9 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
+import { useStudentDirectoryValidation } from '@/composables/useStudentDirectoryValidation'
 import { buildStudentFaqRuntime } from '@/services/faqRuntime'
 import { buildStudentPortalSearch } from '@/services/studentPortalRuntime'
 import { useAuthStore } from '@/stores/auth'
@@ -11,6 +12,7 @@ import { useStudentSupportStore } from '@/stores/studentSupport'
 const router = useRouter()
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
+const { validationError, validateForSession } = useStudentDirectoryValidation()
 const searchQuery = ref('')
 const showSearch = ref(false)
 
@@ -42,6 +44,17 @@ function openSearchResult(route) {
 function toggleSearch() {
   showSearch.value = !showSearch.value
 }
+
+onMounted(async () => {
+  await auth.loadSession()
+  if (auth.mockContext?.profileKey === 'aluno') {
+    await validateForSession({
+      email: auth.user?.email,
+      displayName: auth.mockContext.userName,
+      ra: auth.user?.ra,
+    })
+  }
+})
 </script>
 
 <template>
@@ -52,6 +65,10 @@ function toggleSearch() {
     aside-title="Apoio"
     aside-description="No desktop, esta coluna continua apenas como apoio."
   >
+    <p v-if="validationError" class="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      {{ validationError }}
+      <router-link to="/publico" class="ml-1 underline">Atendimento publico</router-link>
+    </p>
     <div class="grid max-w-[720px] gap-3 xl:min-h-[360px] xl:content-center">
       <button
         type="button"
