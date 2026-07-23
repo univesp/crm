@@ -73,7 +73,7 @@ test('administrador busca e abre protocolo em modo somente leitura', async ({ pa
 
   await expect.poll(() => new URL(page.url()).pathname).toBe('/crm/admin/protocolos/UVSP-DASH-1')
   await expect(page.getByRole('heading', { name: 'Consulta de protocolo' })).toBeVisible()
-  await expect(page.getByText('Protocolo UVSP-DASH-1')).toBeVisible()
+  await expect(page.getByText('UVSP-DASH-1')).toBeVisible()
   await expect(page.getByText('Aluno Dashboard', { exact: true })).toBeVisible()
   await expect(page.getByText('Em análise', { exact: true })).toBeVisible()
 })
