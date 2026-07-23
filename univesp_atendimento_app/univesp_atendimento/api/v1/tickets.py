@@ -349,6 +349,37 @@ def transition(ticket_id: str, status: str | None = None, message: str | None = 
 	return response(_serialize_ticket(doc), request_id=context.request_id)
 
 
+@frappe.whitelist(methods=["POST"])
+def escalate_to_internal(
+	ticket_id: str,
+	message: str | None = None,
+	destination_area: str | None = None,
+):
+	"""BPO regional encaminha caso para atendimento interno (Fase B stub)."""
+	context = get_request_context("escalate_to_internal")
+	if context.profile_key not in {"op_externo", "admin_central"}:
+		raise frappe.PermissionError(_("Seu perfil nao pode escalar para atendimento interno."))
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	doc = frappe.get_doc("HD Ticket", name)
+	body = _payload()
+	note = str(message or body.get("message") or "").strip()
+	if len(note) < 3:
+		frappe.throw(_("Registre o motivo da escalacao."), frappe.ValidationError)
+	next_area = str(destination_area or body.get("destination_area") or "Triagem Central").strip()
+	if not next_area:
+		frappe.throw(_("Area de destino obrigatoria."), frappe.ValidationError)
+	_move_to_status(doc, "waiting_internal")
+	doc.custom_univesp_area = next_area
+	doc.custom_request_id = context.request_id
+	doc.save(ignore_permissions=True)
+	doc.add_comment("Comment", text=note)
+	result = _serialize_ticket(doc)
+	result["timeline"] = _ticket_timeline(name)
+	result["attachments"] = _ticket_attachments(name)
+	return response(result, request_id=context.request_id)
+
+
 def _payload(value=None):
 	if isinstance(value, dict):
 		return value

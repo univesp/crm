@@ -15,4 +15,12 @@ Bundles JSON canônicos para importação no **Admin > FAQ Builder > Importaçã
 3. Revise, publique após aprovação.
 4. Valide no portal (`/aluno`, `/op/playbook`, `/publico`).
 
+## Caminhos absolutos (referencia)
+
+```
+docs/seeds/faq-aluno-seed.json
+docs/seeds/faq-op-seed.json
+docs/seeds/faq-publico-seed.json
+```
+
 Ver também `docs/FAQ_CARGA_RAPIDA.md`.

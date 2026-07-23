@@ -128,6 +128,7 @@ router.post('/tickets/:ticketId/messages', forward('tickets.add_message', { rout
 router.post('/tickets/:ticketId/attachments', forward('tickets.attach', { routeParams: { ticket_id: 'ticketId' }, rawBody: true }))
 router.post('/tickets/:ticketId/assign', forward('tickets.assign', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/transition', forward('tickets.transition', { routeParams: { ticket_id: 'ticketId' } }))
+router.post('/tickets/:ticketId/escalate', forward('tickets.escalate_to_internal', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/area-actions', forward('tickets.area_action', { routeParams: { ticket_id: 'ticketId' } }))
 router.get('/queues', forward('queues.list_queues'))
 router.get('/areas/:area/members', forward('queues.list_area_members', { routeParams: { area: 'area' } }))
