@@ -103,6 +103,9 @@ def ticket_scope_filters(context: RequestContext):
 	if context.profile_key == "op":
 		queues = _scope_values(context.scopes, "queues", "filas")
 		return _required_scope_filter("custom_univesp_queue", queues)
+	if context.profile_key == "op_externo":
+		polos = _scope_values(context.scopes, "regional_pools", "polos")
+		return _required_scope_filter("custom_student_polo", polos)
 	if context.profile_key == "gestor_polos":
 		polos = _scope_values(context.scopes, "polos")
 		return _required_scope_filter("custom_student_polo", polos)
@@ -124,6 +127,8 @@ def ensure_ticket_access(ticket_name: str, context: RequestContext):
 		)
 		if assignee and assignee != context.email:
 			raise frappe.PermissionError(_("Este atendimento esta atribuido a outro OP."))
+	if context.profile_key == "op_externo":
+		return
 
 
 def resolve_ticket_name(ticket_id: str) -> str:

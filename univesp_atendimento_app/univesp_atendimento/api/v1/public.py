@@ -87,6 +87,11 @@ def create_public_ticket(payload: dict | str | None = None):
 			),
 			"custom_source_bundle_id": str(knowledge.get("bundle_id") or ""),
 			"custom_source_node_id": str(knowledge.get("node_id") or ""),
+			"custom_channel_metadata_json": json.dumps(
+				{"visitor_type": visitor_type, "cpf_masked": _mask_cpf(cpf)},
+				ensure_ascii=False,
+			),
+			"custom_ai_suggestion_json": "",
 		}
 	).insert(ignore_permissions=True)
 	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
