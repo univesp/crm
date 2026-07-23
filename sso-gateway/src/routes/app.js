@@ -137,6 +137,10 @@ router.patch('/areas/:area/governance', forward('governance.update_area_state', 
 router.get('/knowledge/published', forward('knowledge.published', { query: true }))
 router.get('/knowledge/faq-published', forward('knowledge.published_faq', { query: true }))
 router.post('/students/validate', forward('students.validate', { wrapPayload: true }))
+router.get('/students/:ra/academic-summary', forward('students.academic_summary', {
+  routeParams: { ra: 'ra' },
+  query: true,
+}))
 router.get('/knowledge/library', forward('knowledge.get_library'))
 router.patch('/knowledge/library', forward('knowledge.update_library', { wrapPayload: true }))
 router.get('/admin/users', forward('admin.list_users', { query: true }))

@@ -40,7 +40,27 @@ Invoke-Smoke "FAQ publico (visitante)" {
   }
 }
 
+Invoke-Smoke "Academic stub (sessao requerida — skip se 401)" {
+  try {
+    $r = Invoke-WebRequest -Uri "$base/api/app/v1/students/HOMOLOG001/academic-summary" -UseBasicParsing
+    if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
+  } catch {
+    $status = $_.Exception.Response.StatusCode.value__
+    if ($status -eq 401 -or $status -eq 403) {
+      Write-Host "    SKIP: endpoint exige sessao BFF (testar manualmente com dev bypass)" -ForegroundColor Yellow
+      return
+    }
+    if ($status -eq 404) {
+      Write-Host "    AVISO: 404 - rota academic-summary ainda nao deployada" -ForegroundColor Yellow
+      return
+    }
+    throw
+  }
+}
+
 Write-Host ""
 Write-Host "Smoke automatico concluido. Proximos passos manuais:" -ForegroundColor Yellow
 Write-Host "  - Dev bypass: VITE_SSO_DEV_BYPASS=true, VITE_ENABLE_MOCKS=false"
+Write-Host "  - GET /api/app/v1/students/HOMOLOG001/academic-summary (logado) — stub Fase D"
+Write-Host "  - POST /api/app/v1/students/validate com CPF homolog apos seed student directory"
 Write-Host "  - Fluxos UI: ver ops/smoke/mvp-e2e.md secoes 2-5"

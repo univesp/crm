@@ -79,6 +79,10 @@ TICKET_FIELDS = [
 def create(payload: dict | str | None = None):
 	context = get_request_context("create_ticket")
 	data = _payload(payload)
+	if "channel" in data:
+		from univesp_atendimento.channel_adapter import normalize_channel_payload
+
+		data = normalize_channel_payload(data)
 	student = data.get("student") if isinstance(data.get("student"), dict) else {}
 	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
 	queue = str(data.get("queue") or "").strip()

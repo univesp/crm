@@ -24,6 +24,9 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 - [x] API tickets + anexos + transições (Vue ↔ BFF ↔ Frappe)
 - [x] Perfil `op_externo` + escopo `regional_pools`
 - [x] `POST /tickets/:id/escalate` (BPO → `waiting_internal`)
+- [x] Omnichannel adapter (`channel_adapter.py` + `channel` key em `tickets.create`)
+- [x] Stub IA pos-criacao (`custom_ai_suggestion_json`, status `pending`)
+- [x] `GET /students/:ra/academic-summary` (stub Trino/lake via `academic_query.py`)
 - [x] Smoke E2E estrutural em homolog (health + FAQ publico vazia) — `ops/smoke/mvp-e2e.ps1` (2026-07-23: OK em `https://homolog-crm.univesp.br`)
 - [x] Backend pos-FAQ: HD Teams `atendimento-geral`/`sra`; rotas `/publico`, `/crm/`, `/api/public/v1/*` respondem; `POST /api/public/v1/tickets` valida payload (422 sem LGPD)
 - [ ] Smoke E2E fluxos UI secoes 2–5 (`ops/smoke/mvp-e2e.md`) — depende FAQ import + fork UI
@@ -32,6 +35,7 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 
 - [x] DocType + `POST /students/validate`
 - [x] Script Trino `--dry-run` / `--apply` (`ops/import/students-from-trino.py`; dry-run imprime amostra mascarada, `--apply` usa `bench execute`)
+- [x] Seed homolog sintetico (`homolog_seed.upsert_homolog_student_directory` — 3 alunos HOMOLOG*, sem PII real)
 - [x] `bench migrate` homolog VM (2026-07-23, site `crm.localhost`)
 - [ ] Piloto Trino com credenciais (`TRINO_HOST`/`TRINO_USER`/`TRINO_PASSWORD`)
 
@@ -44,6 +48,8 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 
 - [x] `docker-compose.vm.yml` + `ops/vm/bootstrap.sh`
 - [x] Deploy VM homolog (`/var/crm`, site `crm.localhost`, migrate OK)
+- [x] `ops/vm/scripts/install-atendimento-backend.sh` (rsync + migrate + seeds; git `safe.directory` para telephony)
+- [x] Seeds bench: `univesp_atendimento.homolog_seed.upsert_homolog_access_profiles` / `upsert_homolog_student_directory`
 - [ ] `.env.vm` completo (Trino, GCS, IdP)
 - [ ] Bucket GCS + `site_config` Frappe (TI)
 

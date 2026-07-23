@@ -30,5 +30,17 @@ def on_ticket_created(doc, method=None):
 
 
 def enqueue_ai_suggestion(ticket_name: str) -> None:
-	"""Stub — Fase D pluga worker Redis/Celery aqui."""
-	frappe.logger("univesp_atendimento").info("ai_suggestion_stub ticket=%s", ticket_name)
+	"""Stub Fase D — grava JSON minimo no ticket; worker real pluga depois."""
+	stub = {
+		"status": "pending",
+		"provider": "stub",
+		"ticket_ref": str(ticket_name),
+		"queued_at": frappe.utils.now(),
+	}
+	frappe.db.set_value(
+		"HD Ticket",
+		ticket_name,
+		"custom_ai_suggestion_json",
+		json.dumps(stub, ensure_ascii=False),
+	)
+	frappe.logger("univesp_atendimento").info("ai_suggestion_enqueued ticket=%s", ticket_name)

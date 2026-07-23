@@ -3,6 +3,7 @@ import json
 import frappe
 from frappe import _
 
+from univesp_atendimento.academic_query import get_academic_query_service
 from univesp_atendimento.api.v1.common import get_request_context, response
 from univesp_atendimento.univesp_atendimento.doctype.univesp_student_directory.univesp_student_directory import (
 	normalize_cpf,
@@ -38,6 +39,24 @@ def validate(payload: dict | str | None = None):
 			request_id=context.request_id,
 		)
 	return response({"found": True, "student": _serialize_student(rows[0])}, request_id=context.request_id)
+
+
+@frappe.whitelist(methods=["GET"])
+def academic_summary(ra: str | None = None):
+	context = get_request_context("view_ticket")
+	ra_value = str(ra or context.ra or "").strip()
+	if not ra_value:
+		frappe.throw(_("RA obrigatorio."), frappe.ValidationError)
+	if context.profile_key == "aluno" and ra_value != str(context.ra or "").strip():
+		raise frappe.PermissionError(_("Aluno so pode consultar o proprio RA."))
+
+	service = get_academic_query_service()
+	summary = service.get_student_summary(ra_value)
+	disciplines = service.list_current_disciplines(ra_value)
+	return response(
+		{"ra": ra_value, "summary": summary, "disciplines": disciplines},
+		request_id=context.request_id,
+	)
 
 
 def _lookup_students(*, email: str, cpf: str, ra: str):
