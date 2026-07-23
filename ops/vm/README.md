@@ -14,7 +14,11 @@ Frappe bench deve rodar no host (`FRAPPE_ORIGIN`, padrao `host.docker.internal:8
 
 ```bash
 bench --site homolog-crm.univesp.br migrate
+bench --site crm.localhost execute univesp_atendimento.homolog_seed.upsert_homolog_access_profiles
+bench --site crm.localhost execute univesp_atendimento.homolog_seed.upsert_homolog_student_directory
 ```
+
+Ou na VM: `sudo ./ops/vm/scripts/install-atendimento-backend.sh`
 
 ## Import alunos (piloto)
 

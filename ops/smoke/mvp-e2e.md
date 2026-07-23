@@ -34,7 +34,11 @@ PowerShell: `.\ops\smoke\mvp-e2e.ps1 -BaseUrl https://homolog-crm.univesp.br`
 | HD Teams | `atendimento-geral`, `sra` |
 | Access profiles (dev bypass) | `admin@univesp.br`, `teste@aluno.univesp.br`, `op@polo.univesp.br`, `bpo.regional@externo.univesp.br` |
 
-Reaplicar access profiles: `bench --site crm.localhost execute univesp_atendimento.homolog_seed_access_profiles.upsert_homolog_access_profiles` (modulo copiado em homolog; ver `ops/vm/scripts/homolog-seed-access-profiles.py`).
+Reaplicar access profiles: `bench --site crm.localhost execute univesp_atendimento.homolog_seed.upsert_homolog_access_profiles`.
+
+Reaplicar student directory homolog: `bench --site crm.localhost execute univesp_atendimento.homolog_seed.upsert_homolog_student_directory`.
+
+Deploy backend completo na VM: `sudo ./ops/vm/scripts/install-atendimento-backend.sh`.
 
 ## 2. Dev bypass (homolog interna)
 

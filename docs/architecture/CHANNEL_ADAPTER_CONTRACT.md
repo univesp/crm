@@ -1,5 +1,7 @@
 # Contrato de payload omnichannel (Fase C)
 
+> **Status:** implementado em `univesp_atendimento.channel_adapter.normalize_channel_payload` e integrado em `POST /api/v1/tickets` quando o payload inclui `channel` (retrocompativel sem a chave).
+
 Todo adapter (WhatsApp, e-mail, telefone, portal) normaliza para este shape antes do BFF/Frappe.
 
 ```json
@@ -35,12 +37,30 @@ Todo adapter (WhatsApp, e-mail, telefone, portal) normaliza para este shape ante
 
 | Campo | Uso |
 |-------|-----|
-| `custom_univesp_source` | `portal`, `publico`, futuro canal |
+| `custom_univesp_source` | `portal`, `publico`, ou nome do canal |
 | `custom_channel_metadata_json` | Metadados do canal (JSON) |
 | `custom_ai_suggestion_json` | Sugestao IA assincrona (Fase D) |
+| `custom_source_bundle_id` / `custom_source_node_id` | Mapeados de `faq_context` |
 
 ## Endpoint BFF
 
 Adapters externos devem chamar o mesmo `POST /api/app/v1/tickets` (autenticado) ou rotas publicas quando visitante.
 
-Implementacao completa: Fase C — ver plano secao 4.
+## Erros (422)
+
+Resposta envelope padrao Frappe/BFF quando validacao falha:
+
+```json
+{
+  "data": null,
+  "error": {
+    "code": "ValidationError",
+    "message": "Canal invalido: telegram.",
+    "user_message": "Canal invalido: telegram."
+  },
+  "meta": {},
+  "request_id": "..."
+}
+```
+
+Exemplos de mensagens: `Campo channel obrigatorio.`, `Assunto obrigatorio.`, `Campo student deve ser um objeto.`, `faq_context.path deve ser uma lista.`
