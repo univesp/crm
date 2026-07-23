@@ -22,6 +22,20 @@ curl -sf "$APP_BASE_URL/api/public/v1/knowledge/faq-published?faq_type=publico"
 
 PowerShell: `.\ops\smoke\mvp-e2e.ps1 -BaseUrl https://homolog-crm.univesp.br`
 
+### Resultado homolog (2026-07-23)
+
+| Check | Resultado |
+|-------|-----------|
+| `GET /healthz` | 200 |
+| `GET /api/public/v1/knowledge/faq-published?faq_type=publico` | 200 (vazio, pre-import) |
+| `GET /publico` | 200 |
+| `GET /crm/` | 200 |
+| `POST /api/public/v1/tickets` (sem LGPD) | 422 (rota ativa) |
+| HD Teams | `atendimento-geral`, `sra` |
+| Access profiles (dev bypass) | `admin@univesp.br`, `teste@aluno.univesp.br`, `op@polo.univesp.br`, `bpo.regional@externo.univesp.br` |
+
+Reaplicar access profiles: `bench --site crm.localhost execute univesp_atendimento.homolog_seed_access_profiles.upsert_homolog_access_profiles` (modulo copiado em homolog; ver `ops/vm/scripts/homolog-seed-access-profiles.py`).
+
 ## 2. Dev bypass (homolog interna)
 
 1. Abra `$APP_BASE_URL/crm/` com `VITE_SSO_DEV_BYPASS=true`.

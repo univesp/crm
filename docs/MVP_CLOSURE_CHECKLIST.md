@@ -8,6 +8,7 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 - [ ] BFF entrega sessão estável (`fetchCurrentSsoUser`)
 - [x] `VITE_ENABLE_MOCKS=false` documentado em `env.vm.example` e `.env.development.example`
 - [x] Dev bypass homolog (`VITE_SSO_DEV_BYPASS`) — perfis incluem `op_externo`
+- [x] Access profiles homolog (bench): `admin@univesp.br`, `teste@aluno.univesp.br`, `op@polo.univesp.br`, `bpo.regional@externo.univesp.br` — escopos alinhados ao `mockAccessProfiles.js`
 - [ ] CSRF/cookies end-to-end no domínio institucional
 
 ## FAQ e conhecimento
@@ -23,19 +24,21 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 - [x] API tickets + anexos + transições (Vue ↔ BFF ↔ Frappe)
 - [x] Perfil `op_externo` + escopo `regional_pools`
 - [x] `POST /tickets/:id/escalate` (BPO → `waiting_internal`)
-- [x] Smoke E2E estrutural em homolog (health + FAQ publico vazia) — `ops/smoke/mvp-e2e.ps1`
-- [ ] Smoke E2E fluxos UI secoes 2–5 (`ops/smoke/mvp-e2e.md`)
+- [x] Smoke E2E estrutural em homolog (health + FAQ publico vazia) — `ops/smoke/mvp-e2e.ps1` (2026-07-23: OK em `https://homolog-crm.univesp.br`)
+- [x] Backend pos-FAQ: HD Teams `atendimento-geral`/`sra`; rotas `/publico`, `/crm/`, `/api/public/v1/*` respondem; `POST /api/public/v1/tickets` valida payload (422 sem LGPD)
+- [ ] Smoke E2E fluxos UI secoes 2–5 (`ops/smoke/mvp-e2e.md`) — depende FAQ import + fork UI
 
 ## Cadastro aluno (Trilha D)
 
 - [x] DocType + `POST /students/validate`
-- [x] Script Trino `--dry-run` / `--apply`
-- [ ] `bench migrate` + piloto Trino com credenciais
+- [x] Script Trino `--dry-run` / `--apply` (`ops/import/students-from-trino.py`; dry-run imprime amostra mascarada, `--apply` usa `bench execute`)
+- [x] `bench migrate` homolog VM (2026-07-23, site `crm.localhost`)
+- [ ] Piloto Trino com credenciais (`TRINO_HOST`/`TRINO_USER`/`TRINO_PASSWORD`)
 
 ## Público (Trilha E)
 
 - [x] Rota `/publico` + API `/api/public/v1/*`
-- [ ] Teste visitante em homolog
+- [x] Rota `/publico` responde em homolog (2026-07-23); fluxo visitante → protocolo apos FAQ import
 
 ## Infra (Trilha A/F)
 
