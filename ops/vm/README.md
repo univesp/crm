@@ -32,3 +32,11 @@ FRAPPE_SITE_NAME=homolog-crm.univesp.br ./ops/vm/backup.sh
 ## GCS anexos
 
 Ver [docs/ops/gcs-frappe-site-config.example.md](../docs/ops/gcs-frappe-site-config.example.md).
+
+## Smoke MVP
+
+```powershell
+.\ops\smoke\mvp-e2e.ps1 -BaseUrl https://homolog-crm.univesp.br
+```
+
+Fluxos manuais (dev bypass, FAQ → protocolo, BPO): [ops/smoke/mvp-e2e.md](../smoke/mvp-e2e.md).
