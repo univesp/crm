@@ -9,6 +9,12 @@ from univesp_atendimento.access_control import actions_for_profile
 
 HOMOLOG_ACCESS_PROFILES = [
 	{
+		"user_email": "bruno.miyasato@univesp.br",
+		"display_name": "Bruno Miyasato",
+		"profile_key": "admin_central",
+		"scopes_json": {},
+	},
+	{
 		"user_email": "admin@univesp.br",
 		"display_name": "Admin Central Homolog",
 		"profile_key": "admin_central",
