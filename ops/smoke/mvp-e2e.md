@@ -14,9 +14,11 @@ Validacao minima do wiring Vue ↔ BFF ↔ Frappe **sem mock de negocio**.
 ## 1. Health
 
 ```bash
-curl -sf "$APP_BASE_URL/api/app/v1/health"
+curl -sf "$APP_BASE_URL/healthz"
 curl -sf "$APP_BASE_URL/api/public/v1/knowledge/faq-published?faq_type=publico"
 ```
+
+> `/api/app/v1/health` exige sessao; use `/healthz` para smoke automatico.
 
 PowerShell: `.\ops\smoke\mvp-e2e.ps1 -BaseUrl https://homolog-crm.univesp.br`
 

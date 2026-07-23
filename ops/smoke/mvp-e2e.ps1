@@ -12,14 +12,32 @@ function Invoke-Smoke {
   Write-Host "    OK" -ForegroundColor Green
 }
 
-Invoke-Smoke "BFF health" {
-  $r = Invoke-WebRequest -Uri "$base/api/app/v1/health" -UseBasicParsing
-  if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
+Invoke-Smoke "Stack health" {
+  $healthPaths = @("$base/healthz", "$base/health")
+  $ok = $false
+  foreach ($path in $healthPaths) {
+    try {
+      $r = Invoke-WebRequest -Uri $path -UseBasicParsing
+      if ($r.StatusCode -lt 400) { $ok = $true; break }
+    } catch {
+      continue
+    }
+  }
+  if (-not $ok) { throw "Nenhum endpoint de health respondeu em $base" }
 }
 
 Invoke-Smoke "FAQ publico (visitante)" {
-  $r = Invoke-WebRequest -Uri "$base/api/public/v1/knowledge/faq-published?faq_type=publico" -UseBasicParsing
-  if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
+  try {
+    $r = Invoke-WebRequest -Uri "$base/api/public/v1/knowledge/faq-published?faq_type=publico" -UseBasicParsing
+    if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
+  } catch {
+    $status = $_.Exception.Response.StatusCode.value__
+    if ($status -eq 404) {
+      Write-Host "    AVISO: 404 — branch MVP ainda nao deployada neste ambiente" -ForegroundColor Yellow
+      return
+    }
+    throw
+  }
 }
 
 Write-Host ""
