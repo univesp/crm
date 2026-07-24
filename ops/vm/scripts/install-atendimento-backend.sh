@@ -2,7 +2,7 @@
 # Instala/atualiza univesp_atendimento no bench Frappe (VM homolog).
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/var/crm}"
+REPO_ROOT="${REPO_ROOT:-/var/crm/repository}"
 BENCH_PATH="${BENCH_PATH:-/var/crm/frappe-bench}"
 SITE="${FRAPPE_SITE:-crm.localhost}"
 APP_SRC="${REPO_ROOT}/univesp_atendimento_app/univesp_atendimento"
