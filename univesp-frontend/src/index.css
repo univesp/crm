@@ -326,6 +326,35 @@ select {
     line-height: 1.2;
   }
 
+  .crm-kpi-strip {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(5.5rem, 1fr));
+    gap: var(--space-2);
+  }
+
+  .crm-kpi-tile {
+    min-width: 0;
+    padding: var(--space-2) var(--space-2);
+    text-align: center;
+  }
+
+  .crm-kpi-tile__value {
+    color: var(--color-text);
+    font-size: 1.35rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .crm-kpi-tile__label {
+    margin-top: var(--space-1);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
   .crm-state-success {
     border-color: rgba(26, 111, 67, 0.22);
     background: var(--color-success-soft);
@@ -912,6 +941,20 @@ select {
   }
 
   .app-a11y-toolbar__button {
+    flex: 1 1 auto;
+  }
+}
+
+@media (min-width: 1024px) {
+  .shell-operational .app-shell-sidebar {
+    position: sticky;
+    top: 1rem;
+    z-index: 20;
+    flex: 0 0 auto;
+  }
+
+  .shell-operational .app-shell-main {
+    min-width: 0;
     flex: 1 1 auto;
   }
 }

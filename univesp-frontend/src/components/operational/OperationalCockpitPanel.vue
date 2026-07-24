@@ -33,8 +33,8 @@ const hasCases = computed(() => overdueCases.value.length || atRiskCases.value.l
 <template>
   <section class="crm-panel">
     <div class="border-b border-[var(--border-default)] px-5 py-4">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div class="max-w-3xl">
+      <div class="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+        <div class="min-w-0 max-w-3xl">
           <p class="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{{ title }}</p>
           <h2 class="crm-page-title mt-1 text-lg">
             SLAs atrasados e prestes a estourar
@@ -43,18 +43,23 @@ const hasCases = computed(() => overdueCases.value.length || atRiskCases.value.l
           <p class="crm-page-description mt-2">{{ subtitle }}</p>
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
-          <div class="crm-card crm-state-danger px-3 py-2 text-center">
-            <p class="text-[1.35rem] font-semibold leading-none text-[var(--color-text)]">{{ kpis.overdue }}</p>
-            <p class="mt-1 text-[11px] font-semibold text-[var(--color-text-muted)]">Atrasados</p>
+        <div
+          :class="[
+            'crm-kpi-strip shrink-0',
+            compact ? 'sm:max-w-md' : '2xl:max-w-[17.5rem]',
+          ]"
+        >
+          <div class="crm-card crm-state-danger crm-kpi-tile">
+            <p class="crm-kpi-tile__value">{{ kpis.overdue }}</p>
+            <p class="crm-kpi-tile__label">Atrasados</p>
           </div>
-          <div class="crm-card crm-state-warning px-3 py-2 text-center">
-            <p class="text-[1.35rem] font-semibold leading-none text-[var(--color-text)]">{{ kpis.atRisk }}</p>
-            <p class="mt-1 text-[11px] font-semibold text-[var(--color-text-muted)]">Em risco</p>
+          <div class="crm-card crm-state-warning crm-kpi-tile">
+            <p class="crm-kpi-tile__value">{{ kpis.atRisk }}</p>
+            <p class="crm-kpi-tile__label">Em risco</p>
           </div>
-          <div class="crm-card-muted px-3 py-2 text-center">
-            <p class="text-[1.35rem] font-semibold leading-none text-[var(--color-text)]">{{ kpis.active }}</p>
-            <p class="mt-1 text-[11px] font-semibold text-[var(--color-text-muted)]">Ativos</p>
+          <div class="crm-card-muted crm-kpi-tile">
+            <p class="crm-kpi-tile__value">{{ kpis.active }}</p>
+            <p class="crm-kpi-tile__label">Ativos</p>
           </div>
         </div>
       </div>

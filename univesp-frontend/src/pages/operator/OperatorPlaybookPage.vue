@@ -527,7 +527,7 @@ watch(
 
       <div class="grid gap-4 px-4 py-4">
         <template v-if="!confirmedStudent">
-          <div class="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.95fr)]">
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <label class="grid gap-2">
               <span class="text-sm font-semibold text-slate-700">Aluno</span>
               <input
@@ -597,7 +597,7 @@ watch(
                 Use esta opcao somente quando o aluno nao aparecer na base do polo.
               </p>
 
-              <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <label class="grid gap-2">
                   <span class="text-sm font-semibold text-slate-700">Nome do aluno</span>
                   <input
