@@ -24,6 +24,24 @@ function normalizeFaqBuilderBundleId(rawValue = '') {
 
 const routes = [
   {
+    path: '/studio/:pathMatch(.*)*',
+    name: 'knowledge-studio-external',
+    component: () => import('@/pages/OverviewPage.vue'),
+    beforeEnter() {
+      window.location.assign('/studio/')
+      return false
+    },
+  },
+  {
+    path: '/curadoria/:pathMatch(.*)*',
+    name: 'knowledge-curation-external',
+    component: () => import('@/pages/OverviewPage.vue'),
+    beforeEnter() {
+      window.location.assign('/curadoria/')
+      return false
+    },
+  },
+  {
     path: '/acesso-local/:profileKey?',
     name: 'local-access',
     component: () => import('@/pages/LocalAccessPage.vue'),
