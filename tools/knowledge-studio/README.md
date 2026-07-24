@@ -13,10 +13,10 @@ docker compose -f docker-compose.vm.yml up -d knowledge-studio
 2. Time acessa:
 
 ```
-http://<IP-OU-DOMINIO-VM>:8090
+https://homolog-crm.univesp.br/studio/
 ```
 
-Exemplo: `http://homolog-crm.univesp.br:8090` (se a porta estiver liberada no firewall da VM).
+(Porta 8090 só interna na VM; acesso externo via nginx `/studio/`.)
 
 3. PIN opcional (recomendado):
 
