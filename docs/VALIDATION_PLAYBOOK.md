@@ -30,8 +30,12 @@ Validar exatamente o que mudou, com evidência suficiente e sem custo operaciona
 ## Smoke MVP (Trilhas B, D e E)
 
 - **Trilha B (E2E):** `ops/smoke/mvp-e2e.md` + `.\ops\smoke\mvp-e2e.ps1 -BaseUrl <url>`
-- Import Trino piloto: `python ops/import/students-from-trino.py --dry-run --limit 10`
+- **PWA / Ingress (opcional):** `.\ops\smoke\mvp-e2e.ps1 -BaseUrl <url> -IncludePwa -IncludeIngress`
+- **Playwright wiring:** `cd univesp-frontend && npm run test:e2e -- e2e/mvp-wiring.spec.js`
+- Import Trino piloto: `python ops/import/students-from-trino.py --validate-env` then `--dry-run --limit 10`
 - Pós-SSO: `POST /api/app/v1/students/validate` com CPF/email de teste
 - Visitante: `/publico` → registro → FAQ → protocolo (`custom_univesp_source=publico`)
 - VM interim: `ops/vm/bootstrap.sh` + `curl /healthz`
+- GCS site_config: `ops/vm/scripts/validate-gcs-site-config.sh`
+- Cloud Run artefatos locais: `ops/cloudrun/preflight-local.sh`
 - Checklist completo: `docs/MVP_CLOSURE_CHECKLIST.md`

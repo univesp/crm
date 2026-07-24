@@ -1,6 +1,7 @@
 import path from 'path'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -32,7 +33,28 @@ export default defineConfig(({ mode }) => {
     build: {
       assetsDir: env.VITE_ASSETS_DIR || 'univesp-assets',
     },
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico'],
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          navigateFallbackDenylist: [/^\/api\//],
+          runtimeCaching: [],
+        },
+        manifest: {
+          name: 'UNIVESP Atendimento',
+          short_name: 'UNIVESP',
+          description: 'Portal de atendimento UNIVESP — shell offline para OP/BPO',
+          start_url: '/crm/',
+          display: 'standalone',
+          background_color: '#0f172a',
+          theme_color: '#1e40af',
+          lang: 'pt-BR',
+        },
+      }),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),

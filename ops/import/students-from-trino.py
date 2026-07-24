@@ -58,6 +58,27 @@ def build_query(polo_ids: list[str], limit: int) -> str:
 	return query
 
 
+def validate_env() -> dict[str, Any]:
+	"""Checa variaveis e dependencia trino sem conectar."""
+	report: dict[str, Any] = {"ok": True, "checks": []}
+	for name in ("TRINO_HOST", "TRINO_USER"):
+		value = os.environ.get(name, "").strip()
+		status = "pass" if value else "fail"
+		if status == "fail":
+			report["ok"] = False
+		report["checks"].append({"name": name, "status": status})
+	password = os.environ.get("TRINO_PASSWORD", "")
+	report["checks"].append({"name": "TRINO_PASSWORD", "status": "pass" if password else "warn"})
+	try:
+		import trino  # noqa: F401
+
+		report["checks"].append({"name": "trino_package", "status": "pass"})
+	except ImportError:
+		report["ok"] = False
+		report["checks"].append({"name": "trino_package", "status": "fail"})
+	return report
+
+
 def fetch_rows(query: str) -> list[dict[str, Any]]:
 	try:
 		import trino
@@ -83,7 +104,7 @@ def fetch_rows(query: str) -> list[dict[str, Any]]:
 	columns = [col[0] for col in cursor.description]
 	rows = []
 	for record in cursor.fetchall():
-        item = dict(zip(columns, record, strict=True))
+		item = dict(zip(columns, record, strict=True))
 		cpf = normalize_cpf(item.get("cpf"))
 		email = str(item.get("email") or "").strip().lower()
 		if len(cpf) != 11 or not email:
@@ -133,8 +154,14 @@ def main() -> int:
 	parser.add_argument("--polo-id", action="append", default=[], dest="polo_ids")
 	parser.add_argument("--dry-run", action="store_true")
 	parser.add_argument("--apply", action="store_true", help="Upsert via bench execute no Frappe")
+	parser.add_argument("--validate-env", action="store_true", help="Valida env sem conectar ao Trino")
 	parser.add_argument("--site", default=os.environ.get("FRAPPE_SITE_NAME", "homolog-crm.univesp.br"))
 	args = parser.parse_args()
+
+	if args.validate_env:
+		report = validate_env()
+		print(json.dumps(report, ensure_ascii=False, indent=2))
+		return 0 if report["ok"] else 1
 
 	query = build_query(args.polo_ids, args.limit)
 	rows = fetch_rows(query)

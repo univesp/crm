@@ -64,6 +64,7 @@ export async function callFrappe(method, options = {}) {
     ...buildSignedContext(options.user || {}, requestId),
   }
   Object.assign(headers, buildSignedSimulationContext(options.simulation))
+  Object.assign(headers, options.headers || {})
   let body
   if (options.rawBody) {
     body = options.rawBody

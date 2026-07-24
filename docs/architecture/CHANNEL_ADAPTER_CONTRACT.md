@@ -46,6 +46,8 @@ Todo adapter (WhatsApp, e-mail, telefone, portal) normaliza para este shape ante
 
 Adapters externos devem chamar o mesmo `POST /api/app/v1/tickets` (autenticado) ou rotas publicas quando visitante.
 
+Webhooks email/WhatsApp (sem sessao): `POST /api/ingress/v1/tickets` com cabecalho `X-Univesp-Ingress-Secret` (`UNIVESP_INGRESS_SHARED_SECRET`). Gateway repassa para `ingress.create_ticket` no Frappe.
+
 ## Erros (422)
 
 Resposta envelope padrao Frappe/BFF quando validacao falha:
