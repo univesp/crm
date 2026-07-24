@@ -35,6 +35,7 @@ import {
 import { buildDistributionDecision } from '@/services/distributionEngine'
 import {
   buildOperatorActionLog,
+  buildOperatorAssumeActionLog,
   buildOperatorCaseDetail,
   buildOperatorQueueEntries as buildOperatorQueueRuntime,
 } from '@/services/operatorQueueRuntime'
@@ -1925,6 +1926,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       analystName = '',
       actorName = '',
       reason = '',
+      assignmentMode = '',
       currentDate = new Date(),
     }) {
       const previousAssignment =
@@ -1943,7 +1945,9 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         assignedBy: actorName || 'Gestao da area',
         assignedAt: currentDate.toISOString(),
         reason: reason || 'Redistribuicao gerencial.',
-        assignmentMode: previousAssignment ? 'manager_override' : 'manager_manual',
+        assignmentMode:
+          assignmentMode ||
+          (previousAssignment ? 'manager_override' : 'manager_manual'),
         previousAssignment,
       })
 
@@ -1972,6 +1976,111 @@ export const useStudentSupportStore = defineStore('studentSupport', {
 
       this.persistState()
       return payload
+    },
+    assumeAreaCase({
+      caseId,
+      areaLabel = '',
+      actorName = '',
+      reason = '',
+      profileKey = '',
+      currentDate = new Date(),
+    }) {
+      const caseDetail = this.areaCaseById(caseId) || null
+
+      if (!caseDetail) {
+        return null
+      }
+
+      const resolvedAreaLabel = areaLabel || caseDetail.currentAreaLabel || caseDetail.lastMileAreaLabel || ''
+      const previousAssignee = caseDetail.currentAssigneeLabel || 'Sem responsavel'
+      const normalizedPrevious = String(previousAssignee).trim().toLowerCase()
+      const normalizedActor = String(actorName || '').trim().toLowerCase()
+      const isManagerProfile = ['gestor_area', 'admin_central'].includes(profileKey)
+      let assignmentMode = 'self_claim'
+
+      if (
+        normalizedPrevious &&
+        normalizedPrevious !== 'sem responsavel' &&
+        normalizedPrevious !== normalizedActor
+      ) {
+        assignmentMode = isManagerProfile ? 'intervention_override' : 'intervention_claim'
+      }
+
+      return this.assignAreaCase({
+        caseId,
+        areaLabel: resolvedAreaLabel,
+        analystName: actorName,
+        actorName,
+        reason:
+          reason ||
+          `Intervencao rapida via cockpit: caso assumido por ${actorName || 'analista da area'}.`,
+        assignmentMode,
+        currentDate,
+      })
+    },
+    assumeOperatorCase({
+      caseId,
+      actorName = '',
+      reason = '',
+      currentDate = new Date(),
+    }) {
+      const caseEntry = this.operatorQueueEntries().find((entry) => entry.id === caseId) || null
+
+      if (!caseEntry) {
+        return null
+      }
+
+      const updateAssignedOperator = (protocol = {}) => {
+        if (protocol.id !== caseId && protocol.protocolNumber !== caseId) {
+          return protocol
+        }
+
+        return {
+          ...protocol,
+          assignedOperator: actorName || protocol.assignedOperator,
+        }
+      }
+
+      this.protocols = this.protocols.map(updateAssignedOperator)
+      this.operatorProtocols = this.operatorProtocols.map(updateAssignedOperator)
+
+      const actionLog = buildOperatorAssumeActionLog({
+        caseEntry,
+        actorName,
+        reason,
+        currentDate,
+      })
+
+      this.operatorActionLogs = [...this.operatorActionLogs, actionLog]
+      this.appendCaseEvent(
+        buildCanonicalCaseEvent({
+          caseId,
+          eventType: 'operator_assume_case',
+          actor: actorName || 'Operacao do polo',
+          actorRole: 'op',
+          fromStatus:
+            caseEntry.statusCode ||
+            mapLegacyCaseStatusCode({
+              statusLabel: caseEntry.status,
+              pendingLabel: caseEntry.pendingLabel,
+            }),
+          toStatus:
+            caseEntry.statusCode ||
+            mapLegacyCaseStatusCode({
+              statusLabel: caseEntry.status,
+              pendingLabel: caseEntry.pendingLabel,
+            }),
+          description: actionLog.note,
+          payload: {
+            previousOperator: caseEntry.assignedOperator || 'Nao atribuido',
+            nextOperator: actorName || caseEntry.assignedOperator || 'Operacao do polo',
+            routingMode: 'intervention',
+          },
+          createdAt: actionLog.occurredAt,
+        }),
+      )
+      this.persistState()
+      return actionLog
     },
     approveKnowledgeBundleVersion({
       bundleVersionId = '',

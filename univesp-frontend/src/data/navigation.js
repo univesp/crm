@@ -64,6 +64,12 @@ export function buildNavigationSections(mockContext) {
         label: sectionLabel,
         items: isAreaProfile
           ? [
+              {
+                id: 'area-cockpit',
+                label: 'Cockpit operacional',
+                route: '/area/cockpit',
+                description: 'SLAs atrasados, em risco e acao rapida na fila da area.',
+              },
               ...(mockContext.profileKey === 'gestor_area'
                 ? [
                     {
@@ -105,6 +111,16 @@ export function buildNavigationSections(mockContext) {
                 : []),
             ]
           : [
+          ...(mockContext.profileKey === 'op_externo'
+            ? [
+                {
+                  id: 'bpo-cockpit',
+                  label: 'Cockpit operacional',
+                  route: '/bpo/dashboard',
+                  description: 'SLAs atrasados e em risco no pool regional.',
+                },
+              ]
+            : []),
           {
             id: 'operator-queue',
             label: queueLabel,
@@ -139,8 +155,6 @@ export function buildNavigationSections(mockContext) {
     'M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z'
   const ICON_PROTOCOLS =
     'M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l4.414 4.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z'
-  const ICON_AUDIT =
-    'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4'
 
   const adminItems = [
     {
@@ -157,12 +171,6 @@ export function buildNavigationSections(mockContext) {
       label: 'Protocolos',
       route: '/admin/protocolos',
       icon: ICON_PROTOCOLS,
-    })
-    adminItems.push({
-      id: 'admin-audit',
-      label: 'Auditoria',
-      route: '/admin/auditoria',
-      icon: ICON_AUDIT,
     })
   }
 

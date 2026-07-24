@@ -2,8 +2,13 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import OperationalInterventionBanner from '@/components/operational/OperationalInterventionBanner.vue'
 import { buildAreaCaseSummaryBackendReadiness, buildAreaCaseSummaryPayload } from '@/contracts/areaCaseSummaryContract'
 import { AREA_OPERATIONAL_SERVER_PARITY_NOTE, canRunAreaAction } from '@/contracts/areaOperationalContracts'
+import {
+  buildInterventionContext,
+  parseInterventionQuery,
+} from '@/services/operationalInterventionRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -36,6 +41,8 @@ const reassignVerifiedContext = ref('')
 const concludeNoPendingConfirmed = ref(false)
 const activeSupportTab = ref('op_context')
 const showFullTimeline = ref(false)
+const interventionFeedback = ref({ type: '', message: '' })
+const isAssumingCase = ref(false)
 
 const SUPPORT_TAB_OPTIONS = Object.freeze([
   { id: 'op_context', label: 'Contexto OP' },
@@ -72,6 +79,16 @@ const areaViewerContext = computed(() =>
 )
 const caseId = computed(() => String(route.params.caseId || '').trim())
 const detail = computed(() => studentSupportStore.areaCaseById(caseId.value, areaViewerContext.value))
+const intervention = computed(() => parseInterventionQuery(route.query))
+const interventionContext = computed(() =>
+  detail.value
+    ? buildInterventionContext({
+        intervention: intervention.value,
+        detail: detail.value,
+        currentUser: auth.mockContext.userName,
+      })
+    : null,
+)
 const globalAreaDetail = computed(() => studentSupportStore.areaCaseById(caseId.value, null))
 const globalOperatorDetail = computed(() => studentSupportStore.operatorCaseById(caseId.value, null))
 const queueFlashStorageKey = computed(() => `univesp-area-queue-flash:${auth.mockContext.profileKey}`)
@@ -159,6 +176,18 @@ function assignmentModeLabel(mode = '') {
 
   if (mode === 'manager_manual') {
     return 'Atribuicao gerencial'
+  }
+
+  if (mode === 'self_claim') {
+    return 'Assuncao direta'
+  }
+
+  if (mode === 'intervention_claim') {
+    return 'Intervencao rapida'
+  }
+
+  if (mode === 'intervention_override') {
+    return 'Intervencao com override'
   }
 
   return 'Aguardando atribuicao'
@@ -1377,6 +1406,46 @@ function assignCase() {
     message: `Caso atribuido para ${selectedAssignee.value}.`,
   }
 }
+
+function dismissIntervention() {
+  const nextQuery = { ...route.query }
+  delete nextQuery.intervene
+  delete nextQuery.intent
+  router.replace({ query: nextQuery })
+}
+
+function assumeCaseFromCockpit() {
+  if (!detail.value || isAssumingCase.value) {
+    return
+  }
+
+  isAssumingCase.value = true
+  interventionFeedback.value = { type: '', message: '' }
+
+  const assignment = studentSupportStore.assumeAreaCase({
+    caseId: detail.value.id,
+    areaLabel: detail.value.currentAreaLabel,
+    actorName: auth.mockContext.userName,
+    profileKey: auth.mockContext.profileKey,
+    reason: 'Intervencao rapida via cockpit operacional.',
+  })
+
+  isAssumingCase.value = false
+
+  if (!assignment) {
+    interventionFeedback.value = {
+      type: 'error',
+      message: 'Nao foi possivel assumir este caso agora.',
+    }
+    return
+  }
+
+  interventionFeedback.value = {
+    type: 'success',
+    message: 'Caso assumido com sucesso. Voce ja pode continuar a analise.',
+  }
+  dismissIntervention()
+}
 </script>
 
 <template>
@@ -1413,6 +1482,15 @@ function assignCase() {
   </div>
 
   <div v-else class="grid gap-4">
+    <OperationalInterventionBanner
+      v-if="interventionContext"
+      :context="interventionContext"
+      :feedback="interventionFeedback"
+      :loading="isAssumingCase"
+      @assume="assumeCaseFromCockpit"
+      @dismiss="dismissIntervention"
+    />
+
     <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
       <div class="sticky top-0 z-10 border-b border-slate-200 bg-white px-5 py-4 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-3">
