@@ -81,7 +81,7 @@ function mapDashboardCase(entry = {}, profileKey = 'admin_central', bucket = 'ov
     sla: entry.sla,
     status: entry.status,
     criticality: entry.criticality,
-    assignedOperator: entry.assignedOperator || 'Nao atribuido',
+    assignedOperator: entry.assignedOperator || 'Não atribuído',
     bucket,
     caseRoute: buildCaseRouteForProfile(entry, profileKey),
     interveneRoute: buildInterveneRoute(entry, profileKey),
@@ -92,14 +92,14 @@ function mapAreaCase(entry = {}, profileKey = 'analista_area', bucket = 'overdue
   return {
     id: entry.id,
     subject: entry.subject || entry.subjectLabel || `Caso ${entry.id}`,
-    student: entry.studentName || entry.student || 'Nao informado',
-    polo: entry.polo || 'Nao informado',
-    theme: entry.themeLabel || entry.theme || 'Nao informado',
-    queue: entry.currentAreaLabel || entry.queue || 'Area especializada',
-    sla: entry.slaLabel || entry.sla || 'SLA nao calculado',
-    status: entry.statusLabel || entry.status || 'Nao informado',
-    criticality: entry.criticalityLabel || entry.criticality || 'Media',
-    assignedOperator: entry.assignedAnalystName || entry.assignedOperator || 'Nao atribuido',
+    student: entry.studentName || entry.student || 'Não informado',
+    polo: entry.polo || 'Não informado',
+    theme: entry.themeLabel || entry.theme || 'Não informado',
+    queue: entry.currentAreaLabel || entry.queue || 'Área especializada',
+    sla: entry.slaLabel || entry.sla || 'SLA não calculado',
+    status: entry.statusLabel || entry.status || 'Não informado',
+    criticality: entry.criticalityLabel || entry.criticality || 'Média',
+    assignedOperator: entry.assignedAnalystName || entry.assignedOperator || 'Não atribuído',
     bucket,
     caseRoute: buildCaseRouteForProfile(entry, profileKey),
     interveneRoute: buildInterveneRoute(entry, profileKey),
@@ -174,16 +174,16 @@ export function buildOperationalCockpitFromAreaOverview(
 
 export function buildOperationalCockpitSubtitle(profileKey = 'admin_central') {
   if (profileKey === 'admin_central') {
-    return 'Visao institucional para intervir em SLAs atrasados ou prestes a estourar sem absorver filas operacionais.'
+    return 'Visão institucional para intervir em SLAs atrasados ou prestes a estourar, sem absorver filas operacionais.'
   }
 
   if (profileKey === 'op_externo') {
-    return 'Pool regional: assuma casos criticos da fila para acelerar a resposta quando o polo estiver sob pressao.'
+    return 'Pool regional: assuma casos críticos da fila para acelerar a resposta quando o polo estiver sob pressão.'
   }
 
   if (profileKey === 'gestor_area') {
-    return 'Leitura rapida da area para redistribuir, assumir ou destravar casos antes do SLA estourar.'
+    return 'Leitura rápida da área para redistribuir, assumir ou destravar casos antes do SLA estourar.'
   }
 
-  return 'Fila da area com foco em vencidos e em risco. Assuma o caso quando precisar acelerar a tratativa.'
+  return 'Fila da área com foco em vencidos e em risco. Assuma o caso quando precisar acelerar a tratativa.'
 }

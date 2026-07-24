@@ -14,7 +14,7 @@ export function resolveOperationalOwnerLabel(detail = {}) {
     detail.currentAssigneeLabel ||
     detail.assignedOperator ||
     detail.assignedAnalystName ||
-    'Sem responsavel'
+    'Sem responsável'
   )
 }
 
@@ -33,17 +33,19 @@ export function buildInterventionContext({
   const isUnassigned =
     !ownerLabel ||
     normalizedOwner === 'sem responsavel' ||
+    normalizedOwner === 'sem responsável' ||
     normalizedOwner === 'nao atribuido' ||
+    normalizedOwner === 'não atribuído' ||
     normalizedOwner === 'nao atribuído'
   const alreadyOwned = Boolean(normalizedUser) && normalizedOwner === normalizedUser
 
   return {
-    title: 'Intervencao rapida via cockpit',
+    title: 'Intervenção rápida via cockpit',
     description: alreadyOwned
-      ? 'Voce ja e o responsavel deste caso. Continue a tratativa normalmente.'
+      ? 'Você já é o responsável deste caso. Continue a tratativa normalmente.'
       : isUnassigned
-        ? 'Este caso ainda nao tem responsavel fixo. Assuma agora para acelerar a resposta.'
-        : `Este caso esta com ${ownerLabel}. Voce pode assumir para destravar o SLA e registrar a intervencao.`,
+        ? 'Este caso ainda não tem responsável fixo. Assuma agora para acelerar a resposta.'
+        : `Este caso está com ${ownerLabel}. Você pode assumir para destravar o SLA e registrar a intervenção.`,
     ownerLabel,
     alreadyOwned,
     canAssume: !alreadyOwned,
@@ -59,7 +61,7 @@ export function buildAdminOperationalLinks(detail = {}) {
   const links = [
     {
       id: 'op',
-      label: 'Abrir na operacao',
+      label: 'Abrir na operação',
       route: {
         path: `/op/fila/${caseId}`,
         query: { intervene: '1', intent: 'assume' },
@@ -70,7 +72,7 @@ export function buildAdminOperationalLinks(detail = {}) {
   if (detail.lastMileAreaLabel || detail.currentAreaLabel) {
     links.push({
       id: 'area',
-      label: 'Abrir na area',
+      label: 'Abrir na área',
       route: {
         path: `/area/fila/${caseId}`,
         query: {
