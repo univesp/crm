@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive } from 'vue'
 
 import {
@@ -263,7 +263,7 @@ function reviewSuggestion(suggestion, decision) {
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-5">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[760px]">
           <p class="text-sm font-semibold text-slate-900">
@@ -277,19 +277,19 @@ function reviewSuggestion(suggestion, decision) {
         <div class="flex flex-wrap gap-2">
           <RouterLink
             to="/area/orientacao"
-            class="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Abrir conteudo vigente
           </RouterLink>
           <RouterLink
             to="/area/governanca"
-            class="rounded-[14px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            class="rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Regras operacionais
           </RouterLink>
         </div>
       </div>
-      <p class="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+      <p class="mt-4 rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
         {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
       </p>
     </section>
@@ -298,15 +298,15 @@ function reviewSuggestion(suggestion, decision) {
       <article
         v-for="item in summaryCards"
         :key="item.id"
-        class="rounded-[16px] border border-slate-200 bg-white px-5 py-4"
+        class="rounded-[8px] border border-slate-200 bg-white px-5 py-4"
       >
-        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{{ item.label }}</p>
+        <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ item.label }}</p>
         <p class="mt-3 text-[2rem] font-semibold leading-none text-slate-950">{{ item.value }}</p>
         <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.helper }}</p>
       </article>
     </section>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white">
+    <section class="rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
         <p class="text-base font-semibold text-slate-950">Sugestoes aguardando decisao</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -325,11 +325,11 @@ function reviewSuggestion(suggestion, decision) {
         <article
           v-for="suggestion in pendingSuggestionsRanked"
           :key="suggestion.id"
-          class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4"
+          class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4"
         >
           <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
                 {{ contentTypeLabel(suggestion.contentType) }}
               </p>
               <p class="mt-2 text-sm font-semibold text-slate-950">{{ suggestion.subjectLabel }}</p>
@@ -340,7 +340,7 @@ function reviewSuggestion(suggestion, decision) {
             </span>
           </div>
 
-          <div :class="['mt-3 rounded-[12px] border px-3 py-2 text-xs leading-5', impactToneClass(suggestion.impact.level)]">
+          <div :class="['mt-3 rounded-[8px] border px-3 py-2 text-xs leading-5', impactToneClass(suggestion.impact.level)]">
             <p class="font-semibold">{{ suggestion.impact.label }}</p>
             <p class="mt-1">{{ suggestion.impact.helper }}</p>
             <RouterLink
@@ -352,18 +352,18 @@ function reviewSuggestion(suggestion, decision) {
           </div>
 
           <div class="mt-4 grid gap-3 lg:grid-cols-2">
-            <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Conteudo vigente</p>
+            <div class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Conteudo vigente</p>
               <p class="mt-2 text-sm leading-6 text-slate-700">{{ suggestion.currentContent || 'Sem conteudo vigente registrado.' }}</p>
             </div>
-            <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Proposta</p>
+            <div class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Proposta</p>
               <p class="mt-2 text-sm leading-6 text-slate-700">{{ suggestion.proposalText }}</p>
             </div>
           </div>
 
-          <div class="mt-3 rounded-[12px] border border-slate-200 bg-white px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Justificativa operacional</p>
+          <div class="mt-3 rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Justificativa operacional</p>
             <p class="mt-2 text-sm leading-6 text-slate-700">{{ suggestion.rationale }}</p>
             <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
               <span>{{ suggestion.authorName }} | {{ suggestion.createdAtLabel }}</span>
@@ -378,7 +378,7 @@ function reviewSuggestion(suggestion, decision) {
             <textarea
               v-model="reviewNotes[suggestion.id]"
               rows="3"
-              class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
               placeholder="Registre por que a sugestao deve ser aprovada ou rejeitada."
             ></textarea>
           </label>
@@ -386,14 +386,14 @@ function reviewSuggestion(suggestion, decision) {
           <div class="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              class="rounded-[14px] bg-[var(--color-success)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+              class="rounded-[8px] bg-[var(--color-success)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
               @click="reviewSuggestion(suggestion, 'approved')"
             >
               Aprovar sugestao
             </button>
             <button
               type="button"
-              class="rounded-[14px] border border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.76)] px-4 py-2.5 text-sm font-semibold text-[var(--color-danger)] transition hover:bg-[rgba(253,236,237,0.92)]"
+              class="rounded-[8px] border border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.76)] px-4 py-2.5 text-sm font-semibold text-[var(--color-danger)] transition hover:bg-[rgba(253,236,237,0.92)]"
               @click="reviewSuggestion(suggestion, 'rejected')"
             >
               Rejeitar sugestao
@@ -408,7 +408,7 @@ function reviewSuggestion(suggestion, decision) {
     </section>
 
     <section class="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Aprovadas aguardando publicacao</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -420,7 +420,7 @@ function reviewSuggestion(suggestion, decision) {
           <div
             v-for="item in approvedSuggestions"
             :key="item.id"
-            class="rounded-[14px] border border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.42)] px-4 py-4"
+            class="rounded-[8px] border border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.42)] px-4 py-4"
           >
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -441,7 +441,7 @@ function reviewSuggestion(suggestion, decision) {
         </div>
       </article>
 
-      <article class="rounded-[16px] border border-slate-200 bg-white">
+      <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Trilha vigente de publicacao</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -453,7 +453,7 @@ function reviewSuggestion(suggestion, decision) {
           <div
             v-for="bundle in runtimeBundles"
             :key="bundle.bundleType"
-            class="rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4"
+            class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4"
           >
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -466,13 +466,13 @@ function reviewSuggestion(suggestion, decision) {
             </div>
 
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-              <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
-                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Publicada</p>
+              <div class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Publicada</p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">{{ bundle.publishedVersion?.statusCode || 'Sem publicacao' }}</p>
                 <p class="mt-1 text-xs text-slate-500">{{ bundle.publishedVersion?.publishedAt || 'Sem data registrada' }}</p>
               </div>
-              <div class="rounded-[12px] border border-slate-200 bg-white px-4 py-3">
-                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Em edicao</p>
+              <div class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Em edicao</p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">
                   {{ bundle.versions.filter((version) => ['Draft', 'In Review', 'Approved'].includes(version.statusCode)).length }}
                 </p>
@@ -484,7 +484,7 @@ function reviewSuggestion(suggestion, decision) {
       </article>
     </section>
 
-    <section class="rounded-[16px] border border-slate-200 bg-white px-5 py-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-4">
       <details>
         <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
           Campos de impacto que o backend deve entregar para decisao de mudancas

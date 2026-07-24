@@ -9,6 +9,7 @@ async function prepareDevBypass(page, profileKey) {
 test.describe('MVP wiring (dev bypass)', () => {
   test('rotas aluno, OP e BPO carregam com dev bypass', async ({ page }) => {
     const routes = [
+      { profile: 'admin_central', path: '/crm/admin', label: 'Admin' },
       { profile: 'aluno', path: '/crm/aluno', label: 'Aluno' },
       { profile: 'op', path: '/crm/op/fila', label: 'OP' },
       { profile: 'op_externo', path: '/crm/bpo/dashboard', label: 'BPO' },
