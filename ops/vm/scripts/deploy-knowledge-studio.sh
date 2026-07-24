@@ -9,11 +9,13 @@ PORT="${KNOWLEDGE_STUDIO_PORT:-8090}"
 
 echo "==> Pull ${REPO}"
 cd "$REPO"
-git fetch origin
-git pull --ff-only origin codex/crm-ux-simulator-foundation
+git fetch origin codex/crm-ux-simulator-foundation
+git merge --ff-only FETCH_HEAD
 
-echo "==> Python deps"
-python3 -m pip install --user -r "${REPO}/ops/knowledge-ingest/requirements.txt"
+echo "==> Python venv"
+VENV="${STUDIO}/.venv"
+python3 -m venv "$VENV"
+"$VENV/bin/pip" install -r "${REPO}/ops/knowledge-ingest/requirements.txt"
 
 echo "==> Node deps"
 cd "$STUDIO"
@@ -30,7 +32,7 @@ autorestart=true
 startretries=5
 stderr_logfile=/var/log/supervisor/knowledge-studio-err.log
 stdout_logfile=/var/log/supervisor/knowledge-studio-out.log
-environment=NODE_ENV="production",PORT="${PORT}",STUDIO_PIN="${PIN}",DATA_DIR="${STUDIO}/data/runs",PYTHON_BIN="python3",PIPELINE_PATH="${REPO}/ops/knowledge-ingest/pipeline.py"
+environment=NODE_ENV="production",PORT="${PORT}",STUDIO_PIN="${PIN}",DATA_DIR="${STUDIO}/data/runs",PYTHON_BIN="${VENV}/bin/python",PIPELINE_PATH="${REPO}/ops/knowledge-ingest/pipeline.py"
 EOF
 
 echo "==> Nginx /studio/ (se ainda nao existir)"

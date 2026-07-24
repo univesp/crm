@@ -22,8 +22,6 @@ docker compose -f "$COMPOSE_FILE" ps knowledge-studio
 
 STUDIO_PORT="${KNOWLEDGE_STUDIO_PORT:-8090}"
 echo ""
-echo "Knowledge Studio disponível em:"
-echo "  http://$(hostname -I | awk '{print $1}'):${STUDIO_PORT}"
-echo "  ou http://homolog-crm.univesp.br:${STUDIO_PORT}"
+echo "Knowledge Studio: https://homolog-crm.univesp.br/studio/"
 echo ""
 echo "Configure KNOWLEDGE_STUDIO_PIN em .env.vm e reinicie se ainda não tiver PIN."
