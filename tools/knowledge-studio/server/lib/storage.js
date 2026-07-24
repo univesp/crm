@@ -2,8 +2,9 @@ const fs = require('fs')
 const path = require('path')
 const { spawn } = require('child_process')
 
-const ROOT = path.join(__dirname, '..')
-const PIPELINE = path.join(ROOT, '..', '..', 'ops', 'knowledge-ingest', 'pipeline.py')
+const SERVER_ROOT = path.join(__dirname, '..')
+const REPO_ROOT = path.join(SERVER_ROOT, '..', '..', '..')
+const PIPELINE = path.join(REPO_ROOT, 'ops', 'knowledge-ingest', 'pipeline.py')
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true })
@@ -72,7 +73,8 @@ function updateStep(manifestPath, stepId, patch) {
 }
 
 module.exports = {
-  ROOT,
+  SERVER_ROOT,
+  REPO_ROOT,
   PIPELINE,
   ensureDir,
   readJson,

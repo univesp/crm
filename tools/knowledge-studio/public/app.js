@@ -53,7 +53,8 @@ function toast(message) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const rel = String(path || '').replace(/^\/?api\//, 'api/')
+  const response = await fetch(rel, {
     ...options,
     headers: headers(options.headers || {}),
   })
@@ -243,7 +244,7 @@ document.getElementById('importAnalysisInput').onchange = async (event) => {
   const form = new FormData()
   for (const file of event.target.files) form.append('files', file)
   try {
-    await fetch(`/api/runs/${state.activeRunId}/import-ai-analysis`, {
+    await fetch(`api/runs/${state.activeRunId}/import-ai-analysis`, {
       method: 'POST',
       headers: headers(),
       body: form,

@@ -3,7 +3,8 @@ const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
 const {
-  ROOT,
+  SERVER_ROOT,
+  REPO_ROOT,
   ensureDir,
   readJson,
   writeJson,
@@ -12,15 +13,17 @@ const {
   updateStep,
 } = require('./lib/storage')
 
+const STUDIO_ROOT = path.join(SERVER_ROOT, '..')
+
 const app = express()
 const PORT = Number(process.env.PORT || 8090)
-const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data', 'runs')
+const DATA_DIR = process.env.DATA_DIR || path.join(STUDIO_ROOT, 'data', 'runs')
 const STUDIO_PIN = process.env.STUDIO_PIN || ''
 
 ensureDir(DATA_DIR)
 
 app.use(express.json({ limit: '4mb' }))
-app.use(express.static(path.join(ROOT, 'public')))
+app.use(express.static(path.join(STUDIO_ROOT, 'public')))
 
 const upload = multer({ dest: path.join(DATA_DIR, '_uploads') })
 
@@ -45,7 +48,7 @@ app.get('/api/runs', (_req, res) => {
 
 app.post('/api/runs/crawl', async (_req, res) => {
   try {
-    const result = await runPython(['crawl', '--data-dir', DATA_DIR], path.join(ROOT, '..', '..'))
+    const result = await runPython(['crawl', '--data-dir', DATA_DIR], REPO_ROOT)
     const payload = JSON.parse(result.stdout)
     res.json(payload)
   } catch (error) {
@@ -102,7 +105,7 @@ app.patch('/api/runs/:runId/packages/:packageId/items/:itemId', (req, res) => {
 app.post('/api/runs/:runId/export-ai-jobs', async (req, res) => {
   const runPath = path.join(DATA_DIR, req.params.runId)
   try {
-    const result = await runPython(['export-ai-jobs', runPath], path.join(ROOT, '..', '..'))
+    const result = await runPython(['export-ai-jobs', runPath], REPO_ROOT)
     res.json(JSON.parse(result.stdout))
   } catch (error) {
     res.status(500).json({ error: String(error.message || error) })
@@ -127,7 +130,7 @@ app.post('/api/runs/:runId/import-ai-analysis', upload.array('files'), async (re
     fs.renameSync(file.path, path.join(targetDir, path.basename(file.originalname)))
   }
   try {
-    const result = await runPython(['import-ai-analysis', runPath], path.join(ROOT, '..', '..'))
+    const result = await runPython(['import-ai-analysis', runPath], REPO_ROOT)
     res.json(JSON.parse(result.stdout))
   } catch (error) {
     res.status(500).json({ error: String(error.message || error) })
@@ -143,7 +146,7 @@ app.get('/api/runs/:runId/ai-jobs/download', (req, res) => {
 app.post('/api/runs/:runId/export-xlsx', async (req, res) => {
   const runPath = path.join(DATA_DIR, req.params.runId)
   try {
-    const result = await runPython(['export-xlsx', runPath], path.join(ROOT, '..', '..'))
+    const result = await runPython(['export-xlsx', runPath], REPO_ROOT)
     res.json(JSON.parse(result.stdout))
   } catch (error) {
     res.status(500).json({ error: String(error.message || error) })
@@ -168,7 +171,7 @@ app.post('/api/runs/:runId/media', upload.single('file'), (req, res) => {
 })
 
 app.get('*', (_req, res) => {
-  res.sendFile(path.join(ROOT, 'public', 'index.html'))
+  res.sendFile(path.join(STUDIO_ROOT, 'public', 'index.html'))
 })
 
 app.listen(PORT, '0.0.0.0', () => {
