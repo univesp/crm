@@ -1,0 +1,46 @@
+{
+  "intent_packages": [
+    {
+      "id": "primeiros-passos",
+      "title": "Primeiros Passos",
+      "description": "Início do curso, PPC, calendário introdutório",
+      "keywords": ["início", "inicio", "olá", "ola", "primeiros", "sobre os cursos", "ppc", "projeto pedagógico"]
+    },
+    {
+      "id": "problemas-acesso",
+      "title": "Problemas de Acesso",
+      "description": "AVA, login, senha, portal do aluno",
+      "keywords": ["ava", "ambiente virtual", "acesso", "login", "senha", "portal", "módulo", "modulo"]
+    },
+    {
+      "id": "provas-notas",
+      "title": "Provas e Notas",
+      "description": "Avaliação, provas presenciais, exame, PI, TCC",
+      "keywords": ["avaliação", "avaliacao", "prova", "nota", "exame", "projeto integrador", "tcc", "trabalho de conclusão"]
+    },
+    {
+      "id": "documentos-secretaria",
+      "title": "Documentos e Secretaria",
+      "description": "Documentos acadêmicos, normas, secretaria",
+      "keywords": ["documento", "secretaria", "normas acadêmicas", "normas academicas", "atestado", "diploma", "histórico"]
+    },
+    {
+      "id": "calendario-prazos",
+      "title": "Calendário e Prazos",
+      "description": "Calendário acadêmico, datas de prova",
+      "keywords": ["calendário", "calendario", "prazo", "data", "bimestre"]
+    },
+    {
+      "id": "estagio-vida-academica",
+      "title": "Estágio e Vida Acadêmica",
+      "description": "Estágio, orientações complementares",
+      "keywords": ["estágio", "estagio", "estagio obrigatório", "portal de estágios"]
+    },
+    {
+      "id": "outros",
+      "title": "Outros / Revisar",
+      "description": "Chunks que precisam classificação manual",
+      "keywords": []
+    }
+  ]
+}
