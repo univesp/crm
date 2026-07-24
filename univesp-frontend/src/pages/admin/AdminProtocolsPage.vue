@@ -109,7 +109,6 @@ watch(
             quando ja souber o numero exato do protocolo.
           </p>
         </div>
-        <SgpButton variant="secondary" to="/admin/auditoria">Ver auditoria operacional</SgpButton>
       </div>
     </section>
 
@@ -222,12 +221,6 @@ watch(
               class="button button-secondary button-compact"
             >
               Abrir detalhe
-            </RouterLink>
-            <RouterLink
-              :to="{ name: 'admin-audit', query: { protocol: row.protocolNumber || row.id } }"
-              class="button button-secondary button-compact"
-            >
-              Ver auditoria
             </RouterLink>
           </div>
         </article>

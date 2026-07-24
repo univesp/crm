@@ -1,63 +1,62 @@
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
 
+import OperationalCockpitPanel from '@/components/operational/OperationalCockpitPanel.vue'
+import { buildOperationalCockpitFromDashboard } from '@/services/operationalCockpitRuntime'
 import { useAuthStore } from '@/stores/auth'
+import { useStudentSupportStore } from '@/stores/studentSupport'
 
-const router = useRouter()
 const auth = useAuthStore()
+const studentSupportStore = useStudentSupportStore()
 
 const linkedPolos = computed(() => auth.mockContext?.linkedPolos || [])
 const profileLabel = computed(() => auth.user?.profileKey || 'op_externo')
+const cockpit = computed(() =>
+  buildOperationalCockpitFromDashboard(
+    studentSupportStore.adminDashboardData(auth.mockContext),
+    {},
+    profileLabel.value,
+    {
+      scopeLabel: linkedPolos.value.length
+        ? `${linkedPolos.value.length} polo(s) no pool`
+        : 'Pool regional',
+    },
+  ),
+)
 </script>
 
 <template>
-  <main class="bpo-dashboard">
-    <header>
-      <h1>Dashboard BPO</h1>
-      <p>
-        Operadores externos (<code>{{ profileLabel }}</code>) — escopo regional por pool de polos (Fase B).
+  <div class="grid gap-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
+      <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div class="max-w-3xl">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Operacao BPO</p>
+          <h1 class="mt-1 text-xl font-semibold text-slate-950">Cockpit operacional</h1>
+          <p class="mt-2 text-sm leading-6 text-slate-600">
+            Operadores externos (<code>{{ profileLabel }}</code>) enxergam SLAs atrasados e em risco no pool
+            regional para assumir casos e acelerar a fila quando necessario.
+          </p>
+        </div>
+
+        <RouterLink
+          to="/op/fila"
+          class="inline-flex items-center rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          Ir para fila operacional
+        </RouterLink>
+      </div>
+
+      <div v-if="linkedPolos.length" class="mt-4 rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Polos no seu pool</p>
+        <p class="mt-2 text-sm text-slate-700">{{ linkedPolos.join(' · ') }}</p>
+      </div>
+      <p v-else class="mt-4 text-sm text-slate-600">
+        Nenhum polo vinculado nesta sessao. Em producao, o escopo vem do perfil Frappe
+        (<code>regional_pools</code>).
       </p>
-    </header>
-
-    <section v-if="linkedPolos.length" class="bpo-dashboard__scope">
-      <h2>Polos no seu pool</h2>
-      <ul>
-        <li v-for="polo in linkedPolos" :key="polo">{{ polo }}</li>
-      </ul>
     </section>
-    <p v-else class="bpo-dashboard__hint">
-      Nenhum polo vinculado nesta sessao. Em producao, o escopo vem do perfil Frappe
-      (<code>regional_pools</code>).
-    </p>
 
-    <nav class="bpo-dashboard__actions">
-      <button type="button" @click="router.push('/op/fila')">Ir para fila operacional</button>
-    </nav>
-  </main>
+    <OperationalCockpitPanel :cockpit="cockpit" title="Cockpit BPO" />
+  </div>
 </template>
-
-<style scoped>
-.bpo-dashboard {
-  max-width: 42rem;
-  margin: 2rem auto;
-  padding: 1.5rem;
-  display: grid;
-  gap: 1.25rem;
-}
-
-.bpo-dashboard__scope ul {
-  margin: 0.5rem 0 0;
-  padding-left: 1.25rem;
-}
-
-.bpo-dashboard__hint {
-  color: var(--color-muted, #64748b);
-  font-size: 0.95rem;
-}
-
-.bpo-dashboard__actions {
-  display: flex;
-  gap: 0.75rem;
-}
-</style>

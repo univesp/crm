@@ -268,6 +268,19 @@ const routes = [
     },
   },
   {
+    path: '/area/cockpit',
+    name: 'area-operational-cockpit',
+    component: () => import('@/pages/operational/OperationalCockpitPage.vue'),
+    meta: {
+      title: 'Cockpit operacional',
+      stage: 'area-operational-cockpit',
+      requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['analista_area', 'gestor_area', 'admin_central'],
+      requiredActions: ['view_ticket'],
+    },
+  },
+  {
     path: '/area/operacao',
     name: 'area-manager-home',
     component: () => import('@/pages/area/AreaManagerHomePage.vue'),
@@ -386,15 +399,16 @@ const routes = [
   },
   {
     path: '/admin/auditoria',
-    name: 'admin-audit',
-    component: () => import('@/pages/admin/AdminAuditPage.vue'),
-    meta: {
-      title: 'Auditoria operacional',
-      stage: 'admin-audit',
-      requiresAuth: true,
-      shellKey: 'governance',
-      allowedProfiles: ['admin_central'],
-      requiredActions: ['view_ticket'],
+    redirect: (to) => {
+      const protocol = String(to.query.protocol || to.query.q || '').trim()
+      if (protocol) {
+        return {
+          name: 'admin-protocol-detail',
+          params: { protocolId: protocol },
+        }
+      }
+
+      return { name: 'admin-protocols' }
     },
   },
   {

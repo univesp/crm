@@ -5,6 +5,8 @@ import {
   AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
   buildAreaManagerBackendReadiness,
 } from '@/contracts/areaManagerOperationalContract'
+import OperationalCockpitPanel from '@/components/operational/OperationalCockpitPanel.vue'
+import { buildOperationalCockpitFromAreaOverview } from '@/services/operationalCockpitRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -12,6 +14,11 @@ const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 
 const overview = computed(() => studentSupportStore.areaManagerOverview(auth.mockContext))
+const operationalCockpit = computed(() =>
+  buildOperationalCockpitFromAreaOverview(overview.value, auth.mockContext?.profileKey || 'gestor_area', {
+    scopeLabel: overview.value.areaLabel || auth.mockContext?.currentArea || '',
+  }),
+)
 const backendReadiness = buildAreaManagerBackendReadiness({ hasServerOverview: false })
 const backendFieldEntries = computed(() => Object.entries(backendReadiness.minimalOverviewPayload || {}))
 
@@ -195,6 +202,8 @@ function recommendationPriorityLabel(priority = '') {
         {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
       </p>
     </section>
+
+    <OperationalCockpitPanel :cockpit="operationalCockpit" compact title="Cockpit da area" />
 
     <section class="grid gap-3 xl:grid-cols-4">
       <article

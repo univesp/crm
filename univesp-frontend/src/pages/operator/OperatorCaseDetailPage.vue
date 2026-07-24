@@ -2,6 +2,11 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import OperationalInterventionBanner from '@/components/operational/OperationalInterventionBanner.vue'
+import {
+  buildInterventionContext,
+  parseInterventionQuery,
+} from '@/services/operationalInterventionRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -27,6 +32,18 @@ const confirmationPanelRef = ref(null)
 const queueFlashStorageKey = computed(() => `univesp-operator-queue-flash:${auth.mockContext.profileKey}`)
 
 const detail = computed(() => studentSupportStore.operatorCaseById(route.params.caseId, auth.mockContext))
+const intervention = computed(() => parseInterventionQuery(route.query))
+const interventionContext = computed(() =>
+  detail.value
+    ? buildInterventionContext({
+        intervention: intervention.value,
+        detail: detail.value,
+        currentUser: auth.mockContext.userName,
+      })
+    : null,
+)
+const interventionFeedback = ref({ type: '', message: '' })
+const isAssumingCase = ref(false)
 const escalationDestination = computed(() => detail.value?.lastMileAreaLabel || 'Area interna')
 const escalationReason = computed(() =>
   detail.value?.playbook.escalationReason ||
@@ -555,6 +572,44 @@ function selectDecision(actionType) {
   selectedDecision.value = actionType
 }
 
+function dismissIntervention() {
+  const nextQuery = { ...route.query }
+  delete nextQuery.intervene
+  delete nextQuery.intent
+  router.replace({ query: nextQuery })
+}
+
+function assumeCaseFromCockpit() {
+  if (!detail.value || isAssumingCase.value) {
+    return
+  }
+
+  isAssumingCase.value = true
+  interventionFeedback.value = { type: '', message: '' }
+
+  const actionLog = studentSupportStore.assumeOperatorCase({
+    caseId: detail.value.id,
+    actorName: auth.mockContext.userName,
+    reason: 'Intervencao rapida via cockpit operacional.',
+  })
+
+  isAssumingCase.value = false
+
+  if (!actionLog) {
+    interventionFeedback.value = {
+      type: 'error',
+      message: 'Nao foi possivel assumir este caso agora.',
+    }
+    return
+  }
+
+  interventionFeedback.value = {
+    type: 'success',
+    message: 'Caso assumido com sucesso. Voce ja pode continuar a tratativa.',
+  }
+  dismissIntervention()
+}
+
 const recordPreview = computed(() => {
   const note = operatorNote.value.trim()
 
@@ -611,6 +666,15 @@ const confirmationCopy = computed(() => {
   </div>
 
   <div v-else class="grid gap-3">
+    <OperationalInterventionBanner
+      v-if="interventionContext"
+      :context="interventionContext"
+      :feedback="interventionFeedback"
+      :loading="isAssumingCase"
+      @assume="assumeCaseFromCockpit"
+      @dismiss="dismissIntervention"
+    />
+
     <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
       <div class="px-5 py-5">
         <p class="text-lg font-semibold text-slate-950">Detalhe do atendimento</p>

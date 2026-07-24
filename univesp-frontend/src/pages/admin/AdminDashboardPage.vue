@@ -2,10 +2,12 @@
 import { computed, reactive } from 'vue'
 import ActionTile from '@/components/ActionTile.vue'
 import MetricCard from '@/components/MetricCard.vue'
+import OperationalCockpitPanel from '@/components/operational/OperationalCockpitPanel.vue'
 import PriorityBadge from '@/components/PriorityBadge.vue'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminDashboardView } from '@/services/adminDashboardRuntime'
+import { buildOperationalCockpitFromDashboard } from '@/services/operationalCockpitRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -33,6 +35,9 @@ const periodOptions = [
 ]
 const dashboardBase = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const dashboardView = computed(() => buildAdminDashboardView(dashboardBase.value, filters))
+const operationalCockpit = computed(() =>
+  buildOperationalCockpitFromDashboard(dashboardBase.value, filters, 'admin_central'),
+)
 const filterOptions = computed(() => dashboardBase.value.filterOptions)
 const metrics = computed(() => dashboardView.value.kpis)
 const criticalMetricLabels = ['SLA vencido', 'Criticidade alta', 'Escalados para area interna', 'Reincidencia de tema']
@@ -794,6 +799,8 @@ function getRiskLabel(row) {
       </button>
     </section>
 
+    <OperationalCockpitPanel :cockpit="operationalCockpit" compact />
+
     <!-- 3. DISTRIBUICAO + TENDENCIA -->
     <div class="grid gap-4 lg:grid-cols-[0.38fr_0.62fr]">
       <!-- Donut distribuicao -->
@@ -1299,10 +1306,10 @@ function getRiskLabel(row) {
       </div>
     </section>
 
-    <!-- 8. ANALISE AVANCADA E AUDITORIA (recolhida) -->
+    <!-- 8. ANALISE AVANCADA (recolhida) -->
     <details class="rounded-[8px] border border-slate-200 bg-white p-4">
       <summary class="cursor-pointer text-sm font-semibold text-slate-700">
-        Analise avancada e auditoria
+        Analise avancada
       </summary>
 
       <section class="mt-5">
@@ -1315,49 +1322,6 @@ function getRiskLabel(row) {
             :value="metric.value"
             :hint="metric.hint"
           />
-        </div>
-      </section>
-
-      <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Movimentacoes auditaveis</h3>
-        <div v-if="auditEntries.length" class="mt-3 grid gap-3">
-          <article
-            v-for="entry in auditEntries"
-            :key="entry.id"
-            class="inner-panel p-4"
-          >
-            <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-xs font-semibold text-slate-500">{{ entry.caseId }}</p>
-                  <StatusBadge :label="entry.actionLabel" />
-                </div>
-                <h3 class="mt-2 text-base font-semibold text-slate-950">{{ entry.subject }}</h3>
-                <p class="mt-1 text-xs text-slate-600">{{ entry.actor }} - {{ entry.occurredAtLabel }}</p>
-                <p class="mt-0.5 text-xs text-slate-600">{{ entry.student }} - Polo {{ entry.polo }} - {{ entry.theme }}</p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <StatusBadge :label="entry.criticality" />
-                <StatusBadge :label="entry.queueAfter" />
-              </div>
-            </div>
-            <div class="mt-3 grid gap-2 md:grid-cols-2">
-              <div class="rounded-[8px] bg-slate-50 px-3 py-2">
-                <p class="text-xs font-semibold text-slate-400">Antes</p>
-                <p class="mt-1 text-xs font-semibold text-slate-900">{{ entry.statusBefore }}</p>
-                <p class="mt-0.5 text-xs text-slate-500">{{ entry.queueBefore }}</p>
-              </div>
-              <div class="rounded-[8px] bg-slate-50 px-3 py-2">
-                <p class="text-xs font-semibold text-slate-400">Depois</p>
-                <p class="mt-1 text-xs font-semibold text-slate-900">{{ entry.statusAfter }}</p>
-                <p class="mt-0.5 text-xs text-slate-500">{{ entry.queueAfter }}</p>
-              </div>
-            </div>
-          </article>
-        </div>
-
-        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
-          Nenhum evento auditavel nos filtros atuais.
         </div>
       </section>
 

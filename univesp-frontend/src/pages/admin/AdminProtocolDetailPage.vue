@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
+import OperationalInterventionBanner from '@/components/operational/OperationalInterventionBanner.vue'
 import PriorityBadge from '@/components/PriorityBadge.vue'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -9,23 +10,59 @@ import AsyncPanel from '@/components/ui/AsyncPanel.vue'
 import SgpButton from '@/components/ui/SgpButton.vue'
 import { useAsyncAction } from '@/composables/useAsyncAction'
 import { getTicket, isMockRuntimeEnabled } from '@/services/appApi'
+import { buildProtocolAuditTimeline } from '@/services/protocolAuditRuntime'
+import {
+  buildAdminOperationalLinks,
+  buildInterventionContext,
+  parseInterventionQuery,
+} from '@/services/operationalInterventionRuntime'
 import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 const { loading, error, run } = useAsyncAction()
 const protocol = ref(null)
 
 const protocolId = computed(() => String(route.params.protocolId || '').trim())
-const timeline = computed(() => protocol.value?.timeline || [])
-const studentData = computed(() => protocol.value?.studentData || {})
-const auditLink = computed(() => ({
-  name: 'admin-audit',
-  query: { protocol: protocol.value?.protocolNumber || protocolId.value },
-}))
+const auditTimeline = computed(() => {
+  if (!protocol.value) {
+    return []
+  }
+
+  const dashboardData = isMockRuntimeEnabled()
+    ? studentSupportStore.adminDashboardData(auth.mockContext)
+    : { auditEntries: [] }
+
+  return buildProtocolAuditTimeline({
+    caseId: protocol.value.protocolNumber || protocolId.value,
+    dashboardData,
+    interactions: protocol.value.timeline || [],
+  })
+})
+const intervention = computed(() => parseInterventionQuery(route.query))
+const interventionContext = computed(() =>
+  protocol.value
+    ? buildInterventionContext({
+        intervention: intervention.value,
+        detail: protocol.value,
+        currentUser: auth.mockContext.userName,
+      })
+    : null,
+)
+const adminOperationalLinks = computed(() =>
+  protocol.value ? buildAdminOperationalLinks(protocol.value) : [],
+)
+
+function dismissIntervention() {
+  const nextQuery = { ...route.query }
+  delete nextQuery.intervene
+  delete nextQuery.intent
+  router.replace({ query: nextQuery })
+}
 
 async function loadProtocol() {
   await run(async () => {
@@ -84,7 +121,6 @@ onMounted(loadProtocol)
         </div>
         <div class="flex flex-wrap gap-2">
           <SgpButton variant="secondary" to="/admin/protocolos">Voltar ao diretório</SgpButton>
-          <SgpButton variant="secondary" :to="auditLink">Auditoria deste caso</SgpButton>
         </div>
       </div>
     </section>
@@ -99,6 +135,13 @@ onMounted(loadProtocol)
       empty-next-step="Use a busca global no cabeçalho para localizar um protocolo pelo número exato."
       @retry="loadProtocol"
     >
+      <OperationalInterventionBanner
+        v-if="interventionContext"
+        :context="interventionContext"
+        :operational-links="adminOperationalLinks"
+        @dismiss="dismissIntervention"
+      />
+
       <div class="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <section class="inner-panel p-5">
           <h3 class="text-sm font-semibold text-slate-900">Resumo do atendimento</h3>
@@ -118,19 +161,19 @@ onMounted(loadProtocol)
           <dl class="mt-4 grid gap-3 text-sm">
             <div>
               <dt class="font-semibold text-slate-500">Aluno</dt>
-              <dd class="text-slate-900">{{ studentData.nome || protocol.student || 'Não informado' }}</dd>
+              <dd class="text-slate-900">{{ protocol.studentData?.nome || protocol.student || 'Não informado' }}</dd>
             </div>
             <div>
               <dt class="font-semibold text-slate-500">RA</dt>
-              <dd class="text-slate-900">{{ studentData.ra || 'Não informado' }}</dd>
+              <dd class="text-slate-900">{{ protocol.studentData?.ra || 'Não informado' }}</dd>
             </div>
             <div>
               <dt class="font-semibold text-slate-500">E-mail</dt>
-              <dd class="text-slate-900">{{ studentData.email || 'Não informado' }}</dd>
+              <dd class="text-slate-900">{{ protocol.studentData?.email || 'Não informado' }}</dd>
             </div>
             <div>
               <dt class="font-semibold text-slate-500">Polo</dt>
-              <dd class="text-slate-900">{{ studentData.polo || protocol.polo || 'Não informado' }}</dd>
+              <dd class="text-slate-900">{{ protocol.studentData?.polo || protocol.polo || 'Não informado' }}</dd>
             </div>
             <div>
               <dt class="font-semibold text-slate-500">Fila / área</dt>
@@ -150,30 +193,53 @@ onMounted(loadProtocol)
       </div>
 
       <section class="inner-panel p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 class="text-sm font-semibold text-slate-900">Histórico / timeline</h3>
-            <p class="mt-1 text-xs text-slate-600">
-              Movimentações registradas neste protocolo, do mais recente ao mais antigo quando disponível.
-            </p>
-          </div>
-          <RouterLink :to="auditLink" class="text-xs font-semibold text-[var(--color-primary)]">
-            Abrir auditoria completa &rarr;
-          </RouterLink>
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">Auditoria do caso</h3>
+          <p class="mt-1 text-xs text-slate-600">
+            Movimentações auditáveis e interações registradas neste protocolo, unificadas em uma única trilha.
+          </p>
         </div>
 
-        <div v-if="timeline.length" class="mt-4 grid gap-3">
+        <div v-if="auditTimeline.length" class="mt-4 grid gap-3">
           <article
-            v-for="event in timeline"
+            v-for="event in auditTimeline"
             :key="event.id || `${event.atLabel}-${event.title}`"
             class="rounded-ui border border-slate-200 bg-slate-50 px-4 py-3"
           >
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <p class="text-sm font-semibold text-slate-900">{{ event.title || event.actor }}</p>
-              <p class="text-xs text-slate-500">{{ event.atLabel || event.at || 'Não informado' }}</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="text-sm font-semibold text-slate-900">{{ event.title }}</p>
+                <StatusBadge
+                  v-if="event.kind === 'audit'"
+                  :label="event.kind === 'audit' ? 'Auditoria' : 'Interacao'"
+                />
+              </div>
+              <p class="text-xs text-slate-500">{{ event.atLabel }}</p>
             </div>
+
+            <p class="mt-2 text-xs font-semibold text-slate-600">{{ event.actor }}</p>
             <p class="mt-2 text-sm leading-6 text-slate-700">
-              {{ event.description || event.message || 'Atualização registrada.' }}
+              {{ event.description || 'Atualização registrada.' }}
+            </p>
+
+            <div
+              v-if="event.kind === 'audit' && (event.statusBefore || event.queueBefore)"
+              class="mt-3 grid gap-2 md:grid-cols-2"
+            >
+              <div class="rounded-[8px] bg-white px-3 py-2">
+                <p class="text-xs font-semibold text-slate-400">Antes</p>
+                <p class="mt-1 text-xs font-semibold text-slate-900">{{ event.statusBefore }}</p>
+                <p class="mt-0.5 text-xs text-slate-500">{{ event.queueBefore }}</p>
+              </div>
+              <div class="rounded-[8px] bg-white px-3 py-2">
+                <p class="text-xs font-semibold text-slate-400">Depois</p>
+                <p class="mt-1 text-xs font-semibold text-slate-900">{{ event.statusAfter }}</p>
+                <p class="mt-0.5 text-xs text-slate-500">{{ event.queueAfter }}</p>
+              </div>
+            </div>
+
+            <p v-if="event.escalationReason" class="mt-2 text-xs text-slate-500">
+              Motivo: {{ event.escalationReason }}
             </p>
           </article>
         </div>
