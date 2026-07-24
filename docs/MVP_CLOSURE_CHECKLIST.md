@@ -17,7 +17,8 @@ Status em **2026-07-23** após wave 3 (PWA, ingress, stubs, TI prep).
 - [x] Filas HD Team homolog: `atendimento-geral`, `sra` (tickets recebem `agent_group`)
 - [x] Catalogo frontend inclui `atendimento-geral` (`faqCatalogs.js`) — redeploy frontend antes do import
 - [ ] Bundles publicados no Admin (você)
-- [ ] Merge fork UI `feature/admin-faq-governanca-polo` no PR #21
+- [x] Merge fork UI `feature/admin-faq-governanca-polo` no PR #21
+- [x] Dev bypass homolog build (`VITE_SSO_DEV_BYPASS=true`, `VITE_ENABLE_MOCKS=false` em `.env.production`)
 - [ ] Aluno consome FAQ real do Frappe
 
 ## Tickets e operação
