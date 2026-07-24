@@ -44,5 +44,20 @@ services:
     depends_on:
       - sso-gateway
 
+  knowledge-studio:
+    build:
+      context: .
+      dockerfile: tools/knowledge-studio/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${KNOWLEDGE_STUDIO_PORT:-8090}:8090'
+    environment:
+      PORT: '8090'
+      DATA_DIR: /data
+      STUDIO_PIN: ${KNOWLEDGE_STUDIO_PIN:-}
+    volumes:
+      - knowledge_studio_data:/data
+
 volumes:
   redis_data:
+  knowledge_studio_data:
