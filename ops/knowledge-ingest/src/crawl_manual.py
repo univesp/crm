@@ -29,17 +29,25 @@ def slugify(value: str) -> str:
     return slug or "secao"
 
 
+def fix_mojibake(text: str) -> str:
+    """Repara UTF-8 lido como Latin-1 (ex.: ComputaÃ§Ã£o → Computação)."""
+    if not text or "Ã" not in text:
+        return text
+    try:
+        return text.encode("latin-1").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return text
+
+
+def normalize_text(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
+    return fix_mojibake(cleaned)
+
+
 def text_content(element: Tag | None) -> str:
     if not element:
         return ""
-    parts: list[str] = []
-    for node in element.descendants:
-        if isinstance(node, NavigableString):
-            chunk = str(node).strip()
-            if chunk:
-                parts.append(chunk)
-    text = re.sub(r"\s+", " ", " ".join(parts)).strip()
-    return text
+    return normalize_text(element.get_text(separator=" ", strip=True))
 
 
 def markdown_from_section(title: str, element: Tag) -> str:
@@ -72,7 +80,13 @@ def fetch_manual_html(url: str = MANUAL_URL, timeout: int = 45) -> str:
         headers={"User-Agent": "UNIVESP-Knowledge-Ingest/1.0 (+homolog-crm)"},
     )
     response.raise_for_status()
-    return response.text
+    for encoding in ("utf-8", "utf-8-sig"):
+        try:
+            return response.content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    apparent = response.apparent_encoding or "utf-8"
+    return fix_mojibake(response.content.decode(apparent, errors="replace"))
 
 
 def extract_sections(html: str, source_url: str = MANUAL_URL) -> list[dict[str, Any]]:
