@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test'
 
+function appPath(route) {
+  const base = String(process.env.PLAYWRIGHT_ROUTER_BASE || '/crm/').replace(/\/$/, '')
+  const path = route.startsWith('/') ? route : `/${route}`
+  return base ? `${base}${path}` : path
+}
+
 async function prepareDevBypass(page, profileKey) {
   await page.addInitScript((key) => {
     window.sessionStorage.setItem('univesp.sso.devBypassProfile', key)
@@ -9,10 +15,10 @@ async function prepareDevBypass(page, profileKey) {
 test.describe('MVP wiring (dev bypass)', () => {
   test('rotas aluno, OP e BPO carregam com dev bypass', async ({ page }) => {
     const routes = [
-      { profile: 'admin_central', path: '/crm/admin', label: 'Admin' },
-      { profile: 'aluno', path: '/crm/aluno', label: 'Aluno' },
-      { profile: 'op', path: '/crm/op/fila', label: 'OP' },
-      { profile: 'op_externo', path: '/crm/bpo/dashboard', label: 'BPO' },
+      { profile: 'admin_central', path: appPath('/admin/dashboard'), label: 'Admin' },
+      { profile: 'aluno', path: appPath('/aluno'), label: 'Aluno' },
+      { profile: 'op', path: appPath('/op/fila'), label: 'OP' },
+      { profile: 'op_externo', path: appPath('/bpo/dashboard'), label: 'BPO' },
     ]
     for (const route of routes) {
       await prepareDevBypass(page, route.profile)

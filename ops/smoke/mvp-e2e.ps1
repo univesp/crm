@@ -42,7 +42,7 @@ Invoke-Smoke "FAQ publico (visitante)" {
   }
 }
 
-Invoke-Smoke "Academic stub (sessao requerida — skip se 401)" {
+Invoke-Smoke "Academic stub (sessao requerida - skip se 401)" {
   try {
     $r = Invoke-WebRequest -Uri "$base/api/app/v1/students/HOMOLOG001/academic-summary" -UseBasicParsing
     if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
@@ -61,7 +61,7 @@ Invoke-Smoke "Academic stub (sessao requerida — skip se 401)" {
 }
 
 if ($IncludeIngress) {
-  Invoke-Smoke "Ingress tickets (segredo requerido — skip se 401)" {
+  Invoke-Smoke "Ingress tickets (segredo requerido - skip se 401)" {
     try {
       $body = '{"channel":"email","subject":"Smoke ingress","description":"Teste automatico","student":{"email":"smoke@invalid.local"}}'
       $r = Invoke-WebRequest -Uri "$base/api/ingress/v1/tickets" -Method POST -Body $body -ContentType "application/json" -UseBasicParsing
@@ -100,7 +100,7 @@ if ($IncludePwa) {
 Write-Host ""
 Write-Host "Smoke automatico concluido. Proximos passos manuais:" -ForegroundColor Yellow
 Write-Host "  - Dev bypass: VITE_SSO_DEV_BYPASS=true, VITE_ENABLE_MOCKS=false"
-Write-Host "  - GET /api/app/v1/students/HOMOLOG001/academic-summary (logado) — stub Fase D"
+Write-Host "  - GET /api/app/v1/students/HOMOLOG001/academic-summary (logado) - stub Fase D"
 Write-Host "  - POST /api/app/v1/students/validate com CPF homolog apos seed student directory"
 Write-Host "  - POST /api/ingress/v1/tickets com X-Univesp-Ingress-Secret (omnichannel)"
 Write-Host "  - GET /crm/manifest.webmanifest (PWA shell OP/BPO)"
