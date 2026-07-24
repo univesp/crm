@@ -1,64 +1,16 @@
-<script setup>
-import { computed, onMounted, reactive } from 'vue'
-import { RouterLink } from 'vue-router'
+﻿<script setup>
+import { computed, reactive } from 'vue'
 import ActionTile from '@/components/ActionTile.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import PriorityBadge from '@/components/PriorityBadge.vue'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminDashboardView } from '@/services/adminDashboardRuntime'
-import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
-import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
-const liveState = reactive({
-  loading: false,
-  error: '',
-  total: 0,
-  loaded: 0,
-  truncated: false,
-})
-
-async function loadInstitutionalDashboard() {
-  if (isMockRuntimeEnabled()) {
-    liveState.total = 0
-    liveState.loaded = 0
-    return
-  }
-
-  liveState.loading = true
-  liveState.error = ''
-  try {
-    const pageSize = 100
-    const maxPages = 5
-    const tickets = []
-    let total = 0
-    for (let page = 1; page <= maxPages; page += 1) {
-      const response = await listTickets({ page, page_size: pageSize })
-      const batch = Array.isArray(response.data) ? response.data : []
-      tickets.push(...batch)
-      total = Number(response.meta?.total || tickets.length)
-      if (tickets.length >= total || batch.length < pageSize) break
-    }
-    studentSupportStore.replaceLiveTickets(tickets.map(mapApiTicketToOperationalProtocol))
-    liveState.total = total
-    liveState.loaded = tickets.length
-    liveState.truncated = tickets.length < total
-  } catch (error) {
-    studentSupportStore.replaceLiveTickets([])
-    liveState.error = error?.message || 'Falha ao carregar os indicadores institucionais.'
-    liveState.total = 0
-    liveState.loaded = 0
-    liveState.truncated = false
-  } finally {
-    liveState.loading = false
-  }
-}
-
-onMounted(loadInstitutionalDashboard)
 
 const filters = reactive({
   queue: 'todos',
@@ -75,11 +27,10 @@ const ui = reactive({
 
 const periodOptions = [
   { value: 'today', label: 'Hoje', summary: 'hoje' },
-  { value: '7d', label: '7 dias', summary: 'últimos 7 dias' },
-  { value: '30d', label: '30 dias', summary: 'últimos 30 dias' },
-  { value: 'base', label: 'Período', summary: 'base atual' },
+  { value: '7d', label: '7 dias', summary: 'ultimos 7 dias' },
+  { value: '30d', label: '30 dias', summary: 'ultimos 30 dias' },
+  { value: 'base', label: 'Periodo', summary: 'base atual' },
 ]
-
 const dashboardBase = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const dashboardView = computed(() => buildAdminDashboardView(dashboardBase.value, filters))
 const filterOptions = computed(() => dashboardBase.value.filterOptions)
@@ -90,7 +41,7 @@ const criticalKpiCards = computed(() => [
   {
     label: 'SLA vencido',
     value: metricValue('SLA vencido'),
-    trend: 'atenção',
+    trend: 'atencao',
     tone: 'danger',
     focus: 'sla',
   },
@@ -109,7 +60,7 @@ const criticalKpiCards = computed(() => [
     focus: 'escalated',
   },
   {
-    label: 'Reincidência',
+    label: 'Reincidencia',
     value: metricValue('Reincidencia de tema'),
     trend: 'revisar FAQ',
     tone: 'warning',
@@ -137,45 +88,28 @@ const healthScore = computed(() =>
   metricValue('Escalados para area interna') * 2 +
   metricValue('Reincidencia de tema'),
 )
-const hasOperationalData = computed(() =>
-  (dashboardView.value.metrics || []).some((metric) => Number(metric.value || 0) > 0) ||
-  activeCasesFull.value.length > 0,
-)
 const healthState = computed(() => {
-  if (!hasOperationalData.value) {
-    return 'Sem dados'
-  }
-
   if (healthScore.value >= 10) {
-    return 'Crítico'
+    return 'Critico'
   }
 
   if (healthScore.value >= 4) {
-    return 'Atenção'
+    return 'Atencao'
   }
 
   return 'Normal'
 })
 const operationHealth = computed(() => {
-  if (healthState.value === 'Sem dados') {
-    return {
-      label: healthState.value,
-      score: null,
-      tone: 'empty',
-      hint: 'aguardando integração',
-    }
-  }
-
-  if (healthState.value === 'Crítico') {
+  if (healthState.value === 'Critico') {
     return {
       label: healthState.value,
       score: healthScore.value,
       tone: 'danger',
-      hint: 'ação imediata',
+      hint: 'acao imediata',
     }
   }
 
-  if (healthState.value === 'Atenção') {
+  if (healthState.value === 'Atencao') {
     return {
       label: healthState.value,
       score: healthScore.value,
@@ -188,7 +122,7 @@ const operationHealth = computed(() => {
     label: healthState.value,
     score: healthScore.value,
     tone: 'normal',
-    hint: 'estável',
+    hint: 'estavel',
   }
 })
 const demandDistribution = computed(() => {
@@ -201,7 +135,7 @@ const demandDistribution = computed(() => {
   const entries = [
     { label: 'FAQ resolveu', value: resolvedByFaq, color: '#0f766e' },
     { label: 'Passou ao OP', value: sentToOp, color: '#2563eb' },
-    { label: 'Escalou à área', value: escalated, color: '#ca8a04' },
+    { label: 'Escalou area', value: escalated, color: '#ca8a04' },
     { label: 'Em andamento', value: activeVolume, color: '#d13239' },
   ]
 
@@ -222,20 +156,20 @@ const clusterRiskRows = computed(() => {
   const clusterIndex = new Map()
 
   for (const item of activeCasesFull.value) {
-    const cluster = item.lastMileAreaLabel || item.queue || 'Não informado'
+    const cluster = item.lastMileAreaLabel || item.queue || 'Nao informado'
     const key = `cluster:${cluster}`
     const current = clusterIndex.get(key) || {
       key,
       cluster,
-      type: item.lastMileAreaLabel ? 'Área interna' : 'Fila',
+      type: item.lastMileAreaLabel ? 'Area interna' : 'Fila',
       volume: 0,
       slaOverdueCount: 0,
       highCriticalityCount: 0,
       escalationsCount: 0,
       recurrenceCount: 0,
       themes: {},
-      dominantTheme: 'Não informado',
-      dominantQueue: item.queue || 'Não informado',
+      dominantTheme: 'Nao informado',
+      dominantQueue: item.queue || 'Nao informado',
       examples: [],
       riskScore: 0,
     }
@@ -244,7 +178,7 @@ const clusterRiskRows = computed(() => {
     current.slaOverdueCount += String(item.sla || '').toLowerCase().includes('vencid') ? 1 : 0
     current.highCriticalityCount += ['alta', 'critica'].includes(String(item.criticality || '').toLowerCase()) ? 1 : 0
     current.recurrenceCount += item.recurrenceSignals?.repeatedTheme || item.recurrenceSignals?.repeatedSubsubject ? 1 : 0
-    current.themes[item.theme || 'Não informado'] = (current.themes[item.theme || 'Não informado'] || 0) + 1
+    current.themes[item.theme || 'Nao informado'] = (current.themes[item.theme || 'Nao informado'] || 0) + 1
 
     if (current.examples.length < 3) {
       current.examples.push(item)
@@ -258,22 +192,22 @@ const clusterRiskRows = computed(() => {
       continue
     }
 
-    const cluster = entry.lastMileAreaLabel || entry.queueBefore || entry.queue || 'Não informado'
+    const cluster = entry.lastMileAreaLabel || entry.queueBefore || entry.queue || 'Nao informado'
     const key = `cluster:${cluster}`
 
     if (!clusterIndex.has(key)) {
       clusterIndex.set(key, {
         key,
         cluster,
-        type: entry.lastMileAreaLabel ? 'Área interna' : 'Fila',
+        type: entry.lastMileAreaLabel ? 'Area interna' : 'Fila',
         volume: 0,
         slaOverdueCount: 0,
         highCriticalityCount: 0,
         escalationsCount: 0,
         recurrenceCount: 0,
         themes: {},
-        dominantTheme: entry.theme || 'Não informado',
-        dominantQueue: entry.queueBefore || entry.queue || 'Não informado',
+        dominantTheme: entry.theme || 'Nao informado',
+        dominantQueue: entry.queueBefore || entry.queue || 'Nao informado',
         examples: [],
         riskScore: 0,
       })
@@ -308,7 +242,7 @@ function buildRiskRows(items, keyGetter, type) {
   const index = new Map()
 
   for (const item of items) {
-    const cluster = keyGetter(item) || 'Não informado'
+    const cluster = keyGetter(item) || 'Nao informado'
     const key = `${type}:${cluster}`
     const current = index.get(key) || {
       key,
@@ -320,7 +254,7 @@ function buildRiskRows(items, keyGetter, type) {
       escalationsCount: 0,
       recurrenceCount: 0,
       themes: {},
-      dominantTheme: 'Não informado',
+      dominantTheme: 'Nao informado',
       examples: [],
       riskScore: 0,
     }
@@ -329,7 +263,7 @@ function buildRiskRows(items, keyGetter, type) {
     current.slaOverdueCount += String(item.sla || '').toLowerCase().includes('vencid') ? 1 : 0
     current.highCriticalityCount += ['alta', 'critica'].includes(String(item.criticality || '').toLowerCase()) ? 1 : 0
     current.recurrenceCount += item.recurrenceSignals?.repeatedTheme || item.recurrenceSignals?.repeatedSubsubject ? 1 : 0
-    current.themes[item.theme || 'Não informado'] = (current.themes[item.theme || 'Não informado'] || 0) + 1
+    current.themes[item.theme || 'Nao informado'] = (current.themes[item.theme || 'Nao informado'] || 0) + 1
 
     if (current.examples.length < 3) {
       current.examples.push(item)
@@ -375,7 +309,7 @@ const faqRiskRows = computed(() => [{
   highCriticalityCount: metricValue('Criticidade alta'),
   escalationsCount: metricValue('Escalados para area interna'),
   recurrenceCount: selfServiceEscape.value.recurrence,
-  dominantTheme: themeRanking.value[0]?.theme || 'Não informado',
+  dominantTheme: themeRanking.value[0]?.theme || 'Nao informado',
   trend: selfServiceEscape.value.recurrence > 0 ? 'subindo' : 'estavel',
   riskScore:
     selfServiceEscape.value.sentToOp +
@@ -415,9 +349,9 @@ const selectedClusterDetails = computed(() => {
   const reason = selected.slaOverdueCount > 0
     ? `${selected.slaOverdueCount} SLA vencido(s) no recorte.`
     : selected.highCriticalityCount > 0
-      ? `${selected.highCriticalityCount} caso(s) crítico(s) no recorte.`
+      ? `${selected.highCriticalityCount} caso(s) critico(s) no recorte.`
       : selected.recurrenceCount > 0
-        ? `Reincidência no tema ${selected.dominantTheme}.`
+        ? `Reincidencia no tema ${selected.dominantTheme}.`
         : 'Risco calculado pela pressao operacional atual.'
   const nextSteps = [
     selected.slaOverdueCount > 0 ? 'Revisar casos com SLA vencido.' : '',
@@ -459,7 +393,7 @@ const recommendedActions = computed(() => {
     if (cluster.highCriticalityCount > 0) {
       clusterActions.push({
         title: `Priorizar ${cluster.cluster}`,
-        reason: `${cluster.highCriticalityCount} crítico(s) no recorte.`,
+        reason: `${cluster.highCriticalityCount} critico(s) no recorte.`,
         risk: 'alto',
         clusterKey: cluster.key,
         viewMode,
@@ -496,13 +430,13 @@ const recommendedActions = computed(() => {
 
   return uniqueActions.length
     ? uniqueActions
-    : [{ title: 'Monitorar visão atual', reason: 'Não há alerta crítico nos filtros atuais.', risk: 'baixo', clusterKey: topRiskItems.value[0]?.key || '', viewMode: ui.viewMode }]
+    : [{ title: 'Monitorar visao atual', reason: 'Nao ha alerta critico nos filtros atuais.', risk: 'baixo', clusterKey: topRiskItems.value[0]?.key || '', viewMode: ui.viewMode }]
 })
 const themeRanking = computed(() => {
   const themeIndex = new Map()
 
   for (const item of activeCasesFull.value) {
-    const theme = item.theme || 'Não informado'
+    const theme = item.theme || 'Nao informado'
     const current = themeIndex.get(theme) || {
       theme,
       count: 0,
@@ -625,7 +559,7 @@ const operationalAlerts = computed(() => {
   if (selfServiceEscape.value.sentToOp > 0 || selfServiceEscape.value.recurrence > 0) {
     alerts.push({
       title: 'FAQ com sinal de falha',
-      detail: `${selfServiceEscape.value.sentToOp} foram ao OP após a FAQ.`,
+      detail: `${selfServiceEscape.value.sentToOp} foram ao OP apos FAQ.`,
       clusterKey: mainCluster?.key || '',
     })
   }
@@ -705,10 +639,7 @@ function applyThemeFilter(theme) {
 }
 
 // --- novos computed/helpers locais ---
-const healthScoreDisplay = computed(() => {
-  if (operationHealth.value.score === null) return null
-  return Math.min(100, Math.max(0, operationHealth.value.score || 0))
-})
+const healthScoreDisplay = computed(() => Math.min(100, Math.max(0, operationHealth.value.score || 0)))
 
 const demandFillPoints = computed(() => {
   const pts = demandTrendPoints.value
@@ -720,71 +651,19 @@ const demandFillPoints = computed(() => {
 
 function getRiskLabel(row) {
   if (row.slaOverdueCount > 0 || row.highCriticalityCount > 1) return 'Alto'
-  if (row.highCriticalityCount > 0 || row.escalationsCount > 0) return 'Médio'
+  if (row.highCriticalityCount > 0 || row.escalationsCount > 0) return 'Medio'
   return 'Baixo'
-}
-
-const displayReplacements = [
-  ['Suporte Academico Digital', 'Suporte Acadêmico Digital'],
-  ['Secretaria Academica', 'Secretaria Acadêmica'],
-  ['Sao Jose dos Campos', 'São José dos Campos'],
-  ['Matricula', 'Matrícula'],
-  ['Estagio', 'Estágio'],
-  ['Colacao', 'Colação'],
-  ['Aguardando acao do OP', 'Aguardando ação do OP'],
-  ['Prioridade maxima', 'Prioridade máxima'],
-  ['Escalado para area interna', 'Escalado para área interna'],
-  ['Aguardando complementacao do aluno', 'Aguardando complementação do aluno'],
-  ['Em validacao operacional', 'Em validação operacional'],
-  ['Complementacao solicitada pela area', 'Complementação solicitada pela área'],
-  ['Respondido pela area', 'Respondido pela área'],
-  ['Reencaminhado para outra area', 'Reencaminhado para outra área'],
-  ['Concluido pela area', 'Concluído pela área'],
-  ['Concluido', 'Concluído'],
-]
-
-function displayLabel(value) {
-  return displayReplacements.reduce(
-    (label, [source, target]) => label.replaceAll(source, target),
-    String(value || ''),
-  )
 }
 </script>
 
 <template>
   <div class="grid gap-4">
     <!-- 1. HEADER COMPACTO -->
-    <section class="rounded-[16px] border border-slate-200 bg-white p-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white p-4">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="text-base font-semibold text-slate-950">Indicadores do atendimento</p>
-          <p class="text-xs text-slate-500">Visão rápida da operação</p>
-          <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-            <span
-              class="rounded-full px-2 py-1 font-semibold"
-              :class="isMockRuntimeEnabled() ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'"
-            >
-              {{ isMockRuntimeEnabled() ? 'Base demonstrativa' : 'Fonte institucional' }}
-            </span>
-            <span v-if="!isMockRuntimeEnabled()" class="text-slate-500">
-              {{ liveState.loading ? 'Atualizando...' : `${liveState.loaded} de ${liveState.total} tickets carregados` }}
-            </span>
-            <button
-              v-if="!isMockRuntimeEnabled()"
-              type="button"
-              class="font-semibold text-[var(--color-primary)] disabled:opacity-50"
-              :disabled="liveState.loading"
-              @click="loadInstitutionalDashboard"
-            >
-              Atualizar
-            </button>
-          </div>
-          <p v-if="liveState.error" class="mt-2 text-xs font-semibold text-red-700" role="alert">
-            {{ liveState.error }}
-          </p>
-          <p v-else-if="liveState.truncated" class="mt-2 text-xs text-amber-700">
-            Visão limitada aos {{ liveState.loaded }} tickets mais recentes para preservar desempenho.
-          </p>
+          <h1 class="text-xl font-semibold text-slate-950">Dashboard admin</h1>
+          <p class="text-xs text-slate-500">Visao rapida da operacao</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
@@ -804,7 +683,7 @@ function displayLabel(value) {
           </div>
 
           <div
-            class="min-w-[190px] rounded-[14px] border px-3 py-2"
+            class="min-w-[190px] rounded-[8px] border px-3 py-2"
             :class="operationHealth.tone === 'danger'
               ? 'border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.74)]'
               : operationHealth.tone === 'warning'
@@ -813,10 +692,10 @@ function displayLabel(value) {
           >
             <div class="flex items-center justify-between gap-3">
               <div>
-                <p class="text-xs font-semibold text-slate-500">Saúde da operação</p>
+                <p class="text-xs font-semibold text-slate-500">Saude da operacao</p>
                 <div class="flex items-baseline gap-1">
-                  <strong class="text-xl text-slate-950">{{ healthScoreDisplay === null ? 'Sem dados para calcular' : healthScoreDisplay }}</strong>
-                  <span v-if="healthScoreDisplay !== null" class="text-sm text-slate-500">/100</span>
+                  <strong class="text-2xl text-slate-950">{{ healthScoreDisplay }}</strong>
+                  <span class="text-xs text-slate-500">/100</span>
                 </div>
               </div>
               <span
@@ -846,12 +725,12 @@ function displayLabel(value) {
 
       <div class="mt-3 flex flex-wrap items-end gap-2">
         <label class="grid min-w-[130px] gap-1">
-          <span class="text-xs font-semibold text-slate-500">Área interna</span>
+          <span class="text-xs font-semibold text-slate-500">Area interna</span>
           <select
             v-model="filters.queue"
-            class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
-            <option v-for="o in filterOptions.queue" :key="o.value" :value="o.value">{{ displayLabel(o.label) }}</option>
+            <option v-for="o in filterOptions.queue" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </label>
 
@@ -861,7 +740,7 @@ function displayLabel(value) {
             v-model="ui.poloSearch"
             type="search"
             placeholder="Buscar polo"
-            class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           />
         </label>
 
@@ -869,9 +748,9 @@ function displayLabel(value) {
           <span class="text-xs font-semibold text-slate-500">Tema</span>
           <select
             v-model="filters.theme"
-            class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
-            <option v-for="o in filterOptions.theme" :key="o.value" :value="o.value">{{ displayLabel(o.label) }}</option>
+            <option v-for="o in filterOptions.theme" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </label>
 
@@ -879,9 +758,9 @@ function displayLabel(value) {
           <span class="text-xs font-semibold text-slate-500">Status</span>
           <select
             v-model="filters.status"
-            class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
-            <option v-for="o in filterOptions.status" :key="o.value" :value="o.value">{{ displayLabel(o.label) }}</option>
+            <option v-for="o in filterOptions.status" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </label>
 
@@ -901,7 +780,7 @@ function displayLabel(value) {
         v-for="card in criticalKpiCards"
         :key="card.label"
         type="button"
-        class="rounded-[14px] border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"
+        class="rounded-[8px] border px-4 py-3 text-left transition hover:bg-slate-50 hover:shadow-sm"
         :class="card.tone === 'danger'
           ? 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.54)]'
           : card.tone === 'warning'
@@ -918,16 +797,16 @@ function displayLabel(value) {
     <!-- 3. DISTRIBUICAO + TENDENCIA -->
     <div class="grid gap-4 lg:grid-cols-[0.38fr_0.62fr]">
       <!-- Donut distribuicao -->
-      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Fluxo</p>
-          <p class="text-sm font-semibold text-slate-950">Distribuição da demanda</p>
-          <p class="mt-0.5 text-xs text-slate-400">Caminho dos atendimentos na visão atual.</p>
+          <p class="text-sm font-semibold text-slate-950">Distribuicao da demanda</p>
+          <p class="mt-0.5 text-xs text-slate-400">Caminho dos atendimentos na visao atual.</p>
         </div>
 
         <div class="mt-4 flex flex-1 items-center gap-5">
           <div class="relative h-[120px] w-[120px] shrink-0">
-            <svg viewBox="0 0 42 42" class="h-full w-full -rotate-90" aria-label="Distribuição da demanda">
+            <svg viewBox="0 0 42 42" class="h-full w-full -rotate-90" aria-label="Distribuicao da demanda">
               <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="#e2e8f0" stroke-width="5" />
               <circle
                 v-for="segment in demandDistribution"
@@ -978,21 +857,21 @@ function displayLabel(value) {
       </div>
 
       <!-- Grafico de evolucao -->
-      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold text-slate-500">Tendência</p>
-            <p class="text-sm font-semibold text-slate-950">Evolução da demanda</p>
+            <p class="text-xs font-semibold text-slate-500">Tendencia</p>
+            <p class="text-sm font-semibold text-slate-950">Evolucao da demanda</p>
             <p class="mt-0.5 text-xs text-slate-400">Demanda nos {{ selectedPeriodLabel }}. Estimativa com a base atual.</p>
           </div>
           <div class="flex items-center gap-3 text-xs text-slate-500">
             <span class="flex items-center gap-1.5">
               <span class="inline-block h-2 w-5 rounded-full bg-[var(--color-primary)]"></span>
-              Período atual
+              Periodo atual
             </span>
             <span class="flex items-center gap-1.5">
               <span class="inline-block h-2 w-5 rounded-full bg-slate-200"></span>
-              Período anterior
+              Periodo anterior
             </span>
           </div>
         </div>
@@ -1005,7 +884,7 @@ function displayLabel(value) {
         <svg
           viewBox="0 0 100 48"
           class="mt-2 h-28 w-full overflow-visible"
-          aria-label="Tendência de demanda"
+          aria-label="Tendencia de demanda"
         >
           <defs>
             <linearGradient id="cockpit-trend-fill" x1="0" y1="0" x2="0" y2="1">
@@ -1044,7 +923,7 @@ function displayLabel(value) {
             class="text-xs font-semibold text-[var(--color-primary)]"
             @click="selectViewMode('areas')"
           >
-            Ver evolução completa &rarr;
+            Ver evolucao completa &rarr;
           </button>
         </div>
       </div>
@@ -1053,21 +932,21 @@ function displayLabel(value) {
     <!-- 4. AREAS INTERNAS + POLOS EM ATENCAO (tabelas compactas) -->
     <div class="grid gap-4 md:grid-cols-2">
       <!-- Areas internas em risco -->
-      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Risco</p>
-          <p class="text-sm font-semibold text-slate-950">Áreas internas em risco</p>
+          <p class="text-sm font-semibold text-slate-950">Areas internas em risco</p>
         </div>
 
         <div v-if="areaRiskRows.length" class="mt-3 overflow-x-auto">
-          <div class="min-w-0">
+          <div class="min-w-[420px]">
             <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
-              <span>Área interna</span>
+              <span>Area interna</span>
               <span class="text-center">Risco</span>
               <span class="text-center">SLA</span>
               <span class="text-center">Crit.</span>
               <span class="text-center">Escal.</span>
-              <span class="text-center">Ação</span>
+              <span class="text-center">Acao</span>
             </div>
             <div
               v-for="area in areaRiskRows"
@@ -1075,7 +954,7 @@ function displayLabel(value) {
               class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
             >
               <div class="min-w-0">
-                <p class="truncate text-xs font-semibold text-slate-900">{{ displayLabel(area.cluster) }}</p>
+                <p class="truncate text-xs font-semibold text-slate-900">{{ area.cluster }}</p>
                 <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
                   <span
                     class="block h-full rounded-full bg-[var(--color-primary)]"
@@ -1087,7 +966,7 @@ function displayLabel(value) {
                 class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
                 :class="getRiskLabel(area) === 'Alto'
                   ? 'bg-red-100 text-red-700'
-                  : getRiskLabel(area) === 'Médio'
+                  : getRiskLabel(area) === 'Medio'
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-emerald-100 text-emerald-700'"
               >
@@ -1107,8 +986,8 @@ function displayLabel(value) {
           </div>
         </div>
 
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
-          Ajuste os filtros para retomar a leitura por área.
+        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+          Ajuste os filtros para retomar a leitura por area.
         </div>
 
         <div class="mt-auto flex justify-end border-t border-slate-50 pt-3">
@@ -1117,27 +996,27 @@ function displayLabel(value) {
             class="text-xs font-semibold text-[var(--color-primary)]"
             @click="selectViewMode('areas')"
           >
-            Ver todas as áreas internas &rarr;
+            Ver todas as areas internas &rarr;
           </button>
         </div>
       </div>
 
       <!-- Polos em atencao -->
-      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Polos</p>
-          <p class="text-sm font-semibold text-slate-950">Polos em atenção</p>
+          <p class="text-sm font-semibold text-slate-950">Polos em atencao</p>
         </div>
 
         <div v-if="poloRiskRows.length" class="mt-3 overflow-x-auto">
-          <div class="min-w-0">
+          <div class="min-w-[420px]">
             <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
               <span>Polo</span>
               <span class="text-center">Risco</span>
               <span class="text-center">SLA</span>
               <span class="text-center">Crit.</span>
               <span class="text-center">Volume</span>
-              <span class="text-center">Ação</span>
+              <span class="text-center">Acao</span>
             </div>
             <div
               v-for="polo in poloRiskRows.slice(0, 6)"
@@ -1145,7 +1024,7 @@ function displayLabel(value) {
               class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
             >
               <div class="min-w-0">
-                <p class="truncate text-xs font-semibold text-slate-900">{{ displayLabel(polo.cluster) }}</p>
+                <p class="truncate text-xs font-semibold text-slate-900">{{ polo.cluster }}</p>
                 <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
                   <span
                     class="block h-full rounded-full bg-[var(--color-primary)]"
@@ -1157,7 +1036,7 @@ function displayLabel(value) {
                 class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
                 :class="getRiskLabel(polo) === 'Alto'
                   ? 'bg-red-100 text-red-700'
-                  : getRiskLabel(polo) === 'Médio'
+                  : getRiskLabel(polo) === 'Medio'
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-emerald-100 text-emerald-700'"
               >
@@ -1177,7 +1056,7 @@ function displayLabel(value) {
           </div>
         </div>
 
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
           Nenhum polo encontrado nos filtros atuais.
         </div>
 
@@ -1194,9 +1073,9 @@ function displayLabel(value) {
     </div>
 
     <!-- 5. TEMAS + ACOES + ESCAPE DA FAQ -->
-    <div class="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <!-- Temas em alta -->
-      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Temas</p>
           <p class="text-sm font-semibold text-slate-950">Temas em alta</p>
@@ -1211,7 +1090,7 @@ function displayLabel(value) {
             @click="applyThemeFilter(theme.theme)"
           >
             <div class="flex items-center gap-2">
-              <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-900">{{ displayLabel(theme.theme) }}</span>
+              <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-900">{{ theme.theme }}</span>
               <span class="shrink-0 text-xs font-semibold text-slate-700">{{ theme.count }}</span>
               <span class="shrink-0 text-[11px] text-slate-400">{{ Math.round((theme.count / totalThemeCount) * 100) }}%</span>
             </div>
@@ -1224,7 +1103,7 @@ function displayLabel(value) {
           </button>
         </div>
 
-        <div v-else class="mt-3 flex-1 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="mt-3 flex-1 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
           Sem temas ativos nos filtros atuais.
         </div>
 
@@ -1240,10 +1119,10 @@ function displayLabel(value) {
       </div>
 
       <!-- Acoes recomendadas -->
-      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Agora</p>
-          <p class="text-sm font-semibold text-slate-950">Ações recomendadas</p>
+          <p class="text-sm font-semibold text-slate-950">Acoes recomendadas</p>
         </div>
 
         <div class="mt-3 flex-1 grid gap-2">
@@ -1251,7 +1130,7 @@ function displayLabel(value) {
             v-for="action in recommendedActions"
             :key="action.title"
             type="button"
-            class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-start gap-x-2 rounded-[12px] border px-3 py-2.5 text-left transition hover:shadow-sm"
+            class="flex items-center gap-3 rounded-[8px] border px-3 py-2.5 text-left transition hover:shadow-sm"
             :class="action.risk === 'alto'
               ? 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.5)]'
               : action.risk === 'medio'
@@ -1263,11 +1142,11 @@ function displayLabel(value) {
               class="shrink-0 text-sm leading-none"
               :class="action.risk === 'alto' ? 'text-red-500' : action.risk === 'medio' ? 'text-amber-500' : 'text-slate-300'"
             >
-              {{ action.risk === 'alto' ? '⚡' : action.risk === 'medio' ? '▲' : '●' }}
+              {{ action.risk === 'alto' ? '!' : action.risk === 'medio' ? '^' : 'o' }}
             </span>
             <div class="min-w-0 flex-1">
-              <p class="break-words text-xs font-semibold leading-5 text-slate-900">{{ displayLabel(action.title) }}</p>
-              <p class="mt-0.5 break-words text-[11px] leading-4 text-slate-500">{{ action.reason }}</p>
+              <p class="truncate text-xs font-semibold text-slate-900">{{ action.title }}</p>
+              <p class="mt-0.5 truncate text-[11px] text-slate-500">{{ action.reason }}</p>
             </div>
             <span
               class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
@@ -1277,7 +1156,7 @@ function displayLabel(value) {
                   ? 'bg-amber-100 text-amber-700'
                   : 'bg-slate-100 text-slate-600'"
             >
-              {{ action.risk === 'alto' ? 'Alta' : action.risk === 'medio' ? 'Média' : 'Baixa' }}
+              {{ action.risk === 'alto' ? 'Alta' : action.risk === 'medio' ? 'Media' : 'Baixa' }}
             </span>
             <span class="shrink-0 text-slate-400 text-sm">›</span>
           </button>
@@ -1295,29 +1174,29 @@ function displayLabel(value) {
       </div>
 
       <!-- Escape da FAQ -->
-      <div class="flex min-w-0 flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Escape da FAQ</p>
-          <p class="text-sm font-semibold text-slate-950">Saída após a FAQ</p>
+          <p class="text-sm font-semibold text-slate-950">Saida apos FAQ</p>
         </div>
 
         <!-- Dois indicadores de escape lado a lado -->
         <div class="mt-3 grid grid-cols-2 gap-2">
-          <div class="rounded-[12px] bg-slate-50 px-3 py-2 text-center">
+          <div class="rounded-[8px] bg-slate-50 px-3 py-2 text-center">
             <p class="text-2xl font-semibold text-slate-950">{{ faqEscapeRate }}%</p>
             <p class="text-xs font-semibold text-slate-700">{{ selfServiceEscape.sentToOp }} casos</p>
-            <p class="mt-0.5 text-[10px] text-slate-400">OP após a FAQ</p>
+            <p class="mt-0.5 text-[10px] text-slate-400">OP apos FAQ</p>
           </div>
-          <div class="rounded-[12px] bg-amber-50 px-3 py-2 text-center">
+          <div class="rounded-[8px] bg-amber-50 px-3 py-2 text-center">
             <p class="text-2xl font-semibold text-slate-950">{{ areaEscapeRate }}%</p>
             <p class="text-xs font-semibold text-slate-700">{{ areaEscapeCount }} casos</p>
-            <p class="mt-0.5 text-[10px] text-slate-400">Área interna</p>
+            <p class="mt-0.5 text-[10px] text-slate-400">Area interna</p>
           </div>
         </div>
 
         <!-- Secundarios compactos -->
         <div class="mt-2 flex items-center gap-4 text-xs text-slate-600">
-          <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.recurrence }}</strong> reincidências</span>
+          <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.recurrence }}</strong> reincidencias</span>
           <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.resolvedByFaq }}</strong> resolv. FAQ</span>
         </div>
 
@@ -1350,7 +1229,7 @@ function displayLabel(value) {
             class="text-xs font-semibold text-[var(--color-primary)]"
             @click="selectViewMode('faq')"
           >
-            Ver análise completa &rarr;
+            Ver analise completa &rarr;
           </button>
         </div>
       </div>
@@ -1359,7 +1238,7 @@ function displayLabel(value) {
     <!-- 6. RECORTE SELECIONADO (condicional) -->
     <div
       v-if="selectedClusterDetails"
-      class="rounded-[16px] border border-slate-200 bg-white p-4"
+      class="rounded-[8px] border border-slate-200 bg-white p-4"
     >
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -1372,21 +1251,21 @@ function displayLabel(value) {
           class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
           @click="selectCluster('')"
         >
-          Voltar para visão geral
+          Voltar para visao geral
         </button>
       </div>
       <div class="mt-3 grid gap-4 xl:grid-cols-2">
         <div class="grid grid-cols-4 gap-2 text-center text-xs font-semibold text-slate-600">
-          <span class="rounded-[10px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.volume }} vol.</span>
-          <span class="rounded-[10px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.slaOverdueCount }} SLA</span>
-          <span class="rounded-[10px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.highCriticalityCount }} crit.</span>
-          <span class="rounded-[10px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.escalationsCount }} esc.</span>
+          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.volume }} vol.</span>
+          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.slaOverdueCount }} SLA</span>
+          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.highCriticalityCount }} crit.</span>
+          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.escalationsCount }} esc.</span>
         </div>
         <ul class="grid gap-1.5">
           <li
             v-for="step in selectedClusterDetails.nextSteps"
             :key="step"
-            class="rounded-[10px] bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
+            class="rounded-[8px] bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
           >
             {{ step }}
           </li>
@@ -1395,35 +1274,35 @@ function displayLabel(value) {
     </div>
 
     <!-- 7. ALERTAS RAPIDOS -->
-    <section class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
-      <p class="mb-2 text-xs font-semibold text-slate-500">Alertas rápidos</p>
+    <section class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+      <p class="mb-2 text-xs font-semibold text-slate-500">Alertas rapidos</p>
 
       <div v-if="operationalAlerts.length" class="grid gap-3 md:grid-cols-3">
         <button
           v-for="alert in operationalAlerts"
           :key="alert.title"
           type="button"
-          class="flex items-start gap-3 rounded-[12px] border border-slate-100 bg-slate-50 px-3 py-2.5 text-left transition hover:bg-slate-100"
+          class="flex items-start gap-3 rounded-[8px] border border-slate-100 bg-slate-50 px-3 py-2.5 text-left transition hover:bg-slate-100"
           @click="alert.theme ? applyThemeFilter(alert.theme) : selectCluster(alert.clusterKey)"
         >
           <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary)]"></span>
           <div class="min-w-0 flex-1">
-            <p class="text-xs font-semibold text-slate-900">{{ displayLabel(alert.title) }}</p>
+            <p class="text-xs font-semibold text-slate-900">{{ alert.title }}</p>
             <p class="mt-0.5 text-[11px] text-slate-500">{{ alert.detail }}</p>
           </div>
           <span class="shrink-0 text-xs font-semibold text-[var(--color-primary)]">Ver agora &rarr;</span>
         </button>
       </div>
 
-      <div v-else class="rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+      <div v-else class="rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
         Sem alertas operacionais nos filtros atuais.
       </div>
     </section>
 
     <!-- 8. ANALISE AVANCADA E AUDITORIA (recolhida) -->
-    <details class="rounded-[16px] border border-slate-200 bg-white p-4">
+    <details class="rounded-[8px] border border-slate-200 bg-white p-4">
       <summary class="cursor-pointer text-sm font-semibold text-slate-700">
-        Análise avançada e auditoria
+        Analise avancada e auditoria
       </summary>
 
       <section class="mt-5">
@@ -1440,20 +1319,50 @@ function displayLabel(value) {
       </section>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Movimentações auditáveis</h3>
-        <div class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4">
-          <p class="text-sm text-slate-600">
-            {{ auditEntries.length }} movimentação(ões) nos filtros atuais. A lista completa com busca e
-            paginação está em uma tela dedicada.
-          </p>
-          <RouterLink to="/admin/auditoria" class="button button-secondary button-compact shrink-0">
-            Abrir auditoria
-          </RouterLink>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Movimentacoes auditaveis</h3>
+        <div v-if="auditEntries.length" class="mt-3 grid gap-3">
+          <article
+            v-for="entry in auditEntries"
+            :key="entry.id"
+            class="inner-panel p-4"
+          >
+            <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-xs font-semibold text-slate-500">{{ entry.caseId }}</p>
+                  <StatusBadge :label="entry.actionLabel" />
+                </div>
+                <h3 class="mt-2 text-base font-semibold text-slate-950">{{ entry.subject }}</h3>
+                <p class="mt-1 text-xs text-slate-600">{{ entry.actor }} - {{ entry.occurredAtLabel }}</p>
+                <p class="mt-0.5 text-xs text-slate-600">{{ entry.student }} - Polo {{ entry.polo }} - {{ entry.theme }}</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <StatusBadge :label="entry.criticality" />
+                <StatusBadge :label="entry.queueAfter" />
+              </div>
+            </div>
+            <div class="mt-3 grid gap-2 md:grid-cols-2">
+              <div class="rounded-[8px] bg-slate-50 px-3 py-2">
+                <p class="text-xs font-semibold text-slate-400">Antes</p>
+                <p class="mt-1 text-xs font-semibold text-slate-900">{{ entry.statusBefore }}</p>
+                <p class="mt-0.5 text-xs text-slate-500">{{ entry.queueBefore }}</p>
+              </div>
+              <div class="rounded-[8px] bg-slate-50 px-3 py-2">
+                <p class="text-xs font-semibold text-slate-400">Depois</p>
+                <p class="mt-1 text-xs font-semibold text-slate-900">{{ entry.statusAfter }}</p>
+                <p class="mt-0.5 text-xs text-slate-500">{{ entry.queueAfter }}</p>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+          Nenhum evento auditavel nos filtros atuais.
         </div>
       </section>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Casos que pedem atenção</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Casos que pedem atencao</h3>
         <div v-if="activeCases.length" class="mt-3 grid gap-3">
           <article
             v-for="item in activeCases"
@@ -1483,13 +1392,13 @@ function displayLabel(value) {
           </article>
         </div>
 
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
           Nenhum caso ativo nos filtros atuais.
         </div>
       </section>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Frentes de governança</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Frentes de governanca</h3>
         <div class="mt-3 grid gap-3 md:grid-cols-2">
           <ActionTile
             v-for="card in governanceCards"

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 defineProps({
   eyebrow: {
     type: String,
@@ -19,7 +19,7 @@ defineProps({
   <section class="surface-panel rise-in p-5 md:p-6">
     <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
       <div>
-        <p v-if="eyebrow" class="text-xs font-semibold tracking-[0.12em] text-slate-500">
+        <p v-if="eyebrow" class="text-xs font-semibold tracking-normal text-slate-500">
           {{ eyebrow }}
         </p>
         <h2 class="mt-2 text-[1.65rem] font-semibold text-slate-950 md:text-[1.8rem]">{{ title }}</h2>

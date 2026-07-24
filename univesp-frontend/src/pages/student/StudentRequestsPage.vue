@@ -1,11 +1,9 @@
-<script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+﻿<script setup>
+import { computed, nextTick, ref } from 'vue'
 
 import StatusBadge from '@/components/StatusBadge.vue'
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
-import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
 import { buildStudentRequestSections, buildStudentRequestSummary } from '@/services/studentPortalRuntime'
-import { mapApiTicketToStudentProtocol } from '@/services/ticketMapper'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const studentSupportStore = useStudentSupportStore()
@@ -18,16 +16,12 @@ const openSections = ref({
   completed: false,
 })
 const sectionElements = ref({})
-const remoteProtocols = ref([])
-const loadingMessage = ref('')
-const loadError = ref('')
 
 const requestSections = computed(() =>
   buildStudentRequestSections({
     protocolDraft: studentSupportStore.protocolDraft,
     records: studentSupportStore.records,
-    protocols: isMockRuntimeEnabled() ? studentSupportStore.protocols : remoteProtocols.value,
-    seededProtocols: isMockRuntimeEnabled() ? undefined : [],
+    protocols: studentSupportStore.protocols,
     query: searchQuery.value,
     period: periodFilter.value,
   }),
@@ -42,7 +36,7 @@ const sections = computed(() => [
   {
     key: 'drafts',
     title: 'Em preenchimento',
-    empty: 'Nenhuma solicitacao em preenchimento no momento.',
+    empty: 'Nenhuma solicitação em preenchimento no momento.',
     tone: {
       sectionClass: 'border-slate-200 bg-white',
       countClass: 'bg-slate-100 text-slate-600',
@@ -52,8 +46,8 @@ const sections = computed(() => [
   },
   {
     key: 'actionRequired',
-    title: 'Precisa da minha acao',
-    empty: 'Nenhum registro aguardando acao sua no momento.',
+    title: 'Precisa da minha ação',
+    empty: 'Nenhum registro aguardando ação sua no momento.',
     tone: {
       sectionClass: 'border-[rgba(209,50,57,0.18)] bg-[rgba(209,50,57,0.04)]',
       countClass: 'bg-[rgba(209,50,57,0.12)] text-[var(--color-danger)]',
@@ -96,22 +90,6 @@ const showNoResults = computed(() =>
   Boolean(searchQuery.value.trim().length || periodFilter.value !== 'all') && !hasFilteredResults.value,
 )
 
-async function loadRequests() {
-  if (isMockRuntimeEnabled()) return
-  loadingMessage.value = 'Carregando suas solicitacoes...'
-  loadError.value = ''
-  try {
-    const result = await listTickets({ page: 1, page_size: 100 })
-    remoteProtocols.value = result.data.map(mapApiTicketToStudentProtocol)
-  } catch (error) {
-    loadError.value = error.message || 'Nao foi possivel carregar suas solicitacoes.'
-  } finally {
-    loadingMessage.value = ''
-  }
-}
-
-onMounted(loadRequests)
-
 function toggleSection(sectionKey) {
   openSections.value = {
     ...openSections.value,
@@ -148,31 +126,25 @@ function openActionRequiredSection() {
 
 <template>
   <StudentStageLayout
-    eyebrow="Minhas solicitacoes"
+    eyebrow="Minhas solicitações"
     title="Acompanhe seus registros no portal"
     description="Aqui aparecem protocolos enviados e respostas registradas no portal."
-    mobile-label="Minhas solicitacoes"
-    aside-title="Apoio"
-    aside-description="No desktop, esta coluna continua apenas como apoio."
+    mobile-label="Minhas solicitações"
+    aside-title="Resumo"
   >
     <div class="grid gap-4">
-      <p v-if="loadingMessage" class="rounded-[20px] border border-slate-200 bg-white p-4 text-sm text-slate-600" role="status">{{ loadingMessage }}</p>
-      <div v-if="loadError" class="rounded-[20px] border border-[var(--color-danger)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-danger)]" role="alert">
-        {{ loadError }}
-        <button type="button" class="ml-2 font-semibold underline" @click="loadRequests">Tentar novamente</button>
-      </div>
       <button
         v-if="requestSummary.actionRequiredCount > 0"
         type="button"
-        class="student-focus-ring rounded-[24px] border border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.06)] p-5 text-left transition hover:bg-[rgba(209,50,57,0.09)]"
+        class="student-focus-ring rounded-[8px] border border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.06)] p-5 text-left transition hover:bg-[rgba(209,50,57,0.09)]"
         @click="openActionRequiredSection"
       >
         <p class="student-section-label text-[var(--color-primary-dark)]">Pendencia importante</p>
         <p class="mt-3 text-base font-semibold text-slate-950">
           {{
             requestSummary.actionRequiredCount === 1
-              ? 'Voce tem 1 solicitacao que precisa da sua acao.'
-              : `Voce tem ${requestSummary.actionRequiredCount} solicitacoes que precisam da sua acao.`
+              ? 'Você tem 1 solicitação que precisa da sua ação.'
+              : `Você tem ${requestSummary.actionRequiredCount} solicitações que precisam da sua ação.`
           }}
         </p>
         <p class="mt-2 text-sm leading-6 text-slate-700">
@@ -180,13 +152,13 @@ function openActionRequiredSection() {
         </p>
       </button>
 
-      <div class="grid gap-3 rounded-[24px] border border-slate-200 bg-white/88 p-5 md:grid-cols-[minmax(0,1fr)_180px]">
+      <div class="grid gap-3 rounded-[8px] border border-slate-200 bg-white/88 p-5 md:grid-cols-[minmax(0,1fr)_180px]">
         <label class="grid gap-2">
           <span class="text-sm font-semibold text-slate-900">Buscar por assunto ou protocolo</span>
           <input
             v-model="searchQuery"
             type="search"
-            class="student-focus-ring rounded-[18px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-700 focus:bg-white"
+            class="student-focus-ring rounded-[8px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-700 focus:bg-white"
             placeholder="Ex.: rematricula ou UVSP-20260326-173141"
             aria-describedby="student-request-search-help"
           />
@@ -196,7 +168,7 @@ function openActionRequiredSection() {
           <span class="text-sm font-semibold text-slate-900">Periodo</span>
           <select
             v-model="periodFilter"
-            class="student-focus-ring rounded-[18px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-700 focus:bg-white"
+            class="student-focus-ring rounded-[8px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-700 focus:bg-white"
             aria-describedby="student-request-search-help"
           >
             <option value="all">Todos</option>
@@ -207,13 +179,13 @@ function openActionRequiredSection() {
         </label>
 
         <p id="student-request-search-help" class="text-sm leading-6 text-slate-600 md:col-span-2">
-          Busque pelo assunto da duvida ou pelo numero do protocolo. O filtro de periodo funciona como atalho simples.
+          Busque pelo assunto da dúvida ou pelo numero do protocolo. O filtro de periodo funciona como atalho simples.
         </p>
       </div>
 
       <div
         v-if="showNoResults"
-        class="rounded-[24px] border border-slate-200 bg-slate-50/85 px-5 py-4 text-sm leading-6 text-slate-700"
+        class="rounded-[8px] border border-slate-200 bg-slate-50/85 px-5 py-4 text-sm leading-6 text-slate-700"
         role="status"
         aria-live="polite"
       >
@@ -224,7 +196,7 @@ function openActionRequiredSection() {
         v-for="section in sections"
         :key="section.key"
         :ref="(element) => setSectionElement(section.key, element)"
-        :class="['rounded-[24px] border transition', section.tone.sectionClass]"
+        :class="['rounded-[8px] border transition', section.tone.sectionClass]"
       >
         <button
           :id="`student-request-trigger-${section.key}`"
@@ -272,7 +244,7 @@ function openActionRequiredSection() {
                 <article
                   v-for="item in completedSubsections.answered"
                   :key="item.id"
-                  class="rounded-[20px] border border-[rgba(0,95,153,0.14)] bg-[rgba(0,95,153,0.04)] p-4"
+                  class="rounded-[8px] border border-[rgba(0,95,153,0.14)] bg-[rgba(0,95,153,0.04)] p-4"
                 >
                   <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
@@ -313,7 +285,7 @@ function openActionRequiredSection() {
                 <article
                   v-for="item in completedSubsections.concluded"
                   :key="item.id"
-                  class="rounded-[20px] border border-[rgba(26,111,67,0.14)] bg-[rgba(26,111,67,0.04)] p-4"
+                  class="rounded-[8px] border border-[rgba(26,111,67,0.14)] bg-[rgba(26,111,67,0.04)] p-4"
                 >
                   <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
@@ -351,7 +323,7 @@ function openActionRequiredSection() {
               <article
                 v-for="item in requestSections[section.key]"
                 :key="item.id"
-                class="rounded-[20px] border border-slate-200 bg-slate-50/80 p-4"
+                class="rounded-[8px] border border-slate-200 bg-slate-50/80 p-4"
               >
                 <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div class="min-w-0">
@@ -396,7 +368,7 @@ function openActionRequiredSection() {
       <div class="grid gap-4">
         <div
           v-if="latestVisibleEntry"
-          class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4"
+          class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4"
         >
           <p class="text-sm font-semibold text-slate-900">Registro mais recente</p>
           <p class="mt-2 text-sm font-semibold text-slate-800">
@@ -407,10 +379,10 @@ function openActionRequiredSection() {
           </p>
         </div>
 
-        <div class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4">
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4">
           <p class="text-sm font-semibold text-slate-900">Como ler esta lista</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            O nome da sua duvida aparece primeiro. O status mostra se voce precisa agir, aguardar atendimento, consultar a resposta no portal ou considerar o caso concluido.
+            O nome da sua dúvida aparece primeiro. O status mostra se você precisa agir, aguardar atendimento, consultar a resposta no portal ou considerar o caso concluido.
           </p>
         </div>
       </div>

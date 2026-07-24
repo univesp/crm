@@ -1,11 +1,9 @@
-<script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+﻿<script setup>
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import EmptyState from '@/components/ui/EmptyState.vue'
-import LoadingState from '@/components/ui/LoadingState.vue'
-import SgpButton from '@/components/ui/SgpButton.vue'
 import {
   clearFaqBuilderBundleLibraryLocal,
   createFaqBuilderBundleLibrary,
@@ -13,27 +11,19 @@ import {
   getFaqBuilderCatalogOptions,
   listFaqBuilderBundles,
   loadFaqBuilderBundleLibraryLocal,
+  saveFaqBuilderBundleLibraryLocal,
 } from '@/services/faqBuilderHybridRuntime'
-import { FAQ_TYPE_CATALOG } from '@/services/faqCatalogs'
-import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
 const catalogs = getFaqBuilderCatalogOptions()
 
-const AUDIENCE_SCOPES = Object.freeze([
-  { key: 'all', label: 'Todos' },
-  { key: 'atendimento', label: 'Atendimento', hint: 'Aluno e OP' },
-  { key: 'publico', label: 'Público externo', hint: 'Visitantes' },
-])
-
 const currentEditorName = computed(
   () => auth.displayName || auth.mockContext?.userName || 'Admin local',
 )
 
 const runtimeError = ref('')
-const audienceScope = ref('all')
 
 function safeRuntimeCall(executor, fallbackFactory = () => null) {
   try {
@@ -59,21 +49,6 @@ const library = reactive(
   ) || createFaqBuilderBundleLibrary(currentEditorName.value),
 )
 
-const institutionalState = reactive({ loading: false, ready: false })
-
-onMounted(async () => {
-  institutionalState.loading = true
-  runtimeError.value = ''
-  try {
-    await hydrateFaqLibrary(library, currentEditorName.value)
-    institutionalState.ready = true
-  } catch (error) {
-    runtimeError.value = error?.message || 'Falha ao carregar a biblioteca FAQ institucional.'
-  } finally {
-    institutionalState.loading = false
-  }
-})
-
 const filters = reactive({
   search: '',
   status: 'all',
@@ -90,9 +65,6 @@ const feedback = reactive({
   type: '',
   message: '',
 })
-
-const createOpen = ref(false)
-const importOpen = ref(false)
 
 const allRows = computed(() =>
   safeRuntimeCall(
@@ -120,79 +92,41 @@ const rows = computed(() =>
   ),
 )
 
-function uniqueById(items = []) {
-  return Array.from(new Map(items.map((item) => [item.bundleId, item])).values())
-}
-
-const uniqueRows = computed(() => uniqueById(rows.value))
-
-const displayRows = computed(() => {
-  const base = uniqueRows.value
-  if (audienceScope.value === 'atendimento') {
-    return base.filter((row) => row.faqType === 'aluno' || row.faqType === 'op')
+const summary = computed(() => {
+  const base = {
+    total: allRows.value.length,
+    draft: 0,
+    review: 0,
+    published: 0,
+    archived: 0,
+    withErrors: 0,
   }
+
+  for (const item of allRows.value) {
+    if (item.statusKey === 'draft') base.draft += 1
+    if (item.statusKey === 'in review') base.review += 1
+    if (item.statusKey === 'published') base.published += 1
+    if (item.statusKey === 'archived') base.archived += 1
+    if (item.hasBlockingError) base.withErrors += 1
+  }
+
   return base
 })
-
-watch(
-  () => filters.faqType,
-  (value) => {
-    if (value === 'publico') {
-      audienceScope.value = 'publico'
-      return
-    }
-    if (value === 'aluno' || value === 'op') {
-      audienceScope.value = 'atendimento'
-      return
-    }
-    if (value === 'all' && audienceScope.value !== 'publico') {
-      audienceScope.value = 'all'
-    }
-  },
-)
-
-const uniqueSummary = computed(() => {
-  const result = { total: 0, draft: 0, review: 0, published: 0, withErrors: 0 }
-  for (const item of uniqueById(allRows.value)) {
-    result.total += 1
-    if (item.statusKey === 'draft') result.draft += 1
-    if (item.statusKey === 'in review') result.review += 1
-    if (item.statusKey === 'published') result.published += 1
-    if (item.hasBlockingError) result.withErrors += 1
-  }
-  return result
-})
-
-function setAudienceScope(scope = 'all') {
-  audienceScope.value = scope
-  if (scope === 'publico') {
-    filters.faqType = 'publico'
-    return
-  }
-  if (scope === 'atendimento') {
-    filters.faqType = 'all'
-    return
-  }
-  filters.faqType = 'all'
-}
 
 function setFeedback(type = '', message = '') {
   feedback.type = type
   feedback.message = message
 }
 
-async function resetLibraryState() {
+function resetLibraryState() {
   clearFaqBuilderBundleLibraryLocal()
-  const restored = createFaqBuilderBundleLibrary(currentEditorName.value)
-  Object.assign(library, restored)
+  const restored = safeRuntimeCall(
+    () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
+    () => createFaqBuilderBundleLibrary(currentEditorName.value),
+  )
+  Object.assign(library, restored || createFaqBuilderBundleLibrary(currentEditorName.value))
   runtimeError.value = ''
-  try {
-    await persistFaqLibrary(library, 'Reinicializacao administrativa da biblioteca FAQ')
-    setFeedback('success', 'Biblioteca reinicializada e persistida com sucesso.')
-  } catch (error) {
-    runtimeError.value = error?.message || 'Falha ao reinicializar a biblioteca institucional.'
-    setFeedback('error', runtimeError.value)
-  }
+  setFeedback('success', 'Biblioteca local reinicializada com sucesso.')
 }
 
 function openBundle(bundleId = '', query = {}) {
@@ -212,7 +146,7 @@ function openBundle(bundleId = '', query = {}) {
   })
 }
 
-async function createFlow() {
+function createFlow() {
   const result = createFaqBuilderBundleEntry(library, {
     faqType: createForm.faqType,
     title: createForm.title,
@@ -223,15 +157,11 @@ async function createFlow() {
     setFeedback('error', result.message)
     return
   }
-  try {
-    await persistFaqLibrary(library, 'Criacao de novo fluxo na biblioteca FAQ')
-    createForm.title = ''
-    createForm.subjectKey = ''
-    setFeedback('success', 'Novo fluxo criado e persistido com sucesso.')
-    openBundle(result.entry.bundleId)
-  } catch (error) {
-    setFeedback('error', error?.message || 'Falha ao persistir o novo fluxo FAQ.')
-  }
+  saveFaqBuilderBundleLibraryLocal(library)
+  createForm.title = ''
+  createForm.subjectKey = ''
+  setFeedback('success', 'Novo fluxo criado com sucesso.')
+  openBundle(result.entry.bundleId)
 }
 
 function statusLabel(status = '') {
@@ -244,25 +174,6 @@ function statusLabel(status = '') {
     archived: 'Arquivado',
   }
   return labels[normalized] || status || 'Nao informado'
-}
-
-function faqTypeLabel(faqType = '') {
-  return FAQ_TYPE_CATALOG[faqType]?.label || faqType || 'Nao informado'
-}
-
-function faqTypeShortLabel(faqType = '') {
-  const labels = {
-    aluno: 'Aluno',
-    op: 'OP',
-    publico: 'Publico',
-  }
-  return labels[faqType] || faqType || '-'
-}
-
-function faqTypeBadgeClass(faqType = '') {
-  if (faqType === 'publico') return 'badge-info'
-  if (faqType === 'op') return 'badge-warning'
-  return 'badge-success'
 }
 
 function formatDate(dateValue = '') {
@@ -326,201 +237,163 @@ function situationTone(row = {}) {
   <div class="grid gap-5">
     <section
       v-if="runtimeError"
-      class="rounded-ui border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-      role="alert"
+      class="rounded-[8px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
     >
-      <p class="font-semibold">Os dados nao puderam ser carregados.</p>
-      <p class="mt-1">Tente novamente. Se o problema continuar, informe o horario ao suporte.</p>
-      <SgpButton variant="secondary" class="mt-3" @click="resetLibraryState">Tentar novamente</SgpButton>
-    </section>
-
-    <section class="surface-panel p-5">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Biblioteca institucional</p>
-          <p class="mt-2 text-lg font-semibold text-slate-950">
-            {{ uniqueSummary.total }} FAQs
-            <span class="text-base font-normal text-slate-500">
-              · {{ uniqueSummary.draft }} rascunhos · {{ uniqueSummary.review }} em revisao ·
-              {{ uniqueSummary.published }} publicadas
-            </span>
-          </p>
-          <p v-if="uniqueSummary.withErrors" class="mt-1 text-sm font-semibold text-red-700">
-            {{ uniqueSummary.withErrors }}
-            {{ uniqueSummary.withErrors === 1 ? 'FAQ precisa' : 'FAQs precisam' }} de correcao antes da publicacao.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <SgpButton variant="secondary" @click="importOpen = !importOpen">Importar arquivo</SgpButton>
-          <SgpButton @click="createOpen = !createOpen">Nova FAQ</SgpButton>
-        </div>
-      </div>
-
-      <div v-if="importOpen" class="inner-panel mt-4 p-4 text-sm text-slate-700">
-        <p class="font-semibold text-slate-950">Importar conteudo</p>
-        <p class="mt-1 leading-6">
-          Abra a FAQ que sera atualizada e escolha “Importar conteudo”. O arquivo sera validado antes de substituir
-          o rascunho e nunca sera publicado automaticamente.
-        </p>
-      </div>
-
-      <form
-        v-if="createOpen"
-        class="inner-panel mt-4 grid gap-4 p-4 md:grid-cols-[minmax(180px,220px)_minmax(0,1fr)_auto]"
-        @submit.prevent="createFlow"
+      <p class="font-semibold">Não foi possível carregar a biblioteca local.</p>
+      <p class="mt-1">{{ runtimeError }}</p>
+      <button
+        type="button"
+        class="mt-3 rounded-[8px] border border-[rgba(166,31,40,0.28)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
+        @click="resetLibraryState"
       >
-        <label class="grid gap-1 text-sm">
-          <span class="font-semibold text-slate-700">Publico</span>
-          <select
-            v-model="createForm.faqType"
-            class="rounded-ui border border-slate-200 bg-white px-3 py-2"
-          >
-            <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-        <label class="grid gap-1 text-sm">
-          <span class="font-semibold text-slate-700">Nome da FAQ</span>
-          <input
-            v-model="createForm.title"
-            type="text"
-            required
-            class="rounded-ui border border-slate-200 bg-white px-3 py-2"
-            placeholder="Ex.: Segunda chamada de prova"
-          />
-        </label>
-        <div class="flex flex-col gap-1 md:justify-end">
-          <span class="text-sm font-semibold text-slate-700 md:sr-only">Acao</span>
-          <SgpButton type="submit">Criar FAQ</SgpButton>
-        </div>
-      </form>
+        Reinicializar dados locais do FAQ Builder
+      </button>
     </section>
+
+    <SectionPanel
+      eyebrow="Admin / FAQ Builder"
+      title="Biblioteca de fluxos da base de conhecimento"
+      description="Escolha um fluxo para editar. O canvas abre apenas um bundle por vez em tela dedicada."
+    >
+      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Fluxos</p>
+          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+        </div>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Rascunhos</p>
+          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.draft }}</p>
+        </div>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Em revisao</p>
+          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.review }}</p>
+        </div>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Publicados</p>
+          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.published }}</p>
+        </div>
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[11px] uppercase tracking-normal text-slate-500">Com erro estrutural</p>
+          <p class="mt-1 text-xl font-semibold text-[var(--color-danger)]">{{ summary.withErrors }}</p>
+        </div>
+      </div>
+    </SectionPanel>
 
     <section
       v-if="feedback.message"
-      class="rounded-ui border px-4 py-3 text-sm"
-      :class="
-        feedback.type === 'error'
-          ? 'border-red-200 bg-red-50 text-red-800'
-          : 'border-green-200 bg-green-50 text-green-800'
-      "
-      role="status"
+      class="rounded-[8px] border px-4 py-3 text-sm"
+      :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'"
     >
       {{ feedback.message }}
     </section>
 
-    <section class="inner-panel overflow-hidden">
-      <div class="border-b border-slate-200 p-4">
-        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Escopo</p>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <button
-            v-for="scope in AUDIENCE_SCOPES"
-            :key="scope.key"
-            type="button"
-            class="rounded-full border px-3 py-2 text-sm font-semibold transition"
-            :class="
-              audienceScope === scope.key
-                ? 'border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary-dark)]'
-                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-            "
-            @click="setAudienceScope(scope.key)"
-          >
-            {{ scope.label }}
-            <span v-if="scope.hint" class="font-normal text-slate-500">· {{ scope.hint }}</span>
+    <section class="grid gap-3">
+      <article class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+        <p class="text-sm font-semibold text-slate-900">Filtros da biblioteca</p>
+        <div class="mt-2 grid gap-2 md:grid-cols-[minmax(220px,1fr)_minmax(150px,180px)_minmax(150px,180px)]">
+          <label class="grid min-w-0 gap-1">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Buscar</span>
+            <input v-model="filters.search" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Nome do fluxo, assunto ou tipo" />
+          </label>
+          <label class="grid min-w-0 gap-1">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Status</span>
+            <select v-model="filters.status" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
+              <option value="all">Todos</option>
+              <option value="draft">Rascunho</option>
+              <option value="in review">Em revisao</option>
+              <option value="published">Publicado</option>
+              <option value="archived">Arquivado</option>
+            </select>
+          </label>
+          <label class="grid min-w-0 gap-1">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Tipo de FAQ</span>
+            <select v-model="filters.faqType" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
+              <option value="all">Todos</option>
+              <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+        </div>
+      </article>
+
+      <details class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-900">
+          Criar novo fluxo
+          <span class="ml-2 text-xs font-normal text-slate-500">Cadastre um novo fluxo quando nao houver fluxo equivalente.</span>
+        </summary>
+        <div class="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_140px] lg:items-end">
+          <label class="grid min-w-0 gap-1">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Tipo</span>
+            <select v-model="createForm.faqType" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
+              <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+          <label class="grid min-w-0 gap-1">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Nome do fluxo</span>
+            <input v-model="createForm.title" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: Provas e segunda chamada" />
+          </label>
+          <label class="grid min-w-0 gap-1">
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Chave do assunto (opcional)</span>
+            <input v-model="createForm.subjectKey" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: provas_segunda_chamada" />
+          </label>
+          <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white" @click="createFlow">
+            Criar fluxo
           </button>
         </div>
-      </div>
+      </details>
+    </section>
 
-      <div class="grid gap-4 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1fr)_180px_180px]">
-        <label class="grid gap-1 text-sm">
-          <span class="font-semibold text-slate-700">Buscar FAQ</span>
-          <input
-            v-model="filters.search"
-            type="search"
-            class="rounded-ui border border-slate-200 bg-white px-3 py-2"
-            placeholder="Nome ou assunto"
-          />
-        </label>
-        <label class="grid gap-1 text-sm">
-          <span class="font-semibold text-slate-700">Estado</span>
-          <select v-model="filters.status" class="rounded-ui border border-slate-200 bg-white px-3 py-2">
-            <option value="all">Todos</option>
-            <option value="draft">Rascunho</option>
-            <option value="in review">Em revisao</option>
-            <option value="published">Publicado</option>
-            <option value="archived">Arquivado</option>
-          </select>
-        </label>
-        <label class="grid gap-1 text-sm">
-          <span class="font-semibold text-slate-700">Publico</span>
-          <select v-model="filters.faqType" class="rounded-ui border border-slate-200 bg-white px-3 py-2">
-            <option value="all">Todos</option>
-            <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-      </div>
-
-      <LoadingState v-if="institutionalState.loading" message="Carregando biblioteca FAQ..." />
-
-      <EmptyState
-        v-else-if="!displayRows.length"
-        title="Nenhuma FAQ encontrada"
-        message="Ajuste os filtros ou crie uma nova FAQ para este publico."
-        next-step="Use Atendimento para aluno e OP, ou Publico externo para visitantes sem login."
-      />
-
-      <div v-else class="overflow-x-auto">
-        <table class="w-full min-w-[860px] text-left text-sm">
-          <thead class="bg-slate-50 text-slate-600">
+    <section class="rounded-[8px] border border-slate-200 bg-white p-4">
+      <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
+      <div class="mt-3 overflow-auto rounded-[8px] border border-slate-200">
+        <table class="w-full min-w-[900px] text-left text-xs">
+          <thead class="bg-slate-100 text-slate-600">
             <tr>
-              <th class="px-4 py-3">FAQ</th>
-              <th class="px-4 py-3">Publico</th>
-              <th class="px-4 py-3">Estado</th>
-              <th class="px-4 py-3">Responsavel</th>
-              <th class="px-4 py-3">Pendencia</th>
-              <th class="px-4 py-3">Atualizacao</th>
-              <th class="px-4 py-3"><span class="sr-only">Acao</span></th>
+              <th class="px-3 py-2">Fluxo</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Area responsavel</th>
+              <th class="px-3 py-2">Situação</th>
+              <th class="px-3 py-2">Atualizado em</th>
+              <th class="px-3 py-2">Acao</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in displayRows" :key="row.bundleId" class="border-t border-slate-200">
-              <td class="px-4 py-3">
-                <p class="font-semibold text-slate-950">{{ row.title }}</p>
-                <p class="mt-1 text-xs text-slate-500">{{ faqTypeLabel(row.faqType) }}</p>
+            <tr v-for="row in rows" :key="row.bundleId" class="border-t border-slate-200">
+              <td class="px-3 py-2">
+                <p class="font-semibold text-slate-900">{{ row.title }}</p>
               </td>
-              <td class="px-4 py-3">
-                <span
-                  class="badge-base"
-                  :class="faqTypeBadgeClass(row.faqType)"
-                  :title="faqTypeLabel(row.faqType)"
-                >
-                  {{ faqTypeShortLabel(row.faqType) }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
+              <td class="px-3 py-2">
                 <StatusBadge :label="statusLabel(row.statusKey || row.workflowStatus)" />
               </td>
-              <td class="px-4 py-3 text-slate-700">{{ row.bundleOwnerLabel || 'Nao definido' }}</td>
-              <td class="px-4 py-3">
-                <span
+              <td class="px-3 py-2">
+                <p class="font-semibold text-slate-900">{{ row.bundleOwnerLabel || '-' }}</p>
+              </td>
+              <td class="px-3 py-2">
+                <p
                   :class="
                     situationTone(row) === 'danger'
-                      ? 'font-semibold text-red-700'
+                      ? 'text-[var(--color-danger)] font-semibold'
                       : situationTone(row) === 'warning'
-                        ? 'font-semibold text-amber-700'
-                        : 'text-green-700'
+                        ? 'text-amber-700 font-semibold'
+                        : 'text-[var(--color-success)] font-semibold'
                   "
                 >
-                  {{ situationHint(row) }}
-                </span>
+                  {{ situationLabel(row) }}
+                </p>
+                <p class="mt-1 text-slate-600">{{ situationHint(row) }}</p>
               </td>
-              <td class="px-4 py-3 text-slate-600">{{ formatDate(row.updatedAt) }}</td>
-              <td class="px-4 py-3 text-right">
-                <SgpButton variant="secondary" compact @click="openBundle(row.bundleId)">Abrir</SgpButton>
+              <td class="px-3 py-2">
+                <p>{{ formatDate(row.updatedAt) }}</p>
               </td>
+              <td class="px-3 py-2">
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
+                    Ver fluxo
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!rows.length" class="border-t border-slate-200">
+              <td colspan="6" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
             </tr>
           </tbody>
         </table>

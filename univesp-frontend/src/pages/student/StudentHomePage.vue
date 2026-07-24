@@ -1,9 +1,8 @@
-<script setup>
-import { computed, onMounted, ref } from 'vue'
+﻿<script setup>
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
-import { useStudentDirectoryValidation } from '@/composables/useStudentDirectoryValidation'
 import { buildStudentFaqRuntime } from '@/services/faqRuntime'
 import { buildStudentPortalSearch } from '@/services/studentPortalRuntime'
 import { useAuthStore } from '@/stores/auth'
@@ -12,7 +11,6 @@ import { useStudentSupportStore } from '@/stores/studentSupport'
 const router = useRouter()
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
-const { validationError, validateForSession } = useStudentDirectoryValidation()
 const searchQuery = ref('')
 const showSearch = ref(false)
 
@@ -44,35 +42,18 @@ function openSearchResult(route) {
 function toggleSearch() {
   showSearch.value = !showSearch.value
 }
-
-onMounted(async () => {
-  await auth.loadSession()
-  if (auth.mockContext?.profileKey === 'aluno') {
-    await validateForSession({
-      email: auth.user?.email,
-      displayName: auth.mockContext.userName,
-      ra: auth.user?.ra,
-    })
-  }
-})
 </script>
 
 <template>
   <StudentStageLayout
     eyebrow="Central de atendimento"
-    :title="`Ola, ${userName}!`"
+    :title="`Olá, ${userName}!`"
     description="Como podemos ajudar hoje?"
-    aside-title="Apoio"
-    aside-description="No desktop, esta coluna continua apenas como apoio."
   >
-    <p v-if="validationError" class="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      {{ validationError }}
-      <router-link to="/publico" class="ml-1 underline">Atendimento publico</router-link>
-    </p>
     <div class="grid max-w-[720px] gap-3 xl:min-h-[360px] xl:content-center">
       <button
         type="button"
-        class="student-focus-ring rounded-[24px] border border-[rgba(109,76,255,0.22)] bg-[rgba(109,76,255,0.08)] px-5 py-5 text-left shadow-[0_18px_40px_rgba(109,76,255,0.08)] hover:-translate-y-1"
+        class="student-focus-ring rounded-[8px] border border-[rgba(209,50,57,0.24)] bg-[rgba(209,50,57,0.08)] px-5 py-5 text-left"
         @click="startJourney"
       >
         <div class="flex items-start gap-4">
@@ -80,9 +61,9 @@ onMounted(async () => {
             1
           </span>
           <div>
-            <p class="text-xl font-semibold text-slate-950">Tenho uma duvida</p>
+            <p class="text-xl font-semibold text-slate-950">Tenho uma dúvida</p>
             <p class="mt-2 text-sm leading-6 text-slate-600">
-              Receber ajuda agora.
+              Consulte a orientação oficial e siga para solicitação se precisar.
             </p>
           </div>
         </div>
@@ -90,34 +71,34 @@ onMounted(async () => {
 
       <RouterLink
         to="/aluno/solicitacoes"
-        class="student-focus-ring rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-left hover:-translate-y-1 hover:bg-slate-50"
+        class="student-focus-ring rounded-[8px] border border-slate-200 bg-white px-5 py-5 text-left hover:bg-slate-50"
       >
         <div class="flex items-start gap-4">
-          <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(109,76,255,0.08)] text-base font-semibold text-[var(--color-primary-dark)]">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(209,50,57,0.08)] text-base font-semibold text-[var(--color-primary-dark)]">
             2
           </span>
           <div>
-            <p class="text-lg font-semibold text-slate-950">Minhas solicitacoes</p>
+            <p class="text-lg font-semibold text-slate-950">Minhas solicitações</p>
             <p class="mt-2 text-sm leading-6 text-slate-600">
-              Acompanhar atendimento.
+              Acompanhe protocolos e respostas em andamento.
             </p>
           </div>
         </div>
       </RouterLink>
 
-      <div class="rounded-[20px] border border-slate-200 bg-white/72 p-4">
+      <div class="rounded-[8px] border border-slate-200 bg-white p-4">
         <button
           type="button"
           class="student-focus-ring flex w-full items-center justify-between gap-3 text-left"
           :aria-expanded="showSearch || searchQuery.trim().length ? 'true' : 'false'"
           aria-controls="student-home-search-panel"
-          :aria-label="showSearch || searchQuery.trim().length ? 'Recolher busca rapida' : 'Expandir busca rapida'"
+          :aria-label="showSearch || searchQuery.trim().length ? 'Recolher busca rápida' : 'Expandir busca rápida'"
           @click="toggleSearch"
         >
           <div>
-            <p class="text-sm font-semibold text-slate-900">Ja sabe o assunto ou protocolo?</p>
+            <p class="text-sm font-semibold text-slate-900">Já sabe o assunto ou protocolo?</p>
             <p class="mt-1 text-sm leading-6 text-slate-600">
-              Use a busca apenas como atalho rapido.
+              Use a busca como atalho rápido.
             </p>
           </div>
           <span aria-hidden="true" class="text-sm font-semibold text-slate-500">
@@ -135,13 +116,13 @@ onMounted(async () => {
             <input
               v-model="searchQuery"
               type="search"
-              class="student-focus-ring rounded-[18px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-700 focus:bg-white"
-              placeholder="Ex.: rematricula ou UVSP-20260326-173141"
+              class="student-focus-ring rounded-[8px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-700 focus:bg-white"
+              placeholder="Ex.: rematrícula ou UVSP-20260326-173141"
               aria-describedby="student-search-help"
             />
           </label>
           <p id="student-search-help" class="text-sm leading-6 text-slate-600">
-            A busca encontra assuntos do portal e registros ja existentes.
+            A busca encontra assuntos do portal e registros já existentes.
           </p>
 
           <div
@@ -158,7 +139,7 @@ onMounted(async () => {
                 v-for="item in searchResults.faqMatches"
                 :key="item.id"
                 type="button"
-                class="student-focus-ring rounded-[16px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-left hover:bg-slate-50"
+                class="student-focus-ring rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-left hover:bg-slate-50"
                 @click="openSearchResult(item.route)"
               >
                 <p class="text-sm font-semibold text-slate-900">{{ item.title }}</p>
@@ -176,7 +157,7 @@ onMounted(async () => {
                 v-for="item in searchResults.requestMatches"
                 :key="item.id"
                 type="button"
-                class="student-focus-ring rounded-[16px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-left hover:bg-slate-50"
+                class="student-focus-ring rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-left hover:bg-slate-50"
                 @click="openSearchResult(item.route)"
               >
                 <p class="text-sm font-semibold text-slate-900">{{ item.subject }}</p>
@@ -188,7 +169,7 @@ onMounted(async () => {
 
             <p
               v-if="!searchResults.faqMatches.length && !searchResults.requestMatches.length"
-              class="rounded-[16px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-600"
+              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-600"
             >
               Nenhum resultado encontrado para esta busca.
             </p>
@@ -196,16 +177,5 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-
-    <template #aside>
-      <div class="grid gap-3">
-        <div class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4">
-          <p class="text-sm font-semibold text-slate-900">Portal oficial</p>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            Primeiro mostramos a orientacao oficial. Se precisar, voce continua para a solicitacao.
-          </p>
-        </div>
-      </div>
-    </template>
   </StudentStageLayout>
 </template>

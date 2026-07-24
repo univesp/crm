@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 defineProps({
   index: {
     type: Number,
@@ -25,7 +25,7 @@ function selectOption(value) {
   <article class="inner-panel p-5">
     <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+        <p class="text-[11px] font-semibold uppercase tracking-normal text-slate-500">
           Pergunta {{ index }}
         </p>
         <h3 class="mt-2 text-xl font-semibold text-slate-950">{{ question.title }}</h3>
