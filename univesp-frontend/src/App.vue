@@ -511,7 +511,7 @@ onErrorCaptured((error) => {
     <RouterView />
   </div>
 
-  <div v-else :class="['relative min-h-screen overflow-hidden', shellThemeClass]">
+  <div v-else :class="['relative min-h-screen overflow-x-clip', shellThemeClass]">
     <a
       href="#main-content"
       class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[120] focus:rounded-full focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-slate-950"
@@ -529,12 +529,26 @@ onErrorCaptured((error) => {
             : 'max-w-[1540px] gap-5 lg:px-6',
       ]"
     >
-      <div :class="isStudentShell ? 'hidden lg:block' : ''">
+      <div
+        :class="[
+          isStudentShell ? 'hidden lg:block' : '',
+          isOperationalShell ? 'app-shell-sidebar' : '',
+        ]"
+      >
         <AppSidebar />
       </div>
 
-      <main id="main-content" class="flex-1 pb-8">
-        <section class="app-a11y-toolbar" aria-label="Preferências de visualização">
+      <main
+        id="main-content"
+        :class="['min-w-0 flex-1 pb-8', isOperationalShell ? 'app-shell-main' : '']"
+      >
+        <section
+          :class="[
+            'app-a11y-toolbar',
+            isOperationalShell ? 'mb-3' : '',
+          ]"
+          aria-label="Preferências de visualização"
+        >
           <div class="app-a11y-toolbar__group" role="group" aria-label="Tema">
             <button
               type="button"
@@ -620,11 +634,11 @@ onErrorCaptured((error) => {
           v-if="!isStudentShell"
           :class="[
             isOperationalShell
-              ? 'mb-2 flex flex-col gap-2 px-1 py-0.5 md:flex-row md:items-center md:justify-between'
+              ? 'mb-3 flex flex-col gap-3 px-1 py-0.5 lg:flex-row lg:items-start lg:justify-between'
               : 'surface-panel rise-in mb-4 flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between',
           ]"
         >
-          <div>
+          <div class="min-w-0 flex-1">
             <div v-if="!isOperationalShell" class="flex flex-wrap items-center gap-2">
               <span
                 :class="[
@@ -652,7 +666,7 @@ onErrorCaptured((error) => {
             </p>
           </div>
 
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
             <template v-if="isOperationalShell">
               <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700">
                 <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
