@@ -22,6 +22,18 @@ curl -sf "$APP_BASE_URL/api/public/v1/knowledge/faq-published?faq_type=publico"
 
 PowerShell: `.\ops\smoke\mvp-e2e.ps1 -BaseUrl https://homolog-crm.univesp.br`
 
+Opcional: `-IncludeIngress` (webhook omnichannel) e `-IncludePwa` (manifest).
+
+### PWA (Fase B)
+
+Apos rebuild do frontend, verificar:
+
+```bash
+curl -sf "$APP_BASE_URL/crm/manifest.webmanifest"
+```
+
+Service worker cacheia apenas assets estaticos (`/api/*` excluido).
+
 ### Resultado homolog (2026-07-23)
 
 | Check | Resultado |

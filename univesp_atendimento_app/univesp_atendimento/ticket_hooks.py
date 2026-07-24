@@ -30,17 +30,39 @@ def on_ticket_created(doc, method=None):
 
 
 def enqueue_ai_suggestion(ticket_name: str) -> None:
-	"""Stub Fase D — grava JSON minimo no ticket; worker real pluga depois."""
-	stub = {
-		"status": "pending",
-		"provider": "stub",
-		"ticket_ref": str(ticket_name),
-		"queued_at": frappe.utils.now(),
-	}
+	"""Stub Fase D — enfileira job curto que grava sugestao concluida."""
+	if frappe.flags.in_import or frappe.flags.in_migrate:
+		return
+	try:
+		frappe.enqueue(
+			"univesp_atendimento.ticket_hooks.complete_ai_suggestion_stub",
+			queue="short",
+			ticket_name=str(ticket_name),
+			now=frappe.utils.now(),
+			timeout=120,
+		)
+	except Exception:
+		_write_ai_stub(ticket_name, status="pending", provider="stub-inline")
+
+
+def complete_ai_suggestion_stub(ticket_name: str, now: str) -> None:
+	"""Worker stub — grava sugestao concluida sem dependencia externa."""
+	_write_ai_stub(
+		ticket_name,
+		status="completed",
+		provider="stub",
+		completed_at=frappe.utils.now(),
+		queued_at=now,
+		suggestion="Triagem automatica indisponivel neste ambiente.",
+	)
+
+
+def _write_ai_stub(ticket_name: str, **fields) -> None:
+	stub = {"ticket_ref": str(ticket_name), **fields}
 	frappe.db.set_value(
 		"HD Ticket",
 		ticket_name,
 		"custom_ai_suggestion_json",
 		json.dumps(stub, ensure_ascii=False),
 	)
-	frappe.logger("univesp_atendimento").info("ai_suggestion_enqueued ticket=%s", ticket_name)
+	frappe.logger("univesp_atendimento").info("ai_suggestion ticket=%s status=%s", ticket_name, stub.get("status"))

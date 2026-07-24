@@ -1,6 +1,6 @@
 # Checklist fechamento MVP (Fase A)
 
-Status em **2026-07-23** após wave 1 + wave 2 (código).
+Status em **2026-07-23** após wave 3 (PWA, ingress, stubs, TI prep).
 
 ## Auth e sessão
 
@@ -25,16 +25,25 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 - [x] Perfil `op_externo` + escopo `regional_pools`
 - [x] `POST /tickets/:id/escalate` (BPO → `waiting_internal`)
 - [x] Omnichannel adapter (`channel_adapter.py` + `channel` key em `tickets.create`)
-- [x] Stub IA pos-criacao (`custom_ai_suggestion_json`, status `pending`)
-- [x] `GET /students/:ra/academic-summary` (stub Trino/lake via `academic_query.py`)
-- [x] Smoke E2E estrutural em homolog (health + FAQ publico vazia) — `ops/smoke/mvp-e2e.ps1` (2026-07-23: OK em `https://homolog-crm.univesp.br`)
+- [x] Ingress webhook `POST /api/ingress/v1/tickets` + `channel_ingress.py` + `UNIVESP_INGRESS_SHARED_SECRET`
+- [x] Stub IA pos-criacao com job curto (`enqueue_ai_suggestion` → `complete_ai_suggestion_stub`)
+- [x] `GET /students/:ra/academic-summary` (stub HOMOLOG* via `academic_query.py`)
+- [x] `academicQueryPort.js` wired ao BFF
+- [x] Smoke E2E estrutural em homolog — `ops/smoke/mvp-e2e.ps1` (+ flags `-IncludeIngress` `-IncludePwa`)
+- [x] Playwright `e2e/mvp-wiring.spec.js` (dev bypass + FAQ publica)
 - [x] Backend pos-FAQ: HD Teams `atendimento-geral`/`sra`; rotas `/publico`, `/crm/`, `/api/public/v1/*` respondem; `POST /api/public/v1/tickets` valida payload (422 sem LGPD)
 - [ ] Smoke E2E fluxos UI secoes 2–5 (`ops/smoke/mvp-e2e.md`) — depende FAQ import + fork UI
+
+## PWA (Fase B)
+
+- [x] `vite-plugin-pwa` em `univesp-frontend` — manifest + SW (assets estaticos, sem cache de API)
+- [x] Documentado em `ops/smoke/mvp-e2e.ps1 -IncludePwa`
 
 ## Cadastro aluno (Trilha D)
 
 - [x] DocType + `POST /students/validate`
-- [x] Script Trino `--dry-run` / `--apply` (`ops/import/students-from-trino.py`; dry-run imprime amostra mascarada, `--apply` usa `bench execute`)
+- [x] Script Trino `--dry-run` / `--apply` / `--validate-env` (`ops/import/students-from-trino.py`)
+- [x] Handoff TI: `ops/import/README.md` + `.env.trino.example`
 - [x] Seed homolog sintetico (`homolog_seed.upsert_homolog_student_directory` — 3 alunos HOMOLOG*, sem PII real)
 - [x] `bench migrate` homolog VM (2026-07-23, site `crm.localhost`)
 - [ ] Piloto Trino com credenciais (`TRINO_HOST`/`TRINO_USER`/`TRINO_PASSWORD`)
@@ -50,8 +59,11 @@ Status em **2026-07-23** após wave 1 + wave 2 (código).
 - [x] Deploy VM homolog (`/var/crm`, site `crm.localhost`, migrate OK)
 - [x] `ops/vm/scripts/install-atendimento-backend.sh` (rsync + migrate + seeds; git `safe.directory` para telephony)
 - [x] Seeds bench: `univesp_atendimento.homolog_seed.upsert_homolog_access_profiles` / `upsert_homolog_student_directory`
-- [ ] `.env.vm` completo (Trino, GCS, IdP)
+- [x] GCS prep: `docs/ops/gcs-frappe-site-config.example.md` + `validate-gcs-site-config.sh` + `gcs_config.py`
+- [x] Cloud Run local readiness: `ops/cloudrun/preflight-local.sh`
+- [ ] `.env.vm` completo (Trino, GCS, IdP, `UNIVESP_INGRESS_SHARED_SECRET`)
 - [ ] Bucket GCS + `site_config` Frappe (TI)
+- [ ] Cloud Run deploy (TI — IAM GCP)
 
 ## Critério de aceite
 
