@@ -20,6 +20,13 @@ bench --site crm.localhost execute univesp_atendimento.homolog_seed.upsert_homol
 
 Ou na VM: `sudo ./ops/vm/scripts/install-atendimento-backend.sh`
 
+## Segredos gateway (homolog)
+
+```bash
+sudo ./ops/vm/set-edge-secret.sh      # BFF ↔ Frappe
+sudo ./ops/vm/set-ingress-secret.sh   # webhooks omnichannel (X-Univesp-Ingress-Secret)
+```
+
 ## Import alunos (piloto)
 
 ```bash
