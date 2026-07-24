@@ -44,21 +44,17 @@ const queueRoute = computed(() => {
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-5">
+    <section class="crm-panel px-5 py-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div class="max-w-3xl">
-          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Operacao em tempo real</p>
-          <h1 class="mt-1 text-xl font-semibold text-slate-950">Cockpit operacional</h1>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            Todos os perfis operacionais enxergam o mesmo recorte de risco de SLA para agir rapido,
-            assumir casos e destravar filas sem perder contexto.
+        <header class="crm-page-header mb-0 max-w-3xl">
+          <p class="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Operação em tempo real</p>
+          <h1 class="crm-page-title">Cockpit operacional</h1>
+          <p class="crm-page-description">
+            Veja SLAs atrasados e em risco no seu escopo, assuma casos críticos e destrave filas sem perder contexto.
           </p>
-        </div>
+        </header>
 
-        <RouterLink
-          :to="queueRoute"
-          class="inline-flex items-center rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-        >
+        <RouterLink :to="queueRoute" class="crm-button-secondary shrink-0">
           Abrir fila priorizada
         </RouterLink>
       </div>
