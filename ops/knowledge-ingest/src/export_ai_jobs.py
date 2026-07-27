@@ -21,6 +21,8 @@ def write_text(path: Path, content: str) -> None:
 
 
 def build_job_input(package: dict[str, Any]) -> dict[str, Any]:
+    source_items = package.get("source_items") or package.get("items") or []
+    candidates = package.get("faq_candidates") or []
     return {
         "package_id": package["package_id"],
         "package_title": package["title"],
@@ -29,17 +31,28 @@ def build_job_input(package: dict[str, Any]) -> dict[str, Any]:
             "tone": "direto, voz ativa, pronome você",
             "first_sentence_must_answer": True,
             "max_root_intents": 6,
+            "do_not_copy_manual": True,
+            "organize_by_student_intent": True,
         },
-        "items": [
+        "faq_candidates_to_answer": [
+            {
+                "candidate_id": item.get("candidate_id") or item.get("item_id"),
+                "question": item.get("question") or item.get("suggested_title") or item.get("title"),
+                "ticket_count": item.get("ticket_count", 0),
+                "origin": item.get("origin", "unknown"),
+            }
+            for item in candidates
+        ],
+        "source_reference": [
             {
                 "item_id": item["item_id"],
                 "title": item["title"],
                 "source_url": item.get("source_url"),
-                "source_anchor": item.get("source_anchor"),
                 "content_md": item.get("content_md"),
             }
-            for item in package.get("items", [])
+            for item in source_items
         ],
+        "documents": package.get("documents") or [],
     }
 
 
