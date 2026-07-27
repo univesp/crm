@@ -780,7 +780,7 @@ function getRiskLabel(row) {
     </section>
 
     <!-- 2. KPI ROW -->
-    <section class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+    <section class="crm-stat-grid">
       <button
         v-for="card in criticalKpiCards"
         :key="card.label"
@@ -802,7 +802,7 @@ function getRiskLabel(row) {
     <OperationalCockpitPanel :cockpit="operationalCockpit" compact />
 
     <!-- 3. DISTRIBUICAO + TENDENCIA -->
-    <div class="grid gap-4 lg:grid-cols-[0.38fr_0.62fr]">
+    <div class="crm-split-grid crm-split-grid--chart gap-4">
       <!-- Donut distribuicao -->
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
@@ -920,7 +920,7 @@ function getRiskLabel(row) {
           />
         </svg>
 
-        <div class="mt-1 grid grid-cols-5 gap-1 text-center text-[10px] font-semibold text-slate-400">
+        <div class="crm-stat-grid mt-1 gap-1 text-center text-[10px] font-semibold text-slate-400">
           <span v-for="entry in demandTrend" :key="entry.label" class="truncate">{{ entry.label }}</span>
         </div>
 
@@ -945,7 +945,7 @@ function getRiskLabel(row) {
           <p class="text-sm font-semibold text-slate-950">Areas internas em risco</p>
         </div>
 
-        <div v-if="areaRiskRows.length" class="mt-3 overflow-x-auto">
+        <div v-if="areaRiskRows.length" class="crm-table-scroll mt-3">
           <div class="min-w-[420px]">
             <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
               <span>Area interna</span>
@@ -1015,7 +1015,7 @@ function getRiskLabel(row) {
           <p class="text-sm font-semibold text-slate-950">Polos em atencao</p>
         </div>
 
-        <div v-if="poloRiskRows.length" class="mt-3 overflow-x-auto">
+        <div v-if="poloRiskRows.length" class="crm-table-scroll mt-3">
           <div class="min-w-[420px]">
             <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
               <span>Polo</span>

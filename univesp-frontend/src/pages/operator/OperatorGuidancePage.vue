@@ -323,7 +323,7 @@ watch(
       </div>
     </section>
 
-    <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <section class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white">
       <div v-if="searchQuery.trim()" class="px-5 py-5">
         <div class="flex items-center justify-between gap-3">
           <div>

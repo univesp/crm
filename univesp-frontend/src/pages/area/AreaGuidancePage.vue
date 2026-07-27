@@ -310,7 +310,7 @@ watch(
       </label>
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.4fr)]">
+    <section class="crm-split-grid gap-4">
       <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Assuntos no escopo atual</p>
@@ -383,7 +383,7 @@ watch(
 
         <details
           :open="showSuggestionComposer"
-          class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
+          class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white"
         >
           <summary class="cursor-pointer list-none border-b border-slate-200 px-5 py-4 text-base font-semibold text-slate-950">
             Sugerir melhoria da orientacao

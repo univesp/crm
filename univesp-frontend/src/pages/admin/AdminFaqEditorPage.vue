@@ -1940,7 +1940,7 @@ function applySpreadsheetImport() {
         </section>
 
         <template v-if="ui.mode === 'visual' && !openState.isLoading">
-          <section class="mt-3 grid gap-3 xl:grid-cols-[1fr_390px]">
+          <section class="crm-split-grid crm-split-grid--sidebar mt-3 gap-3">
             <article class="faq-canvas-shell rounded-[8px] border border-slate-200 bg-white">
               <div class="faq-canvas-shell__meta">
                 <p class="text-xs text-slate-600">
@@ -2493,7 +2493,7 @@ function applySpreadsheetImport() {
                 </p>
               </div>
             </div>
-            <div class="mt-3 max-h-[260px] overflow-auto rounded-[8px] border border-slate-200">
+            <div class="crm-table-scroll crm-table-scroll--bounded mt-3">
               <table class="w-full text-left text-xs">
                 <thead class="bg-slate-100 text-slate-600">
                   <tr>
@@ -2526,7 +2526,7 @@ function applySpreadsheetImport() {
         </template>
 
         <template v-else-if="ui.mode === 'import'">
-          <section class="mt-3 grid gap-3 xl:grid-cols-[0.92fr_1.08fr]">
+          <section class="crm-split-grid mt-3 gap-3">
             <article class="rounded-[8px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">
                 Importação por planilha para este fluxo
@@ -2563,7 +2563,7 @@ function applySpreadsheetImport() {
                   {{ importState.result.summary?.totalNodes || 0 }} | Links:
                   {{ importState.result.summary?.totalLinks || 0 }}
                 </p>
-                <div class="mt-3 max-h-[280px] overflow-auto rounded-[8px] border border-slate-200">
+                <div class="crm-table-scroll crm-table-scroll--bounded-lg mt-3">
                   <table class="w-full text-left text-xs">
                     <thead class="bg-slate-100 text-slate-600">
                       <tr>
@@ -2614,7 +2614,7 @@ function applySpreadsheetImport() {
         </template>
 
         <template v-else>
-          <section class="mt-3 grid gap-3 xl:grid-cols-[0.86fr_1.14fr]">
+          <section class="crm-split-grid mt-3 gap-3">
             <article class="rounded-[8px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">Governanca do fluxo</p>
               <p class="mt-1 text-xs text-slate-600">

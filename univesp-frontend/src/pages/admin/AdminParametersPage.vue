@@ -110,7 +110,7 @@ function selectRule(ruleId) {
       title="Parametros de SLA e criticidade"
       description="Ajuste os niveis oficiais e veja como as regras mudam a leitura dos casos existentes."
     >
-      <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <div class="crm-split-grid gap-4">
         <div class="grid gap-3 md:grid-cols-2">
           <div class="inner-panel p-5">
             <p class="text-sm font-semibold text-slate-500">Criticidade</p>
@@ -138,7 +138,7 @@ function selectRule(ruleId) {
       </div>
     </SectionPanel>
 
-    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section class="crm-filter-grid--dense">
       <MetricCard
         v-for="metric in metrics"
         :key="metric.label"
@@ -148,7 +148,7 @@ function selectRule(ruleId) {
       />
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[0.94fr_1.06fr]">
+    <div class="crm-split-grid gap-6">
       <SectionPanel
         eyebrow="Criticidade"
         title="Niveis oficiais"
@@ -345,7 +345,7 @@ function selectRule(ruleId) {
       </SectionPanel>
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-[0.94fr_1.06fr]">
+    <div class="crm-split-grid gap-6">
       <SectionPanel
         eyebrow="Regras"
         title="Aplicação por tema, subtema e fila"

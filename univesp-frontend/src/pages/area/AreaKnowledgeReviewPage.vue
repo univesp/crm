@@ -294,7 +294,7 @@ function reviewSuggestion(suggestion, decision) {
       </p>
     </section>
 
-    <section class="grid gap-3 lg:grid-cols-5">
+    <section class="crm-stat-grid">
       <article
         v-for="item in summaryCards"
         :key="item.id"
@@ -407,7 +407,7 @@ function reviewSuggestion(suggestion, decision) {
       </div>
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+    <section class="crm-split-grid gap-4">
       <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Aprovadas aguardando publicacao</p>

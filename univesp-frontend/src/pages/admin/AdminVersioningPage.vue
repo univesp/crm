@@ -202,7 +202,7 @@ function formatDateLabel(value) {
       <p class="text-sm leading-6 text-slate-500">Governança das versões dos fluxos FAQ</p>
     </div>
 
-    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section class="crm-filter-grid--dense">
       <MetricCard
         v-for="metric in runtime.metrics"
         :key="metric.label"
@@ -217,7 +217,7 @@ function formatDateLabel(value) {
       title="Governança de publicação"
       description="Acompanhe versões ativas, revisões e pendências dos fluxos FAQ."
     >
-      <div class="overflow-x-auto rounded-[8px] border border-slate-200 bg-white">
+      <div class="crm-table-scroll rounded-[8px] border border-slate-200 bg-white">
         <div class="min-w-[920px]">
           <div class="grid grid-cols-[1.45fr_0.9fr_0.85fr_1fr_1.1fr_0.9fr_0.95fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[0.68rem] font-semibold uppercase tracking-normal text-slate-500">
             <span>Fluxo</span>

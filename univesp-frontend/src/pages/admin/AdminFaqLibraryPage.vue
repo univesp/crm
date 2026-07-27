@@ -240,7 +240,7 @@ function situationTone(row = {}) {
 </script>
 
 <template>
-  <div class="crm-content-stack crm-page-container">
+  <div class="crm-content-stack">
     <section
       v-if="runtimeError"
       class="rounded-[8px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"

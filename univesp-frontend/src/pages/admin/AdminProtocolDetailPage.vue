@@ -142,7 +142,7 @@ onMounted(loadProtocol)
         @dismiss="dismissIntervention"
       />
 
-      <div class="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+      <div class="crm-split-grid gap-5">
         <section class="inner-panel p-5">
           <h3 class="text-sm font-semibold text-slate-900">Resumo do atendimento</h3>
           <p class="mt-3 whitespace-pre-line text-sm leading-7 text-slate-700">

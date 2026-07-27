@@ -520,14 +520,14 @@ watch(
       </p>
     </section>
 
-    <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <section class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
         <p class="text-base font-semibold text-slate-950">1. Identificar o aluno</p>
       </div>
 
       <div class="grid gap-4 px-4 py-4">
         <template v-if="!confirmedStudent">
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div class="crm-filter-grid--dense">
             <label class="grid gap-2">
               <span class="text-sm font-semibold text-slate-700">Aluno</span>
               <input
@@ -734,7 +734,7 @@ watch(
       </div>
     </section>
 
-    <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <section class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
         <p class="text-base font-semibold text-slate-950">2. Escolher o assunto</p>
       </div>
@@ -845,7 +845,7 @@ watch(
       </template>
     </section>
 
-    <section v-if="canShowDetailFlow" class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <section v-if="canShowDetailFlow" class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white">
       <div class="px-5 py-5">
         <h2 class="text-[1.45rem] font-semibold leading-tight text-slate-950">
           {{ activeContext.subject }}

@@ -290,7 +290,7 @@ function recommendationPriorityLabel(priority = '') {
       </div>
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+    <section class="crm-split-grid gap-4">
       <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Carga por analista</p>
@@ -302,7 +302,7 @@ function recommendationPriorityLabel(priority = '') {
           <div
             v-for="item in overview.loadByAnalyst"
             :key="item.analystName"
-            class="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.7fr))]"
+            class="crm-table-scroll grid min-w-[42rem] gap-3 px-5 py-4 md:grid-cols-[minmax(0,1.1fr)_repeat(4,minmax(0,0.7fr))]"
           >
             <div>
               <p class="text-sm font-semibold text-slate-950">{{ item.analystName }}</p>
@@ -358,7 +358,7 @@ function recommendationPriorityLabel(priority = '') {
       </article>
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+    <section class="crm-split-grid gap-4">
       <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Gargalos por assunto</p>
@@ -370,7 +370,7 @@ function recommendationPriorityLabel(priority = '') {
           <div
             v-for="item in overview.subjectBottlenecks"
             :key="item.id"
-            class="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,0.6fr))]"
+            class="crm-table-scroll grid min-w-[36rem] gap-3 px-5 py-4 md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,0.6fr))]"
           >
             <div>
               <p class="text-sm font-semibold text-slate-950">{{ item.subjectLabel }}</p>

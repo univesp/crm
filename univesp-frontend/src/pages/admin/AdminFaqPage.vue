@@ -958,7 +958,7 @@ watch(
             <p class="mt-1 text-xs text-slate-600">Status, versao e pendencias antes da publicação.</p>
           </div>
         </div>
-        <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
+        <div class="crm-stat-grid mt-3">
           <div class="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
             <p class="text-[10px] font-semibold uppercase tracking-normal text-slate-500">Status</p>
             <p class="mt-1 text-sm font-semibold text-slate-900">{{ workflowStatusLabel }}</p>
@@ -1144,7 +1144,7 @@ watch(
         </article>
       </section>
 
-      <section v-if="!openState.failed" class="grid gap-3 lg:grid-cols-[1fr_360px]">
+      <section v-if="!openState.failed" class="crm-split-grid crm-split-grid--sidebar gap-3">
         <article class="min-w-0 rounded-[8px] border border-slate-200 bg-white p-3">
           <div class="flex flex-wrap items-start justify-between gap-2">
             <div>

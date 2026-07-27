@@ -307,7 +307,7 @@ function savePermissionChanges() {
     <template v-if="ui.activeModule === 'profiles'">
       <section
         v-if="!ui.profileDetailOpen"
-        class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
+        class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white"
       >
         <div class="grid grid-cols-[1.2fr_1fr_1fr_1fr_0.7fr_0.7fr_0.6fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
           <span>Perfil</span>
@@ -594,12 +594,12 @@ function savePermissionChanges() {
 
         <section
           v-else-if="ui.profileDetailTab === 'users'"
-          class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
+          class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white"
         >
           <div
             v-for="user in demoPermissionUsers.filter((item) => item.profileKey === selectedRuntimeEntry.profileKey)"
             :key="user.id"
-            class="grid gap-2 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0 md:grid-cols-[1.4fr_1fr_1fr]"
+            class="crm-filter-grid border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
           >
             <span class="font-semibold text-slate-950">{{ user.name }}</span>
             <span class="text-slate-600">{{ user.scopeLabel }}</span>
@@ -609,7 +609,7 @@ function savePermissionChanges() {
 
         <section
           v-else-if="ui.profileDetailTab === 'audit'"
-          class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
+          class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white"
         >
           <div
             v-for="log in runtime.auditLogs"
@@ -654,7 +654,7 @@ function savePermissionChanges() {
               </p>
             </div>
           </div>
-          <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section class="crm-filter-grid--dense">
             <MetricCard
               v-for="metric in runtime.metrics"
               :key="metric.label"
@@ -672,7 +672,7 @@ function savePermissionChanges() {
         v-if="!ui.userDetailOpen"
         class="grid gap-3"
       >
-        <div class="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <div class="crm-filter-grid--dense rounded-[8px] border border-slate-200 bg-white p-4">
           <input
             v-model="ui.userSearch"
             type="search"
@@ -733,7 +733,7 @@ function savePermissionChanges() {
           Dados demonstrativos para validar a experiencia. A integracao real deve trazer usuarios, desempenho e permissoes efetivas do backend.
         </p>
 
-        <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+        <section class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white">
           <div class="grid grid-cols-[1.2fr_1.2fr_1fr_1fr_0.7fr_0.7fr_1fr_0.5fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
             <span>Nome</span>
             <span>E-mail</span>
