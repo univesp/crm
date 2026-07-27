@@ -368,8 +368,8 @@ function situationTone(row = {}) {
               <td class="px-3 py-2">
                 <p class="font-semibold text-slate-900">{{ row.title }}</p>
               </td>
-              <td class="px-3 py-2">
-                <p class="font-semibold text-slate-900">{{ faqTypeLabel(row.faqType) }}</p>
+              <td class="px-3 py-2 whitespace-nowrap">
+                <StatusBadge :label="faqTypeLabel(row.faqType)" />
               </td>
               <td class="px-3 py-2">
                 <StatusBadge :label="statusLabel(row.statusKey || row.workflowStatus)" />
