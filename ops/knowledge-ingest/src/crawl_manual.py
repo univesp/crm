@@ -6,18 +6,15 @@ import hashlib
 import json
 import re
 import unicodedata
-from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import requests
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 MANUAL_URL = "https://apps.univesp.br/manual-do-aluno/"
-MANUAL_HOST = "apps.univesp.br"
-MAX_LINKED_PAGES = 12
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = ROOT / "config"
 
@@ -120,7 +117,6 @@ def extract_sections(html: str, source_url: str = MANUAL_URL) -> list[dict[str, 
             return
         chunk_id = slugify(title)
         digest = hashlib.sha256(content_md.encode("utf-8")).hexdigest()[:16]
-        linked_documents = extract_links_from_element(wrapper, source_url, title)
         sections.append(
             {
                 "chunk_id": f"{chunk_id}-{digest[:8]}",
@@ -131,7 +127,6 @@ def extract_sections(html: str, source_url: str = MANUAL_URL) -> list[dict[str, 
                 "content_md": content_md,
                 "content_hash": digest,
                 "word_count": len(content_md.split()),
-                "linked_documents": linked_documents,
             }
         )
         current_bucket = []
@@ -181,98 +176,6 @@ def extract_sections(html: str, source_url: str = MANUAL_URL) -> list[dict[str, 
     return sections
 
 
-def classify_link(url: str) -> str:
-    lower = url.lower()
-    if lower.endswith(".pdf"):
-        return "pdf"
-    if any(token in lower for token in (".doc", ".docx", ".xls", ".xlsx", "drive.google", "docs.google")):
-        return "document"
-    if MANUAL_HOST in lower:
-        return "manual_page"
-    return "external"
-
-
-def extract_links_from_element(element: Tag, source_url: str, section_title: str = "") -> list[dict[str, Any]]:
-    documents: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for anchor in element.find_all("a", href=True):
-        href = urljoin(source_url, anchor["href"].strip())
-        if href.startswith("#") or href in seen:
-            continue
-        label = text_content(anchor)
-        if len(label) < 2:
-            continue
-        seen.add(href)
-        documents.append(
-            {
-                "doc_id": slugify(f"{label}-{href}")[:48],
-                "label": label,
-                "url": href,
-                "type": classify_link(href),
-                "section_title": section_title,
-                "source_url": source_url,
-            }
-        )
-    return documents
-
-
-def extract_documents(html: str, source_url: str, section_title: str = "") -> list[dict[str, Any]]:
-    soup = BeautifulSoup(html, "lxml")
-    main = soup.find("main") or soup.find("article") or soup.find("body")
-    if not main:
-        return []
-    return extract_links_from_element(main, source_url, section_title)
-
-
-def discover_manual_links(html: str, source_url: str) -> list[str]:
-    soup = BeautifulSoup(html, "lxml")
-    links: list[str] = []
-    seen: set[str] = {source_url.rstrip("/")}
-    for anchor in soup.find_all("a", href=True):
-        href = urljoin(source_url, anchor["href"].strip())
-        parsed = urlparse(href)
-        if parsed.netloc != MANUAL_HOST:
-            continue
-        if "/manual-do-aluno" not in parsed.path and parsed.path not in ("", "/"):
-            continue
-        normalized = href.split("#")[0].rstrip("/")
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        links.append(href.split("#")[0])
-    return links[:MAX_LINKED_PAGES]
-
-
-def crawl_manual_site(source_url: str = MANUAL_URL) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-    visited: set[str] = set()
-    queue = [source_url.rstrip("/")]
-    all_chunks: list[dict[str, Any]] = []
-    all_documents: list[dict[str, Any]] = []
-    pages_crawled: list[str] = []
-
-    while queue and len(pages_crawled) < MAX_LINKED_PAGES + 1:
-        url = queue.pop(0).rstrip("/")
-        if url in visited:
-            continue
-        visited.add(url)
-        html = fetch_manual_html(url if url.endswith("/") else f"{url}/")
-        pages_crawled.append(url)
-        page_docs = extract_documents(html, url)
-        all_documents.extend(page_docs)
-        for link in discover_manual_links(html, url):
-            if link.rstrip("/") not in visited and link.rstrip("/") not in queue:
-                queue.append(link.rstrip("/"))
-        sections = extract_sections(html, url)
-        for section in sections:
-            all_documents.extend(section.get("linked_documents") or [])
-        all_chunks.extend(sections)
-
-    dedup_docs: dict[str, dict[str, Any]] = {}
-    for doc in all_documents:
-        dedup_docs[doc["url"]] = doc
-    return all_chunks, list(dedup_docs.values()), pages_crawled
-
-
 def load_theme_config() -> dict[str, Any]:
     return json.loads((CONFIG_DIR / "themes.json").read_text(encoding="utf-8"))
 
@@ -288,47 +191,37 @@ def assign_package(chunk: dict[str, Any], theme_config: dict[str, Any]) -> str:
     return "outros"
 
 
-def build_packages(chunks: list[dict[str, Any]], documents: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+def build_packages(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     theme_config = load_theme_config()
     grouped: dict[str, list[dict[str, Any]]] = {}
-    docs_by_package: dict[str, list[dict[str, Any]]] = defaultdict(list)
-
     for chunk in chunks:
         package_id = assign_package(chunk, theme_config)
         grouped.setdefault(package_id, []).append({**chunk, "package_id": package_id})
-        for doc in chunk.get("linked_documents") or []:
-            docs_by_package[package_id].append(doc)
-
-    if documents:
-        for doc in documents:
-            package_id = assign_package({"title": doc.get("label", ""), "content_md": doc.get("url", "")}, theme_config)
-            docs_by_package[package_id].append(doc)
 
     packages: list[dict[str, Any]] = []
     for package in theme_config.get("intent_packages", []):
         package_id = package["id"]
-        source_items = grouped.get(package_id, [])
-        if package_id == "outros" and not source_items:
+        items = grouped.get(package_id, [])
+        if package_id == "outros" and not items:
             continue
-        pkg_docs: dict[str, dict[str, Any]] = {}
-        for doc in docs_by_package.get(package_id, []):
-            pkg_docs[doc["url"]] = doc
         packages.append(
             {
                 "package_id": package_id,
                 "title": package["title"],
                 "description": package.get("description", ""),
-                "chunk_count": len(source_items),
-                "document_count": len(pkg_docs),
+                "chunk_count": len(items),
                 "review_status": "pending",
-                "documents": list(pkg_docs.values()),
-                "source_items": [
+                "items": [
                     {
                         **item,
                         "item_id": item["chunk_id"],
-                        "role": "source_reference",
+                        "review": {
+                            "status": "pending",
+                            "approved": False,
+                            "notes": "",
+                        },
                     }
-                    for item in source_items
+                    for item in items
                 ],
             }
         )
@@ -336,34 +229,22 @@ def build_packages(chunks: list[dict[str, Any]], documents: list[dict[str, Any]]
 
 
 def run_crawl(data_dir: Path, source_url: str = MANUAL_URL) -> dict[str, Any]:
-    from build_faq_candidates import run_build_candidates
-
     data_dir.mkdir(parents=True, exist_ok=True)
-    chunks, documents, pages = crawl_manual_site(source_url)
+    html = fetch_manual_html(source_url)
     (data_dir / "raw" / "manual.html").parent.mkdir(parents=True, exist_ok=True)
-    if pages:
-        first_html = fetch_manual_html(pages[0] if pages[0].endswith("/") else f"{pages[0]}/")
-        (data_dir / "raw" / "manual.html").write_text(first_html, encoding="utf-8")
+    (data_dir / "raw" / "manual.html").write_text(html, encoding="utf-8")
 
-    packages = build_packages(chunks, documents)
-    (data_dir / "chunks.json").write_text(json.dumps(chunks, ensure_ascii=False, indent=2), encoding="utf-8")
-    (data_dir / "documents.json").write_text(json.dumps(documents, ensure_ascii=False, indent=2), encoding="utf-8")
-    (data_dir / "packages.json").write_text(json.dumps(packages, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    candidate_stats = run_build_candidates(data_dir)
+    chunks = extract_sections(html, source_url)
+    packages = build_packages(chunks)
 
     manifest = {
         "run_id": data_dir.name,
         "source_url": source_url,
         "crawled_at": now_iso(),
-        "pages_crawled": pages,
         "chunk_count": len(chunks),
-        "document_count": len(documents),
-        "package_count": len([p for p in packages if p.get("chunk_count", 0) > 0]),
-        "faq_candidate_count": candidate_stats.get("faq_candidate_count", 0),
+        "package_count": len([p for p in packages if p["chunk_count"] > 0]),
         "steps": {
-            "crawl": {"status": "completed", "at": now_iso(), "pages": len(pages)},
-            "faq_candidates": {"status": "completed", "at": now_iso()},
+            "crawl": {"status": "completed", "at": now_iso()},
             "structure_review": {"status": "pending", "at": None},
             "ai_analysis": {"status": "pending", "at": None},
             "consolidate": {"status": "pending", "at": None},
@@ -373,4 +254,6 @@ def run_crawl(data_dir: Path, source_url: str = MANUAL_URL) -> dict[str, Any]:
     }
 
     (data_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    (data_dir / "chunks.json").write_text(json.dumps(chunks, ensure_ascii=False, indent=2), encoding="utf-8")
+    (data_dir / "packages.json").write_text(json.dumps(packages, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest
