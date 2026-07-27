@@ -47,14 +47,14 @@ async function handleSubmitTicket() {
 
 <template>
   <div class="grid gap-6">
-    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section class="crm-filter-grid--dense">
       <MetricCard label="Doctype alvo" :value="draft.doctype" hint="Placeholder configuravel por ambiente." />
       <MetricCard label="Fila sugerida" :value="draft.queue" hint="Resultado direto da triagem guiada." />
       <MetricCard label="SLA alvo" :value="draft.sla" hint="Usado para priorizar o atendimento." />
       <MetricCard label="Protocolo" :value="draft.protocol" hint="Referencia unica para ticket, fila e last mile." />
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
+    <div class="crm-split-grid gap-6">
       <SectionPanel
         eyebrow="Payload"
         title="Preview do ticket no Frappe"
@@ -79,7 +79,7 @@ async function handleSubmitTicket() {
           {{ submitError }}
         </div>
 
-        <div class="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+        <div class="crm-split-grid gap-5">
           <div class="grid gap-3">
             <div
               v-for="field in draft.fields"

@@ -675,7 +675,7 @@ const confirmationCopy = computed(() => {
       @dismiss="dismissIntervention"
     />
 
-    <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <section class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white">
       <div class="px-5 py-5">
         <p class="text-lg font-semibold text-slate-950">Detalhe do atendimento</p>
         <h2 class="mt-3 text-[1.45rem] font-semibold leading-tight text-slate-950">

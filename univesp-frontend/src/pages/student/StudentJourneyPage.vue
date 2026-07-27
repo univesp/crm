@@ -421,7 +421,7 @@ watch(
               Essa resposta resolveu sua dúvida?
             </p>
 
-            <div class="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div class="crm-split-grid mt-4 gap-3">
               <button
                 type="button"
                 class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-slate-50"

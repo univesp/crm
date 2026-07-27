@@ -227,7 +227,7 @@ async function submitProtocol() {
           Nenhum anexo e necessário neste assunto.
         </p>
 
-        <div class="mt-6 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div class="crm-split-grid mt-6 gap-3">
           <button
             type="button"
             :disabled="isSubmitting"

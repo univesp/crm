@@ -821,7 +821,9 @@ onErrorCaptured((error) => {
                 </RouterLink>
               </div>
             </section>
-            <component :is="Component" v-else :key="routeViewRenderKey" />
+            <div v-else class="crm-page-container min-w-0 w-full">
+              <component :is="Component" :key="routeViewRenderKey" />
+            </div>
           </Transition>
         </RouterView>
       </main>

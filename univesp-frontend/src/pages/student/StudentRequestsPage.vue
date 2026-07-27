@@ -152,7 +152,7 @@ function openActionRequiredSection() {
         </p>
       </button>
 
-      <div class="grid gap-3 rounded-[8px] border border-slate-200 bg-white/88 p-5 md:grid-cols-[minmax(0,1fr)_180px]">
+      <div class="crm-filter-grid rounded-[8px] border border-slate-200 bg-white/88 p-5">
         <label class="grid gap-2">
           <span class="text-sm font-semibold text-slate-900">Buscar por assunto ou protocolo</span>
           <input

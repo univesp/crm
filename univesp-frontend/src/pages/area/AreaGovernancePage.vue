@@ -367,7 +367,7 @@ function saveAvailability() {
         <article
           v-for="row in governanceRows"
           :key="row.id"
-          class="grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]"
+          class="crm-split-grid gap-4 px-5 py-5"
         >
           <div>
             <p class="text-sm font-semibold text-slate-950">{{ row.subjectLabel }}</p>
@@ -445,7 +445,7 @@ function saveAvailability() {
       </div>
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+    <section class="crm-split-grid gap-4">
       <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Disponibilidade do time</p>

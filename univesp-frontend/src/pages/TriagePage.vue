@@ -17,7 +17,7 @@ function handleSelectFlow(flowId) {
 </script>
 
 <template>
-  <div class="grid gap-6 xl:grid-cols-[0.9fr_1.25fr_0.85fr]">
+  <div class="crm-split-grid crm-split-grid--triple gap-6">
     <SectionPanel
       eyebrow="Catalogo"
       title="Fluxos prontos para o primeiro atendimento"

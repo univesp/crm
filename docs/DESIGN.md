@@ -179,7 +179,9 @@ A migracao deve usar classes/tokens em vez de hardcoded:
 - `.crm-stat-grid` / `.crm-stat-tile`
 - `.crm-filter-grid` / `.crm-filter-field`
 - `.crm-form-grid`
-- `.crm-table-scroll`
+- `.crm-split-grid` / `.crm-split-grid--chart` / `.crm-split-grid--sidebar` / `.crm-split-grid--triple`
+- `.crm-filter-grid--dense`
+- `.crm-queue-scroll`
 - `.a11y-readable`
 - `.a11y-dyslexia`
 - `.a11y-zoom-lg`

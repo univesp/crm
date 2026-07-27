@@ -790,7 +790,7 @@ onUnmounted(() => {
           </ul>
         </details>
 
-        <div v-if="isAreaManager && managerQueueCards.length" class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div v-if="isAreaManager && managerQueueCards.length" class="crm-stat-grid">
           <article
             v-for="card in managerQueueCards"
             :key="card.id"
@@ -866,8 +866,8 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <label class="grid flex-1 gap-2">
+        <div class="crm-filter-grid--dense">
+          <label class="crm-filter-field gap-2">
             <span class="text-sm font-semibold text-slate-700">Buscar</span>
             <input
               v-model="filters.search"
@@ -877,7 +877,7 @@ onUnmounted(() => {
             />
           </label>
 
-          <label v-if="isMultiAreaAnalyst" class="grid min-w-[220px] gap-2">
+          <label v-if="isMultiAreaAnalyst" class="crm-filter-field gap-2">
             <span class="text-sm font-semibold text-slate-700">Area</span>
             <select
               v-model="filters.area"
@@ -889,7 +889,7 @@ onUnmounted(() => {
             </select>
           </label>
 
-          <label class="grid min-w-[220px] gap-2">
+          <label class="crm-filter-field gap-2">
             <span class="text-sm font-semibold text-slate-700">Status</span>
             <select
               v-model="filters.status"
@@ -901,7 +901,7 @@ onUnmounted(() => {
             </select>
           </label>
 
-          <label v-if="isAreaManager" class="grid min-w-[240px] gap-2">
+          <label v-if="isAreaManager" class="crm-filter-field gap-2">
             <span class="text-sm font-semibold text-slate-700">Assunto/subassunto</span>
             <select
               v-model="filters.subject"
@@ -913,7 +913,7 @@ onUnmounted(() => {
             </select>
           </label>
 
-          <label v-if="isAreaManager" class="grid min-w-[220px] gap-2">
+          <label v-if="isAreaManager" class="crm-filter-field gap-2">
             <span class="text-sm font-semibold text-slate-700">Responsavel atual</span>
             <select
               v-model="filters.owner"
@@ -991,7 +991,7 @@ onUnmounted(() => {
       v-if="queueResult.total"
       role="table"
       aria-label="Fila especializada da area"
-      class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
+      class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white"
     >
       <div role="rowgroup" class="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
         <div :class="['hidden gap-4 text-xs font-semibold text-slate-500 lg:grid', tableGridClass]" role="row">

@@ -613,14 +613,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div
-          class="hidden gap-3 lg:grid"
-          :class="[
-            showPoloFilter || showOperatorFilter
-              ? 'lg:grid-cols-[repeat(6,minmax(0,1fr))]'
-              : 'lg:grid-cols-[repeat(4,minmax(0,1fr))]',
-          ]"
-        >
+        <div class="crm-filter-grid--dense hidden lg:grid gap-3">
           <label class="grid gap-2">
             <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Status</span>
             <select
@@ -718,7 +711,7 @@ onUnmounted(() => {
       v-if="orderedQueue.length"
       role="table"
       aria-label="Fila operacional de atendimentos"
-      class="overflow-hidden rounded-[8px] border border-slate-200 bg-white"
+      class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white"
     >
       <div role="rowgroup" class="hidden border-b border-slate-200 bg-slate-50/70 px-4 py-3 lg:block">
         <div

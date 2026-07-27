@@ -1491,7 +1491,7 @@ function assumeCaseFromCockpit() {
       @dismiss="dismissIntervention"
     />
 
-    <section class="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <section class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white">
       <div class="sticky top-0 z-10 border-b border-slate-200 bg-white px-5 py-4 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -1636,7 +1636,7 @@ function assumeCaseFromCockpit() {
           <div class="bg-slate-100/90 px-4 py-3">
             <h3 class="text-base font-semibold text-slate-950">Leitura gerencial de distribuicao</h3>
           </div>
-          <div class="grid gap-4 border-t border-slate-200 px-4 py-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <div class="crm-split-grid gap-4 border-t border-slate-200 px-4 py-4">
             <div class="grid gap-3">
               <div class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
                 <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Responsavel atual</p>
@@ -1709,7 +1709,7 @@ function assumeCaseFromCockpit() {
           <div class="bg-slate-100/90 px-4 py-3">
             <h3 class="text-base font-semibold text-slate-950">Intervencao de ownership</h3>
           </div>
-          <div class="grid gap-4 border-t border-slate-200 px-4 py-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div class="crm-split-grid gap-4 border-t border-slate-200 px-4 py-4">
             <div class="grid gap-3">
               <label class="grid gap-2">
                 <span class="text-sm font-semibold text-slate-700">Responsavel da analise</span>
