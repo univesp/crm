@@ -11,6 +11,7 @@
       <div>
         <p class="eyebrow">UNIVESP CRM</p>
         <h1>Knowledge Studio</h1>
+        <p class="topbar-sub">Perguntas reais → respostas curadas → FAQ no CRM (manual e documentos são só referência)</p>
       </div>
       <div class="topbar-actions">
         <label class="pin-field">
@@ -18,24 +19,62 @@
           <input id="pinInput" type="password" placeholder="opcional" />
         </label>
         <button id="refreshBtn" class="btn secondary">Atualizar</button>
-        <button id="crawlBtn" class="btn primary">1. Rodar crawler</button>
       </div>
     </header>
+
+    <section id="guidePanel" class="guide-panel">
+      <button id="toggleGuideBtn" class="guide-toggle" type="button" aria-expanded="true">
+        O que é o quê (leia antes de curar)
+      </button>
+      <div id="guideBody" class="guide-body">
+        <div class="guide-flow">
+          <div class="guide-step">
+            <span class="guide-num">A</span>
+            <div>
+              <strong>Fontes</strong>
+              <p>Manual + links/PPCs/PDFs extraídos. Servem para <em>consultar fatos</em>.</p>
+              <p class="guide-note">Não viram FAQ diretamente.</p>
+            </div>
+          </div>
+          <div class="guide-arrow">→</div>
+          <div class="guide-step">
+            <span class="guide-num">B</span>
+            <div>
+              <strong>Perguntas FAQ</strong>
+              <p>Vêm dos <strong>150k assuntos</strong> (quando você importar o CSV) ou de intenções-semente.</p>
+              <p class="guide-note">É isso que o aluno verá como card.</p>
+            </div>
+          </div>
+          <div class="guide-arrow">→</div>
+          <div class="guide-step">
+            <span class="guide-num">C</span>
+            <div>
+              <strong>Resposta curada</strong>
+              <p>Você escreve/edita com base nas fontes + IA opcional. Aprova → export XLSX → FAQ Builder.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <main class="layout">
       <aside class="sidebar">
         <h2>Execuções</h2>
+        <p class="sidebar-hint">Use a execução mais recente.</p>
         <div id="runsList" class="runs-list"></div>
+
         <section class="steps-panel">
-          <h3>Fluxo</h3>
+          <h3>Seu próximo passo</h3>
+          <div id="nextStepCard" class="next-step-card"></div>
           <ol id="stepsList" class="steps-list"></ol>
         </section>
       </aside>
 
       <section class="content">
         <div id="emptyState" class="empty-state">
-          <h2>Comece pelo crawler</h2>
-          <p>O manual vira pacotes por tema. Depois o time valida, roda IA externa e curadoria.</p>
+          <h2>Passo 1 — Capturar fontes</h2>
+          <p>Baixa manual, páginas linkadas e documentos (PPC, PDFs, etc.).</p>
+          <button id="crawlBtnEmpty" class="btn primary">Rodar crawler</button>
         </div>
 
         <div id="runPanel" class="hidden">
@@ -44,43 +83,74 @@
               <h2 id="runTitle"></h2>
               <p id="runMeta"></p>
             </div>
-            <div class="run-actions">
-              <button id="approveStructureBtn" class="btn">2. Validar estrutura</button>
-              <button id="exportJobsBtn" class="btn">3. Exportar jobs IA</button>
-              <label class="btn file-btn">
-                4. Importar análises
-                <input id="importAnalysisInput" type="file" accept=".json" multiple hidden />
-              </label>
-              <button id="exportXlsxBtn" class="btn primary">6. Exportar XLSX FAQ</button>
-            </div>
+            <div class="run-actions" id="runActions"></div>
           </div>
 
-          <div id="packagesGrid" class="packages-grid"></div>
+          <section class="section-block">
+            <div class="section-head">
+              <h3>Temas de FAQ</h3>
+              <p>Cada tema tem <strong>perguntas para curar</strong> (coluna B) e <strong>fontes de referência</strong> (manual/documentos).</p>
+            </div>
+            <div id="packagesGrid" class="packages-grid"></div>
+          </section>
 
           <article id="reviewPanel" class="review-panel hidden">
             <header class="review-header">
-              <button id="closeReviewBtn" class="btn secondary">← Voltar</button>
+              <button id="closeReviewBtn" class="btn secondary">← Voltar aos temas</button>
               <div>
                 <h3 id="reviewTitle"></h3>
                 <p id="reviewProgress"></p>
+                <p id="reviewHint" class="review-hint"></p>
               </div>
             </header>
-            <div class="review-body">
-              <section>
-                <h4>Original (manual)</h4>
-                <pre id="originalContent"></pre>
-              </section>
-              <section>
-                <h4>Rascunho / IA</h4>
-                <label>Título sugerido<input id="suggestedTitleInput" /></label>
-                <label>Resposta sugerida<textarea id="suggestedAnswerInput" rows="8"></textarea></label>
-                <div id="aiInsights" class="ai-insights"></div>
-                <label>Notas da curadoria<textarea id="reviewNotesInput" rows="3"></textarea></label>
-                <div class="review-actions">
-                  <button id="approveItemBtn" class="btn primary">Aprovar item</button>
-                  <button id="rejectItemBtn" class="btn secondary">Rejeitar</button>
-                </div>
-              </section>
+
+            <div class="review-layout">
+              <nav id="itemNav" class="item-nav"></nav>
+
+              <div class="review-body">
+                <section class="col-reference">
+                  <div class="col-label">
+                    <h4>Fontes (consulta)</h4>
+                    <span class="badge muted">manual + documentos</span>
+                  </div>
+                  <p class="col-help">Trechos do manual e links extraídos relacionados a esta pergunta.</p>
+                  <div id="sourceRefs" class="source-refs"></div>
+                  <div id="documentRefs" class="document-refs"></div>
+                </section>
+
+                <section class="col-edit">
+                  <div class="col-label">
+                    <h4>Pergunta FAQ</h4>
+                    <span id="originBadge" class="badge brand">origem</span>
+                  </div>
+                  <p class="col-help">Esta pergunta veio dos tickets ou de intenção-semente — não do sumário do manual.</p>
+                  <label>Pergunta (card no CRM)
+                    <input id="suggestedTitleInput" placeholder="Ex.: Como recuperar senha do AVA?" />
+                  </label>
+                  <label>Resposta para o aluno
+                    <textarea id="suggestedAnswerInput" rows="8" placeholder="Consulte as fontes à esquerda. Primeira frase responde direto."></textarea>
+                  </label>
+                  <div id="aiInsights" class="ai-insights"></div>
+                  <label>Notas internas
+                    <textarea id="reviewNotesInput" rows="2"></textarea>
+                  </label>
+                  <div class="review-actions">
+                    <button id="prevItemBtn" class="btn secondary" type="button">← Anterior</button>
+                    <button id="approveItemBtn" class="btn primary" type="button">Aprovar para FAQ</button>
+                    <button id="rejectItemBtn" class="btn secondary" type="button">Descartar</button>
+                    <button id="nextItemBtn" class="btn secondary" type="button">Próximo →</button>
+                  </div>
+                </section>
+
+                <section class="col-preview">
+                  <div class="col-label">
+                    <h4>Prévia no CRM</h4>
+                    <span class="badge ok">como o aluno verá</span>
+                  </div>
+                  <div id="faqPreview" class="faq-preview"></div>
+                  <div id="exportStatus" class="export-status"></div>
+                </section>
+              </div>
             </div>
           </article>
         </div>

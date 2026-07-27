@@ -86,8 +86,11 @@ app.patch('/api/runs/:runId/packages/:packageId/items/:itemId', (req, res) => {
   const packages = readJson(packagesPath, [])
   const pkgIndex = packages.findIndex((entry) => entry.package_id === req.params.packageId)
   if (pkgIndex < 0) return res.status(404).json({ error: 'Pacote não encontrado' })
-  const items = packages[pkgIndex].items || []
-  const itemIndex = items.findIndex((entry) => entry.item_id === req.params.itemId)
+  const field = packages[pkgIndex].faq_candidates ? 'faq_candidates' : 'items'
+  const items = packages[pkgIndex][field] || []
+  const itemIndex = items.findIndex(
+    (entry) => (entry.candidate_id || entry.item_id) === req.params.itemId,
+  )
   if (itemIndex < 0) return res.status(404).json({ error: 'Item não encontrado' })
   items[itemIndex] = {
     ...items[itemIndex],
@@ -97,9 +100,48 @@ app.patch('/api/runs/:runId/packages/:packageId/items/:itemId', (req, res) => {
       ...((req.body || {}).review || {}),
     },
   }
-  packages[pkgIndex].items = items
+  packages[pkgIndex][field] = items
   writeJson(packagesPath, packages)
   res.json({ item: items[itemIndex] })
+})
+
+app.post('/api/runs/:runId/import-tickets', upload.single('file'), async (req, res) => {
+  const runPath = path.join(DATA_DIR, req.params.runId)
+  if (!req.file) return res.status(400).json({ error: 'Envie CSV ou XLSX de protocolos' })
+  const ticketsDir = path.join(runPath, 'tickets')
+  ensureDir(ticketsDir)
+  const original = req.file.originalname.toLowerCase()
+  const isXlsx = original.endsWith('.xlsx') || original.endsWith('.xls')
+  const dest = isXlsx
+    ? path.join(ticketsDir, 'protocolos.xlsx')
+    : path.join(ticketsDir, 'subjects.csv')
+
+  fs.renameSync(req.file.path, dest)
+  try {
+    const column = req.body.column || (isXlsx ? 'Motivo_Normalizado' : 'assunto')
+    let csvPath = dest
+    if (isXlsx) {
+      csvPath = path.join(ticketsDir, 'subjects.csv')
+      await runPython(
+        [
+          'export-protocol-subjects',
+          dest,
+          '--output',
+          csvPath,
+          '--column',
+          column,
+        ],
+        REPO_ROOT,
+      )
+    }
+    const result = await runPython(
+      ['build-candidates', runPath, '--tickets-csv', csvPath, '--ticket-column', 'assunto'],
+      REPO_ROOT,
+    )
+    res.json(JSON.parse(result.stdout))
+  } catch (error) {
+    res.status(500).json({ error: String(error.message || error) })
+  }
 })
 
 app.post('/api/runs/:runId/export-ai-jobs', async (req, res) => {

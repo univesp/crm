@@ -15,13 +15,14 @@ def write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def merge_item_analysis(item: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
-    merged = {**item}
-    analyses = item.get("ai", {}).get("analyses", []) + [analysis]
+def merge_candidate_analysis(candidate: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+    merged = {**candidate}
+    analyses = candidate.get("ai", {}).get("analyses", []) + [analysis]
     merged["ai"] = {"analyses": analyses, "latest": analysis}
 
     if analysis.get("suggested_title"):
         merged["suggested_title"] = analysis["suggested_title"]
+        merged["question"] = analysis["suggested_title"]
     if analysis.get("suggested_answer"):
         merged["suggested_answer"] = analysis["suggested_answer"]
     if analysis.get("suggested_node_kind"):
@@ -39,6 +40,10 @@ def merge_item_analysis(item: dict[str, Any], analysis: dict[str, Any]) -> dict[
     review = merged.setdefault("review", {})
     review["ai_ready"] = True
     return merged
+
+
+def merge_item_analysis(item: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+    return merge_candidate_analysis(item, analysis)
 
 
 def index_analyses(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -66,12 +71,32 @@ def import_ai_analysis(data_dir: Path) -> dict[str, Any]:
         for package in packages:
             if package["package_id"] != package_id:
                 continue
-            package["items"] = [
-                merge_item_analysis(item, by_item[item["item_id"]])
-                if item["item_id"] in by_item
-                else item
-                for item in package.get("items", [])
-            ]
+            candidates = package.get("faq_candidates") or package.get("items") or []
+            updated_candidates = []
+            for candidate in candidates:
+                key = candidate.get("candidate_id") or candidate.get("item_id")
+                if key in by_item:
+                    updated_candidates.append(merge_candidate_analysis(candidate, by_item[key]))
+                else:
+                    updated_candidates.append(candidate)
+            for item_id, analysis in by_item.items():
+                if not any((c.get("candidate_id") or c.get("item_id")) == item_id for c in updated_candidates):
+                    updated_candidates.append(
+                        merge_candidate_analysis(
+                            {
+                                "candidate_id": item_id,
+                                "question": analysis.get("suggested_title") or item_id,
+                                "suggested_title": analysis.get("suggested_title") or item_id,
+                                "suggested_answer": analysis.get("suggested_answer") or "",
+                                "origin": "ai_new",
+                                "review": {"status": "pending", "approved": False, "notes": ""},
+                            },
+                            analysis,
+                        )
+                    )
+            package["faq_candidates"] = updated_candidates
+            package["faq_candidate_count"] = len(updated_candidates)
+            package.pop("items", None)
             package["ai_analysis_files"] = sorted(
                 set(package.get("ai_analysis_files", []) + [analysis_file.name])
             )
