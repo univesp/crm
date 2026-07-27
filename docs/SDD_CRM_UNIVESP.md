@@ -45,6 +45,15 @@ O front-end em Vue organiza a experiência de atendimento acadêmico em alta esc
 | C | Omnichannel (adapters → HD Ticket) |
 | D | IA assistiva assíncrona pós-FAQ |
 | E | App aluno (Capacitor) |
+| F (posterior) | **Knowledge Studio** — curadoria ticket→candidatos FAQ, análise IA, export XLSX → FAQ Builder |
+
+## Knowledge Studio (fase posterior — fora do escopo atual)
+
+- **Status:** adiado até fechar validação UX/BFF do CRM na homolog.
+- **Branch de referência:** `codex/knowledge-studio-future` (código preservado; não mergear no MVP).
+- **Homolog:** não deployar `/studio/` nesta fase; serviço permanece parado.
+- **Fluxo previsto:** import de protocolos (XLSX/CSV) → candidatos por tema → jobs IA → curadoria → XLSX → FAQ Builder no CRM.
+- **Crawl manual:** apenas fontes de referência; não vira FAQ publicada diretamente.
 
 ## Base Cadastro Aluno
 
