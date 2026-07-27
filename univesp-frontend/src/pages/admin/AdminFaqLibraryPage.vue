@@ -13,6 +13,7 @@ import {
   loadFaqBuilderBundleLibraryLocal,
   saveFaqBuilderBundleLibraryLocal,
 } from '@/services/faqBuilderHybridRuntime'
+import { FAQ_TYPE_CATALOG, getCatalogEntry } from '@/services/faqCatalogs'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -174,6 +175,11 @@ function statusLabel(status = '') {
     archived: 'Arquivado',
   }
   return labels[normalized] || status || 'Nao informado'
+}
+
+function faqTypeLabel(type = '') {
+  const entry = getCatalogEntry(FAQ_TYPE_CATALOG, String(type || '').toLowerCase())
+  return entry?.label || type || 'Nao informado'
 }
 
 function formatDate(dateValue = '') {
@@ -345,10 +351,11 @@ function situationTone(row = {}) {
     <section class="rounded-[8px] border border-slate-200 bg-white p-4">
       <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
       <div class="mt-3 overflow-auto rounded-[8px] border border-slate-200">
-        <table class="w-full min-w-[900px] text-left text-xs">
+        <table class="w-full min-w-[1020px] text-left text-xs">
           <thead class="bg-slate-100 text-slate-600">
             <tr>
               <th class="px-3 py-2">Fluxo</th>
+              <th class="px-3 py-2">Tipo de FAQ</th>
               <th class="px-3 py-2">Status</th>
               <th class="px-3 py-2">Area responsavel</th>
               <th class="px-3 py-2">Situação</th>
@@ -360,6 +367,9 @@ function situationTone(row = {}) {
             <tr v-for="row in rows" :key="row.bundleId" class="border-t border-slate-200">
               <td class="px-3 py-2">
                 <p class="font-semibold text-slate-900">{{ row.title }}</p>
+              </td>
+              <td class="px-3 py-2">
+                <p class="font-semibold text-slate-900">{{ faqTypeLabel(row.faqType) }}</p>
               </td>
               <td class="px-3 py-2">
                 <StatusBadge :label="statusLabel(row.statusKey || row.workflowStatus)" />
@@ -393,7 +403,7 @@ function situationTone(row = {}) {
               </td>
             </tr>
             <tr v-if="!rows.length" class="border-t border-slate-200">
-              <td colspan="6" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
+              <td colspan="7" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
             </tr>
           </tbody>
         </table>
