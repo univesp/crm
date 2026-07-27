@@ -26,22 +26,21 @@ def load_faq_corpus(run_dir: Path) -> list[dict[str, Any]]:
     packages = json.loads((run_dir / "packages.json").read_text(encoding="utf-8"))
     corpus: list[dict[str, Any]] = []
     for package in packages:
-        candidates = package.get("faq_candidates") or package.get("items") or []
-        for item in candidates:
+        for item in package.get("items", []):
             corpus.append(
                 {
                     "package_id": package["package_id"],
                     "package_title": package["title"],
-                    "item_id": item.get("candidate_id") or item.get("item_id"),
-                    "title": item.get("suggested_title") or item.get("question") or item.get("title"),
+                    "item_id": item.get("item_id"),
+                    "title": item.get("suggested_title") or item.get("title"),
                     "answer": item.get("suggested_answer") or "",
                     "text": normalize(
                         " ".join(
                             [
-                                str(item.get("question") or ""),
                                 str(item.get("title") or ""),
                                 str(item.get("suggested_title") or ""),
                                 str(item.get("suggested_answer") or ""),
+                                str(item.get("content_md") or "")[:1200],
                                 str(package.get("title") or ""),
                             ]
                         )

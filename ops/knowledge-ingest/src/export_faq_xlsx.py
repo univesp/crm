@@ -44,8 +44,8 @@ def slugify(value: str) -> str:
 
 
 def item_to_rows(item: dict[str, Any], package: dict[str, Any]) -> list[dict[str, Any]]:
-    item_id = item.get("candidate_id") or item.get("item_id")
-    title = item.get("suggested_title") or item.get("question") or item.get("title")
+    item_id = item["item_id"]
+    title = item.get("suggested_title") or item.get("title")
     answer = item.get("suggested_answer") or ""
     node_kind = item.get("suggested_node_kind") or "final"
     node_type = "path" if node_kind in {"path", "branch", "theme"} else "final"
@@ -113,8 +113,7 @@ def export_faq_xlsx(data_dir: Path) -> Path:
         ]
 
         order = 1
-        candidates = package.get("faq_candidates") or package.get("items") or []
-        for item in candidates:
+        for item in package.get("items", []):
             if not item.get("review", {}).get("approved"):
                 continue
             for row in item_to_rows(item, package):
