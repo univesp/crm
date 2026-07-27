@@ -100,7 +100,7 @@ function navLinkClass(item) {
         ? 'lg:sticky lg:top-4 lg:z-20 lg:h-fit lg:w-[208px] xl:w-[220px]'
         : mockContext.isOperationalShell
           ? 'lg:sticky lg:top-4 lg:z-20 lg:h-fit lg:w-[176px] xl:w-[188px]'
-          : 'lg:sticky lg:top-4 lg:z-20 lg:h-[calc(100vh-2rem)] lg:w-[300px] xl:w-[320px]',
+          : 'lg:sticky lg:top-4 lg:z-20 lg:h-[calc(100vh-2rem)] lg:w-[248px] xl:w-[320px]',
     ]"
   >
     <div

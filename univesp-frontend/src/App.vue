@@ -531,8 +531,8 @@ onErrorCaptured((error) => {
     >
       <div
         :class="[
+          'app-shell-sidebar shrink-0',
           isStudentShell ? 'hidden lg:block' : '',
-          isOperationalShell ? 'app-shell-sidebar' : '',
         ]"
       >
         <AppSidebar />
@@ -540,7 +540,7 @@ onErrorCaptured((error) => {
 
       <main
         id="main-content"
-        :class="['min-w-0 flex-1 pb-8', isOperationalShell ? 'app-shell-main' : '']"
+        class="app-shell-main min-w-0 flex-1 pb-8"
       >
         <section
           :class="[
@@ -635,7 +635,7 @@ onErrorCaptured((error) => {
           :class="[
             isOperationalShell
               ? 'mb-3 flex flex-col gap-3 px-1 py-0.5 lg:flex-row lg:items-start lg:justify-between'
-              : 'surface-panel rise-in mb-4 flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between',
+              : 'surface-panel rise-in mb-4 flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between',
           ]"
         >
           <div class="min-w-0 flex-1">

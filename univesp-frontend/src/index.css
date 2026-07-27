@@ -355,6 +355,118 @@ select {
     white-space: nowrap;
   }
 
+  .crm-content-stack {
+    display: grid;
+    gap: var(--space-5);
+    width: 100%;
+    min-width: 0;
+  }
+
+  .crm-page-container {
+    container-type: inline-size;
+    container-name: crm-page;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .crm-stat-grid {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  }
+
+  .crm-stat-tile {
+    min-width: 0;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-muted);
+    padding: var(--space-3);
+  }
+
+  .crm-stat-tile__label {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: normal;
+    text-transform: uppercase;
+  }
+
+  .crm-stat-tile__value {
+    margin-top: var(--space-1);
+    color: var(--color-text);
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .crm-stat-tile__value.is-danger {
+    color: var(--color-danger);
+  }
+
+  .crm-filter-grid {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: var(--space-2);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .crm-filter-field {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-1);
+  }
+
+  .crm-form-grid {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: var(--space-2);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .crm-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+  }
+
+  .crm-table-scroll table {
+    width: 100%;
+    min-width: 52rem;
+  }
+
+  @container crm-page (min-width: 480px) {
+    .crm-filter-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container crm-page (min-width: 720px) {
+    .crm-filter-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 11rem) minmax(0, 11rem);
+    }
+  }
+
+  @container crm-page (min-width: 560px) {
+    .crm-form-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container crm-page (min-width: 900px) {
+    .crm-form-grid {
+      grid-template-columns: minmax(0, 13rem) minmax(0, 1fr) minmax(0, 1fr) auto;
+      align-items: end;
+    }
+  }
+
   .crm-state-success {
     border-color: rgba(26, 111, 67, 0.22);
     background: var(--color-success-soft);
@@ -946,14 +1058,14 @@ select {
 }
 
 @media (min-width: 1024px) {
-  .shell-operational .app-shell-sidebar {
+  .app-shell-sidebar {
     position: sticky;
     top: 1rem;
     z-index: 20;
     flex: 0 0 auto;
   }
 
-  .shell-operational .app-shell-main {
+  .app-shell-main {
     min-width: 0;
     flex: 1 1 auto;
   }

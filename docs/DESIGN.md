@@ -174,6 +174,12 @@ A migracao deve usar classes/tokens em vez de hardcoded:
 - `.crm-field`
 - `.crm-chip`
 - `.crm-brand-mark`
+- `.crm-content-stack`
+- `.crm-page-container`
+- `.crm-stat-grid` / `.crm-stat-tile`
+- `.crm-filter-grid` / `.crm-filter-field`
+- `.crm-form-grid`
+- `.crm-table-scroll`
 - `.a11y-readable`
 - `.a11y-dyslexia`
 - `.a11y-zoom-lg`
