@@ -170,8 +170,8 @@ function statusLabel(status = '') {
   const labels = {
     draft: 'Rascunho',
     published: 'Publicado',
-    'in review': 'Em revisao',
-    review: 'Em revisao',
+    'in review': 'Em revisão',
+    review: 'Em revisão',
     archived: 'Arquivado',
   }
   return labels[normalized] || status || 'Nao informado'
@@ -240,7 +240,7 @@ function situationTone(row = {}) {
 </script>
 
 <template>
-  <div class="grid gap-5">
+  <div class="crm-content-stack crm-page-container">
     <section
       v-if="runtimeError"
       class="rounded-[8px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
@@ -261,26 +261,26 @@ function situationTone(row = {}) {
       title="Biblioteca de fluxos da base de conhecimento"
       description="Escolha um fluxo para editar. O canvas abre apenas um bundle por vez em tela dedicada."
     >
-      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-normal text-slate-500">Fluxos</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+      <div class="crm-stat-grid">
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label">Fluxos</p>
+          <p class="crm-stat-tile__value">{{ summary.total }}</p>
         </div>
-        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-normal text-slate-500">Rascunhos</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.draft }}</p>
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label">Rascunhos</p>
+          <p class="crm-stat-tile__value">{{ summary.draft }}</p>
         </div>
-        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-normal text-slate-500">Em revisao</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.review }}</p>
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label">Em revisão</p>
+          <p class="crm-stat-tile__value">{{ summary.review }}</p>
         </div>
-        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-normal text-slate-500">Publicados</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.published }}</p>
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label">Publicados</p>
+          <p class="crm-stat-tile__value">{{ summary.published }}</p>
         </div>
-        <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-normal text-slate-500">Com erro estrutural</p>
-          <p class="mt-1 text-xl font-semibold text-[var(--color-danger)]">{{ summary.withErrors }}</p>
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label" title="Com erro estrutural">Com erro</p>
+          <p class="crm-stat-tile__value is-danger">{{ summary.withErrors }}</p>
         </div>
       </div>
     </SectionPanel>
@@ -296,24 +296,24 @@ function situationTone(row = {}) {
     <section class="grid gap-3">
       <article class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
         <p class="text-sm font-semibold text-slate-900">Filtros da biblioteca</p>
-        <div class="mt-2 grid gap-2 md:grid-cols-[minmax(220px,1fr)_minmax(150px,180px)_minmax(150px,180px)]">
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Buscar</span>
-            <input v-model="filters.search" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Nome do fluxo, assunto ou tipo" />
+        <div class="crm-filter-grid mt-2">
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Buscar</span>
+            <input v-model="filters.search" type="text" class="crm-field w-full min-w-0" placeholder="Nome do fluxo, assunto ou tipo" />
           </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Status</span>
-            <select v-model="filters.status" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Status</span>
+            <select v-model="filters.status" class="crm-field w-full min-w-0">
               <option value="all">Todos</option>
               <option value="draft">Rascunho</option>
-              <option value="in review">Em revisao</option>
+              <option value="in review">Em revisão</option>
               <option value="published">Publicado</option>
               <option value="archived">Arquivado</option>
             </select>
           </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Tipo de FAQ</span>
-            <select v-model="filters.faqType" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Tipo de FAQ</span>
+            <select v-model="filters.faqType" class="crm-field w-full min-w-0">
               <option value="all">Todos</option>
               <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
@@ -326,22 +326,22 @@ function situationTone(row = {}) {
           Criar novo fluxo
           <span class="ml-2 text-xs font-normal text-slate-500">Cadastre um novo fluxo quando nao houver fluxo equivalente.</span>
         </summary>
-        <div class="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_140px] lg:items-end">
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Tipo</span>
-            <select v-model="createForm.faqType" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm">
+        <div class="crm-form-grid mt-3">
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Tipo</span>
+            <select v-model="createForm.faqType" class="crm-field w-full min-w-0">
               <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Nome do fluxo</span>
-            <input v-model="createForm.title" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: Provas e segunda chamada" />
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Nome do fluxo</span>
+            <input v-model="createForm.title" type="text" class="crm-field w-full min-w-0" placeholder="Ex.: Provas e segunda chamada" />
           </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Chave do assunto (opcional)</span>
-            <input v-model="createForm.subjectKey" type="text" class="w-full min-w-0 rounded-[8px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: provas_segunda_chamada" />
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Chave do assunto (opcional)</span>
+            <input v-model="createForm.subjectKey" type="text" class="crm-field w-full min-w-0" placeholder="Ex.: provas_segunda_chamada" />
           </label>
-          <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white" @click="createFlow">
+          <button type="button" class="crm-button-primary w-full min-w-0 justify-center sm:w-auto" @click="createFlow">
             Criar fluxo
           </button>
         </div>
@@ -349,18 +349,18 @@ function situationTone(row = {}) {
     </section>
 
     <section class="rounded-[8px] border border-slate-200 bg-white p-4">
-      <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
-      <div class="mt-3 overflow-auto rounded-[8px] border border-slate-200">
-        <table class="w-full min-w-[1020px] text-left text-xs">
+      <p class="text-sm font-semibold text-slate-900">Fluxos disponíveis</p>
+      <div class="crm-table-scroll mt-3">
+        <table class="text-left text-xs">
           <thead class="bg-slate-100 text-slate-600">
             <tr>
               <th class="px-3 py-2">Fluxo</th>
               <th class="px-3 py-2">Tipo de FAQ</th>
               <th class="px-3 py-2">Status</th>
-              <th class="px-3 py-2">Area responsavel</th>
+              <th class="px-3 py-2">Área responsável</th>
               <th class="px-3 py-2">Situação</th>
               <th class="px-3 py-2">Atualizado em</th>
-              <th class="px-3 py-2">Acao</th>
+              <th class="px-3 py-2">Ação</th>
             </tr>
           </thead>
           <tbody>
