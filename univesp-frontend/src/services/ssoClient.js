@@ -78,6 +78,18 @@ export function hasSsoDevBypass() {
   return devBypassConfig.enabled
 }
 
+export function hasHomologProfilePreview() {
+  return isTruthy(import.meta.env.VITE_HOMOLOG_PROFILE_PREVIEW, false)
+}
+
+export function canUseProfilePreviewPicker() {
+  return hasSsoDevBypass() || hasHomologProfilePreview()
+}
+
+export function readStoredProfilePreviewKey() {
+  return readStoredDevBypassProfileKey()
+}
+
 export function isAzureConfigured() {
   return Boolean(runtimeConfig.azureStartPath)
 }
@@ -87,7 +99,7 @@ export function getDevBypassProfiles() {
 }
 
 export function getSelectedDevBypassProfile() {
-  if (!devBypassConfig.enabled) {
+  if (!canUseProfilePreviewPicker()) {
     return null
   }
 
@@ -100,7 +112,7 @@ export function getSelectedDevBypassProfile() {
 }
 
 export function setSelectedDevBypassProfile(profileKey) {
-  if (!devBypassConfig.enabled) {
+  if (!canUseProfilePreviewPicker()) {
     return null
   }
 

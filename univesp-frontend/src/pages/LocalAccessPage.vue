@@ -17,7 +17,7 @@ const profileKey = computed(() => String(route.params.profileKey || '').trim().t
 const profiles = computed(() => auth.localBypassProfiles)
 const groupedProfiles = computed(() => groupMockProfilesByShell(profiles.value))
 const selectedProfile = computed(() => {
-  if (!auth.hasLocalBypass) {
+  if (!auth.canOpenProfilePreview) {
     return null
   }
 
@@ -56,7 +56,7 @@ function getProfileIcon(profileKeyValue) {
 }
 
 watchEffect(() => {
-  if (!auth.hasLocalBypass) {
+  if (!auth.canOpenProfilePreview) {
     return
   }
 
@@ -83,15 +83,19 @@ watchEffect(() => {
           </div>
 
           <div>
-            <p class="crm-sso-kicker">Ambiente local</p>
+            <p class="crm-sso-kicker">{{ auth.hasProfilePreview ? 'Homologacao' : 'Ambiente local' }}</p>
             <h2 id="local-access-title">Escolha um perfil</h2>
             <p class="crm-sso-copy">
-              Use esta entrada para validar a navegação por perfil antes da integração completa de SSO.
+              {{
+                auth.hasProfilePreview
+                  ? 'Voce ja entrou com SSO. Escolha um perfil para validar a navegacao e a UX com dados de demonstracao.'
+                  : 'Use esta entrada para validar a navegacao por perfil antes da integracao completa de SSO.'
+              }}
             </p>
           </div>
         </div>
 
-        <div v-if="auth.hasLocalBypass" class="crm-sso-access-grid">
+        <div v-if="auth.canOpenProfilePreview" class="crm-sso-access-grid">
           <section
             v-for="group in groupedProfiles"
             :key="group.shellKey"
@@ -126,7 +130,7 @@ watchEffect(() => {
           O acesso local não está habilitado neste ambiente.
         </div>
 
-        <div v-if="auth.hasLocalBypass && selectedProfile" class="crm-local-hint" aria-live="polite">
+        <div v-if="auth.canOpenProfilePreview && selectedProfile" class="crm-local-hint" aria-live="polite">
           <p>Redirecionando para {{ selectedProfile.label }}...</p>
         </div>
       </section>
