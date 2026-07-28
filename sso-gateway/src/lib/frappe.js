@@ -131,13 +131,14 @@ function extractMessage(payload) {
 }
 
 function publicStatus(status) {
-  return [400, 401, 403, 404, 409, 413, 417, 422, 429].includes(status) ? status : 502
+  return [400, 401, 403, 404, 409, 410, 413, 417, 422, 429].includes(status) ? status : 502
 }
 
 function frappeErrorCode(status, payload) {
 	const serialized = JSON.stringify(payload || {})
 	if (/UnivespConflictError|KnowledgeV3ConflictError/i.test(serialized)) return 'CONFLICT'
 	if (/UnivespValidationError|KnowledgeV3ValidationError/i.test(serialized)) return 'VALIDATION_ERROR'
+	if (/KnowledgeSessionExpiredError/i.test(serialized)) return 'FAQ_SESSION_EXPIRED'
 	if (/desativado no Atendimento/i.test(serialized)) return 'ACCESS_DISABLED'
 	if (/sem perfil ativo/i.test(serialized)) return 'PROFILE_NOT_ASSIGNED'
   if (status === 401) return 'AUTHENTICATION_REQUIRED'

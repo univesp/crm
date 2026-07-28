@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { Router } from 'express'
 
 import { callFrappe, FrappeApiError } from '../lib/frappe.js'
@@ -65,6 +65,7 @@ router.use((req, res, next) => {
 })
 
 router.get('/health', forward('settings.health'))
+router.get('/runtime/flags', forward('settings.runtime_flags'))
 router.get('/admin/permission-profiles', forward('admin.list_permission_profiles', { query: true }))
 router.post('/admin/permission-profiles', forward('admin.create_permission_profile', { wrapPayload: true }))
 router.patch('/admin/permission-profiles/:profileId', forward('admin.update_permission_profile', {
@@ -122,7 +123,7 @@ router.post('/admin/simulation-sessions/:id/actions', async (req, res) => {
 })
 
 router.get('/tickets', forward('tickets.list_tickets', { query: true }))
-router.post('/tickets', forward('tickets.create', { wrapPayload: true }))
+router.post('/tickets', attachFaqBindingToTicket, forward('tickets.create', { wrapPayload: true }))
 router.get('/tickets/:ticketId', forward('tickets.get', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/messages', forward('tickets.add_message', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/attachments', forward('tickets.attach', { routeParams: { ticket_id: 'ticketId' }, rawBody: true }))
@@ -145,6 +146,34 @@ router.get('/knowledge/library', forward('knowledge.get_library'))
 router.patch('/knowledge/library', forward('knowledge.update_library', { wrapPayload: true }))
 router.get('/knowledge/v3/bundles', forward('knowledge_v3.list_bundles', { query: true }))
 router.get('/knowledge/v3/catalogs', forward('knowledge_v3.catalogs'))
+router.get('/knowledge/v3/runtime', forward('knowledge_runtime.published_runtime', { query: true }))
+router.post(
+  '/knowledge/v3/sessions',
+  createFaqSessionPayload,
+  forward('knowledge_runtime.start_session', { wrapPayload: true }),
+)
+router.get(
+  '/knowledge/v3/sessions/:sessionId',
+  attachFaqBindingToQuery,
+  forward('knowledge_runtime.get_session', {
+    routeParams: { faq_session_id: 'sessionId' },
+    query: true,
+  }),
+)
+router.post(
+  '/knowledge/v3/sessions/:sessionId/advance',
+  attachFaqBindingToBody,
+  forward('knowledge_runtime.advance_session', {
+    routeParams: { faq_session_id: 'sessionId' },
+    wrapPayload: true,
+  }),
+)
+router.post(
+  '/knowledge/v3/events',
+  attachFaqBindingToBody,
+  forward('knowledge_runtime.record_event', { wrapPayload: true }),
+)
+router.get('/knowledge/v3/metrics/legacy', forward('knowledge_runtime.legacy_metrics'))
 router.post('/knowledge/v3/bundles', forward('knowledge_v3.create_bundle', { wrapPayload: true, etag: true }))
 router.get('/knowledge/v3/bundles/:bundleKey', forward('knowledge_v3.get_bundle', {
   routeParams: { bundle_key: 'bundleKey' },
@@ -280,6 +309,54 @@ function isSameOrigin(req) {
   const origin = String(req.get('origin') || '').trim()
   if (!expected || process.env.NODE_ENV !== 'production') return true
   return origin === new URL(expected).origin
+}
+
+function faqBinding(req, res) {
+  let raw = String(req.cookies?.faq_binding || '').trim()
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(raw)) {
+    raw = randomBytes(32).toString('base64url')
+    res.cookie('faq_binding', raw, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      domain: process.env.COOKIE_DOMAIN || undefined,
+      maxAge: Number(process.env.FAQ_BINDING_MAX_AGE_MS || 86400000),
+      path: '/',
+    })
+  }
+  return createHmac('sha256', String(process.env.SESSION_SECRET || 'development-only-secret'))
+    .update(`faq-binding:${raw}`)
+    .digest('hex')
+}
+
+function createFaqSessionPayload(req, res, next) {
+  req.body = {
+    ...(req.body || {}),
+    faq_session_id: randomUUID(),
+    binding_hash: faqBinding(req, res),
+  }
+  next()
+}
+
+function attachFaqBindingToBody(req, res, next) {
+  req.body = { ...(req.body || {}), binding_hash: faqBinding(req, res) }
+  next()
+}
+
+function attachFaqBindingToQuery(req, res, next) {
+  req.query = { ...(req.query || {}), binding_hash: faqBinding(req, res) }
+  next()
+}
+
+function attachFaqBindingToTicket(req, res, next) {
+  const knowledge = req.body?.knowledge
+  if (knowledge?.faq_session_id) {
+    req.body = {
+      ...(req.body || {}),
+      knowledge: { ...knowledge, binding_hash: faqBinding(req, res) },
+    }
+  }
+  next()
 }
 
 function requestIdFor(req) {

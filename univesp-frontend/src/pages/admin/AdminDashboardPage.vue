@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import ActionTile from '@/components/ActionTile.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import OperationalCockpitPanel from '@/components/operational/OperationalCockpitPanel.vue'
@@ -8,11 +8,13 @@ import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminDashboardView } from '@/services/adminDashboardRuntime'
 import { buildOperationalCockpitFromDashboard } from '@/services/operationalCockpitRuntime'
+import { getLegacyKnowledgeMetrics, isMockRuntimeEnabled } from '@/services/appApi'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
+const knowledgeMetricOverrides = ref([])
 
 const filters = reactive({
   queue: 'todos',
@@ -39,9 +41,28 @@ const operationalCockpit = computed(() =>
   buildOperationalCockpitFromDashboard(dashboardBase.value, filters, 'admin_central'),
 )
 const filterOptions = computed(() => dashboardBase.value.filterOptions)
-const metrics = computed(() => dashboardView.value.kpis)
+const metrics = computed(() => {
+  const overrides = new Map(
+    knowledgeMetricOverrides.value.map((metric) => [metric.label, metric.value]),
+  )
+  return dashboardView.value.kpis.map((metric) =>
+    overrides.has(metric.label) ? { ...metric, value: overrides.get(metric.label) } : metric,
+  )
+})
 const criticalMetricLabels = ['SLA vencido', 'Criticidade alta', 'Escalados para area interna', 'Reincidencia de tema']
 const metricValue = (label) => metrics.value.find((metric) => metric.label === label)?.value || 0
+
+onMounted(async () => {
+  if (isMockRuntimeEnabled()) return
+  try {
+    const response = await getLegacyKnowledgeMetrics()
+    knowledgeMetricOverrides.value = Array.isArray(response.data?.legacy_metrics)
+      ? response.data.legacy_metrics
+      : []
+  } catch {
+    knowledgeMetricOverrides.value = []
+  }
+})
 const criticalKpiCards = computed(() => [
   {
     label: 'SLA vencido',

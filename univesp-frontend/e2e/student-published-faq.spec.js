@@ -60,8 +60,9 @@ test('jornada do aluno consome somente FAQ publicada pelo Frappe em modo live', 
   await page.addInitScript(() => {
     window.sessionStorage.setItem('univesp.sso.devBypassProfile', 'aluno')
   })
-  await page.route('**/api/app/v1/knowledge/faq-published?**', async (route) => {
-    const faqType = new URL(route.request().url()).searchParams.get('faq_type')
+  await page.route('**/api/app/v1/knowledge/v3/runtime?**', async (route) => {
+    const persona = new URL(route.request().url()).searchParams.get('persona')
+    const faqType = persona === 'student' ? 'aluno' : 'op'
     await route.fulfill({
       status: 200,
       json: {

@@ -40,13 +40,48 @@ def _valid_payload():
 		"bundle_key": "acesso-ava",
 		"theme_key": "acesso-ava",
 		"metadata": {"title": "Acesso ao AVA", "audience_profile": "mixed"},
+		"graph": {
+			"student_root_node_id": "root",
+			"public_root_node_id": "public-root",
+			"internal_root_node_id": None,
+		},
 		"routing_policy": {"pattern_key": "op_then_area"},
-		"roots": {"student": "root"},
 		"nodes": [
-			{"node_id": "root", "stable_key": "root"},
-			{"node_id": "final", "stable_key": "final"},
+			{
+				"node_id": "root",
+				"stable_key": "root",
+				"node_kind": "path",
+				"audiences": ["student"],
+				"content": {"student": {"blocks": []}, "public": None},
+				"playbooks": {"op": None, "bpo": None, "analyst": None},
+			},
+			{
+				"node_id": "final",
+				"stable_key": "final",
+				"node_kind": "final",
+				"audiences": ["student"],
+				"content": {"student": {"blocks": [], "outcome_key": "resolved"}, "public": None},
+				"playbooks": {"op": {"objective": "Resolver"}, "bpo": None, "analyst": None},
+			},
+			{
+				"node_id": "public-root",
+				"stable_key": "public-root",
+				"node_kind": "final",
+				"audiences": ["public"],
+				"content": {"student": None, "public": {"blocks": [], "outcome_key": "resolved"}},
+				"playbooks": {"op": None, "bpo": None, "analyst": None},
+			},
 		],
-		"edges": [{"parent_node_id": "root", "child_node_id": "final"}],
+		"edges": [
+			{
+				"edge_id": "root-final",
+				"parent_node_id": "root",
+				"child_node_id": "final",
+				"order": 1,
+				"active": True,
+				"audiences": ["student"],
+			}
+		],
 	}
 
 
@@ -76,10 +111,10 @@ class TestKnowledgeV3Contracts(TestCase):
 			_validate_payload_identity(payload, _bundle())
 
 	@patch(
-		"univesp_atendimento.api.v1.knowledge_v3.frappe.db.exists",
-		return_value="op_then_area",
+		"univesp_atendimento.api.v1.knowledge_v3.frappe.db.get_value",
+		return_value=SimpleNamespace(name="op_then_area", steps_json='["op", "area"]'),
 	)
-	def test_publishable_payload_requires_stable_unique_nodes(self, _exists):
+	def test_publishable_payload_requires_stable_unique_nodes(self, _get_value):
 		_validate_publishable_payload(_valid_payload(), _bundle())
 		payload = _valid_payload()
 		payload["nodes"][1]["stable_key"] = "root"

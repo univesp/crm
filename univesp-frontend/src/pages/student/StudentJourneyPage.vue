@@ -4,6 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
 import { buildStudentFaqHomeEntries, buildStudentFaqRuntime } from '@/services/faqRuntime'
+import {
+  clearActiveFaqSession,
+  ensureFaqSessionForNode,
+  recordFaqJourneyEvent,
+} from '@/services/faqSessionRuntime'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const route = useRoute()
@@ -11,6 +16,8 @@ const router = useRouter()
 const studentSupportStore = useStudentSupportStore()
 
 const selectedNodeId = ref(String(route.query.node || studentSupportStore.currentFaqContext?.finalNode?.id || ''))
+const sessionError = ref('')
+const sessionPending = ref(false)
 
 const faqRuntime = computed(() => buildStudentFaqRuntime())
 
@@ -212,19 +219,45 @@ function syncFaqContext(node) {
   })
 }
 
-function openNode(nodeId) {
+async function syncStickyContext(node, { recordView = true } = {}) {
+  if (!node) return null
+  sessionPending.value = true
+  sessionError.value = ''
+  const lineage = node.runtime.lineage.map((stepId) => faqNodeIndex.value.get(stepId)).filter(Boolean)
+  try {
+    const session = await ensureFaqSessionForNode(node, lineage, 'student')
+    if (session?.faq_session_id) {
+      studentSupportStore.activeFaqSessionId = session.faq_session_id
+    }
+    syncFaqContext(node)
+    if (recordView) {
+      await recordFaqJourneyEvent('faq.node_viewed', node)
+    }
+    return session
+  } catch (error) {
+    sessionError.value =
+      error?.message || 'Não foi possível fixar esta versão da FAQ. Tente reiniciar a jornada.'
+    return null
+  } finally {
+    sessionPending.value = false
+  }
+}
+
+async function openNode(nodeId) {
   selectedNodeId.value = nodeId
+  await syncStickyContext(faqNodeIndex.value.get(nodeId))
   router.replace({ path: '/aluno/duvida', query: { node: nodeId } })
-  syncFaqContext(faqNodeIndex.value.get(nodeId))
 }
 
 function goHome() {
+  clearActiveFaqSession()
   studentSupportStore.resetFaqExperience()
   selectedNodeId.value = ''
   router.push('/aluno')
 }
 
 function restartJourney() {
+  clearActiveFaqSession()
   selectedNodeId.value = ''
   studentSupportStore.resetFaqExperience()
   router.replace({ path: '/aluno/duvida' })
@@ -264,11 +297,16 @@ function goBack() {
   openNode(activeLineage.value.at(-2).id)
 }
 
-function markAsResolved() {
+async function markAsResolved() {
   if (!activeNode.value) {
     return
   }
 
+  const session = await syncStickyContext(activeNode.value, { recordView: false })
+  if (activeNode.value.runtime_schema_version?.startsWith('3.0.0') && !session) return
+  await recordFaqJourneyEvent('faq.resolved_without_ticket', activeNode.value, {
+    outcome_key: 'resolved',
+  })
   studentSupportStore.resolveFaq({
     node: activeNode.value,
     lineage: activeLineage.value,
@@ -276,11 +314,16 @@ function markAsResolved() {
   router.push('/aluno/confirmacao/faq-resolvida')
 }
 
-function continueToProtocol() {
+async function continueToProtocol() {
   if (!activeNode.value) {
     return
   }
 
+  const session = await syncStickyContext(activeNode.value, { recordView: false })
+  if (activeNode.value.runtime_schema_version?.startsWith('3.0.0') && !session) return
+  await recordFaqJourneyEvent('faq.ticket_open_started', activeNode.value, {
+    outcome_key: 'open_ticket',
+  })
   studentSupportStore.startProtocolFromFaq({
     node: activeNode.value,
     lineage: activeLineage.value,
@@ -299,8 +342,14 @@ watch(
     }
 
     if (faqNodeIndex.value.has(normalized)) {
+      if (
+        selectedNodeId.value === normalized &&
+        studentSupportStore.currentFaqContext?.finalNode?.id === normalized
+      ) {
+        return
+      }
       selectedNodeId.value = normalized
-      syncFaqContext(faqNodeIndex.value.get(normalized))
+      syncStickyContext(faqNodeIndex.value.get(normalized))
     }
   },
   { immediate: true },
@@ -318,6 +367,13 @@ watch(
     @back="goBack"
   >
     <div class="grid gap-4">
+      <div
+        v-if="sessionError"
+        role="alert"
+        class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+      >
+        {{ sessionError }}
+      </div>
       <div
         v-if="currentHighlights.length"
         class="grid gap-3"

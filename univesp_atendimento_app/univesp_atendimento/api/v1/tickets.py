@@ -70,6 +70,9 @@ TICKET_FIELDS = [
 	"custom_source_bundle_id",
 	"custom_source_bundle_version_id",
 	"custom_source_node_id",
+	"custom_source_path_json",
+	"custom_source_audience",
+	"custom_faq_session_id",
 	"custom_channel_metadata_json",
 	"custom_ai_suggestion_json",
 ]
@@ -85,6 +88,26 @@ def create(payload: dict | str | None = None):
 		data = normalize_channel_payload(data)
 	student = data.get("student") if isinstance(data.get("student"), dict) else {}
 	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
+	from univesp_atendimento.api.v1.knowledge_runtime import validate_session_lineage
+
+	session_record = validate_session_lineage(knowledge, context)
+	if (
+		not session_record
+		and knowledge.get("bundle_id")
+		and frappe.db.exists("Univesp Knowledge Bundle", str(knowledge.get("bundle_id")))
+		and bool(frappe.get_single("Univesp Runtime Settings").knowledge_v3_read)
+	):
+		raise frappe.PermissionError(_("Lineage v3 exige sessão FAQ válida."))
+	if session_record:
+		knowledge = {
+			**knowledge,
+			"bundle_id": session_record["bundle_key"],
+			"bundle_version_id": session_record["bundle_version_id"],
+			"node_id": session_record["path"][-1],
+			"path": session_record["path"],
+			"audience": session_record["persona"],
+			"faq_session_id": session_record["faq_session_id"],
+		}
 	queue = str(data.get("queue") or "").strip()
 	area = str(data.get("area") or "").strip()
 
@@ -120,6 +143,9 @@ def create(payload: dict | str | None = None):
 			"custom_source_bundle_id": str(knowledge.get("bundle_id") or ""),
 			"custom_source_bundle_version_id": str(knowledge.get("bundle_version_id") or ""),
 			"custom_source_node_id": str(knowledge.get("node_id") or knowledge.get("flow_id") or ""),
+			"custom_source_path_json": json.dumps(knowledge.get("path") or [], ensure_ascii=False),
+			"custom_source_audience": str(knowledge.get("audience") or ""),
+			"custom_faq_session_id": str(knowledge.get("faq_session_id") or ""),
 			"custom_request_id": context.request_id,
 			"custom_channel_metadata_json": json.dumps(
 				data.get("channel_metadata") if isinstance(data.get("channel_metadata"), dict) else {},
@@ -130,6 +156,9 @@ def create(payload: dict | str | None = None):
 	).insert(ignore_permissions=True)
 	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
 	doc.save(ignore_permissions=True)
+	from univesp_atendimento.api.v1.knowledge_runtime import record_protocol_created
+
+	record_protocol_created(context, session_record, doc.name)
 	from univesp_atendimento.ticket_hooks import enqueue_ai_suggestion
 
 	enqueue_ai_suggestion(doc.name)

@@ -204,6 +204,8 @@ export function buildFaqAttendanceContext({ node, lineage, sessionId, currentDat
     subtheme: node.subtema || null,
     breadcrumb: lineage.map((step) => step.titulo_exibido),
     breadcrumbPath: buildLineagePayload(lineage),
+    sourcePath: lineage.map((step) => step.id),
+    sourceAudience: node.tipo_faq === 'publico' ? 'public' : 'student',
     finalNode: {
       id: node.id,
       title: node.titulo_exibido,
@@ -321,6 +323,9 @@ export function buildProtocolDraft({ context, sourceRecordId, currentDate = new 
       bundleId: context.finalNode?.bundleId || '',
       bundleVersionId: context.finalNode?.bundleVersionId || '',
       sourceNodeId: context.finalNode?.id || '',
+      faqSessionId: context.sessionId || '',
+      sourcePath: [...(context.sourcePath || [])],
+      sourceAudience: context.sourceAudience || 'student',
       routingQueue: context.routing.currentQueueLabel,
       routingArea: context.routing.targetAreaLabel,
       criticality: context.criticality,

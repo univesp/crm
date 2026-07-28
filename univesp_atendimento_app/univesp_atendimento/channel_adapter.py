@@ -93,5 +93,8 @@ def _map_faq_context(faq_context: dict | None) -> dict:
 		"bundle_id": bundle_id,
 		"bundle_version_id": str(faq_context.get("bundle_version_id") or "").strip(),
 		"node_id": node_id,
+		"path": [str(item or "").strip() for item in path if str(item or "").strip()],
+		"audience": str(faq_context.get("audience") or "").strip(),
+		"faq_session_id": str(faq_context.get("faq_session_id") or "").strip(),
 		"resolved": bool(faq_context.get("resolved")),
 	}

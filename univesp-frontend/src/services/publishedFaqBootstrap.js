@@ -2,6 +2,7 @@ import {
   isMockRuntimeEnabled,
   listPublicFaq,
   listPublishedFaq,
+  listPublishedFaqRuntime,
 } from '@/services/appApi'
 import {
   beginPublishedFaqLoad,
@@ -17,7 +18,10 @@ const OPERATIONAL_PROFILES = new Set([
   'gestor_area',
 ])
 
-export async function loadPublishedFaqType(faqType, { publicAccess = false } = {}) {
+export async function loadPublishedFaqType(
+  faqType,
+  { publicAccess = false, persona = '' } = {},
+) {
   if (isMockRuntimeEnabled()) {
     return { source: 'mock', faqType }
   }
@@ -26,7 +30,9 @@ export async function loadPublishedFaqType(faqType, { publicAccess = false } = {
   try {
     const response = publicAccess
       ? await listPublicFaq({ faq_type: faqType })
-      : await listPublishedFaq({ faq_type: faqType })
+      : persona
+        ? await listPublishedFaqRuntime({ persona })
+        : await listPublishedFaq({ faq_type: faqType })
     const entries = Array.isArray(response.data) ? response.data : []
     setPublishedFaqBundles(faqType, entries, response.meta)
     return {
@@ -44,10 +50,16 @@ export async function loadPublishedFaqType(faqType, { publicAccess = false } = {
 export async function loadPublishedFaqForProfile(profileKey = '') {
   const normalized = String(profileKey || '').trim().toLowerCase()
   if (normalized === 'aluno') {
-    return loadPublishedFaqType('aluno')
+    return loadPublishedFaqType('aluno', { persona: 'student' })
   }
   if (OPERATIONAL_PROFILES.has(normalized)) {
-    return loadPublishedFaqType('op')
+    const persona =
+      normalized === 'op_externo'
+        ? 'bpo'
+        : ['analista_area', 'gestor_area'].includes(normalized)
+          ? 'analyst'
+          : 'op'
+    return loadPublishedFaqType('op', { persona })
   }
   return { source: isMockRuntimeEnabled() ? 'mock' : 'institutional', skipped: true }
 }

@@ -7,6 +7,7 @@ from frappe import _
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from univesp_atendimento.api.v1.common import get_request_context, response
+from univesp_atendimento.knowledge_graph import KnowledgeGraphError, assert_valid_knowledge_graph
 
 
 ACTIVE_DRAFT_STATES = {"draft", "pending_approval"}
@@ -639,6 +640,10 @@ def _activate_version(bundle, version, context):
 
 def _validate_publishable_payload(payload, bundle):
 	_validate_payload_identity(payload, bundle)
+	try:
+		assert_valid_knowledge_graph(payload)
+	except KnowledgeGraphError as exc:
+		raise KnowledgeV3ValidationError(str(exc)) from exc
 	nodes = payload.get("nodes")
 	edges = payload.get("edges")
 	if not isinstance(nodes, list) or not nodes:
@@ -665,8 +670,27 @@ def _validate_publishable_payload(payload, bundle):
 	if not isinstance(routing, dict):
 		raise KnowledgeV3ValidationError(_("Política de roteamento é obrigatória."))
 	pattern_key = _key(routing.get("pattern_key"), "pattern_key")
-	if not frappe.db.exists("Univesp Knowledge Routing Pattern", {"pattern_key": pattern_key, "active": 1}):
+	pattern = frappe.db.get_value(
+		"Univesp Knowledge Routing Pattern",
+		{"pattern_key": pattern_key, "active": 1},
+		["name", "steps_json"],
+		as_dict=True,
+	)
+	if not pattern:
 		raise KnowledgeV3ValidationError(_("Padrão de roteamento não está ativo no catálogo."))
+	steps = set(frappe.parse_json(pattern.steps_json or "[]"))
+	if "op" in steps:
+		missing_playbook = [
+			node.get("node_id")
+			for node in nodes
+			if node.get("node_kind") == "final"
+			and "student" in (node.get("audiences") or [])
+			and not isinstance((node.get("playbooks") or {}).get("op"), dict)
+		]
+		if missing_playbook:
+			raise KnowledgeV3ValidationError(
+				_("Playbook OP obrigatório nos nós finais: {0}.").format(", ".join(missing_playbook))
+			)
 
 
 def _validate_payload_identity(payload, bundle):
@@ -688,7 +712,11 @@ def _empty_payload(bundle):
 			"audience_profile": bundle.audience_profile,
 		},
 		"routing_policy": {},
-		"roots": {},
+		"graph": {
+			"student_root_node_id": None,
+			"public_root_node_id": None,
+			"internal_root_node_id": None,
+		},
 		"nodes": [],
 		"edges": [],
 	}

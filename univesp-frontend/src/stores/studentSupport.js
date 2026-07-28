@@ -1202,6 +1202,9 @@ export const useStudentSupportStore = defineStore('studentSupport', {
     },
     ensureFaqSession(currentDate = new Date()) {
       if (!this.activeFaqSessionId) {
+        if (!isMockRuntimeEnabled()) {
+          return false
+        }
         this.activeFaqSessionId = nextSessionId(currentDate)
         return true
       }

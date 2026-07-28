@@ -49,6 +49,9 @@ class ChannelAdapterTests(unittest.TestCase):
 				"bundle_id": "bundle:acesso",
 				"bundle_version_id": "v3.0",
 				"node_id": "acesso-final",
+				"path": ["acesso-root", "acesso-final"],
+				"audience": "",
+				"faq_session_id": "",
 				"resolved": False,
 			},
 		)

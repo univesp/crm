@@ -152,11 +152,32 @@ def setup_schema():
 					"insert_after": "custom_source_bundle_version_id",
 				},
 				{
+					"fieldname": "custom_source_path_json",
+					"label": "Caminho da FAQ",
+					"fieldtype": "Long Text",
+					"read_only": 1,
+					"insert_after": "custom_source_node_id",
+				},
+				{
+					"fieldname": "custom_source_audience",
+					"label": "Camada da FAQ",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_source_path_json",
+				},
+				{
+					"fieldname": "custom_faq_session_id",
+					"label": "Sessão da FAQ",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_source_audience",
+				},
+				{
 					"fieldname": "custom_request_id",
 					"label": "Request ID",
 					"fieldtype": "Data",
 					"read_only": 1,
-					"insert_after": "custom_source_node_id",
+					"insert_after": "custom_faq_session_id",
 				},
 				{
 					"fieldname": "custom_channel_metadata_json",

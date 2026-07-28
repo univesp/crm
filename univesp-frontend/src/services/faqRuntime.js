@@ -89,6 +89,7 @@ function mergePublishedPackages(faqType, entries = []) {
             ...node,
             bundle_id: bundleId,
             bundle_version_id: bundleVersionId,
+            runtime_schema_version: String(pkg.schema_version || ''),
           }),
         ),
       )
@@ -166,6 +167,12 @@ function faqPackageFor(faqType, mockPackage) {
   return publishedFaqState.enabled
     ? publishedFaqState[faqType] || emptyFaqPackage(faqType)
     : mockPackage
+}
+
+export function getFaqPackageForRuntime(faqType = 'aluno') {
+  const normalized = String(faqType || 'aluno').trim().toLowerCase()
+  const fallback = normalized === 'op' ? faqOp : normalized === 'publico' ? faqPublico : faqAluno
+  return faqPackageFor(normalized, fallback)
 }
 
 const TARGET_TYPES = new Set(['node', 'tema', 'tag'])

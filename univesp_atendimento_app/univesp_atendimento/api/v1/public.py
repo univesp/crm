@@ -34,6 +34,20 @@ def published_faq_public(faq_type: str = "publico"):
 	)
 
 
+@frappe.whitelist(methods=["GET"])
+def runtime_flags_public():
+	verify_gateway_only()
+	doc = frappe.get_single("Univesp Runtime Settings")
+	return response(
+		{
+			"faq_public_anonymous": bool(getattr(doc, "faq_public_anonymous", False)),
+			"faq_public_documents": bool(getattr(doc, "faq_public_documents", False)),
+			"faq_link_validation": bool(getattr(doc, "faq_link_validation", False)),
+			"faq_public_email_thread": bool(getattr(doc, "faq_public_email_thread", False)),
+		}
+	)
+
+
 @frappe.whitelist(methods=["POST"])
 def create_public_ticket(payload: dict | str | None = None):
 	verify_gateway_only()

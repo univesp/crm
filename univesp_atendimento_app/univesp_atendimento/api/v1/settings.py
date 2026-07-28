@@ -56,7 +56,17 @@ def update_settings(payload: dict | str | None = None):
 		doc.default_suggestion_sla_hours = (
 			knowledge.get("default_suggestion_sla_hours") or doc.default_suggestion_sla_hours
 		)
-		for fieldname in ("knowledge_v3_read", "knowledge_v3_write", "routing_server_authority"):
+		for fieldname in (
+			"knowledge_v3_read",
+			"knowledge_v3_write",
+			"routing_server_authority",
+			"knowledge_collaboration",
+			"faq_public_anonymous",
+			"faq_public_documents",
+			"faq_link_validation",
+			"faq_public_email_thread",
+			"knowledge_media_upload",
+		):
 			if fieldname in knowledge:
 				doc.set(fieldname, int(bool(knowledge[fieldname])))
 	doc.updated_by_email = context.email
@@ -86,6 +96,26 @@ def health():
 	except Exception:
 		pass
 	return response(states, request_id=context.request_id)
+
+
+@frappe.whitelist(methods=["GET"])
+def runtime_flags():
+	context = get_request_context()
+	doc = frappe.get_single("Univesp Runtime Settings")
+	flags = _knowledge_settings(doc)
+	return response(
+		{
+			key: value
+			for key, value in flags.items()
+			if key
+			not in {
+				"institutional_timezone",
+				"knowledge_session_ttl_seconds",
+				"default_suggestion_sla_hours",
+			}
+		},
+		request_id=context.request_id,
+	)
 
 
 def _settings_context():
@@ -171,6 +201,12 @@ def _knowledge_settings(doc):
 		"knowledge_v3_read": bool(doc.knowledge_v3_read),
 		"knowledge_v3_write": bool(doc.knowledge_v3_write),
 		"routing_server_authority": bool(doc.routing_server_authority),
+		"knowledge_collaboration": bool(doc.knowledge_collaboration),
+		"faq_public_anonymous": bool(doc.faq_public_anonymous),
+		"faq_public_documents": bool(doc.faq_public_documents),
+		"faq_link_validation": bool(doc.faq_link_validation),
+		"faq_public_email_thread": bool(doc.faq_public_email_thread),
+		"knowledge_media_upload": bool(doc.knowledge_media_upload),
 	}
 
 

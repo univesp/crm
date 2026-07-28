@@ -192,6 +192,37 @@ export async function listPublishedFaq(params = {}) {
   return appRequest(withQuery('/knowledge/faq-published', params))
 }
 
+export async function listPublishedFaqRuntime(params = {}) {
+  return appRequest(withQuery('/knowledge/v3/runtime', params))
+}
+
+export async function startFaqSession(payload) {
+  return appRequest('/knowledge/v3/sessions', { method: 'POST', body: payload })
+}
+
+export async function getFaqSession(sessionId) {
+  return appRequest(`/knowledge/v3/sessions/${encodeURIComponent(sessionId)}`)
+}
+
+export async function advanceFaqSession(sessionId, payload) {
+  return appRequest(`/knowledge/v3/sessions/${encodeURIComponent(sessionId)}/advance`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function recordFaqEvent(payload) {
+  return appRequest('/knowledge/v3/events', { method: 'POST', body: payload })
+}
+
+export async function getRuntimeFlags() {
+  return appRequest('/runtime/flags')
+}
+
+export async function getLegacyKnowledgeMetrics() {
+  return appRequest('/knowledge/v3/metrics/legacy')
+}
+
 export async function getKnowledgeLibrary() {
   return appRequest('/knowledge/library')
 }

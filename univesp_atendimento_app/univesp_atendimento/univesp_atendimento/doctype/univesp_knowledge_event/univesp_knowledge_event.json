@@ -1,0 +1,119 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Knowledge Event",
+  "module": "Univesp Atendimento",
+  "autoname": "field:event_id",
+  "title_field": "event_name",
+  "field_order": [
+    "event_id",
+    "event_name",
+    "occurred_at",
+    "bundle_key",
+    "bundle_version_id",
+    "node_id",
+    "stable_key",
+    "audience_layer",
+    "faq_session_id",
+    "profile_key",
+    "origin",
+    "metadata_json",
+    "request_id"
+  ],
+  "fields": [
+    {
+      "fieldname": "event_id",
+      "fieldtype": "Data",
+      "label": "ID do evento",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "event_name",
+      "fieldtype": "Data",
+      "label": "Evento",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "occurred_at",
+      "fieldtype": "Datetime",
+      "label": "Ocorrido em",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "bundle_key",
+      "fieldtype": "Data",
+      "label": "Fluxo",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "bundle_version_id",
+      "fieldtype": "Data",
+      "label": "Versão",
+      "reqd": 1
+    },
+    {
+      "fieldname": "node_id",
+      "fieldtype": "Data",
+      "label": "Nó"
+    },
+    {
+      "fieldname": "stable_key",
+      "fieldtype": "Data",
+      "label": "Chave estável"
+    },
+    {
+      "fieldname": "audience_layer",
+      "fieldtype": "Select",
+      "label": "Camada",
+      "options": "student\npublic\nop\nbpo\nanalyst",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "faq_session_id",
+      "fieldtype": "Data",
+      "label": "Sessão FAQ",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "profile_key",
+      "fieldtype": "Data",
+      "label": "Perfil",
+      "reqd": 1
+    },
+    {
+      "fieldname": "origin",
+      "fieldtype": "Select",
+      "label": "Origem",
+      "options": "portal\npublico\nop_assisted",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "metadata_json",
+      "fieldtype": "Long Text",
+      "label": "Metadados JSON",
+      "read_only": 1
+    },
+    {
+      "fieldname": "request_id",
+      "fieldtype": "Data",
+      "label": "Request ID",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "report": 1,
+      "export": 1
+    }
+  ]
+}

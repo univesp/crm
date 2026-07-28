@@ -18,10 +18,24 @@ router.use(
 router.get('/knowledge/faq-published', async (req, res) => {
   const requestId = requestIdFor(req)
   try {
-    const result = await callFrappe('public.published_faq_public', {
+    const result = await callFrappe('knowledge_runtime.published_runtime_public', {
       user: {},
       requestId,
       query: { faq_type: String(req.query.faq_type || 'publico') },
+    })
+    res.setHeader('X-Request-ID', requestId)
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.get('/runtime/flags', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('public.runtime_flags_public', {
+      user: {},
+      requestId,
     })
     res.setHeader('X-Request-ID', requestId)
     return res.status(200).json(normalizeEnvelope(result, requestId))

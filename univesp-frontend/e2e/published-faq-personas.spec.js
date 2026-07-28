@@ -63,7 +63,7 @@ test('OP consome somente o bundle operacional publicado', async ({ page }) => {
   await page.addInitScript(() => {
     window.sessionStorage.setItem('univesp.sso.devBypassProfile', 'op')
   })
-  await page.route('**/api/app/v1/knowledge/faq-published?**', async (route) => {
+  await page.route('**/api/app/v1/knowledge/v3/runtime?**', async (route) => {
     await route.fulfill({
       status: 200,
       json: {

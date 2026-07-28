@@ -211,6 +211,9 @@ export async function submitStudentProtocolTicket(protocol) {
         context.finalNode?.bundleVersionId ||
         '',
       node_id: protocol.sourceNodeId || form.sourceNodeId || context.finalNode?.id || '',
+      faq_session_id: form.faqSessionId || context.sessionId || '',
+      path: form.sourcePath || context.sourcePath || [],
+      audience: form.sourceAudience || context.sourceAudience || 'student',
     },
   })
   const remoteTicket = result.data || {}

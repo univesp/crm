@@ -1,7 +1,7 @@
 import loggedStudent from '../../mocks/usuario-logado.json'
 import studentFaq from '../../mocks/faq-aluno.json'
-import operatorFaq from '../../mocks/faq-op.json'
 import { buildCaseRoutingContext, filterCasesForMockContext } from '@/services/caseRoutingRuntime'
+import { getFaqPackageForRuntime } from '@/services/faqRuntime'
 import { CASE_PROTOCOL_STATUSES } from '@/services/canonicalFoundationRuntime'
 import {
   buildCanonicalSla,
@@ -205,7 +205,6 @@ function buildFaqIndex(payload) {
 }
 
 const studentFaqIndex = buildFaqIndex(studentFaq)
-const operatorFaqIndex = buildFaqIndex(operatorFaq)
 
 function findBestFaqLeaf(index, theme, subtheme) {
   const themeKey = normalizeText(theme)
@@ -1078,6 +1077,7 @@ function compareQueueEntries(left, right) {
 }
 
 function buildPlaybookPayload(entry) {
+  const operatorFaqIndex = buildFaqIndex(getFaqPackageForRuntime('op'))
   const playbookNode = findBestFaqLeaf(operatorFaqIndex, entry.themeKey, entry.subsubjectKey)
 
   if (!playbookNode) {
