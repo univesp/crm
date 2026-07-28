@@ -7,6 +7,7 @@ import {
   buildInterventionContext,
   parseInterventionQuery,
 } from '@/services/operationalInterventionRuntime'
+import { recordCaseKnowledgeApplied } from '@/services/appApi'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -29,6 +30,8 @@ const lastActionFingerprint = ref('')
 const lastActionAt = ref(0)
 const lastSuggestedNote = ref('')
 const confirmationPanelRef = ref(null)
+const completedGuidanceItems = ref(new Set())
+const knowledgeFeedback = ref('')
 const queueFlashStorageKey = computed(() => `univesp-operator-queue-flash:${auth.mockContext.profileKey}`)
 
 const detail = computed(() => studentSupportStore.operatorCaseById(route.params.caseId, auth.mockContext))
@@ -211,6 +214,40 @@ const analysisSections = computed(() => {
 
   return sections
 })
+
+async function registerKnowledgeUse(actionKey = 'explicit_use') {
+  if (!detail.value || detail.value.runtimeSource !== 'app_api') {
+    knowledgeFeedback.value = 'Uso registrado nesta sessão operacional.'
+    return
+  }
+  try {
+    await recordCaseKnowledgeApplied(detail.value.id, {
+      event_id: crypto.randomUUID(),
+      action_key: actionKey,
+    })
+    knowledgeFeedback.value = 'Uso da orientação registrado.'
+  } catch (error) {
+    knowledgeFeedback.value =
+      error?.message || 'Não foi possível registrar o uso da orientação.'
+  }
+}
+
+function toggleGuidanceItem(item, checked) {
+  const next = new Set(completedGuidanceItems.value)
+  if (checked) next.add(item)
+  else next.delete(item)
+  completedGuidanceItems.value = next
+  if (checked) registerKnowledgeUse('checklist_completed')
+}
+
+function applySuggestedReply() {
+  selectedDecision.value = 'reply'
+  operatorNote.value =
+    detail.value?.playbook.responseTemplate ||
+    `Orientação registrada ao aluno sobre ${detail.value?.subject?.toLowerCase() || 'o atendimento'}.`
+  registerKnowledgeUse('suggested_reply_applied')
+  focusOperatorNote()
+}
 
 const decisionOptions = computed(() => {
   if (!detail.value) {
@@ -746,22 +783,68 @@ const confirmationCopy = computed(() => {
 
         <details open class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            Como analisar este caso
+            Orientação do fluxo
           </summary>
           <div class="border-t border-slate-200 px-4 py-4">
             <div class="grid gap-4">
+              <div class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+                <p class="text-sm font-semibold text-slate-950">
+                  {{ detail.playbook.title }}
+                </p>
+                <p v-if="detail.faqContext?.breadcrumb?.length" class="mt-1 text-sm text-slate-600">
+                  Caminho do aluno: {{ detail.faqContext.breadcrumb.join(' › ') }}
+                </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button
+                    v-if="detail.playbook.responseTemplate"
+                    type="button"
+                    class="crm-button-secondary"
+                    @click="applySuggestedReply"
+                  >
+                    Usar resposta sugerida
+                  </button>
+                  <button
+                    type="button"
+                    class="crm-button-secondary"
+                    @click="registerKnowledgeUse('explicit_use')"
+                  >
+                    Registrei uso desta orientação
+                  </button>
+                </div>
+                <p v-if="knowledgeFeedback" class="mt-2 text-sm text-slate-600" role="status">
+                  {{ knowledgeFeedback }}
+                </p>
+              </div>
               <div
                 v-for="section in analysisSections"
                 :key="section.title"
                 class="grid gap-2"
               >
                 <p class="text-sm font-semibold text-slate-900">{{ section.title }}</p>
-                <ul class="grid gap-2 text-sm leading-6 text-slate-700">
+                <ul
+                  v-if="section.title !== 'O que verificar'"
+                  class="grid gap-2 text-sm leading-6 text-slate-700"
+                >
                   <li v-for="item in section.items" :key="item" class="flex gap-2">
                     <span class="mt-[0.45rem] h-1.5 w-1.5 rounded-full bg-slate-400"></span>
                     <span>{{ item }}</span>
                   </li>
                 </ul>
+                <div v-else class="grid gap-2">
+                  <label
+                    v-for="item in section.items"
+                    :key="item"
+                    class="flex items-start gap-2 text-sm leading-6 text-slate-700"
+                  >
+                    <input
+                      type="checkbox"
+                      class="mt-1"
+                      :checked="completedGuidanceItems.has(item)"
+                      @change="toggleGuidanceItem(item, $event.target.checked)"
+                    />
+                    <span>{{ item }}</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>

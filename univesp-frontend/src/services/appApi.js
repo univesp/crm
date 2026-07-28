@@ -227,6 +227,88 @@ export async function previewKnowledgeRouting(payload) {
   return appRequest('/routing/preview', { method: 'POST', body: payload })
 }
 
+export async function recordCaseKnowledgeApplied(ticketId, payload = {}) {
+  return appRequest(`/tickets/${encodeURIComponent(ticketId)}/knowledge-applied`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function listKnowledgeV3Bundles(params = {}) {
+  return appRequest(withQuery('/knowledge/v3/bundles', params))
+}
+
+export async function getKnowledgeV3Catalogs() {
+  return appRequest('/knowledge/v3/catalogs')
+}
+
+export async function createKnowledgeV3Bundle(payload) {
+  return appRequest('/knowledge/v3/bundles', { method: 'POST', body: payload })
+}
+
+export async function getKnowledgeV3Bundle(bundleKey) {
+  return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}`)
+}
+
+export async function listKnowledgeV3Versions(bundleKey, params = {}) {
+  return appRequest(
+    withQuery(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}/versions`, params),
+  )
+}
+
+export async function saveKnowledgeV3Draft(bundleKey, payload, etag) {
+  return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}/draft`, {
+    method: 'PATCH',
+    headers: etag ? { 'If-Match': etag } : {},
+    body: payload,
+  })
+}
+
+export async function forkKnowledgeV3Draft(bundleKey) {
+  return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}/fork`, {
+    method: 'POST',
+  })
+}
+
+export async function submitKnowledgeV3Approval(bundleKey, payload, etag) {
+  return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}/submit`, {
+    method: 'POST',
+    headers: etag ? { 'If-Match': etag } : {},
+    body: payload,
+  })
+}
+
+export async function approveKnowledgeV3Bundle(bundleKey) {
+  return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}/approve`, {
+    method: 'POST',
+  })
+}
+
+export async function publishKnowledgeV3Version(versionId, payload = {}) {
+  return appRequest(`/knowledge/v3/versions/${encodeURIComponent(versionId)}/publish`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function archiveKnowledgeV3Bundle(bundleKey) {
+  return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}/archive`, {
+    method: 'POST',
+  })
+}
+
+export async function unarchiveKnowledgeV3Bundle(bundleKey) {
+  return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}/unarchive`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteKnowledgeV3Bundle(bundleKey) {
+  return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function getKnowledgeLibrary() {
   return appRequest('/knowledge/library')
 }

@@ -1015,6 +1015,11 @@ function buildLocalQueueEntry(protocol, actionLogs = [], areaActionLogs = []) {
     {
       id: protocol.protocolNumber,
       runtimeSource: protocol.runtimeSource || '',
+      currentNodeId:
+        protocol.knowledge?.node_id ||
+        protocol.context?.finalNode?.id ||
+        null,
+      knowledge: protocol.knowledge || null,
       subject: protocol.subject,
       theme: titleCase(protocol.context?.theme),
       themeKey: normalizeText(protocol.context?.theme),
@@ -1078,7 +1083,11 @@ function compareQueueEntries(left, right) {
 
 function buildPlaybookPayload(entry) {
   const operatorFaqIndex = buildFaqIndex(getFaqPackageForRuntime('op'))
-  const playbookNode = findBestFaqLeaf(operatorFaqIndex, entry.themeKey, entry.subsubjectKey)
+  const directNode = entry.currentNodeId
+    ? operatorFaqIndex.nodeById[entry.currentNodeId] || null
+    : null
+  const playbookNode =
+    directNode || findBestFaqLeaf(operatorFaqIndex, entry.themeKey, entry.subsubjectKey)
 
   if (!playbookNode) {
     return {
@@ -1094,7 +1103,7 @@ function buildPlaybookPayload(entry) {
   }
 
   return {
-    title: playbookNode.titulo_exibido,
+    title: playbookNode.playbook_v3?.objective || playbookNode.titulo_exibido,
     checklist: playbookNode.checklist_op || [],
     systemsToCheck: playbookNode.sistemas_a_consultar || [],
     documentsRequested: playbookNode.documentos_a_solicitar || [],

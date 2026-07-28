@@ -36,6 +36,11 @@ test('protege dashboard e biblioteca FAQ contra sessao anonima', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
     }],
+    ['/api/app/v1/tickets/UVSP-TESTE/knowledge-applied', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }],
     ['/api/app/v1/knowledge/v3/bundles/acesso-ava/draft', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'If-Match': '"version-1"' },

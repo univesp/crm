@@ -175,6 +175,10 @@ router.post(
   forward('knowledge_runtime.record_event', { wrapPayload: true }),
 )
 router.get('/knowledge/v3/metrics/legacy', forward('knowledge_runtime.legacy_metrics'))
+router.post('/tickets/:ticketId/knowledge-applied', forward(
+  'knowledge_runtime.record_case_knowledge_applied',
+  { routeParams: { ticket_id: 'ticketId' }, wrapPayload: true },
+))
 router.post('/knowledge/v3/bundles', forward('knowledge_v3.create_bundle', { wrapPayload: true, etag: true }))
 router.get('/knowledge/v3/bundles/:bundleKey', forward('knowledge_v3.get_bundle', {
   routeParams: { bundle_key: 'bundleKey' },

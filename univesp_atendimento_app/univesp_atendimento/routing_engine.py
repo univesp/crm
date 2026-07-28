@@ -56,6 +56,7 @@ def resolve_route(
 	criticality = _text(
 		context.get("criticidade")
 		or (node.get("operational") or {}).get("criticidade")
+		or (bundle_payload.get("metadata") or {}).get("criticidade_default_key")
 		or (bundle_payload.get("metadata") or {}).get("default_criticidade")
 	).lower()
 	exceptions = {

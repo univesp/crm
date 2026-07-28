@@ -1,4 +1,4 @@
-import AdminFaqEditorPage from '@/pages/admin/AdminFaqEditorPage.vue'
+import AdminFaqV3EditorPage from '@/pages/admin/AdminFaqV3EditorPage.vue'
 
 function normalizeFaqBuilderBundleId(rawValue = '') {
   let decoded = ''
@@ -432,7 +432,7 @@ const routes = [
   {
     path: '/admin/faq',
     name: 'admin-faq',
-    component: () => import('@/pages/admin/AdminFaqLibraryPage.vue'),
+    component: () => import('@/pages/admin/AdminFaqV3LibraryPage.vue'),
     meta: {
       title: 'FAQs e orientações',
       stage: 'admin-faq',
@@ -451,7 +451,7 @@ const routes = [
   {
     path: '/admin/faq-editor/:bundleId',
     name: 'admin-faq-builder',
-    component: AdminFaqEditorPage,
+    component: AdminFaqV3EditorPage,
     meta: {
       title: 'Editar FAQ',
       stage: 'admin-faq',
@@ -494,7 +494,7 @@ const routes = [
   {
     path: '/admin/faq/:bundleId',
     name: 'admin-faq-flow',
-    component: () => import('@/pages/admin/AdminFaqPage.vue'),
+    component: AdminFaqV3EditorPage,
     meta: {
       title: 'FAQ e orientação',
       stage: 'admin-faq',

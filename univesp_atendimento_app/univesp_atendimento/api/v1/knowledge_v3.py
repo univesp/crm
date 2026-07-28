@@ -109,7 +109,6 @@ def get_bundle(bundle_key: str):
 	if bundle.published_version:
 		data["published"] = _serialize_version(
 			frappe.get_doc("Univesp Knowledge Version", bundle.published_version),
-			include_payload=False,
 		)
 	etag = data.get("draft", {}).get("etag", "")
 	_set_etag(etag)
@@ -725,6 +724,9 @@ def _empty_payload(bundle):
 
 
 def _serialize_bundle(bundle):
+	draft = _version_summary(bundle.draft_version)
+	published = _version_summary(bundle.published_version)
+	content_summary = _bundle_content_summary(bundle.draft_version or bundle.published_version)
 	return {
 		"bundle_key": bundle.bundle_key,
 		"title": bundle.title,
@@ -734,7 +736,64 @@ def _serialize_bundle(bundle):
 		"published_version": bundle.published_version or "",
 		"draft_version": bundle.draft_version or "",
 		"legacy_v2_bundle_id": bundle.legacy_v2_bundle_id or "",
+		"owner_email": frappe.db.get_value(
+			"Univesp Knowledge Theme Governance",
+			bundle.theme_key,
+			"owner_email",
+		)
+		or "",
+		"draft_summary": draft,
+		"published_summary": published,
+		**content_summary,
 		"modified": str(bundle.modified or ""),
+	}
+
+
+def _version_summary(version_name):
+	if not version_name:
+		return None
+	return frappe.db.get_value(
+		"Univesp Knowledge Version",
+		version_name,
+		[
+			"version_id",
+			"lifecycle_state",
+			"valid_from",
+			"valid_until",
+			"published_at",
+		],
+		as_dict=True,
+	)
+
+
+def _bundle_content_summary(version_name):
+	if not version_name:
+		return {
+			"audiences": [],
+			"playbook_summary": {"op": False, "bpo": False, "analyst": False},
+			"node_count": 0,
+		}
+	raw = frappe.db.get_value("Univesp Knowledge Version", version_name, "payload_json") or "{}"
+	try:
+		payload = json.loads(raw)
+	except (TypeError, json.JSONDecodeError):
+		payload = {}
+	nodes = [node for node in payload.get("nodes") or [] if isinstance(node, dict)]
+	audiences = sorted(
+		{
+			str(audience)
+			for node in nodes
+			for audience in node.get("audiences") or []
+			if str(audience)
+		}
+	)
+	return {
+		"audiences": audiences,
+		"playbook_summary": {
+			layer: any(isinstance((node.get("playbooks") or {}).get(layer), dict) for node in nodes)
+			for layer in ("op", "bpo", "analyst")
+		},
+		"node_count": len(nodes),
 	}
 
 

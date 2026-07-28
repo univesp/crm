@@ -7,7 +7,13 @@ import frappe
 from frappe import _
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
-from univesp_atendimento.api.v1.common import get_request_context, response, verify_gateway_only
+from univesp_atendimento.api.v1.common import (
+	ensure_ticket_access,
+	get_request_context,
+	resolve_ticket_name,
+	response,
+	verify_gateway_only,
+)
 from univesp_atendimento.api.v1.knowledge import _build_published_faq_entries
 from univesp_atendimento.knowledge_graph import (
 	KnowledgeGraphError,
@@ -246,6 +252,65 @@ def legacy_metrics():
 	)
 
 
+@frappe.whitelist(methods=["POST"])
+def record_case_knowledge_applied(ticket_id: str, payload: dict | str | None = None):
+	context = get_request_context("view_ticket")
+	ticket_name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(ticket_name, context)
+	data = _payload(payload)
+	ticket = frappe.db.get_value(
+		"HD Ticket",
+		ticket_name,
+		[
+			"custom_source_bundle_id",
+			"custom_source_bundle_version_id",
+			"custom_source_node_id",
+			"custom_faq_session_id",
+		],
+		as_dict=True,
+	)
+	if not ticket or not all(
+		(
+			ticket.custom_source_bundle_id,
+			ticket.custom_source_bundle_version_id,
+			ticket.custom_source_node_id,
+		)
+	):
+		raise KnowledgeRuntimeValidationError(_("Atendimento sem lineage de conhecimento completo."))
+	persona = {
+		"op": "op",
+		"gestor_polos": "op",
+		"op_externo": "bpo",
+		"analista_area": "analyst",
+		"gestor_area": "analyst",
+		"admin_central": "analyst",
+	}.get(context.profile_key)
+	if not persona:
+		raise frappe.PermissionError(_("Seu perfil não pode registrar uso de playbook."))
+	record = {
+		"bundle_key": ticket.custom_source_bundle_id,
+		"bundle_version_id": ticket.custom_source_bundle_version_id,
+		"faq_session_id": ticket.custom_faq_session_id or f"case:{ticket_name}",
+		"persona": persona,
+		"profile_key": context.profile_key,
+		"origin": "op_assisted",
+	}
+	event = _append_event(
+		context,
+		record,
+		"case.knowledge_applied",
+		ticket.custom_source_node_id,
+		event_id=str(data.get("event_id") or uuid.uuid4()),
+		metadata=_safe_event_metadata(
+			{
+				"action_key": data.get("action_key") or "explicit_use",
+				"source": "ticket_detail",
+			}
+		),
+	)
+	return response(_serialize_event(event), request_id=context.request_id)
+
+
 def validate_session_lineage(knowledge, context):
 	if not isinstance(knowledge, dict) or not knowledge.get("faq_session_id"):
 		return None
@@ -454,9 +519,15 @@ def _legacy_package(runtime, version):
 				"sistemas_a_consultar": _playbook_labels(playbook.get("systems")),
 				"documentos_a_solicitar": _playbook_labels(playbook.get("documents_to_request")),
 				"resposta_padrao_sugerida": str(playbook.get("suggested_reply") or ""),
-				"criterio_de_escalonamento": str((playbook.get("escalation") or {}).get("criteria") or ""),
+				"criterio_de_escalonamento": str(
+					playbook.get("escalation_criteria")
+					or (playbook.get("escalation") or {}).get("criteria")
+					or ""
+				),
 				"motivo_escalonamento_sugerido": str(
-					(playbook.get("escalation") or {}).get("reason_template") or ""
+					playbook.get("escalation_reason_template")
+					or (playbook.get("escalation") or {}).get("reason_template")
+					or ""
 				),
 				"playbook_v3": playbook or None,
 			}
