@@ -96,8 +96,7 @@ export function getSelectedDevBypassProfile() {
     return { ...DEV_BYPASS_PROFILE_CATALOG[storedKey] }
   }
 
-  const fallbackProfile = resolveDevBypassProfileFromEmail(devBypassConfig.email)
-  return fallbackProfile ? { ...fallbackProfile } : null
+  return null
 }
 
 export function setSelectedDevBypassProfile(profileKey) {
@@ -250,7 +249,7 @@ export async function fetchCurrentSsoUser() {
   const payload = await parseResponsePayload(response)
 
   if (response.status === 401 || response.status === 403) {
-    if (devBypassConfig.enabled) {
+    if (devBypassConfig.enabled && readStoredDevBypassProfileKey()) {
       return buildDevBypassUser()
     }
     return null
@@ -265,7 +264,7 @@ export async function fetchCurrentSsoUser() {
 
   const session = unwrapEnvelope(payload)
   if (!session || session.authenticated === false) {
-    if (devBypassConfig.enabled) {
+    if (devBypassConfig.enabled && readStoredDevBypassProfileKey()) {
       return buildDevBypassUser()
     }
     return null
@@ -350,7 +349,11 @@ export function normalizeGatewayUser(session) {
 
 function buildDevBypassUser() {
   const selectedProfile = getSelectedDevBypassProfile()
-  const email = selectedProfile?.email || devBypassConfig.email || 'admin@univesp.br'
+  if (!selectedProfile) {
+    return null
+  }
+
+  const email = selectedProfile.email || devBypassConfig.email || 'admin@univesp.br'
 
   return {
     id: email,

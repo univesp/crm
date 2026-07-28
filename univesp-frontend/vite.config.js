@@ -10,9 +10,16 @@ export default defineConfig(({ mode }) => {
   const mockRuntimeEnabled = ['1', 'true', 'yes', 'on'].includes(
     String(env.VITE_ENABLE_MOCKS || '').trim().toLowerCase(),
   )
+  const devBypassEnabled = ['1', 'true', 'yes', 'on'].includes(
+    String(env.VITE_SSO_DEV_BYPASS || '').trim().toLowerCase(),
+  )
 
   if (mode === 'production' && mockRuntimeEnabled) {
     throw new Error('VITE_ENABLE_MOCKS must be false for a production build.')
+  }
+
+  if (mode === 'production' && devBypassEnabled) {
+    throw new Error('VITE_SSO_DEV_BYPASS must be false for a production build.')
   }
 
   const proxy = gatewayTarget
