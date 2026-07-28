@@ -31,7 +31,20 @@ def create_channel_ticket(data: dict) -> dict:
 	normalized = normalize_channel_payload(data)
 	student = normalized.get("student") or {}
 	knowledge = normalized.get("knowledge") or {}
-	queue = str(normalized.get("queue") or "atendimento-geral").strip()
+	settings = frappe.get_single("Univesp Runtime Settings")
+	if bool(getattr(settings, "routing_server_authority", False)):
+		from univesp_atendimento.api.v1.routing import resolve_ticket_route
+
+		routing_decision = resolve_ticket_route(
+			session_record=None,
+			knowledge=knowledge,
+			student=student,
+			context=None,
+		)
+		queue = routing_decision["resolved_queue"]
+	else:
+		routing_decision = {}
+		queue = str(normalized.get("queue") or "atendimento-geral").strip()
 
 	subject = normalized["subject"]
 	description = normalized["description"]
@@ -55,7 +68,17 @@ def create_channel_ticket(data: dict) -> dict:
 			"custom_univesp_queue": queue,
 			"agent_group": queue if queue and frappe.db.exists("HD Team", queue) else None,
 			"custom_univesp_area": str(normalized.get("area") or ""),
-			"custom_univesp_context_json": json.dumps(normalized.get("triage") or {}, ensure_ascii=False),
+			"custom_univesp_context_json": json.dumps(
+				{
+					**(
+						normalized.get("triage")
+						if isinstance(normalized.get("triage"), dict)
+						else {}
+					),
+					"routing": routing_decision,
+				},
+				ensure_ascii=False,
+			),
 			"custom_source_bundle_id": str(knowledge.get("bundle_id") or ""),
 			"custom_source_bundle_version_id": str(knowledge.get("bundle_version_id") or ""),
 			"custom_source_node_id": str(knowledge.get("node_id") or ""),

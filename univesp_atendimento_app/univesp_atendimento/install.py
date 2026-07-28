@@ -236,6 +236,10 @@ def seed_knowledge_v3_configuration():
 
 	if not frappe.db.exists("DocType", "Univesp Knowledge Routing Pattern"):
 		return
+	active_queue_keys = set(
+		frappe.get_all("HD Team", filters={"enabled": 1}, pluck="name", limit_page_length=0)
+	)
+	allowed_routing_keys = sorted(active_queue_keys | {"atendimento-geral", "sra"})
 	patterns = (
 		("op_then_area", "OP → Área/Analista", 0, ["op", "area"]),
 		("op_bpo_area", "OP → BPO → Área", 1, ["op", "bpo", "area"]),
@@ -245,6 +249,12 @@ def seed_knowledge_v3_configuration():
 	)
 	for pattern_key, label, bpo_enabled, steps in patterns:
 		if frappe.db.exists("Univesp Knowledge Routing Pattern", pattern_key):
+			doc = frappe.get_doc("Univesp Knowledge Routing Pattern", pattern_key)
+			existing_keys = set(frappe.parse_json(doc.allowed_routing_keys_json or "[]"))
+			next_keys = existing_keys | set(allowed_routing_keys)
+			if next_keys != existing_keys:
+				doc.allowed_routing_keys_json = frappe.as_json(sorted(next_keys))
+				doc.save(ignore_permissions=True)
 			continue
 		frappe.get_doc(
 			{
@@ -253,7 +263,7 @@ def seed_knowledge_v3_configuration():
 				"label": label,
 				"bpo_enabled": bpo_enabled,
 				"steps_json": frappe.as_json(steps),
-				"allowed_routing_keys_json": frappe.as_json(["atendimento-geral", "sra"]),
+				"allowed_routing_keys_json": frappe.as_json(allowed_routing_keys),
 				"institutional_exceptions_json": frappe.as_json(["provas", "critica"]),
 				"active": 1,
 			}

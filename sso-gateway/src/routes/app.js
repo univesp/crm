@@ -132,6 +132,7 @@ router.post('/tickets/:ticketId/transition', forward('tickets.transition', { rou
 router.post('/tickets/:ticketId/escalate', forward('tickets.escalate_to_internal', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/area-actions', forward('tickets.area_action', { routeParams: { ticket_id: 'ticketId' } }))
 router.get('/queues', forward('queues.list_queues'))
+router.post('/routing/preview', forward('routing.preview', { wrapPayload: true }))
 router.get('/areas/:area/members', forward('queues.list_area_members', { routeParams: { area: 'area' } }))
 router.get('/areas/:area/governance', forward('governance.get_area_state', { routeParams: { area: 'area' } }))
 router.patch('/areas/:area/governance', forward('governance.update_area_state', { routeParams: { area: 'area' }, wrapPayload: true }))

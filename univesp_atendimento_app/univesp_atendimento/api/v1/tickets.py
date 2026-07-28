@@ -108,8 +108,26 @@ def create(payload: dict | str | None = None):
 			"audience": session_record["persona"],
 			"faq_session_id": session_record["faq_session_id"],
 		}
-	queue = str(data.get("queue") or "").strip()
-	area = str(data.get("area") or "").strip()
+	settings = frappe.get_single("Univesp Runtime Settings")
+	server_routing = bool(getattr(settings, "routing_server_authority", False)) or bool(
+		session_record
+	)
+	if server_routing:
+		from univesp_atendimento.api.v1.routing import resolve_ticket_route
+
+		routing_decision = resolve_ticket_route(
+			session_record=session_record,
+			knowledge=knowledge,
+			student=student,
+			context=context,
+			manual_routing_key=data.get("routing_key"),
+		)
+		queue = routing_decision["resolved_queue"]
+		area = routing_decision["resolved_area"]
+	else:
+		routing_decision = {}
+		queue = str(data.get("queue") or "").strip()
+		area = str(data.get("area") or "").strip()
 
 	if context.profile_key == "aluno":
 		student = {**student, "email": context.email, "name": context.name, "ra": context.ra}
@@ -139,7 +157,17 @@ def create(payload: dict | str | None = None):
 			"custom_univesp_queue": queue,
 			"agent_group": queue if queue and frappe.db.exists("HD Team", queue) else None,
 			"custom_univesp_area": area,
-			"custom_univesp_context_json": json.dumps(data.get("triage") or {}, ensure_ascii=False),
+			"custom_univesp_context_json": json.dumps(
+				{
+					**(
+						data.get("triage")
+						if isinstance(data.get("triage"), dict)
+						else {}
+					),
+					"routing": routing_decision,
+				},
+				ensure_ascii=False,
+			),
 			"custom_source_bundle_id": str(knowledge.get("bundle_id") or ""),
 			"custom_source_bundle_version_id": str(knowledge.get("bundle_version_id") or ""),
 			"custom_source_node_id": str(knowledge.get("node_id") or knowledge.get("flow_id") or ""),
@@ -451,6 +479,18 @@ def _parse_json_field(raw):
 		return {}
 
 
+def _parse_json_list(raw):
+	if not raw:
+		return []
+	if isinstance(raw, list):
+		return raw
+	try:
+		parsed = json.loads(raw)
+		return parsed if isinstance(parsed, list) else []
+	except (TypeError, json.JSONDecodeError):
+		return []
+
+
 def _serialize_ticket(ticket):
 	value = ticket.as_dict() if hasattr(ticket, "as_dict") else ticket
 	return {
@@ -464,6 +504,15 @@ def _serialize_ticket(ticket):
 		"source": value.get("custom_univesp_source"),
 		"channel_metadata": _parse_json_field(value.get("custom_channel_metadata_json")),
 		"ai_suggestion": _parse_json_field(value.get("custom_ai_suggestion_json")),
+		"context": _parse_json_field(value.get("custom_univesp_context_json")),
+		"knowledge": {
+			"bundle_id": value.get("custom_source_bundle_id") or "",
+			"bundle_version_id": value.get("custom_source_bundle_version_id") or "",
+			"node_id": value.get("custom_source_node_id") or "",
+			"path": _parse_json_list(value.get("custom_source_path_json")),
+			"audience": value.get("custom_source_audience") or "",
+			"faq_session_id": value.get("custom_faq_session_id") or "",
+		},
 		"queue": value.get("custom_univesp_queue"),
 		"area": value.get("custom_univesp_area"),
 		"assignee": value.get("custom_univesp_assignee_name") or "",

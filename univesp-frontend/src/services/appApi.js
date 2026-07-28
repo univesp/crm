@@ -223,6 +223,10 @@ export async function getLegacyKnowledgeMetrics() {
   return appRequest('/knowledge/v3/metrics/legacy')
 }
 
+export async function previewKnowledgeRouting(payload) {
+  return appRequest('/routing/preview', { method: 'POST', body: payload })
+}
+
 export async function getKnowledgeLibrary() {
   return appRequest('/knowledge/library')
 }

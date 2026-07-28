@@ -112,7 +112,11 @@ class TestKnowledgeV3Contracts(TestCase):
 
 	@patch(
 		"univesp_atendimento.api.v1.knowledge_v3.frappe.db.get_value",
-		return_value=SimpleNamespace(name="op_then_area", steps_json='["op", "area"]'),
+		return_value=SimpleNamespace(
+			name="op_then_area",
+			steps_json='["op", "area"]',
+			allowed_routing_keys_json='["atendimento-geral"]',
+		),
 	)
 	def test_publishable_payload_requires_stable_unique_nodes(self, _get_value):
 		_validate_publishable_payload(_valid_payload(), _bundle())

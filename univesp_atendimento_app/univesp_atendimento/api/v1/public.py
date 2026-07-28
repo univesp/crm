@@ -72,11 +72,30 @@ def create_public_ticket(payload: dict | str | None = None):
 		raise PublicVisitorValidationError(_("Assunto e descricao sao obrigatorios."))
 
 	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
+	settings = frappe.get_single("Univesp Runtime Settings")
+	if bool(getattr(settings, "knowledge_v3_read", False)):
+		from univesp_atendimento.api.v1.knowledge_runtime import _published_v3_entries
+
+		published_entries = _published_v3_entries("public")
+	else:
+		published_entries = _build_published_faq_entries("publico")[0]
 	knowledge_reference = _resolve_public_knowledge_reference(
 		knowledge,
-		_build_published_faq_entries("publico")[0],
+		published_entries,
 	)
-	queue = _resolve_public_queue(data)
+	if bool(getattr(settings, "routing_server_authority", False)):
+		from univesp_atendimento.api.v1.routing import resolve_ticket_route
+
+		routing_decision = resolve_ticket_route(
+			session_record=None,
+			knowledge=knowledge_reference,
+			student={"ra": visitor.get("ra")},
+			context=None,
+		)
+		queue = routing_decision["resolved_queue"]
+	else:
+		routing_decision = {}
+		queue = _resolve_public_queue(data)
 
 	doc = frappe.get_doc(
 		{
@@ -100,6 +119,7 @@ def create_public_ticket(payload: dict | str | None = None):
 					"visitor_type": visitor_type,
 					"cpf_masked": _mask_cpf(cpf),
 					"triage": data.get("triage") or {},
+					"routing": routing_decision,
 				},
 				ensure_ascii=False,
 			),

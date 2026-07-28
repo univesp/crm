@@ -7,6 +7,7 @@ from frappe import _
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from univesp_atendimento.api.v1.common import get_request_context, response
+from univesp_atendimento.api.v1.routing import validate_payload_routing
 from univesp_atendimento.knowledge_graph import KnowledgeGraphError, assert_valid_knowledge_graph
 
 
@@ -673,11 +674,12 @@ def _validate_publishable_payload(payload, bundle):
 	pattern = frappe.db.get_value(
 		"Univesp Knowledge Routing Pattern",
 		{"pattern_key": pattern_key, "active": 1},
-		["name", "steps_json"],
+		["name", "steps_json", "allowed_routing_keys_json"],
 		as_dict=True,
 	)
 	if not pattern:
 		raise KnowledgeV3ValidationError(_("Padrão de roteamento não está ativo no catálogo."))
+	validate_payload_routing(payload, pattern)
 	steps = set(frappe.parse_json(pattern.steps_json or "[]"))
 	if "op" in steps:
 		missing_playbook = [

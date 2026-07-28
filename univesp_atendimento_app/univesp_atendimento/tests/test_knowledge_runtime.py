@@ -6,7 +6,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import now_datetime
 
-from univesp_atendimento.api.v1 import knowledge_runtime, knowledge_v3
+from univesp_atendimento.api.v1 import knowledge_runtime, knowledge_v3, routing
 from univesp_atendimento.api.v1.common import RequestContext
 
 
@@ -218,3 +218,27 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 				self.context,
 			)
 			self.assertEqual(lineage["path"], ["root", "final"])
+
+	def test_preview_and_ticket_creation_share_the_same_route_decision(self):
+		pattern = {
+			"pattern_key": "op_then_area",
+			"steps": ["op", "area"],
+			"allowed_routing_keys": ["atendimento-geral"],
+			"institutional_exceptions": ["provas", "critica"],
+		}
+		session_record = {
+			"bundle_version_id": self.version.version_id,
+			"path": ["root", "final"],
+		}
+		with (
+			patch.object(routing, "_pattern", return_value=pattern),
+			patch.object(routing, "_queue_exists", return_value=True),
+		):
+			preview_decision = routing._resolve_v3(self._payload(), "final", {}).as_dict()
+			ticket_decision = routing.resolve_ticket_route(
+				session_record=session_record,
+				knowledge={},
+				student={},
+				context=self.context,
+			)
+		self.assertEqual(ticket_decision, preview_decision)
