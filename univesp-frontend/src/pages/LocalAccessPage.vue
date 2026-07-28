@@ -16,6 +16,8 @@ const redirectTarget = computed(() =>
 const profileKey = computed(() => String(route.params.profileKey || '').trim().toLowerCase())
 const profiles = computed(() => auth.localBypassProfiles)
 const groupedProfiles = computed(() => groupMockProfilesByShell(profiles.value))
+const adminProfile = computed(() => profiles.value.find((entry) => entry.key === 'admin_central') || null)
+const prefersAdminEntry = computed(() => redirectTarget.value.startsWith('/admin'))
 const selectedProfile = computed(() => {
   if (!auth.canOpenProfilePreview) {
     return null
@@ -26,7 +28,14 @@ const selectedProfile = computed(() => {
 })
 
 function getProfileAccessUrl(key) {
-  return getPublicAppPath(`/acesso-local/${key}`)
+  const basePath = getPublicAppPath(`/acesso-local/${key}`)
+  if (!redirectTarget.value) {
+    return basePath
+  }
+
+  const url = new URL(basePath, window.location.origin)
+  url.searchParams.set('redirect', redirectTarget.value)
+  return `${url.pathname}${url.search}`
 }
 
 function getProfileIcon(profileKeyValue) {
@@ -61,6 +70,28 @@ watchEffect(() => {
   }
 
   if (!profileKey.value) {
+    if (
+      auth.hasLocalBypass &&
+      !auth.hasProfilePreview &&
+      prefersAdminEntry.value &&
+      adminProfile.value
+    ) {
+      auth.activateLocalBypassProfile(
+        adminProfile.value.key,
+        redirectTarget.value || adminProfile.value.route,
+      )
+      return
+    }
+
+    if (
+      auth.hasLocalBypass &&
+      !auth.hasProfilePreview &&
+      prefersAdminEntry.value &&
+      !adminProfile.value
+    ) {
+      return
+    }
+
     auth.clearLocalBypassProfile()
     return
   }
@@ -93,6 +124,23 @@ watchEffect(() => {
               }}
             </p>
           </div>
+        </div>
+
+        <div
+          v-if="auth.canOpenProfilePreview && prefersAdminEntry && adminProfile"
+          class="crm-local-quick-admin"
+        >
+          <p class="crm-local-quick-admin-copy">
+            Voce pediu entrada em <strong>/admin</strong>. Use o atalho abaixo ou escolha outro perfil.
+          </p>
+          <a class="crm-sso-access-button crm-local-quick-admin-link" :href="getProfileAccessUrl(adminProfile.key)">
+            <span class="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
+            <span>
+              {{ adminProfile.label }}
+              <small>{{ adminProfile.email }}</small>
+            </span>
+            <small>{{ adminProfile.helper }}</small>
+          </a>
         </div>
 
         <div v-if="auth.canOpenProfilePreview" class="crm-sso-access-grid">
@@ -144,7 +192,28 @@ watchEffect(() => {
 }
 
 .crm-local-shell {
-  max-width: 880px;
+  max-width: 980px;
+}
+
+.crm-local-quick-admin {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+  border: 1px solid var(--crm-color-primary-soft);
+  border-radius: var(--crm-radius-sm);
+  background: rgba(209, 50, 57, 0.04);
+  padding: 16px;
+}
+
+.crm-local-quick-admin-copy {
+  margin: 0;
+  color: var(--crm-color-muted);
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.crm-local-quick-admin-link {
+  min-height: 0;
 }
 
 .crm-sso-panel {

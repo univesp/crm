@@ -33,8 +33,8 @@ const hasCases = computed(() => overdueCases.value.length || atRiskCases.value.l
 <template>
   <section class="crm-panel">
     <div class="border-b border-[var(--border-default)] px-5 py-4">
-      <div class="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
-        <div class="min-w-0 max-w-3xl">
+      <div class="crm-panel-header 2xl:flex-row 2xl:items-start 2xl:justify-between">
+        <div class="crm-panel-header__copy">
           <p class="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{{ title }}</p>
           <h2 class="crm-page-title mt-1 text-lg">
             SLAs atrasados e prestes a estourar

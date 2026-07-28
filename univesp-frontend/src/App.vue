@@ -1,10 +1,9 @@
 <script setup>
-import { computed, onErrorCaptured, onMounted, ref, watch } from 'vue'
+import { computed, onErrorCaptured, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import AccessibilityPreferencesPanel from '@/components/AccessibilityPreferencesPanel.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
-import MockContextBar from '@/components/MockContextBar.vue'
-import { buildShellPresentation } from '@/services/mockContextRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
 
@@ -60,7 +59,6 @@ const pageTitle = computed(() => {
 })
 const isAuthLayout = computed(() => route.meta.layout === 'auth')
 const isWireframeLayout = computed(() => route.meta.layout === 'wireframe')
-const shellPresentation = computed(() => buildShellPresentation(auth.mockContext))
 const isStudentShell = computed(() => auth.mockContext.isStudentShell)
 const isOperationalShell = computed(() => auth.mockContext.isOperationalShell)
 const shellThemeClass = computed(() => {
@@ -83,35 +81,6 @@ const isAreaOperationalShell = computed(() =>
 const isAreaManagerOperationalShell = computed(
   () => auth.mockContext.isOperationalShell && auth.mockContext.profileKey === 'gestor_area',
 )
-const APP_VISUAL_PREFERENCES_KEY = 'univesp.crm.visualPreferences'
-const visualTheme = ref('light')
-const visualScale = ref(0)
-const visualReadableFont = ref(false)
-const visualHighContrast = ref(false)
-const visualScaleLabel = computed(() => {
-  if (visualScale.value === 2) {
-    return 'Texto grande'
-  }
-
-  if (visualScale.value === 1) {
-    return 'Texto médio'
-  }
-
-  return 'Texto padrão'
-})
-const visualPreferencesSummary = computed(() => {
-  const preferences = [visualTheme.value === 'dark' ? 'tema escuro' : 'tema claro', visualScaleLabel.value]
-
-  if (visualReadableFont.value) {
-    preferences.push('fonte legível')
-  }
-
-  if (visualHighContrast.value) {
-    preferences.push('alto contraste')
-  }
-
-  return preferences.join(', ')
-})
 const showAreaSelector = computed(
   () =>
     (auth.mockContext.linkedAreas || []).length > 1 &&
@@ -169,101 +138,6 @@ const routeViewRenderKey = computed(() => {
   }
   return routeName
 })
-
-function persistVisualPreferences() {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  try {
-    window.localStorage.setItem(
-      APP_VISUAL_PREFERENCES_KEY,
-      JSON.stringify({
-        theme: visualTheme.value,
-        scale: visualScale.value,
-        readableFont: visualReadableFont.value,
-        highContrast: visualHighContrast.value,
-      }),
-    )
-  } catch {
-    // Mantem a interface operavel mesmo quando o navegador bloqueia storage.
-  }
-}
-
-function applyVisualPreferences(shouldPersist = true) {
-  if (typeof document === 'undefined') {
-    return
-  }
-
-  const root = document.documentElement
-  root.classList.toggle('theme-dark', visualTheme.value === 'dark')
-  root.classList.toggle('theme-light', visualTheme.value !== 'dark')
-  root.classList.toggle('a11y-zoom-lg', visualScale.value === 1)
-  root.classList.toggle('a11y-zoom-xl', visualScale.value === 2)
-  root.classList.toggle('a11y-readable', visualReadableFont.value)
-  root.classList.toggle('a11y-high-contrast', visualHighContrast.value)
-
-  if (shouldPersist) {
-    persistVisualPreferences()
-  }
-}
-
-function loadVisualPreferences() {
-  if (typeof window === 'undefined') {
-    applyVisualPreferences(false)
-    return
-  }
-
-  try {
-    const storedPreferences = JSON.parse(
-      window.localStorage.getItem(APP_VISUAL_PREFERENCES_KEY) || '{}',
-    )
-    visualTheme.value = storedPreferences.theme === 'dark' ? 'dark' : 'light'
-    visualScale.value = Math.min(2, Math.max(0, Number(storedPreferences.scale || 0)))
-    visualReadableFont.value = storedPreferences.readableFont === true
-    visualHighContrast.value = storedPreferences.highContrast === true
-  } catch {
-    visualTheme.value = 'light'
-    visualScale.value = 0
-    visualReadableFont.value = false
-    visualHighContrast.value = false
-  }
-
-  applyVisualPreferences(false)
-}
-
-function setVisualTheme(theme) {
-  visualTheme.value = theme === 'dark' ? 'dark' : 'light'
-  applyVisualPreferences()
-}
-
-function increaseVisualScale() {
-  visualScale.value = Math.min(2, visualScale.value + 1)
-  applyVisualPreferences()
-}
-
-function decreaseVisualScale() {
-  visualScale.value = Math.max(0, visualScale.value - 1)
-  applyVisualPreferences()
-}
-
-function toggleReadableFont() {
-  visualReadableFont.value = !visualReadableFont.value
-  applyVisualPreferences()
-}
-
-function toggleHighContrast() {
-  visualHighContrast.value = !visualHighContrast.value
-  applyVisualPreferences()
-}
-
-function resetVisualPreferences() {
-  visualTheme.value = 'light'
-  visualScale.value = 0
-  visualReadableFont.value = false
-  visualHighContrast.value = false
-  applyVisualPreferences()
-}
 
 function clearRouteRenderError() {
   routeRenderError.value = ''
@@ -491,10 +365,6 @@ watch(
   { immediate: true },
 )
 
-onMounted(() => {
-  loadVisualPreferences()
-})
-
 onErrorCaptured((error) => {
   routeRenderError.value = String(error?.message || 'Falha ao carregar a tela atual.')
   console.error(error)
@@ -542,93 +412,9 @@ onErrorCaptured((error) => {
         id="main-content"
         class="app-shell-main min-w-0 flex-1 pb-8"
       >
-        <section
-          :class="[
-            'app-a11y-toolbar',
-            isOperationalShell ? 'mb-3' : '',
-          ]"
-          aria-label="Preferências de visualização"
-        >
-          <div class="app-a11y-toolbar__group" role="group" aria-label="Tema">
-            <button
-              type="button"
-              class="app-a11y-toolbar__button"
-              :class="{ 'is-active': visualTheme === 'light' }"
-              :aria-pressed="visualTheme === 'light'"
-              @click="setVisualTheme('light')"
-            >
-              Claro
-            </button>
-            <button
-              type="button"
-              class="app-a11y-toolbar__button"
-              :class="{ 'is-active': visualTheme === 'dark' }"
-              :aria-pressed="visualTheme === 'dark'"
-              @click="setVisualTheme('dark')"
-            >
-              Escuro
-            </button>
-          </div>
-
-          <div class="app-a11y-toolbar__group" role="group" aria-label="Tamanho do texto">
-            <button
-              type="button"
-              class="app-a11y-toolbar__button"
-              :disabled="visualScale === 0"
-              aria-label="Diminuir texto"
-              @click="decreaseVisualScale"
-            >
-              A-
-            </button>
-            <output class="app-a11y-toolbar__status" aria-live="polite">
-              {{ visualScaleLabel }}
-            </output>
-            <button
-              type="button"
-              class="app-a11y-toolbar__button"
-              :disabled="visualScale === 2"
-              aria-label="Aumentar texto"
-              @click="increaseVisualScale"
-            >
-              A+
-            </button>
-          </div>
-
-          <div class="app-a11y-toolbar__group" role="group" aria-label="Leitura e contraste">
-            <button
-              type="button"
-              class="app-a11y-toolbar__button"
-              :class="{ 'is-active': visualReadableFont }"
-              :aria-pressed="visualReadableFont"
-              @click="toggleReadableFont"
-            >
-              Fonte legível
-            </button>
-            <button
-              type="button"
-              class="app-a11y-toolbar__button"
-              :class="{ 'is-active': visualHighContrast }"
-              :aria-pressed="visualHighContrast"
-              @click="toggleHighContrast"
-            >
-              Alto contraste
-            </button>
-            <button
-              type="button"
-              class="app-a11y-toolbar__button"
-              aria-label="Redefinir preferências de visualização"
-              @click="resetVisualPreferences"
-            >
-              Redefinir
-            </button>
-          </div>
-
-          <p class="sr-only" aria-live="polite">
-            Preferências ativas: {{ visualPreferencesSummary }}.
-          </p>
-        </section>
-
-        <MockContextBar v-if="!isStudentShell && !isOperationalShell" />
+        <div v-if="isStudentShell" class="mb-3 flex justify-end">
+          <AccessibilityPreferencesPanel />
+        </div>
 
         <header
           v-if="!isStudentShell"
@@ -639,31 +425,14 @@ onErrorCaptured((error) => {
           ]"
         >
           <div class="min-w-0 flex-1">
-            <div v-if="!isOperationalShell" class="flex flex-wrap items-center gap-2">
-              <span
-                :class="[
-                  'rounded-full px-3 py-1 text-xs font-semibold',
-                  'soft-chip',
-                ]"
-              >
-                {{ shellPresentation.label }}
-              </span>
-            </div>
             <h1
               :class="[
                 'font-semibold text-slate-950',
-                !isOperationalShell ? 'mt-3' : '',
                 isOperationalShell ? 'text-[1.35rem] md:text-[1.5rem]' : 'text-[2rem] md:text-[2.3rem]',
               ]"
             >
               {{ pageTitle }}
             </h1>
-            <p
-              v-if="!isOperationalShell"
-              class="mt-2 max-w-3xl text-sm leading-6 text-slate-600"
-            >
-              {{ shellPresentation.description }}
-            </p>
           </div>
 
           <div class="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
@@ -727,14 +496,21 @@ onErrorCaptured((error) => {
                 Voltar para fila
               </RouterLink>
             </template>
-            <div
-              v-else
-              class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
-            >
-              <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
-              <p class="mt-1">{{ auth.mockContext.userEmail }}</p>
-              <p class="mt-1">Polo atual: {{ auth.mockContext.currentPolo }}</p>
+            <div v-else class="inline-flex flex-wrap items-center gap-2">
+              <div
+                class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700"
+                :title="auth.mockContext.userEmail"
+              >
+                <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
+              </div>
+              <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700">
+                {{ auth.mockContext.currentPolo }}
+              </div>
+              <p class="sr-only">
+                {{ auth.mockContext.userEmail }} · Polo atual: {{ auth.mockContext.currentPolo }}
+              </p>
             </div>
+            <AccessibilityPreferencesPanel />
             <button
               type="button"
               class="inline-flex items-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"

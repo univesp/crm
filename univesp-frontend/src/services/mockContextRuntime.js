@@ -173,6 +173,7 @@ export function buildShellPresentation(mockContext = null) {
 }
 
 export function groupMockProfilesByShell(profiles = getMockAccessProfiles()) {
+  const shellOrder = ['governance', 'operational', 'student']
   const groups = new Map()
 
   for (const profile of profiles) {
@@ -191,7 +192,9 @@ export function groupMockProfilesByShell(profiles = getMockAccessProfiles()) {
     groups.get(shellKey).profiles.push(profile)
   }
 
-  return [...groups.values()]
+  return shellOrder
+    .map((shellKey) => groups.get(shellKey))
+    .filter(Boolean)
 }
 
 export function summarizeScopeForBar(mockContext = null) {
