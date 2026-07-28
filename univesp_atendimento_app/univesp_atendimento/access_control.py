@@ -13,7 +13,13 @@ PROFILE_DEFINITIONS = {
 	"op": {
 		"label": "OP",
 		"scope_key": "queues",
-		"actions": ["view_ticket", "reply_ticket", "attach_ticket", "transition_ticket"],
+		"actions": [
+			"view_ticket",
+			"reply_ticket",
+			"attach_ticket",
+			"transition_ticket",
+			"view_playbook_op",
+		],
 	},
 	"op_externo": {
 		"label": "Operador externo (BPO)",
@@ -25,12 +31,14 @@ PROFILE_DEFINITIONS = {
 			"transition_ticket",
 			"escalate_to_internal",
 			"view_area_guidance",
+			"view_playbook_op",
+			"view_playbook_bpo",
 		],
 	},
 	"gestor_polos": {
 		"label": "Gestor de polos",
 		"scope_key": "polos",
-		"actions": ["view_ticket"],
+		"actions": ["view_ticket", "view_playbook_op"],
 	},
 	"analista_area": {
 		"label": "Analista de area",
@@ -43,6 +51,11 @@ PROFILE_DEFINITIONS = {
 			"view_area_guidance",
 			"suggest_knowledge",
 			"view_knowledge_history",
+			"view_playbook_op",
+			"view_playbook_bpo",
+			"view_playbook_analyst",
+			"edit_knowledge_draft",
+			"submit_knowledge_approval",
 		],
 	},
 	"gestor_area": {
@@ -58,6 +71,11 @@ PROFILE_DEFINITIONS = {
 			"view_area_guidance",
 			"manage_area_scope",
 			"approve_knowledge",
+			"edit_knowledge_draft",
+			"submit_knowledge_approval",
+			"view_playbook_op",
+			"view_playbook_bpo",
+			"view_playbook_analyst",
 			"manager_override_route",
 			"assign_case",
 			"manage_user_availability",
@@ -83,6 +101,16 @@ PROFILE_DEFINITIONS = {
 			"publish_version",
 			"approve_knowledge",
 			"publish_knowledge_version",
+			"rollback_knowledge_version",
+			"edit_knowledge_draft",
+			"submit_knowledge_approval",
+			"view_playbook_op",
+			"view_playbook_bpo",
+			"view_playbook_analyst",
+			"view_routing_preview",
+			"view_knowledge_history",
+			"view_contact_details",
+			"view_sensitive_identity",
 			"manage_user_availability",
 			"manage_assignment_policies",
 			"manage_permission_profiles",
@@ -127,7 +155,15 @@ def normalize_scopes(profile_key: str, value):
 	normalized = list(dict.fromkeys(str(item or "").strip() for item in values if str(item or "").strip()))
 	if not normalized:
 		raise frappe.ValidationError(_("Selecione ao menos um escopo para o perfil."))
-	return {scope_key: normalized}
+	result = {scope_key: normalized}
+	knowledge_themes = value.get("knowledge_themes")
+	if knowledge_themes is not None:
+		if not isinstance(knowledge_themes, list):
+			raise frappe.ValidationError(_("knowledge_themes deve ser uma lista."))
+		result["knowledge_themes"] = list(
+			dict.fromkeys(str(item or "").strip() for item in knowledge_themes if str(item or "").strip())
+		)
+	return result
 
 
 def profile_catalog():

@@ -143,6 +143,67 @@ router.get('/students/:ra/academic-summary', forward('students.academic_summary'
 }))
 router.get('/knowledge/library', forward('knowledge.get_library'))
 router.patch('/knowledge/library', forward('knowledge.update_library', { wrapPayload: true }))
+router.get('/knowledge/v3/bundles', forward('knowledge_v3.list_bundles', { query: true }))
+router.get('/knowledge/v3/catalogs', forward('knowledge_v3.catalogs'))
+router.post('/knowledge/v3/bundles', forward('knowledge_v3.create_bundle', { wrapPayload: true, etag: true }))
+router.get('/knowledge/v3/bundles/:bundleKey', forward('knowledge_v3.get_bundle', {
+  routeParams: { bundle_key: 'bundleKey' },
+  etag: true,
+}))
+router.get('/knowledge/v3/bundles/:bundleKey/versions', forward('knowledge_v3.list_versions', {
+  routeParams: { bundle_key: 'bundleKey' },
+  query: true,
+}))
+router.patch('/knowledge/v3/bundles/:bundleKey/draft', forward('knowledge_v3.save_draft', {
+  routeParams: { bundle_key: 'bundleKey' },
+  wrapPayload: true,
+  etag: true,
+  ifMatch: true,
+}))
+router.post('/knowledge/v3/bundles/:bundleKey/fork', forward('knowledge_v3.fork_draft', {
+  routeParams: { bundle_key: 'bundleKey' },
+  etag: true,
+}))
+router.post('/knowledge/v3/bundles/:bundleKey/submit', forward('knowledge_v3.submit_for_approval', {
+  routeParams: { bundle_key: 'bundleKey' },
+  wrapPayload: true,
+  etag: true,
+  ifMatch: true,
+}))
+router.post('/knowledge/v3/bundles/:bundleKey/request-changes', forward('knowledge_v3.request_changes', {
+  routeParams: { bundle_key: 'bundleKey' },
+  wrapPayload: true,
+}))
+router.post('/knowledge/v3/bundles/:bundleKey/approve', forward('knowledge_v3.approve', {
+  routeParams: { bundle_key: 'bundleKey' },
+}))
+router.post('/knowledge/v3/bundles/:bundleKey/reject', forward('knowledge_v3.reject', {
+  routeParams: { bundle_key: 'bundleKey' },
+  wrapPayload: true,
+}))
+router.post('/knowledge/v3/bundles/:bundleKey/archive', forward('knowledge_v3.archive_bundle', {
+  routeParams: { bundle_key: 'bundleKey' },
+}))
+router.post('/knowledge/v3/bundles/:bundleKey/unarchive', forward('knowledge_v3.unarchive_bundle', {
+  routeParams: { bundle_key: 'bundleKey' },
+}))
+router.delete('/knowledge/v3/bundles/:bundleKey', forward('knowledge_v3.delete_unpublished_bundle', {
+  routeParams: { bundle_key: 'bundleKey' },
+}))
+router.post('/knowledge/v3/versions/:versionId/publish', forward('knowledge_v3.publish', {
+  routeParams: { version_id: 'versionId' },
+  wrapPayload: true,
+}))
+router.post('/knowledge/v3/versions/:versionId/rollback', forward('knowledge_v3.rollback', {
+  routeParams: { version_id: 'versionId' },
+  wrapPayload: true,
+}))
+router.post('/knowledge/v3/versions/:versionId/break-glass', forward('knowledge_v3.request_break_glass', {
+  routeParams: { version_id: 'versionId' },
+}))
+router.post('/knowledge/v3/break-glass/:confirmationId/confirm', forward('knowledge_v3.confirm_break_glass', {
+  routeParams: { confirmation_id: 'confirmationId' },
+}))
 router.get('/admin/users', forward('admin.list_users', { query: true }))
 router.post('/admin/users', forward('admin.create_user', { wrapPayload: true }))
 router.get('/admin/users/:email', forward('admin.get_user', { routeParams: { email: 'email' } }))
@@ -184,6 +245,7 @@ function forward(method, options = {}) {
       if (!options.rawBody) {
         body = { ...routeParams, ...(req.body || {}) }
         if (options.wrapPayload) body = { ...routeParams, payload: JSON.stringify(req.body || {}) }
+        if (options.ifMatch && req.get('if-match')) body.if_match = req.get('if-match')
       }
       const result = await callFrappe(method, {
         user: req.session.user,
@@ -196,7 +258,9 @@ function forward(method, options = {}) {
         httpMethod: req.method,
       })
       res.setHeader('X-Request-ID', requestId)
-      res.status(200).json(normalizeEnvelope(result, requestId))
+      const envelope = normalizeEnvelope(result, requestId)
+      if (options.etag && envelope.meta?.etag) res.setHeader('ETag', envelope.meta.etag)
+      res.status(200).json(envelope)
     } catch (error) {
       handleError(res, error, requestId)
     }

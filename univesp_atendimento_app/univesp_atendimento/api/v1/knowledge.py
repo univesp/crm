@@ -109,6 +109,12 @@ def get_library():
 @frappe.whitelist(methods=["PATCH", "POST"])
 def update_library(payload: dict | str | None = None):
 	context = _library_context()
+	if frappe.db.exists("DocType", "Univesp Runtime Settings"):
+		settings = frappe.get_single("Univesp Runtime Settings")
+		if bool(getattr(settings, "knowledge_v3_write", False)):
+			raise KnowledgeLibraryValidationError(
+				_("Biblioteca v2 está em modo somente leitura enquanto a escrita v3 estiver ativa.")
+			)
 	data = _payload(payload)
 	reason = str(data.get("reason") or "").strip()
 	if len(reason) < 5:

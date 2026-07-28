@@ -201,3 +201,39 @@ def setup_schema():
 				frappe.as_json(actions_for_profile(profile.profile_key)),
 				update_modified=False,
 			)
+
+	seed_knowledge_v3_configuration()
+
+
+def seed_knowledge_v3_configuration():
+	if frappe.db.exists("DocType", "Univesp Runtime Settings"):
+		settings = frappe.get_single("Univesp Runtime Settings")
+		settings.institutional_timezone = settings.institutional_timezone or "America/Sao_Paulo"
+		settings.knowledge_session_ttl_seconds = settings.knowledge_session_ttl_seconds or 7200
+		settings.default_suggestion_sla_hours = settings.default_suggestion_sla_hours or 72
+		settings.save(ignore_permissions=True)
+
+	if not frappe.db.exists("DocType", "Univesp Knowledge Routing Pattern"):
+		return
+	patterns = (
+		("op_then_area", "OP → Área/Analista", 0, ["op", "area"]),
+		("op_bpo_area", "OP → BPO → Área", 1, ["op", "bpo", "area"]),
+		("bpo_op_area", "BPO → OP → Área", 1, ["bpo", "op", "area"]),
+		("direct_area", "Área direta", 0, ["area"]),
+		("institutional_triage", "Triagem Central → equipe", 0, ["triage", "area"]),
+	)
+	for pattern_key, label, bpo_enabled, steps in patterns:
+		if frappe.db.exists("Univesp Knowledge Routing Pattern", pattern_key):
+			continue
+		frappe.get_doc(
+			{
+				"doctype": "Univesp Knowledge Routing Pattern",
+				"pattern_key": pattern_key,
+				"label": label,
+				"bpo_enabled": bpo_enabled,
+				"steps_json": frappe.as_json(steps),
+				"allowed_routing_keys_json": frappe.as_json(["atendimento-geral", "sra"]),
+				"institutional_exceptions_json": frappe.as_json(["provas", "critica"]),
+				"active": 1,
+			}
+		).insert(ignore_permissions=True)

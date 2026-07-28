@@ -15,3 +15,12 @@ doc_events = {
 		"after_insert": "univesp_atendimento.ticket_hooks.on_ticket_created",
 	}
 }
+
+scheduler_events = {
+	"cron": {
+		"* * * * *": [
+			"univesp_atendimento.api.v1.knowledge_v3.activate_scheduled_versions",
+			"univesp_atendimento.api.v1.knowledge_v3.expire_published_versions",
+		],
+	}
+}

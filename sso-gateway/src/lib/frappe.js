@@ -136,8 +136,8 @@ function publicStatus(status) {
 
 function frappeErrorCode(status, payload) {
 	const serialized = JSON.stringify(payload || {})
-	if (/UnivespConflictError/i.test(serialized)) return 'CONFLICT'
-	if (/UnivespValidationError/i.test(serialized)) return 'VALIDATION_ERROR'
+	if (/UnivespConflictError|KnowledgeV3ConflictError/i.test(serialized)) return 'CONFLICT'
+	if (/UnivespValidationError|KnowledgeV3ValidationError/i.test(serialized)) return 'VALIDATION_ERROR'
 	if (/desativado no Atendimento/i.test(serialized)) return 'ACCESS_DISABLED'
 	if (/sem perfil ativo/i.test(serialized)) return 'PROFILE_NOT_ASSIGNED'
   if (status === 401) return 'AUTHENTICATION_REQUIRED'
