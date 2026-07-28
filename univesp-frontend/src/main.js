@@ -9,7 +9,9 @@ import { canAccessRouteWithMockContext } from '@/services/mockContextRuntime'
 import {
   getDefaultAuthenticatedRoute,
   getPublicAppPath,
+  hasHomologProfilePreview,
   normalizeInternalRouteTarget,
+  canUseProfilePreviewPicker,
 } from '@/services/ssoClient'
 import { useAuthStore } from '@/stores/auth'
 
@@ -47,6 +49,31 @@ router.beforeEach(async (to) => {
     return true
   }
 
+  if (to.name === 'local-access') {
+    if (!canUseProfilePreviewPicker()) {
+      return {
+        name: 'login',
+        query: {
+          redirect: normalizeInternalRouteTarget(to.fullPath),
+        },
+      }
+    }
+
+    if (hasHomologProfilePreview()) {
+      await auth.loadSession()
+      if (!auth.isAuthenticated) {
+        return {
+          name: 'login',
+          query: {
+            redirect: normalizeInternalRouteTarget(to.fullPath),
+          },
+        }
+      }
+    }
+
+    return true
+  }
+
   if (!requiresAuth) {
     return true
   }
@@ -66,6 +93,15 @@ router.beforeEach(async (to) => {
 
   if (auth.hasLocalBypass) {
     return localAccessRedirect
+  }
+
+  if (hasHomologProfilePreview()) {
+    return {
+      name: 'login',
+      query: {
+        redirect: normalizeInternalRouteTarget(to.fullPath),
+      },
+    }
   }
 
   return {

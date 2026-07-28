@@ -79,13 +79,15 @@ export function buildMockAccessContext(user) {
 
   const shell = MOCK_SHELL_CATALOG[definition.shellKey] || MOCK_SHELL_CATALOG.student
   const isGatewayContext = user?.raw?.source === 'sso-gateway'
-  const linkedPolos = isGatewayContext ? user?.scopes?.polos || [] : definition.linkedPolos
-  const linkedAreas = isGatewayContext
-    ? user?.scopes?.areas || []
-    : definition.linkedAreas || definition.visibleAreas || []
-  const visibleQueues = isGatewayContext ? user?.scopes?.queues || [] : definition.visibleQueues
-  const visibleAreas = isGatewayContext ? user?.scopes?.areas || [] : definition.visibleAreas
-  const allowedActions = isGatewayContext ? user?.allowedActions || [] : definition.allowedActions
+  const isPreviewContext = user?.raw?.source === 'homolog-profile-preview'
+  const useCatalogScopes = !isGatewayContext || isPreviewContext
+  const linkedPolos = useCatalogScopes ? definition.linkedPolos : user?.scopes?.polos || []
+  const linkedAreas = useCatalogScopes
+    ? definition.linkedAreas || definition.visibleAreas || []
+    : user?.scopes?.areas || []
+  const visibleQueues = useCatalogScopes ? definition.visibleQueues : user?.scopes?.queues || []
+  const visibleAreas = useCatalogScopes ? definition.visibleAreas : user?.scopes?.areas || []
+  const allowedActions = useCatalogScopes ? definition.allowedActions : user?.allowedActions || []
 
   return {
     profileKey: definition.key,
@@ -95,7 +97,7 @@ export function buildMockAccessContext(user) {
     shellLabel: shell.label,
     shellDescription: shell.description,
     defaultRoute: definition.defaultRoute,
-    entryOrigin: definition.entryOrigin,
+    entryOrigin: isPreviewContext ? 'Preview homolog (pos-SSO)' : definition.entryOrigin,
     currentPolo: linkedPolos[0] || '',
     currentArea: linkedAreas[0] || '',
     linkedPolos: [...linkedPolos],
@@ -103,10 +105,10 @@ export function buildMockAccessContext(user) {
     visibleQueues: [...visibleQueues],
     visibleAreas: [...visibleAreas],
     allowedActions: [...allowedActions],
-    mockMode: !isGatewayContext,
+    mockMode: !isGatewayContext || isPreviewContext,
     aiEnabled: false,
-    userName: user?.displayName || definition.displayName,
-    userEmail: user?.email || definition.email,
+    userName: isPreviewContext ? user?.displayName || definition.displayName : user?.displayName || definition.displayName,
+    userEmail: isPreviewContext ? user?.email || definition.email : user?.email || definition.email,
     helper: definition.helper,
     isStudentShell: definition.shellKey === 'student',
     isOperationalShell: definition.shellKey === 'operational',

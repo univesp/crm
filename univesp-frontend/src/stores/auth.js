@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore, getActivePinia } from 'pinia'
 
-import { buildMockAccessContext } from '@/services/mockContextRuntime'
+import { buildMockAccessContext, getMockProfileDefinition } from '@/services/mockContextRuntime'
 import { getActiveSimulation } from '@/services/appApi'
 import {
   buildAzureStartUrl,
@@ -12,11 +12,14 @@ import {
   getDevBypassProfiles,
   getPublicAppPath,
   getSelectedDevBypassProfile,
+  hasHomologProfilePreview,
   hasSsoDevBypass,
   isAzureConfigured,
   logoutFromSso,
   normalizeInternalRouteTarget,
+  readStoredProfilePreviewKey,
   setSelectedDevBypassProfile,
+  canUseProfilePreviewPicker,
 } from '@/services/ssoClient'
 import { useJourneyStore } from '@/stores/journey'
 
@@ -34,6 +37,8 @@ export const useAuthStore = defineStore('auth', () => {
   const displayName = computed(() => user.value?.displayName || user.value?.email || '')
   const azureReady = computed(() => isAzureConfigured())
   const hasLocalBypass = computed(() => hasSsoDevBypass())
+  const hasProfilePreview = computed(() => hasHomologProfilePreview())
+  const canOpenProfilePreview = computed(() => canUseProfilePreviewPicker())
   const localBypassProfiles = computed(() => getDevBypassProfiles())
   const selectedLocalBypassProfile = computed(() => getSelectedDevBypassProfile())
   const mockContext = computed(() => {
@@ -42,7 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
       activeSimulation?.persona === 'aluno'
         ? ['create_ticket', 'view_ticket', 'reply_ticket', 'attach_ticket']
         : ['view_ticket', 'reply_ticket', 'attach_ticket', 'transition_ticket']
-    const contextUser = activeSimulation
+    let contextUser = activeSimulation
       ? {
           ...user.value,
           profileKey: activeSimulation.persona,
@@ -51,6 +56,11 @@ export const useAuthStore = defineStore('auth', () => {
           raw: { ...(user.value?.raw || {}), source: 'sso-gateway' },
         }
       : user.value
+
+    if (!activeSimulation && contextUser && hasHomologProfilePreview()) {
+      contextUser = applyHomologProfilePreview(contextUser)
+    }
+
     const baseContext = buildMockAccessContext(contextUser)
 
     if (
@@ -78,6 +88,35 @@ export const useAuthStore = defineStore('auth', () => {
     return baseContext
   })
   const defaultAppRoute = computed(() => mockContext.value.defaultRoute || '/')
+
+  function applyHomologProfilePreview(baseUser) {
+    const previewKey = readStoredProfilePreviewKey()
+    if (!previewKey) {
+      return baseUser
+    }
+
+    const definition = getMockProfileDefinition(previewKey)
+    if (!definition) {
+      return baseUser
+    }
+
+    return {
+      ...baseUser,
+      profileKey: definition.key,
+      scopes: {
+        polos: [...(definition.linkedPolos || [])],
+        areas: [...(definition.linkedAreas || definition.visibleAreas || [])],
+        queues: [...(definition.visibleQueues || [])],
+      },
+      allowedActions: [...(definition.allowedActions || [])],
+      raw: {
+        ...(baseUser.raw || {}),
+        source: 'homolog-profile-preview',
+        actorEmail: baseUser.email,
+        previewProfileKey: definition.key,
+      },
+    }
+  }
 
   async function loadSession({ force = false } = {}) {
     if (sessionLoaded.value && !force) {
@@ -172,11 +211,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   function clearLocalBypassProfile() {
     clearSelectedDevBypassProfile()
+    selectedOperationalPolo.value = ''
+    selectedOperationalArea.value = ''
+
+    if (!hasSsoDevBypass()) {
+      return
+    }
+
     user.value = null
     sessionLoaded.value = false
     status.value = 'anonymous'
-    selectedOperationalPolo.value = ''
-    selectedOperationalArea.value = ''
   }
 
   function setSelectedOperationalPolo(polo = '') {
@@ -251,6 +295,8 @@ export const useAuthStore = defineStore('auth', () => {
     displayName,
     azureReady,
     hasLocalBypass,
+    hasProfilePreview,
+    canOpenProfilePreview,
     localBypassProfiles,
     selectedLocalBypassProfile,
     selectedOperationalPolo,

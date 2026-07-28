@@ -11,6 +11,9 @@ const mockContext = computed(() => auth.mockContext)
 const isStudentShell = computed(() => mockContext.value.isStudentShell)
 const scopeSummary = computed(() => summarizeScopeForBar(mockContext.value))
 const showLocalBadge = computed(() => Boolean(mockContext.value.mockMode))
+const previewBadgeLabel = computed(() =>
+  mockContext.value.entryOrigin?.includes('Preview homolog') ? 'Preview homolog' : 'Ambiente local',
+)
 
 const primaryIdentity = computed(() => {
   if (isStudentShell.value) {
@@ -70,7 +73,7 @@ const secondarySummaryItems = computed(() => {
           v-if="showLocalBadge"
           class="rounded-full border border-[var(--color-primary-soft)] bg-[var(--color-primary-soft)]/55 px-2.5 py-0.5 font-medium text-[var(--color-primary-dark)]"
         >
-          Ambiente local
+          {{ previewBadgeLabel }}
         </span>
         <span
           class="max-w-full truncate rounded-full bg-slate-100 px-2.5 py-0.5"
