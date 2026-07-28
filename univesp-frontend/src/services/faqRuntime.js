@@ -2,6 +2,7 @@ import { reactive } from 'vue'
 
 import faqAluno from '../../mocks/faq-aluno.json'
 import faqOp from '../../mocks/faq-op.json'
+import faqPublico from '../../mocks/faq-publico.json'
 import {
   ACTION_CATALOG,
   CRITICALITY_CATALOG,
@@ -18,6 +19,7 @@ const publishedFaqState = reactive({
   enabled: false,
   aluno: null,
   op: null,
+  publico: null,
 })
 
 function emptyFaqPackage(faqType) {
@@ -74,11 +76,12 @@ export function enablePublishedFaqRuntime() {
   publishedFaqState.enabled = true
   publishedFaqState.aluno = emptyFaqPackage('aluno')
   publishedFaqState.op = emptyFaqPackage('op')
+  publishedFaqState.publico = emptyFaqPackage('publico')
 }
 
 export function setPublishedFaqBundles(faqType = 'aluno', entries = []) {
   const normalized = String(faqType || 'aluno').trim().toLowerCase()
-  if (!['aluno', 'op'].includes(normalized)) return
+  if (!['aluno', 'op', 'publico'].includes(normalized)) return
   publishedFaqState[normalized] = mergePublishedPackages(normalized, entries)
 }
 
@@ -616,6 +619,20 @@ export function buildStudentFaqHomeEntries(options = {}) {
 export function buildOperatorFaqHomeEntries(options = {}) {
   return buildFaqHomeEntries(faqPackageFor('op', faqOp), {
     profile: 'op',
+    ...options,
+  })
+}
+
+export function buildPublicFaqRuntime(options = {}) {
+  return buildFaqRuntimeTree(faqPackageFor('publico', faqPublico), {
+    profile: 'publico',
+    ...options,
+  })
+}
+
+export function buildPublicFaqHomeEntries(options = {}) {
+  return buildFaqHomeEntries(faqPackageFor('publico', faqPublico), {
+    profile: 'publico',
     ...options,
   })
 }

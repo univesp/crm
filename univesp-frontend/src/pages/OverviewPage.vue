@@ -17,7 +17,7 @@ const journey = useJourneyStore()
       title="Uma central de atendimento pensada para a operacao real da UNIVESP"
       description="Esta primeira camada do frontend organiza a experiencia institucional antes da integracao definitiva com Frappe. O foco e reduzir atrito para o aluno, dar contexto para o OP e criar visibilidade para a gestao."
     >
-      <div class="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <div class="crm-split-grid gap-5">
         <div class="rounded-[32px] bg-slate-950 p-7 text-white">
           <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/45">
             Direcao desta fase
@@ -111,7 +111,7 @@ const journey = useJourneyStore()
       />
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+    <div class="crm-split-grid gap-6">
       <SectionPanel
         eyebrow="Experiencia"
         title="Principios que sustentam a central"

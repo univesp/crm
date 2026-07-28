@@ -30,6 +30,23 @@ export function buildSignedContext(user, requestId = randomUUID(), now = Math.fl
     'X-Request-ID': requestId,
   }
 }
+export function buildSignedSimulationContext(simulation, now = Math.floor(Date.now() / 1000)) {
+  if (!simulation) return {}
+  const secret = required('UNIVESP_BFF_SHARED_SECRET')
+  const encoded = Buffer.from(JSON.stringify(simulation)).toString('base64url')
+  const timestamp = String(now)
+  const signature = createHmac('sha256', secret)
+    .update(`${timestamp}.simulation.${encoded}`)
+    .digest('hex')
+
+  return {
+    'X-Univesp-Simulation-Context': encoded,
+    'X-Univesp-Simulation-Timestamp': timestamp,
+    'X-Univesp-Simulation-Signature': signature,
+  }
+}
+
+
 
 export async function callFrappe(method, options = {}) {
   const requestId = options.requestId || randomUUID()
@@ -46,6 +63,8 @@ export async function callFrappe(method, options = {}) {
     'X-Frappe-Site-Name': process.env.FRAPPE_SITE_NAME || 'crm.localhost',
     ...buildSignedContext(options.user || {}, requestId),
   }
+  Object.assign(headers, buildSignedSimulationContext(options.simulation))
+  Object.assign(headers, options.headers || {})
   let body
   if (options.rawBody) {
     body = options.rawBody

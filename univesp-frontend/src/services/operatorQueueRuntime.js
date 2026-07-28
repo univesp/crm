@@ -1640,6 +1640,61 @@ export function buildOperatorActionLog({
   }
 }
 
+export function buildOperatorAssumeActionLog({
+  caseEntry,
+  actorName = '',
+  reason = '',
+  currentDate = new Date(),
+}) {
+  const timestamp = buildTimestampParts(currentDate)
+  const normalizedReason =
+    reason.trim() ||
+    `Caso assumido por ${actorName || 'Operacao do polo'} para acelerar a tratativa via cockpit.`
+  const previousOperator = caseEntry.assignedOperator || 'Nao atribuido'
+
+  return {
+    id: `op-action-${caseEntry.id}-${timestamp.compact}-assume`,
+    caseId: caseEntry.id,
+    actor: actorName || 'Operador de Polo',
+    assigneeLabel: actorName || 'Operacao do polo',
+    actionType: 'assume_case',
+    actionLabel: 'Caso assumido para acelerar',
+    occurredAt: timestamp.iso,
+    occurredAtLabel: timestamp.label,
+    statusBefore: caseEntry.status,
+    statusLabel: caseEntry.status,
+    statusAfter: caseEntry.status,
+    canonicalStatusCode: caseEntry.statusCode || '',
+    pendingParty: caseEntry.pendingParty || '',
+    closedBy: caseEntry.closedBy || '',
+    queueBefore: caseEntry.queue,
+    queueLabel: caseEntry.queue,
+    queueAfter: caseEntry.queue,
+    destinationLabel: caseEntry.queue,
+    resolvedAreaLabel: caseEntry.lastMileAreaLabel || caseEntry.queue,
+    routingMode: 'intervention',
+    pendingLabel: caseEntry.pendingLabel,
+    escalationReason: null,
+    note: `${normalizedReason} Responsavel anterior: ${previousOperator}.`,
+    timelineItem: {
+      id: `op-timeline-${caseEntry.id}-${timestamp.compact}-assume`,
+      title: 'Caso assumido para acelerar',
+      description: `${normalizedReason} Responsavel anterior: ${previousOperator}.`,
+      at: timestamp.iso,
+      atLabel: timestamp.label,
+      tone: 'warning',
+    },
+    interactionItem: {
+      id: `op-interaction-${caseEntry.id}-${timestamp.compact}-assume`,
+      actor: actorName || 'Operador de Polo',
+      channel: 'Intervencao operacional',
+      text: normalizedReason,
+      at: timestamp.iso,
+      atLabel: timestamp.label,
+    },
+  }
+}
+
 export function buildOperatorCaseDetail({
   caseId,
   protocols = [],

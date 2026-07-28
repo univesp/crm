@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -57,7 +57,7 @@ watch(
 <template>
   <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_196px] xl:items-start">
     <section
-      class="rounded-[28px] border border-slate-200 bg-white/94 p-4 shadow-[0_18px_42px_rgba(16,18,20,0.05)] md:p-6 xl:min-h-[468px] xl:p-7"
+      class="rounded-[8px] border border-slate-200 bg-white/94 p-4 shadow-sm md:p-6 xl:min-h-[468px] xl:p-7"
     >
       <div
         v-if="showBack || mobileLabel"
@@ -85,7 +85,7 @@ watch(
           to="/aluno"
           class="student-focus-ring inline-flex min-h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
         >
-          Voltar ao inicio
+          Voltar ao início
         </RouterLink>
         <span v-else class="w-10"></span>
       </div>
@@ -93,7 +93,7 @@ watch(
       <div class="max-w-2xl">
         <p
           v-if="eyebrow"
-          class="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary-dark)]"
+          class="text-xs font-semibold uppercase tracking-normal text-[var(--color-primary-dark)]"
         >
           {{ eyebrow }}
         </p>
@@ -121,8 +121,8 @@ watch(
       v-if="$slots.aside"
       class="hidden xl:block xl:sticky xl:top-4"
     >
-      <div class="rounded-[22px] border border-slate-200 bg-white/76 p-4 shadow-[0_10px_22px_rgba(16,18,20,0.035)]">
-        <p class="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-[var(--color-primary-dark)]">
+      <div class="rounded-[8px] border border-slate-200 bg-white/76 p-4 shadow-sm">
+        <p class="text-[0.72rem] font-semibold uppercase tracking-normal text-[var(--color-primary-dark)]">
           {{ asideTitle }}
         </p>
         <p

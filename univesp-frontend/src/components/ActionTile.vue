@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 defineProps({
   title: {
     type: String,
@@ -17,7 +17,7 @@ defineProps({
 
 <template>
   <div class="inner-panel p-4">
-    <p v-if="eyebrow" class="text-xs font-semibold tracking-[0.12em] text-slate-500">
+    <p v-if="eyebrow" class="text-xs font-semibold tracking-normal text-slate-500">
       {{ eyebrow }}
     </p>
     <h3 class="mt-2 text-lg font-semibold text-slate-950">{{ title }}</h3>

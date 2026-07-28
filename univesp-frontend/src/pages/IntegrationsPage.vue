@@ -107,7 +107,7 @@ import { personaJourneys } from '../../mocks/personas'
       </div>
     </SectionPanel>
 
-    <div class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+    <div class="crm-split-grid gap-6">
       <SectionPanel
         eyebrow="Estrutura"
         title="Paginas e componentes planejados"

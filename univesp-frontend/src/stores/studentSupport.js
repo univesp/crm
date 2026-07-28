@@ -35,6 +35,7 @@ import {
 import { buildDistributionDecision } from '@/services/distributionEngine'
 import {
   buildOperatorActionLog,
+  buildOperatorAssumeActionLog,
   buildOperatorCaseDetail,
   buildOperatorQueueEntries as buildOperatorQueueRuntime,
 } from '@/services/operatorQueueRuntime'
@@ -59,6 +60,10 @@ import {
 import { buildOperationalOwnershipReferenceCatalog } from '@/services/operationalOwnershipReferences'
 import { validateOperationalOwnershipEnvelope } from '@/contracts/operationalOwnershipContract'
 import { OPERATIONAL_OWNERSHIP_BACKEND_ENDPOINTS } from '@/contracts/operationalOwnershipBackendContract'
+import {
+  shouldSyncProtocolWithFrappe,
+  submitStudentProtocolTicket,
+} from '@/services/frappeClient'
 import {
   DEFAULT_OPERATIONAL_OWNERSHIP_LEGACY_POLICY,
   auditLegacyOwnershipRecords,
@@ -1343,7 +1348,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
 
       return finalDraft
     },
-    submitProtocol(currentDate = new Date()) {
+    async submitProtocol(currentDate = new Date()) {
       const validation = validateProtocolDraft(this.protocolDraft)
 
       if (!validation.isValid || !this.protocolDraft) {
@@ -1417,81 +1422,121 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         }
       }
 
-      this.protocols = [protocol, ...this.protocols]
+      let protocolToPersist = protocol
+      let remoteTicket = null
+
+      if (shouldSyncProtocolWithFrappe()) {
+        try {
+          remoteTicket = await submitStudentProtocolTicket(protocol)
+          protocolToPersist = {
+            ...protocol,
+            remoteSyncStatus: 'synced',
+            remoteDoctype: import.meta.env.VITE_FRAPPE_TICKET_DOCTYPE || 'Issue',
+            remoteDocumentName: remoteTicket?.name || '',
+            remoteDocument: remoteTicket || null,
+          }
+        } catch (error) {
+          return {
+            ok: false,
+            validation: {
+              ...validation,
+              isValid: false,
+              errors: {
+                ...(validation.errors || {}),
+                form:
+                  error?.message ||
+                  'Nao foi possivel registrar a solicitacao no Frappe. Tente novamente em instantes.',
+              },
+            },
+            remoteSyncStatus: 'failed',
+            remoteError: error,
+          }
+        }
+      }
+
+      this.protocols = [protocolToPersist, ...this.protocols]
       this.appendCaseKnowledgeUsage(
         buildInitialKnowledgeUsageForProtocol({
-          protocolId: protocol.protocolNumber,
-          themeKey: protocol.context?.theme,
-          subsubjectKey: protocol.context?.subtheme || protocol.context?.finalNode?.title,
+          protocolId: protocolToPersist.protocolNumber,
+          themeKey: protocolToPersist.context?.theme,
+          subsubjectKey: protocolToPersist.context?.subtheme || protocolToPersist.context?.finalNode?.title,
           actorName: 'Aluno',
           actorRole: 'student',
-          usedAt: protocol.createdAt,
+          usedAt: protocolToPersist.createdAt,
           knowledgeFoundation: this.knowledgeFoundation,
         }),
       )
       this.appendCaseRoutingDecision(
         buildCanonicalRoutingDecision({
-          caseId: protocol.protocolNumber,
-          sourceNodeId: protocol.context?.finalNode?.id || '',
+          caseId: protocolToPersist.protocolNumber,
+          sourceNodeId: protocolToPersist.context?.finalNode?.id || '',
           defaultAreaLabel:
-            protocol.ownerArea ||
-            protocol.lastMileAreaLabel ||
-            protocol.context?.routing?.targetAreaLabel ||
-            protocol.ownerQueue ||
+            protocolToPersist.ownerArea ||
+            protocolToPersist.lastMileAreaLabel ||
+            protocolToPersist.context?.routing?.targetAreaLabel ||
+            protocolToPersist.ownerQueue ||
             '',
           resolvedAreaLabel:
-            protocol.ownerArea ||
-            protocol.lastMileAreaLabel ||
-            protocol.context?.routing?.targetAreaLabel ||
-            protocol.ownerQueue ||
+            protocolToPersist.ownerArea ||
+            protocolToPersist.lastMileAreaLabel ||
+            protocolToPersist.context?.routing?.targetAreaLabel ||
+            protocolToPersist.ownerQueue ||
             '',
           routingMode: 'standard',
-          justification: protocol.context?.routing?.assignmentRuleLabel || 'Roteamento inicial pelo conhecimento vigente.',
+          justification:
+            protocolToPersist.context?.routing?.assignmentRuleLabel ||
+            'Roteamento inicial pelo conhecimento vigente.',
           decidedBy: 'Aluno',
-          decidedAt: protocol.createdAt,
+          decidedAt: protocolToPersist.createdAt,
         }),
       )
       this.appendCaseEvent(
         buildCanonicalCaseEvent({
-          caseId: protocol.protocolNumber,
+          caseId: protocolToPersist.protocolNumber,
           eventType: 'case_submitted',
           actor: 'Aluno',
           actorRole: 'student',
           fromStatus: '',
           toStatus: mapLegacyCaseStatusCode({
-            statusCode: protocol.statusCode,
-            statusLabel: protocol.statusLabel,
-            pendingLabel: protocol.pendingLabel,
+            statusCode: protocolToPersist.statusCode,
+            statusLabel: protocolToPersist.statusLabel,
+            pendingLabel: protocolToPersist.pendingLabel,
           }),
           description: 'Protocolo enviado a partir da FAQ com snapshots de conhecimento registrados.',
           payload: {
-            subjectCode: buildSubjectCode(protocol.context?.theme),
-            subsubjectCode: buildSubsubjectCode(protocol.context?.theme, protocol.context?.subtheme || protocol.context?.finalNode?.title),
-            queueLabel: protocol.queueLabel,
-            lastMileAreaLabel: protocol.lastMileAreaLabel,
-            ownerType: protocol.ownerType || '',
-            ownerKey: protocol.ownerKey || '',
-            ownerQueue: protocol.ownerQueue || '',
-            ownerArea: protocol.ownerArea || '',
+            subjectCode: buildSubjectCode(protocolToPersist.context?.theme),
+            subsubjectCode: buildSubsubjectCode(
+              protocolToPersist.context?.theme,
+              protocolToPersist.context?.subtheme || protocolToPersist.context?.finalNode?.title,
+            ),
+            queueLabel: protocolToPersist.queueLabel,
+            lastMileAreaLabel: protocolToPersist.lastMileAreaLabel,
+            ownerType: protocolToPersist.ownerType || '',
+            ownerKey: protocolToPersist.ownerKey || '',
+            ownerQueue: protocolToPersist.ownerQueue || '',
+            ownerArea: protocolToPersist.ownerArea || '',
+            remoteDoctype: protocolToPersist.remoteDoctype || '',
+            remoteDocumentName: protocolToPersist.remoteDocumentName || '',
           },
-          createdAt: protocol.createdAt,
+          createdAt: protocolToPersist.createdAt,
         }),
       )
       this.records = this.records.map((record) =>
         record.id === this.protocolDraft.sourceRecordId
           ? {
               ...record,
-              pendingLabel: `Protocolo ${protocol.protocolNumber} enviado para continuidade`,
+              pendingLabel: `Protocolo ${protocolToPersist.protocolNumber} enviado para continuidade`,
             }
           : record,
       )
-      this.appendAnalytics('protocol_submitted', protocol.context, currentDate)
+      this.appendAnalytics('protocol_submitted', protocolToPersist.context, currentDate)
       this.protocolDraft = null
       this.persistState()
 
       return {
         ok: true,
-        protocol,
+        protocol: protocolToPersist,
+        remoteTicket,
         validation,
       }
     },
@@ -1881,6 +1926,7 @@ export const useStudentSupportStore = defineStore('studentSupport', {
       analystName = '',
       actorName = '',
       reason = '',
+      assignmentMode = '',
       currentDate = new Date(),
     }) {
       const previousAssignment =
@@ -1899,7 +1945,9 @@ export const useStudentSupportStore = defineStore('studentSupport', {
         assignedBy: actorName || 'Gestao da area',
         assignedAt: currentDate.toISOString(),
         reason: reason || 'Redistribuicao gerencial.',
-        assignmentMode: previousAssignment ? 'manager_override' : 'manager_manual',
+        assignmentMode:
+          assignmentMode ||
+          (previousAssignment ? 'manager_override' : 'manager_manual'),
         previousAssignment,
       })
 
@@ -1928,6 +1976,111 @@ export const useStudentSupportStore = defineStore('studentSupport', {
 
       this.persistState()
       return payload
+    },
+    assumeAreaCase({
+      caseId,
+      areaLabel = '',
+      actorName = '',
+      reason = '',
+      profileKey = '',
+      currentDate = new Date(),
+    }) {
+      const caseDetail = this.areaCaseById(caseId) || null
+
+      if (!caseDetail) {
+        return null
+      }
+
+      const resolvedAreaLabel = areaLabel || caseDetail.currentAreaLabel || caseDetail.lastMileAreaLabel || ''
+      const previousAssignee = caseDetail.currentAssigneeLabel || 'Sem responsavel'
+      const normalizedPrevious = String(previousAssignee).trim().toLowerCase()
+      const normalizedActor = String(actorName || '').trim().toLowerCase()
+      const isManagerProfile = ['gestor_area', 'admin_central'].includes(profileKey)
+      let assignmentMode = 'self_claim'
+
+      if (
+        normalizedPrevious &&
+        normalizedPrevious !== 'sem responsavel' &&
+        normalizedPrevious !== normalizedActor
+      ) {
+        assignmentMode = isManagerProfile ? 'intervention_override' : 'intervention_claim'
+      }
+
+      return this.assignAreaCase({
+        caseId,
+        areaLabel: resolvedAreaLabel,
+        analystName: actorName,
+        actorName,
+        reason:
+          reason ||
+          `Intervencao rapida via cockpit: caso assumido por ${actorName || 'analista da area'}.`,
+        assignmentMode,
+        currentDate,
+      })
+    },
+    assumeOperatorCase({
+      caseId,
+      actorName = '',
+      reason = '',
+      currentDate = new Date(),
+    }) {
+      const caseEntry = this.operatorQueueEntries().find((entry) => entry.id === caseId) || null
+
+      if (!caseEntry) {
+        return null
+      }
+
+      const updateAssignedOperator = (protocol = {}) => {
+        if (protocol.id !== caseId && protocol.protocolNumber !== caseId) {
+          return protocol
+        }
+
+        return {
+          ...protocol,
+          assignedOperator: actorName || protocol.assignedOperator,
+        }
+      }
+
+      this.protocols = this.protocols.map(updateAssignedOperator)
+      this.operatorProtocols = this.operatorProtocols.map(updateAssignedOperator)
+
+      const actionLog = buildOperatorAssumeActionLog({
+        caseEntry,
+        actorName,
+        reason,
+        currentDate,
+      })
+
+      this.operatorActionLogs = [...this.operatorActionLogs, actionLog]
+      this.appendCaseEvent(
+        buildCanonicalCaseEvent({
+          caseId,
+          eventType: 'operator_assume_case',
+          actor: actorName || 'Operacao do polo',
+          actorRole: 'op',
+          fromStatus:
+            caseEntry.statusCode ||
+            mapLegacyCaseStatusCode({
+              statusLabel: caseEntry.status,
+              pendingLabel: caseEntry.pendingLabel,
+            }),
+          toStatus:
+            caseEntry.statusCode ||
+            mapLegacyCaseStatusCode({
+              statusLabel: caseEntry.status,
+              pendingLabel: caseEntry.pendingLabel,
+            }),
+          description: actionLog.note,
+          payload: {
+            previousOperator: caseEntry.assignedOperator || 'Nao atribuido',
+            nextOperator: actorName || caseEntry.assignedOperator || 'Operacao do polo',
+            routingMode: 'intervention',
+          },
+          createdAt: actionLog.occurredAt,
+        }),
+      )
+      this.persistState()
+      return actionLog
     },
     approveKnowledgeBundleVersion({
       bundleVersionId = '',

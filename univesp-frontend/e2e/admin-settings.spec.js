@@ -35,9 +35,9 @@ test('salva parametros institucionais com versao e motivo auditavel', async ({ p
   })
 
   await page.goto('/crm/admin/parametros')
-  await expect(page.getByText('Versao carregada: version-1.')).toBeVisible()
-  await page.getByLabel('Motivo da alteracao').fill('Ajuste operacional homologado')
-  await page.getByRole('button', { name: 'Salvar parametros' }).click()
+  await expect(page.getByRole('button', { name: 'Padrões oficiais' })).toBeVisible()
+  await page.getByLabel('Justificativa da alteração').fill('Ajuste operacional homologado')
+  await page.getByRole('button', { name: 'Salvar alterações' }).click()
 
   await expect.poll(() => savedPayload).not.toBeNull()
   expect(savedPayload.version).toBe('version-1')

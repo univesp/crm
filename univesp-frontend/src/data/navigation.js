@@ -45,18 +45,18 @@ export function buildNavigationSections(mockContext) {
     const isAreaProfile = ['analista_area', 'gestor_area'].includes(mockContext.profileKey)
     const queueLabel = isAreaProfile
       ? mockContext.profileKey === 'gestor_area'
-        ? 'Casos da area'
-        : 'Minha fila da area'
+        ? 'Casos da área'
+        : 'Minha fila da área'
       : mockContext.profileKey === 'gestor_polos'
         ? 'Atendimentos do polo'
         : 'Meus atendimentos'
     const sectionLabel = isAreaProfile
       ? mockContext.profileKey === 'gestor_area'
-        ? 'Gestao de areas'
-        : 'Area especializada'
+        ? 'Gestão de áreas'
+        : 'Área especializada'
       : mockContext.profileKey === 'gestor_polos'
         ? 'Gestao de polos'
-        : 'Operacao do polo'
+        : 'Operação do polo'
 
     return [
       {
@@ -64,11 +64,17 @@ export function buildNavigationSections(mockContext) {
         label: sectionLabel,
         items: isAreaProfile
           ? [
+              {
+                id: 'area-cockpit',
+                label: 'Cockpit operacional',
+                route: '/area/cockpit',
+                description: 'SLAs atrasados, em risco e acao rapida na fila da area.',
+              },
               ...(mockContext.profileKey === 'gestor_area'
                 ? [
                     {
                       id: 'area-manager-home',
-                      label: 'Operacao da area',
+                      label: 'Operação da área',
                       route: '/area/operacao',
                       description: 'Backlog, gargalos, redistribuicao e excecoes no escopo atual.',
                     },
@@ -83,7 +89,7 @@ export function buildNavigationSections(mockContext) {
               },
               {
                 id: 'area-guidance',
-                label: 'Conteudo vigente',
+                label: 'Conteúdo vigente',
                 route: '/area/orientacao',
                 description: 'Consulta da FAQ, da orientacao operacional e do playbook vigente da area.',
               },
@@ -91,7 +97,7 @@ export function buildNavigationSections(mockContext) {
                 ? [
                     {
                       id: 'area-knowledge-review',
-                      label: 'Mudancas pendentes',
+                      label: 'Mudanças pendentes',
                       route: '/area/mudancas',
                       description: 'Sugestoes aguardando decisao e leitura da trilha vigente de publicacao.',
                     },
@@ -105,6 +111,16 @@ export function buildNavigationSections(mockContext) {
                 : []),
             ]
           : [
+          ...(mockContext.profileKey === 'op_externo'
+            ? [
+                {
+                  id: 'bpo-cockpit',
+                  label: 'Cockpit operacional',
+                  route: '/bpo/dashboard',
+                  description: 'SLAs atrasados e em risco no pool regional.',
+                },
+              ]
+            : []),
           {
             id: 'operator-queue',
             label: queueLabel,
@@ -120,7 +136,7 @@ export function buildNavigationSections(mockContext) {
           },
           {
             id: 'operator-playbook',
-            label: 'Consultar orientacao',
+            label: 'Consultar orientação',
             route: '/op/playbook',
             description: 'Consultar a FAQ do aluno e a orientacao do OP antes de decidir.',
           },
@@ -137,32 +153,40 @@ export function buildNavigationSections(mockContext) {
   const ICON_SLA = 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'
   const ICON_PERMISSIONS =
     'M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z'
+  const ICON_PROTOCOLS =
+    'M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l4.414 4.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z'
 
   const adminItems = [
     {
       id: 'admin-dashboard',
-      label: 'Dashboard',
+      label: 'Visão geral',
       route: '/admin/dashboard',
       icon: ICON_DASHBOARD,
     },
   ]
 
+  if (hasAction(mockContext, 'view_ticket')) {
+    adminItems.push({
+      id: 'admin-protocols',
+      label: 'Protocolos',
+      route: '/admin/protocolos',
+      icon: ICON_PROTOCOLS,
+    })
+  }
+
   if (hasAction(mockContext, 'edit_faq')) {
     adminItems.push({
       id: 'admin-faq',
-      label: 'FAQ & Conhecimento',
+      label: 'FAQs e orientações',
       route: '/admin/faq',
       icon: ICON_FAQ,
-      children: hasAction(mockContext, 'publish_version')
-        ? [{ id: 'admin-versioning', label: 'Publicacao', route: '/admin/publicacao' }]
-        : [],
     })
   }
 
   if (hasAction(mockContext, 'edit_parameters')) {
     adminItems.push({
       id: 'admin-parameters',
-      label: 'SLA e regras',
+      label: 'Regras e prazos',
       route: '/admin/parametros',
       icon: ICON_SLA,
     })
@@ -171,7 +195,7 @@ export function buildNavigationSections(mockContext) {
   if (hasAction(mockContext, 'view_audit')) {
     adminItems.push({
       id: 'admin-permissions',
-      label: 'Permissoes',
+      label: 'Pessoas e acessos',
       route: '/admin/permissoes',
       icon: ICON_PERMISSIONS,
     })

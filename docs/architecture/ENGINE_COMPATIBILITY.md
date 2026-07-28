@@ -29,6 +29,6 @@ de migration, e nunca acompanhando automaticamente o `main` dos projetos.
 - criar um usuario tecnico Frappe exclusivo para o Gateway e gerar API key;
 - usar o mesmo segredo HMAC no site e no Gateway;
 - cadastrar perfis de OP/gestores/admin antes do teste;
-- definir a fonte oficial para provisionamento em massa dos alunos;
+- **fonte oficial alunos:** import Trino `postgresql-sei` (ver `docs/crm-import-student-directory.md`);
 - corrigir a incompatibilidade de teste existente no CRM entre
   `CRM Lead.assign_agent` e `frappe.desk.form.assign_to.add`.

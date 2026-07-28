@@ -1,0 +1,82 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Permission Assignment",
+  "module": "Univesp Atendimento",
+  "autoname": "hash",
+  "title_field": "subject_id",
+  "track_changes": 1,
+  "field_order": [
+    "subject_type",
+    "subject_id",
+    "permission_profile",
+    "scopes_json",
+    "valid_from",
+    "valid_until",
+    "justification",
+    "active"
+  ],
+  "fields": [
+    {
+      "fieldname": "subject_type",
+      "fieldtype": "Select",
+      "label": "Tipo",
+      "options": "person\ngroup",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "subject_id",
+      "fieldtype": "Data",
+      "label": "Pessoa ou grupo",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "permission_profile",
+      "fieldtype": "Link",
+      "label": "Perfil de acesso",
+      "options": "Univesp Permission Profile",
+      "reqd": 1
+    },
+    {
+      "fieldname": "scopes_json",
+      "fieldtype": "Code",
+      "label": "Escopos JSON",
+      "options": "JSON",
+      "default": "{}",
+      "reqd": 1
+    },
+    {
+      "fieldname": "valid_from",
+      "fieldtype": "Datetime",
+      "label": "Valido a partir de"
+    },
+    {
+      "fieldname": "valid_until",
+      "fieldtype": "Datetime",
+      "label": "Valido ate"
+    },
+    {
+      "fieldname": "justification",
+      "fieldtype": "Small Text",
+      "label": "Justificativa",
+      "reqd": 1
+    },
+    {
+      "fieldname": "active",
+      "fieldtype": "Check",
+      "label": "Ativo",
+      "default": "1",
+      "in_list_view": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "report": 1
+    }
+  ]
+}

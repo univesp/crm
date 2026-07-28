@@ -39,10 +39,23 @@ def published(search: str | None = None, limit: int | str = 50):
 @frappe.whitelist(methods=["GET"])
 def published_faq(faq_type: str = "aluno"):
 	context = get_request_context()
-	normalized_type = str(faq_type or "aluno").strip().lower()
-	if normalized_type not in {"aluno", "op"}:
-		raise KnowledgeLibraryValidationError(_("Tipo de FAQ invalido."))
+	normalized_type = _normalize_faq_type(faq_type)
+	published, doc = _build_published_faq_entries(normalized_type)
+	return response(
+		published,
+		meta={"version": str(doc.modified or ""), "faq_type": normalized_type},
+		request_id=context.request_id,
+	)
 
+
+def _normalize_faq_type(faq_type: str) -> str:
+	normalized_type = str(faq_type or "aluno").strip().lower()
+	if normalized_type not in {"aluno", "op", "publico"}:
+		raise KnowledgeLibraryValidationError(_("Tipo de FAQ invalido."))
+	return normalized_type
+
+
+def _build_published_faq_entries(normalized_type: str):
 	doc = frappe.get_single("Univesp Knowledge Library")
 	library = _library(doc)
 	current = now_datetime()
@@ -69,11 +82,7 @@ def published_faq(faq_type: str = "aluno"):
 			}
 		)
 	published.sort(key=lambda item: (-item["priority"], item["display_rank"], item["bundle_id"]))
-	return response(
-		published,
-		meta={"version": str(doc.modified or ""), "faq_type": normalized_type},
-		request_id=context.request_id,
-	)
+	return published, doc
 
 
 def _is_publication_active(config, package, current):

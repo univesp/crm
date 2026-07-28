@@ -70,6 +70,8 @@ TICKET_FIELDS = [
 	"custom_source_bundle_id",
 	"custom_source_bundle_version_id",
 	"custom_source_node_id",
+	"custom_channel_metadata_json",
+	"custom_ai_suggestion_json",
 ]
 
 
@@ -77,6 +79,10 @@ TICKET_FIELDS = [
 def create(payload: dict | str | None = None):
 	context = get_request_context("create_ticket")
 	data = _payload(payload)
+	if "channel" in data:
+		from univesp_atendimento.channel_adapter import normalize_channel_payload
+
+		data = normalize_channel_payload(data)
 	student = data.get("student") if isinstance(data.get("student"), dict) else {}
 	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
 	queue = str(data.get("queue") or "").strip()
@@ -84,7 +90,7 @@ def create(payload: dict | str | None = None):
 
 	if context.profile_key == "aluno":
 		student = {**student, "email": context.email, "name": context.name, "ra": context.ra}
-	elif context.profile_key not in {"op", "gestor_polos", "admin_central"}:
+	elif context.profile_key not in {"op", "op_externo", "gestor_polos", "admin_central"}:
 		raise frappe.PermissionError(_("Seu perfil nao pode abrir atendimento em nome do aluno."))
 
 	_subject = str(data.get("subject") or "").strip()
@@ -115,10 +121,18 @@ def create(payload: dict | str | None = None):
 			"custom_source_bundle_version_id": str(knowledge.get("bundle_version_id") or ""),
 			"custom_source_node_id": str(knowledge.get("node_id") or knowledge.get("flow_id") or ""),
 			"custom_request_id": context.request_id,
+			"custom_channel_metadata_json": json.dumps(
+				data.get("channel_metadata") if isinstance(data.get("channel_metadata"), dict) else {},
+				ensure_ascii=False,
+			),
+			"custom_ai_suggestion_json": "",
 		}
 	).insert(ignore_permissions=True)
 	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
 	doc.save(ignore_permissions=True)
+	from univesp_atendimento.ticket_hooks import enqueue_ai_suggestion
+
+	enqueue_ai_suggestion(doc.name)
 	return response(_serialize_ticket(doc), request_id=context.request_id)
 
 
@@ -339,6 +353,37 @@ def transition(ticket_id: str, status: str | None = None, message: str | None = 
 	return response(_serialize_ticket(doc), request_id=context.request_id)
 
 
+@frappe.whitelist(methods=["POST"])
+def escalate_to_internal(
+	ticket_id: str,
+	message: str | None = None,
+	destination_area: str | None = None,
+):
+	"""BPO regional encaminha caso para atendimento interno (Fase B stub)."""
+	context = get_request_context("escalate_to_internal")
+	if context.profile_key not in {"op_externo", "admin_central"}:
+		raise frappe.PermissionError(_("Seu perfil nao pode escalar para atendimento interno."))
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	doc = frappe.get_doc("HD Ticket", name)
+	body = _payload()
+	note = str(message or body.get("message") or "").strip()
+	if len(note) < 3:
+		frappe.throw(_("Registre o motivo da escalacao."), frappe.ValidationError)
+	next_area = str(destination_area or body.get("destination_area") or "Triagem Central").strip()
+	if not next_area:
+		frappe.throw(_("Area de destino obrigatoria."), frappe.ValidationError)
+	_move_to_status(doc, "waiting_internal")
+	doc.custom_univesp_area = next_area
+	doc.custom_request_id = context.request_id
+	doc.save(ignore_permissions=True)
+	doc.add_comment("Comment", text=note)
+	result = _serialize_ticket(doc)
+	result["timeline"] = _ticket_timeline(name)
+	result["attachments"] = _ticket_attachments(name)
+	return response(result, request_id=context.request_id)
+
+
 def _payload(value=None):
 	if isinstance(value, dict):
 		return value
@@ -365,6 +410,18 @@ def _public_protocol(name, creation):
 	return f"UVSP-{date_value:%Y%m%d}-{str(name).zfill(6)}"
 
 
+def _parse_json_field(raw):
+	if not raw:
+		return {}
+	if isinstance(raw, dict):
+		return raw
+	try:
+		parsed = json.loads(raw)
+		return parsed if isinstance(parsed, dict) else {}
+	except (TypeError, json.JSONDecodeError):
+		return {}
+
+
 def _serialize_ticket(ticket):
 	value = ticket.as_dict() if hasattr(ticket, "as_dict") else ticket
 	return {
@@ -376,6 +433,8 @@ def _serialize_ticket(ticket):
 		"status_label": STATUS_LABELS.get(value.get("custom_univesp_status_code") or "open", "Aberto"),
 		"priority": value.get("priority"),
 		"source": value.get("custom_univesp_source"),
+		"channel_metadata": _parse_json_field(value.get("custom_channel_metadata_json")),
+		"ai_suggestion": _parse_json_field(value.get("custom_ai_suggestion_json")),
 		"queue": value.get("custom_univesp_queue"),
 		"area": value.get("custom_univesp_area"),
 		"assignee": value.get("custom_univesp_assignee_name") or "",

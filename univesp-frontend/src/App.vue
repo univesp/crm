@@ -2,11 +2,8 @@
 import { computed, onErrorCaptured, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import AccessibilityPreferencesPanel from '@/components/AccessibilityPreferencesPanel.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
-import MockContextBar from '@/components/MockContextBar.vue'
-import { isMockRuntimeEnabled, listPublishedFaq } from '@/services/appApi'
-import { enablePublishedFaqRuntime, setPublishedFaqBundles } from '@/services/faqRuntime'
-import { buildShellPresentation } from '@/services/mockContextRuntime'
 import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
 
@@ -14,39 +11,6 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const journey = useJourneyStore()
-let publishedFaqLoadKey = ''
-
-if (!isMockRuntimeEnabled()) {
-  enablePublishedFaqRuntime()
-}
-
-async function loadPublishedFaqRuntime() {
-  if (isMockRuntimeEnabled() || !auth.isAuthenticated) return
-  const loadKey = String(auth.user?.email || 'authenticated')
-  if (publishedFaqLoadKey === loadKey) return
-  publishedFaqLoadKey = loadKey
-  try {
-    const [studentResponse, operatorResponse] = await Promise.all([
-      listPublishedFaq({ faq_type: 'aluno' }),
-      listPublishedFaq({ faq_type: 'op' }),
-    ])
-    setPublishedFaqBundles('aluno', studentResponse.data)
-    setPublishedFaqBundles('op', operatorResponse.data)
-  } catch (error) {
-    publishedFaqLoadKey = ''
-    setPublishedFaqBundles('aluno', [])
-    setPublishedFaqBundles('op', [])
-    console.error('[faq-published][load-failed]', error)
-  }
-}
-
-watch(
-  () => auth.isAuthenticated,
-  (authenticated) => {
-    if (authenticated) loadPublishedFaqRuntime()
-  },
-  { immediate: true },
-)
 
 const pageTitle = computed(() => {
   if (auth.mockContext.isOperationalShell) {
@@ -55,23 +19,23 @@ const pageTitle = computed(() => {
     }
 
     if (route.name === 'area-manager-home') {
-      return 'Operacao da area'
+      return 'Operação da área'
     }
 
     if (route.name === 'area-queue') {
-      return auth.mockContext.profileKey === 'gestor_area' ? 'Casos da area' : 'Minha fila da area'
+      return auth.mockContext.profileKey === 'gestor_area' ? 'Casos da área' : 'Minha fila da área'
     }
 
     if (route.name === 'operator-case-detail') {
-      return 'Analise do caso'
+      return 'Análise do caso'
     }
 
     if (route.name === 'area-case-detail') {
-      return 'Analise da area'
+      return 'Análise da área'
     }
 
     if (route.name === 'area-guidance') {
-      return 'Conteudo vigente da area'
+      return 'Conteúdo vigente da área'
     }
 
     if (route.name === 'area-knowledge-review') {
@@ -79,11 +43,11 @@ const pageTitle = computed(() => {
     }
 
     if (route.name === 'area-governance') {
-      return 'Regras operacionais da area'
+      return 'Regras operacionais da área'
     }
 
     if (route.name === 'operator-playbook') {
-      return 'Consultar orientacao'
+      return 'Consultar orientação'
     }
 
     if (route.name === 'operator-assisted-intake') {
@@ -91,11 +55,10 @@ const pageTitle = computed(() => {
     }
   }
 
-  return route.meta.title || 'UNIVESP Service Blueprint'
+  return route.meta.title || 'CRM Univesp'
 })
 const isAuthLayout = computed(() => route.meta.layout === 'auth')
 const isWireframeLayout = computed(() => route.meta.layout === 'wireframe')
-const shellPresentation = computed(() => buildShellPresentation(auth.mockContext))
 const isStudentShell = computed(() => auth.mockContext.isStudentShell)
 const isOperationalShell = computed(() => auth.mockContext.isOperationalShell)
 const shellThemeClass = computed(() => {
@@ -418,19 +381,13 @@ onErrorCaptured((error) => {
     <RouterView />
   </div>
 
-  <div v-else :class="['relative min-h-screen overflow-hidden', shellThemeClass]">
+  <div v-else :class="['relative min-h-screen overflow-x-clip', shellThemeClass]">
     <a
       href="#main-content"
       class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[120] focus:rounded-full focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-slate-950"
     >
-      Pular para o conteudo principal
+      Pular para o conteúdo principal
     </a>
-
-    <div class="pointer-events-none absolute inset-0">
-      <div class="absolute -left-16 top-10 h-64 w-64 rounded-full bg-[rgba(209,50,57,0.12)] blur-3xl"></div>
-      <div class="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-[rgba(16,18,20,0.06)] blur-3xl"></div>
-      <div class="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-[rgba(128,130,133,0.08)] blur-3xl"></div>
-    </div>
 
     <div
       :class="[
@@ -442,50 +399,43 @@ onErrorCaptured((error) => {
             : 'max-w-[1540px] gap-5 lg:px-6',
       ]"
     >
-      <div :class="isStudentShell ? 'hidden lg:block' : ''">
+      <div
+        :class="[
+          'app-shell-sidebar shrink-0',
+          isStudentShell ? 'hidden lg:block' : '',
+        ]"
+      >
         <AppSidebar />
       </div>
 
-      <main id="main-content" class="flex-1 pb-8">
-        <MockContextBar v-if="!isStudentShell && !isOperationalShell" />
+      <main
+        id="main-content"
+        class="app-shell-main min-w-0 flex-1 pb-8"
+      >
+        <div v-if="isStudentShell" class="mb-3 flex justify-end">
+          <AccessibilityPreferencesPanel />
+        </div>
 
         <header
           v-if="!isStudentShell"
           :class="[
             isOperationalShell
-              ? 'mb-2 flex flex-col gap-2 px-1 py-0.5 md:flex-row md:items-center md:justify-between'
-              : 'surface-panel rise-in mb-4 flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between',
+              ? 'mb-3 flex flex-col gap-3 px-1 py-0.5 lg:flex-row lg:items-start lg:justify-between'
+              : 'surface-panel rise-in mb-4 flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between',
           ]"
         >
-          <div>
-            <div v-if="!isOperationalShell" class="flex flex-wrap items-center gap-2">
-              <span
-                :class="[
-                  'rounded-full px-3 py-1 text-xs font-semibold',
-                  'soft-chip',
-                ]"
-              >
-                {{ shellPresentation.label }}
-              </span>
-            </div>
+          <div class="min-w-0 flex-1">
             <h1
               :class="[
                 'font-semibold text-slate-950',
-                !isOperationalShell ? 'mt-3' : '',
                 isOperationalShell ? 'text-[1.35rem] md:text-[1.5rem]' : 'text-[2rem] md:text-[2.3rem]',
               ]"
             >
               {{ pageTitle }}
             </h1>
-            <p
-              v-if="!isOperationalShell"
-              class="mt-2 max-w-3xl text-sm leading-6 text-slate-600"
-            >
-              {{ shellPresentation.description }}
-            </p>
           </div>
 
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
             <template v-if="isOperationalShell">
               <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700">
                 <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
@@ -494,7 +444,7 @@ onErrorCaptured((error) => {
                 <select
                   v-if="showAreaSelector"
                   v-model="operationalAreaModel"
-                  :aria-label="isAreaManagerOperationalShell ? 'Selecionar area do gestor' : 'Selecionar area de trabalho'"
+                  :aria-label="isAreaManagerOperationalShell ? 'Selecionar área do gestor' : 'Selecionar área de trabalho'"
                   class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
                 >
                   <option v-for="area in auth.mockContext.linkedAreas" :key="area" :value="area">
@@ -511,7 +461,7 @@ onErrorCaptured((error) => {
                   v-else-if="(auth.mockContext.linkedAreas || []).length > 1"
                   class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"
                 >
-                  Todas as suas areas
+                  Todas as suas áreas
                 </div>
                 <div
                   v-else
@@ -546,14 +496,21 @@ onErrorCaptured((error) => {
                 Voltar para fila
               </RouterLink>
             </template>
-            <div
-              v-else
-              class="rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
-            >
-              <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
-              <p class="mt-1">{{ auth.mockContext.userEmail }}</p>
-              <p class="mt-1">Polo atual: {{ auth.mockContext.currentPolo }}</p>
+            <div v-else class="inline-flex flex-wrap items-center gap-2">
+              <div
+                class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700"
+                :title="auth.mockContext.userEmail"
+              >
+                <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
+              </div>
+              <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700">
+                {{ auth.mockContext.currentPolo }}
+              </div>
+              <p class="sr-only">
+                {{ auth.mockContext.userEmail }} · Polo atual: {{ auth.mockContext.currentPolo }}
+              </p>
             </div>
+            <AccessibilityPreferencesPanel />
             <button
               type="button"
               class="inline-flex items-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
@@ -561,6 +518,13 @@ onErrorCaptured((error) => {
             >
               Sair
             </button>
+            <RouterLink
+              v-if="auth.hasProfilePreview"
+              to="/acesso-local"
+              class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Trocar perfil
+            </RouterLink>
           </div>
         </header>
 
@@ -568,16 +532,16 @@ onErrorCaptured((error) => {
           <Transition name="route" mode="out-in">
             <section
               v-if="routeRenderError || (!Component && route.matched.length === 0)"
-              class="rounded-[18px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-5 text-slate-800"
+              class="rounded-[8px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-5 text-slate-800"
             >
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-danger)]">
-                Tela indisponivel
+              <p class="text-xs font-semibold uppercase tracking-normal text-[var(--color-danger)]">
+                Tela indisponível
               </p>
               <h2 class="mt-2 text-lg font-semibold text-slate-950">
-                Nao foi possivel carregar este modulo agora.
+                Não foi possível carregar este módulo agora.
               </h2>
               <p class="mt-2 text-sm leading-6">
-                {{ routeRenderError || 'A rota atual nao encontrou um componente valido para renderizar.' }}
+                {{ routeRenderError || 'A rota atual não encontrou um componente válido para renderizar.' }}
               </p>
               <p class="mt-2 text-xs text-slate-600">
                 Rota: {{ route.fullPath }} · Itens reconhecidos: {{ route.matched.length }}
@@ -601,7 +565,7 @@ onErrorCaptured((error) => {
                   :to="fallbackRoute"
                   class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Voltar para modulo seguro
+                  Voltar para módulo seguro
                 </RouterLink>
                 <RouterLink
                   to="/acesso-local"
@@ -613,10 +577,10 @@ onErrorCaptured((error) => {
             </section>
             <section
               v-else-if="!Component"
-              class="rounded-[18px] border border-slate-200 bg-white p-5 text-slate-700"
+              class="rounded-[8px] border border-slate-200 bg-white p-5 text-slate-700"
             >
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Carregando modulo
+              <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
+                Carregando módulo
               </p>
               <h2 class="mt-2 text-lg font-semibold text-slate-950">
                 Preparando a tela selecionada
@@ -636,19 +600,16 @@ onErrorCaptured((error) => {
                   :to="fallbackRoute"
                   class="inline-flex items-center rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Voltar para modulo seguro
+                  Voltar para módulo seguro
                 </RouterLink>
               </div>
             </section>
-            <component :is="Component" v-else :key="routeViewRenderKey" />
+            <div v-else class="crm-page-container min-w-0 w-full">
+              <component :is="Component" :key="routeViewRenderKey" />
+            </div>
           </Transition>
         </RouterView>
       </main>
     </div>
-  </div>
-
-  <div class="pointer-events-none fixed bottom-3 left-3 z-[260] rounded-[10px] border border-slate-300 bg-white/95 px-3 py-2 text-[11px] text-slate-700 shadow">
-    <p><span class="font-semibold">route.name:</span> {{ String(route.name || 'undefined') }}</p>
-    <p><span class="font-semibold">route.fullPath:</span> {{ route.fullPath }}</p>
   </div>
 </template>

@@ -176,6 +176,7 @@ Com contas sintéticas:
 - aluno acessa apenas os próprios tickets;
 - OP vê suas filas, faz claim atômico, responde e transiciona;
 - analista/gestor acessa apenas sua área;
+
 - admin salva/publica FAQ e confirma consumo no portal;
 - usuário A nunca lê ou altera objeto de B;
 - worker e scheduler processam após reinício.
@@ -204,3 +205,9 @@ O script registra manifestos pré e pós-rollback. Migrations não são desfeita
 CI comprova o contrato, não a integração real. Homologação assistida exige IdPs configurados, serviços saudáveis, apps/conta técnica provisionados, smoke por perfil, negativos de autorização, observabilidade e restore/rollback exercitados.
 
 A carga rápida de FAQs por XLSX ou JSON, com imagem/vídeo por HTTPS, está em `docs/FAQ_CARGA_RAPIDA.md`.
+
+## 10. Ativacao do simulador e dos novos acessos
+
+A implementacao adiciona migrations aditivas e duas flags independentes. O procedimento completo, os negativos obrigatorios e o rollback sem remocao de tabelas estao em `docs/SIMULADOR_E_ACESSOS.md`.
+
+A TI deve implantar primeiro com as flags desligadas, executar migrate, validar os seis perfis de sistema e somente entao habilitar um grupo piloto. Nao liberar o simulador enquanto o HTTP 502 da tela de permissoes ou qualquer dependencia de SSO, Frappe, Redis ou Cloud SQL estiver instavel.

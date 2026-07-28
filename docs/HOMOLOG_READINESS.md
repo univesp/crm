@@ -7,6 +7,7 @@ Este documento é a fonte de verdade do candidato acadêmico Cloud Run. Ele comple
 | Camada | Estado | Evidência |
 | --- | --- | --- |
 | Código e contratos locais | Pronto para revisão | CI, testes de front door/gateway e scripts deste documento |
+| VM interim (Fase A0) | Disponivel | `docker-compose.vm.yml`, `env.vm.example`, `ops/vm/bootstrap.sh` |
 | PR acadêmica funcional | Candidata; sem deploy por esta mudança | PR base e checks do GitHub |
 | Homologação integrada | Não comprovada | Depende de GCP, Redis, Cloud SQL e IdPs reais |
 | Produção | Não recomendada | Depende da homologação, carga, observabilidade e restore exercitado |

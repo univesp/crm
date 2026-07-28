@@ -2103,10 +2103,12 @@ test('procedure-capture documentado aceita schema no topo e owner de fila', asyn
   assert.equal(bundle.versioning.publication_status, 'draft')
 })
 
-test('biblioteca do FAQ Builder renderiza sem loop reativo e sem tela vazia', async () => {
+test('biblioteca de FAQs renderiza a tarefa principal sem termos tecnicos', async () => {
   const html = await renderAdminFaqLibrary()
-  assert.ok(html.includes('Biblioteca de fluxos da base de conhecimento'))
-  assert.ok(html.includes('Filtros da biblioteca'))
+  assert.ok(html.includes('Nova FAQ'))
+  assert.ok(html.includes('Buscar FAQ'))
+  assert.ok(!html.includes('FAQ Builder'))
+  assert.ok(!html.includes('canvas'))
 })
 
 let failures = 0
