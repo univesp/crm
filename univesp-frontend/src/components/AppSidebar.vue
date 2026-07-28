@@ -147,12 +147,6 @@ function navLinkClass(item) {
           :key="section.id"
           class="grid gap-2"
         >
-          <p
-            v-if="!mockContext.isStudentShell && !mockContext.isOperationalShell"
-            class="px-2 text-xs font-semibold tracking-normal text-slate-500"
-          >
-            {{ section.label }}
-          </p>
           <template
             v-for="item in section.items"
             :key="item.id"

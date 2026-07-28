@@ -1082,13 +1082,13 @@ function getRiskLabel(row) {
     <!-- 5. TEMAS + ACOES + ESCAPE DA FAQ -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <!-- Temas em alta -->
-      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
+      <div class="crm-dashboard-card">
         <div>
           <p class="text-xs font-semibold text-slate-500">Temas</p>
           <p class="text-sm font-semibold text-slate-950">Temas em alta</p>
         </div>
 
-        <div v-if="themeRanking.length" class="mt-3 flex-1 grid gap-2">
+        <div v-if="themeRanking.length" class="crm-dashboard-card__body">
           <button
             v-for="theme in themeRanking"
             :key="theme.theme"
@@ -1110,11 +1110,11 @@ function getRiskLabel(row) {
           </button>
         </div>
 
-        <div v-else class="mt-3 flex-1 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="crm-dashboard-card__body rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
           Sem temas ativos nos filtros atuais.
         </div>
 
-        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+        <div class="crm-dashboard-card__footer">
           <button
             type="button"
             class="text-xs font-semibold text-[var(--color-primary)]"
@@ -1126,50 +1126,55 @@ function getRiskLabel(row) {
       </div>
 
       <!-- Acoes recomendadas -->
-      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
+      <div class="crm-dashboard-card">
         <div>
           <p class="text-xs font-semibold text-slate-500">Agora</p>
           <p class="text-sm font-semibold text-slate-950">Acoes recomendadas</p>
         </div>
 
-        <div class="mt-3 flex-1 grid gap-2">
+        <div class="crm-dashboard-card__body">
           <button
             v-for="action in recommendedActions"
             :key="action.title"
             type="button"
-            class="flex items-center gap-3 rounded-[8px] border px-3 py-2.5 text-left transition hover:shadow-sm"
+            class="crm-action-item"
             :class="action.risk === 'alto'
-              ? 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.5)]'
+              ? 'is-risk-high'
               : action.risk === 'medio'
-                ? 'border-[rgba(202,138,4,0.18)] bg-[rgba(254,243,199,0.5)]'
-                : 'border-slate-200 bg-white'"
+                ? 'is-risk-medium'
+                : ''"
             @click="applyRecommendedAction(action)"
           >
             <span
-              class="shrink-0 text-sm leading-none"
-              :class="action.risk === 'alto' ? 'text-red-500' : action.risk === 'medio' ? 'text-amber-500' : 'text-slate-300'"
+              class="crm-action-item__signal"
+              :class="action.risk === 'alto'
+                ? 'is-high'
+                : action.risk === 'medio'
+                  ? 'is-medium'
+                  : 'is-low'"
+              aria-hidden="true"
             >
-              {{ action.risk === 'alto' ? '!' : action.risk === 'medio' ? '^' : 'o' }}
+              {{ action.risk === 'alto' ? '!' : action.risk === 'medio' ? '^' : '' }}
             </span>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-xs font-semibold text-slate-900">{{ action.title }}</p>
-              <p class="mt-0.5 truncate text-[11px] text-slate-500">{{ action.reason }}</p>
+            <div class="crm-action-item__body">
+              <p class="crm-action-item__title">{{ action.title }}</p>
+              <p class="crm-action-item__reason">{{ action.reason }}</p>
             </div>
             <span
-              class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              class="crm-action-item__badge"
               :class="action.risk === 'alto'
-                ? 'bg-red-100 text-red-700'
+                ? 'is-high'
                 : action.risk === 'medio'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-slate-100 text-slate-600'"
+                  ? 'is-medium'
+                  : 'is-low'"
             >
               {{ action.risk === 'alto' ? 'Alta' : action.risk === 'medio' ? 'Media' : 'Baixa' }}
             </span>
-            <span class="shrink-0 text-slate-400 text-sm">›</span>
+            <span class="crm-action-item__chevron" aria-hidden="true">›</span>
           </button>
         </div>
 
-        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+        <div class="crm-dashboard-card__footer">
           <button
             type="button"
             class="text-xs font-semibold text-[var(--color-primary)]"
