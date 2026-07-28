@@ -20,6 +20,21 @@ const publishedFaqState = reactive({
   aluno: null,
   op: null,
   publico: null,
+  status: {
+    aluno: 'idle',
+    op: 'idle',
+    publico: 'idle',
+  },
+  errors: {
+    aluno: '',
+    op: '',
+    publico: '',
+  },
+  meta: {
+    aluno: {},
+    op: {},
+    publico: {},
+  },
 })
 
 function emptyFaqPackage(faqType) {
@@ -35,23 +50,48 @@ function emptyFaqPackage(faqType) {
   }
 }
 
+function resolvePublishedVersionId(entry = {}, pkg = {}) {
+  return String(
+    entry.bundle_version_id ||
+      pkg.versioning?.bundle_version_id ||
+      pkg.versioning?.published_version ||
+      pkg.publication?.active_bundle_version_id ||
+      '',
+  ).trim()
+}
+
 function mergePublishedPackages(faqType, entries = []) {
   const packages = (entries || [])
-    .map((entry) => entry?.package || entry)
-    .filter((entry) => entry && typeof entry === 'object' && Array.isArray(entry.nodes))
+    .map((entry) => ({
+      entry,
+      pkg: entry?.package || entry,
+    }))
+    .filter(({ pkg }) => pkg && typeof pkg === 'object' && Array.isArray(pkg.nodes))
   if (!packages.length) return emptyFaqPackage(faqType)
 
-  const base = JSON.parse(JSON.stringify(packages[0]))
+  const base = JSON.parse(JSON.stringify(packages[0].pkg))
   const nodes = []
   const links = []
   const nodeIds = new Set()
   const linkIds = new Set()
-  packages.forEach((pkg) => {
+  const sourceBundles = []
+  packages.forEach(({ entry, pkg }) => {
+    const bundleId = String(entry?.bundle_id || pkg.faq_id || '').trim()
+    const bundleVersionId = resolvePublishedVersionId(entry, pkg)
+    sourceBundles.push({ bundleId, bundleVersionId })
     ;(pkg.nodes || []).forEach((node) => {
       const id = String(node?.id || '').trim()
       if (!id || nodeIds.has(id)) return
       nodeIds.add(id)
-      nodes.push(JSON.parse(JSON.stringify(node)))
+      nodes.push(
+        JSON.parse(
+          JSON.stringify({
+            ...node,
+            bundle_id: bundleId,
+            bundle_version_id: bundleVersionId,
+          }),
+        ),
+      )
     })
     ;(pkg.links || []).forEach((link, index) => {
       const source = String(link?.source || link?.source_id || link?.parent_node_id || '').trim()
@@ -69,20 +109,57 @@ function mergePublishedPackages(faqType, entries = []) {
     tipo_faq: faqType,
     nodes,
     links,
+    runtime_source_bundles: sourceBundles,
   }
 }
 
 export function enablePublishedFaqRuntime() {
+  if (publishedFaqState.enabled) return
   publishedFaqState.enabled = true
   publishedFaqState.aluno = emptyFaqPackage('aluno')
   publishedFaqState.op = emptyFaqPackage('op')
   publishedFaqState.publico = emptyFaqPackage('publico')
 }
 
-export function setPublishedFaqBundles(faqType = 'aluno', entries = []) {
+export function beginPublishedFaqLoad(faqType = 'aluno') {
   const normalized = String(faqType || 'aluno').trim().toLowerCase()
   if (!['aluno', 'op', 'publico'].includes(normalized)) return
+  enablePublishedFaqRuntime()
+  publishedFaqState[normalized] = emptyFaqPackage(normalized)
+  publishedFaqState.status[normalized] = 'loading'
+  publishedFaqState.errors[normalized] = ''
+  publishedFaqState.meta[normalized] = {}
+}
+
+export function setPublishedFaqBundles(faqType = 'aluno', entries = [], meta = {}) {
+  const normalized = String(faqType || 'aluno').trim().toLowerCase()
+  if (!['aluno', 'op', 'publico'].includes(normalized)) return
+  enablePublishedFaqRuntime()
   publishedFaqState[normalized] = mergePublishedPackages(normalized, entries)
+  publishedFaqState.status[normalized] = entries.length ? 'ready' : 'empty'
+  publishedFaqState.errors[normalized] = ''
+  publishedFaqState.meta[normalized] = { ...meta }
+}
+
+export function failPublishedFaqLoad(faqType = 'aluno', error = null) {
+  const normalized = String(faqType || 'aluno').trim().toLowerCase()
+  if (!['aluno', 'op', 'publico'].includes(normalized)) return
+  enablePublishedFaqRuntime()
+  publishedFaqState[normalized] = emptyFaqPackage(normalized)
+  publishedFaqState.status[normalized] = 'error'
+  publishedFaqState.errors[normalized] = String(
+    error?.message || 'Não foi possível carregar a FAQ institucional.',
+  )
+}
+
+export function getPublishedFaqLoadState(faqType = 'aluno') {
+  const normalized = String(faqType || 'aluno').trim().toLowerCase()
+  return {
+    enabled: publishedFaqState.enabled,
+    status: publishedFaqState.status[normalized] || 'idle',
+    error: publishedFaqState.errors[normalized] || '',
+    meta: publishedFaqState.meta[normalized] || {},
+  }
 }
 
 function faqPackageFor(faqType, mockPackage) {
@@ -570,6 +647,11 @@ export function buildFaqRuntimeTree(faqPackage, options = {}) {
 
   return {
     faqId: faqPackage?.faq_id || null,
+    bundleId: tree[0]?.bundle_id || faqPackage?.runtime_source_bundles?.[0]?.bundleId || null,
+    bundleVersionId:
+      tree[0]?.bundle_version_id ||
+      faqPackage?.runtime_source_bundles?.[0]?.bundleVersionId ||
+      null,
     faqType: faqPackage?.tipo_faq || null,
     profile,
     currentDate: toDateKey(currentDate),

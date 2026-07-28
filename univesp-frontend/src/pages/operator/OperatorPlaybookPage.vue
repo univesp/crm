@@ -2,7 +2,7 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { buildStudentFaqHomeEntries, buildStudentFaqRuntime } from '@/services/faqRuntime'
+import { buildOperatorFaqHomeEntries, buildOperatorFaqRuntime } from '@/services/faqRuntime'
 import { buildOperationalStudentDirectory } from '@/services/operatorIntakeRuntime'
 import { buildOperatorPlaybookGuide } from '@/services/operatorQueueRuntime'
 import { useAuthStore } from '@/stores/auth'
@@ -57,7 +57,7 @@ function withPeriod(value = '') {
   return /[.!?]$/.test(text) ? text : `${text}.`
 }
 
-const faqRuntime = computed(() => buildStudentFaqRuntime())
+const faqRuntime = computed(() => buildOperatorFaqRuntime())
 const faqNodeIndex = computed(() => {
   const index = new Map()
 
@@ -73,7 +73,7 @@ const faqNodeIndex = computed(() => {
 })
 
 const faqLeafNodes = computed(() => [...faqNodeIndex.value.values()].filter((node) => !node.children?.length))
-const rootEntries = computed(() => buildStudentFaqHomeEntries())
+const rootEntries = computed(() => buildOperatorFaqHomeEntries())
 const activeNode = computed(() =>
   selectedNodeId.value ? faqNodeIndex.value.get(selectedNodeId.value) || null : null,
 )

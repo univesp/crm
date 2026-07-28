@@ -1,9 +1,14 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { createPublicTicket } from '@/services/appApi'
-import { buildPublicFaqHomeEntries, buildPublicFaqRuntime } from '@/services/faqRuntime'
+import {
+  buildPublicFaqHomeEntries,
+  buildPublicFaqRuntime,
+  getPublishedFaqLoadState,
+} from '@/services/faqRuntime'
+import { loadPublishedFaqType } from '@/services/publishedFaqBootstrap'
 
 const router = useRouter()
 const step = ref('register')
@@ -22,6 +27,7 @@ const subject = ref('')
 const description = ref('')
 
 const faqRuntime = computed(() => buildPublicFaqRuntime())
+const faqLoadState = computed(() => getPublishedFaqLoadState('publico'))
 const rootEntries = computed(() => buildPublicFaqHomeEntries())
 const selectedNodeId = ref('')
 
@@ -40,6 +46,7 @@ const faqNodeIndex = computed(() => {
 const activeNode = computed(() =>
   selectedNodeId.value ? faqNodeIndex.value.get(selectedNodeId.value) || null : null,
 )
+const activeChildren = computed(() => activeNode.value?.children || [])
 
 function normalizeCpf(value) {
   return String(value || '').replace(/\D/g, '')
@@ -77,7 +84,12 @@ async function submitTicket() {
       subject: subject.value.trim(),
       description: description.value.trim(),
       knowledge: activeNode.value
-        ? { node_id: activeNode.value.id, bundle_id: faqRuntime.value.bundleId }
+        ? {
+            node_id: activeNode.value.id,
+            bundle_id: activeNode.value.bundle_id || faqRuntime.value.bundleId,
+            bundle_version_id:
+              activeNode.value.bundle_version_id || faqRuntime.value.bundleVersionId,
+          }
         : {},
     })
     protocol.value = response.data?.protocol || ''
@@ -88,6 +100,15 @@ async function submitTicket() {
     submitting.value = false
   }
 }
+
+onMounted(async () => {
+  try {
+    await loadPublishedFaqType('publico', { publicAccess: true })
+  } catch (error) {
+    errorMessage.value =
+      error?.message || 'Não foi possível carregar a FAQ institucional agora.'
+  }
+})
 </script>
 
 <template>
@@ -132,13 +153,27 @@ async function submitTicket() {
 
     <section v-else-if="step === 'faq'" class="public-visitor__panel">
       <h2>Como podemos ajudar?</h2>
-      <ul v-if="!activeNode" class="public-visitor__faq-list">
+      <p v-if="faqLoadState.status === 'loading'">Carregando orientações institucionais...</p>
+      <p v-else-if="faqLoadState.status === 'error'" role="alert">
+        {{ faqLoadState.error }}
+      </p>
+      <p v-else-if="faqLoadState.status === 'empty'">
+        Nenhuma orientação pública está publicada no momento.
+      </p>
+      <ul v-else-if="!activeNode" class="public-visitor__faq-list">
         <li v-for="entry in rootEntries" :key="entry.id">
           <button type="button" @click="selectedNodeId = entry.id">{{ entry.title }}</button>
         </li>
       </ul>
       <div v-else>
         <p>{{ activeNode.resposta || activeNode.titulo_exibido }}</p>
+        <ul v-if="activeChildren.length" class="public-visitor__faq-list">
+          <li v-for="child in activeChildren" :key="child.id">
+            <button type="button" @click="selectedNodeId = child.id">
+              {{ child.titulo_exibido }}
+            </button>
+          </li>
+        </ul>
         <button type="button" @click="selectedNodeId = ''">Voltar</button>
       </div>
       <hr />

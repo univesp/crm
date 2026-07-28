@@ -1,19 +1,17 @@
 ﻿<script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
-  clearFaqBuilderBundleLibraryLocal,
   createFaqBuilderBundleLibrary,
   createFaqBuilderBundleEntry,
   getFaqBuilderCatalogOptions,
   listFaqBuilderBundles,
-  loadFaqBuilderBundleLibraryLocal,
-  saveFaqBuilderBundleLibraryLocal,
 } from '@/services/faqBuilderHybridRuntime'
 import { FAQ_TYPE_CATALOG, getCatalogEntry } from '@/services/faqCatalogs'
+import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -25,6 +23,8 @@ const currentEditorName = computed(
 )
 
 const runtimeError = ref('')
+const libraryReady = ref(false)
+const isSaving = ref(false)
 
 function safeRuntimeCall(executor, fallbackFactory = () => null) {
   try {
@@ -43,12 +43,7 @@ function safeRuntimeCall(executor, fallbackFactory = () => null) {
   }
 }
 
-const library = reactive(
-  safeRuntimeCall(
-    () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
-    () => createFaqBuilderBundleLibrary(currentEditorName.value),
-  ) || createFaqBuilderBundleLibrary(currentEditorName.value),
-)
+const library = reactive(createFaqBuilderBundleLibrary(currentEditorName.value))
 
 const filters = reactive({
   search: '',
@@ -119,15 +114,18 @@ function setFeedback(type = '', message = '') {
   feedback.message = message
 }
 
-function resetLibraryState() {
-  clearFaqBuilderBundleLibraryLocal()
-  const restored = safeRuntimeCall(
-    () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
-    () => createFaqBuilderBundleLibrary(currentEditorName.value),
-  )
-  Object.assign(library, restored || createFaqBuilderBundleLibrary(currentEditorName.value))
+async function resetLibraryState() {
+  libraryReady.value = false
   runtimeError.value = ''
-  setFeedback('success', 'Biblioteca local reinicializada com sucesso.')
+  try {
+    await hydrateFaqLibrary(library, currentEditorName.value)
+    libraryReady.value = true
+    setFeedback('success', 'Biblioteca institucional recarregada com sucesso.')
+  } catch (error) {
+    runtimeError.value = String(
+      error?.message || 'Não foi possível recarregar a biblioteca institucional.',
+    )
+  }
 }
 
 function openBundle(bundleId = '', query = {}) {
@@ -147,7 +145,8 @@ function openBundle(bundleId = '', query = {}) {
   })
 }
 
-function createFlow() {
+async function createFlow() {
+  if (!libraryReady.value || isSaving.value) return
   const result = createFaqBuilderBundleEntry(library, {
     faqType: createForm.faqType,
     title: createForm.title,
@@ -158,12 +157,24 @@ function createFlow() {
     setFeedback('error', result.message)
     return
   }
-  saveFaqBuilderBundleLibraryLocal(library)
-  createForm.title = ''
-  createForm.subjectKey = ''
-  setFeedback('success', 'Novo fluxo criado com sucesso.')
-  openBundle(result.entry.bundleId)
+  isSaving.value = true
+  try {
+    await persistFaqLibrary(library, 'Criacao de novo fluxo na biblioteca FAQ')
+    createForm.title = ''
+    createForm.subjectKey = ''
+    setFeedback('success', 'Novo fluxo criado com sucesso.')
+    openBundle(result.entry.bundleId)
+  } catch (error) {
+    setFeedback(
+      'error',
+      error?.message || 'Não foi possível salvar o novo fluxo na biblioteca institucional.',
+    )
+  } finally {
+    isSaving.value = false
+  }
 }
+
+onMounted(resetLibraryState)
 
 function statusLabel(status = '') {
   const normalized = String(status || '').toLowerCase()
@@ -245,14 +256,14 @@ function situationTone(row = {}) {
       v-if="runtimeError"
       class="rounded-[8px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
     >
-      <p class="font-semibold">Não foi possível carregar a biblioteca local.</p>
+      <p class="font-semibold">Não foi possível carregar a biblioteca institucional.</p>
       <p class="mt-1">{{ runtimeError }}</p>
       <button
         type="button"
         class="mt-3 rounded-[8px] border border-[rgba(166,31,40,0.28)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
         @click="resetLibraryState"
       >
-        Reinicializar dados locais do FAQ Builder
+        Recarregar biblioteca
       </button>
     </section>
 
@@ -341,8 +352,13 @@ function situationTone(row = {}) {
             <span class="crm-field-label">Chave do assunto (opcional)</span>
             <input v-model="createForm.subjectKey" type="text" class="crm-field w-full min-w-0" placeholder="Ex.: provas_segunda_chamada" />
           </label>
-          <button type="button" class="crm-button-primary w-full min-w-0 justify-center sm:w-auto" @click="createFlow">
-            Criar fluxo
+          <button
+            type="button"
+            class="crm-button-primary w-full min-w-0 justify-center sm:w-auto"
+            :disabled="!libraryReady || isSaving"
+            @click="createFlow"
+          >
+            {{ isSaving ? 'Salvando...' : 'Criar fluxo' }}
           </button>
         </div>
       </details>

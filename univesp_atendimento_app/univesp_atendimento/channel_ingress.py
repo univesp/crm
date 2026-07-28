@@ -57,6 +57,7 @@ def create_channel_ticket(data: dict) -> dict:
 			"custom_univesp_area": str(normalized.get("area") or ""),
 			"custom_univesp_context_json": json.dumps(normalized.get("triage") or {}, ensure_ascii=False),
 			"custom_source_bundle_id": str(knowledge.get("bundle_id") or ""),
+			"custom_source_bundle_version_id": str(knowledge.get("bundle_version_id") or ""),
 			"custom_source_node_id": str(knowledge.get("node_id") or ""),
 			"custom_channel_metadata_json": json.dumps(
 				normalized.get("channel_metadata") or {},

@@ -13,18 +13,18 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import {
   buildFaqBuilderPreviewJourneySafe,
   buildFaqBuilderPublicationPreview,
+  createFaqBuilderBundleLibrary,
   rebuildFaqBuilderCanvasSnapshot,
   getFaqBuilderBundleById,
-  loadFaqBuilderBundleLibraryLocal,
   publishFaqBuilderWorkspace,
   runFaqBuilderBundleSanityCheck,
   resolveFaqBuilderActivePublishedVersion,
-  saveFaqBuilderBundleLibraryLocal,
   saveFaqBuilderDraftWorkspace,
   startFaqBuilderStudentSession,
   transitionFaqBuilderWorkflow,
   validateFaqBuilderBundle,
 } from '@/services/faqBuilderHybridRuntime'
+import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 function decodeBundleParam(value = '') {
@@ -93,7 +93,7 @@ function predominantValue(values = [], fallback = 'Nao informado') {
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-let isFlowPageMounted = true
+let isFlowPageMounted = false
 let flowRunSequence = 0
 let activeFlowRunId = 0
 
@@ -138,7 +138,8 @@ const overflowRef = ref(null)
 const currentEditorName = computed(
   () => auth.displayName || auth.mockContext?.userName || 'Admin local',
 )
-const library = reactive(loadFaqBuilderBundleLibraryLocal(currentEditorName.value))
+const library = reactive(createFaqBuilderBundleLibrary(currentEditorName.value))
+const libraryReady = ref(false)
 const bundleId = computed(() => decodeBundleParam(route.params.bundleId))
 const currentBundleEntry = computed(() =>
   getFaqBuilderBundleById(library, bundleId.value),
@@ -802,7 +803,13 @@ function goToEditor(mode = 'visual') {
 }
 
 function persistLibrary() {
-  saveFaqBuilderBundleLibraryLocal(library)
+  if (!libraryReady.value) return
+  void persistFaqLibrary(library, 'Atualizacao da visao do fluxo FAQ').catch((error) => {
+    setFeedback(
+      'error',
+      error?.message || 'Não foi possível salvar a biblioteca institucional.',
+    )
+  })
 }
 
 function syncPublishConfigToWorkspace() {
@@ -902,9 +909,21 @@ function handleOutsideClick(event) {
   ui.showOverflow = false
 }
 
-onMounted(() => {
-  isFlowPageMounted = true
+onMounted(async () => {
   document.addEventListener('pointerdown', handleOutsideClick)
+  try {
+    await hydrateFaqLibrary(library, currentEditorName.value)
+    libraryReady.value = true
+    isFlowPageMounted = true
+    resolveBundleRuntime({ safeMode: openState.safeMode })
+  } catch (error) {
+    isFlowPageMounted = true
+    openState.failed = true
+    openState.issueCode = 'institutional_library_load_failed'
+    openState.issueMessage = String(
+      error?.message || 'Não foi possível carregar a biblioteca institucional.',
+    )
+  }
 })
 onBeforeUnmount(() => {
   isFlowPageMounted = false

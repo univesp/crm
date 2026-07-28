@@ -26,21 +26,18 @@ import {
   buildFaqBuilderPortalExportFileName,
   buildFaqBuilderPortalExportPayload,
   buildFaqBuilderPreviewJourneySafe,
-  clearFaqBuilderBundleLibraryLocal,
   connectFaqBuilderNodes,
   createFaqBuilderBundleLibrary,
   downloadFaqBuilderTemplateXlsx,
   getFaqBuilderBundleById,
   getFaqBuilderCatalogOptions,
   getFaqBuilderNode,
-  loadFaqBuilderBundleLibraryLocal,
   moveFaqBuilderNode,
   publishFaqBuilderWorkspace,
   readFaqBuilderSpreadsheet,
   rebuildFaqBuilderCanvasSnapshot,
   runFaqBuilderBundleSanityCheck,
   saveFaqBuilderDraftWorkspace,
-  saveFaqBuilderBundleLibraryLocal,
   setFaqBuilderBundleOperationalOwner,
   setFaqBuilderNodeField,
   setFaqBuilderNodeListField,
@@ -53,6 +50,7 @@ import {
   validateFaqBuilderPortalExport,
   resolveFaqBuilderNodeEffectiveOwner,
 } from '@/services/faqBuilderHybridRuntime'
+import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 const EDITOR_MODES = Object.freeze([
@@ -232,37 +230,12 @@ const backendReadiness = buildFaqBuilderBackendReadiness({
   hasServerLock: false,
 })
 const runtimeLoadError = ref('')
-
-function loadLibraryWithFallback(editorName = 'Admin local') {
-  try {
-    return loadFaqBuilderBundleLibraryLocal(editorName)
-  } catch (error) {
-    runtimeLoadError.value = String(
-      error?.message || 'Falha ao carregar dados locais do builder.',
-    )
-    console.error('[faq-builder][editor-library-load-failed]', error)
-    try {
-      clearFaqBuilderBundleLibraryLocal()
-    } catch (clearError) {
-      console.error('[faq-builder][editor-library-clear-failed]', clearError)
-    }
-    const seeded = createFaqBuilderBundleLibrary(editorName)
-    try {
-      saveFaqBuilderBundleLibraryLocal(seeded)
-    } catch (saveError) {
-      console.error('[faq-builder][editor-library-seed-save-failed]', saveError)
-    }
-    return seeded
-  }
-}
+const libraryReady = ref(false)
 
 const currentEditorName = computed(
   () => auth.displayName || auth.mockContext?.userName || 'Admin local',
 )
-const library = reactive(
-  loadLibraryWithFallback(currentEditorName.value) ||
-    createFaqBuilderBundleLibrary(currentEditorName.value),
-)
+const library = reactive(createFaqBuilderBundleLibrary(currentEditorName.value))
 const bundleId = computed(() => decodeBundleParam(route.params.bundleId))
 const currentBundleEntry = computed(() =>
   getFaqBuilderBundleById(library, bundleId.value),
@@ -622,12 +595,20 @@ function rebuildRenderArtifacts({ safeMode = false } = {}) {
 }
 
 function scheduleLibraryPersist() {
+  if (!libraryReady.value) return
   if (persistLibraryTimer) {
     clearTimeout(persistLibraryTimer)
   }
-  persistLibraryTimer = setTimeout(() => {
-    saveFaqBuilderBundleLibraryLocal(library, { skipNormalize: true })
+  persistLibraryTimer = setTimeout(async () => {
     persistLibraryTimer = null
+    try {
+      await persistFaqLibrary(library, 'Atualizacao do rascunho no editor FAQ')
+    } catch (error) {
+      runtimeLoadError.value = String(
+        error?.message || 'Não foi possível salvar o rascunho institucional.',
+      )
+      console.error('[faq-builder][editor-library-save-failed]', error)
+    }
   }, 280)
 }
 
@@ -888,9 +869,19 @@ function handleGlobalPointerDown(event) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   hasMountedEditor = true
   document.addEventListener('pointerdown', handleGlobalPointerDown)
+  try {
+    await hydrateFaqLibrary(library, currentEditorName.value)
+    libraryReady.value = true
+    prepareWorkspaceForRender({ safeMode: ui.safeMode })
+  } catch (error) {
+    runtimeLoadError.value = String(
+      error?.message || 'Não foi possível carregar a biblioteca institucional.',
+    )
+    console.error('[faq-builder][editor-library-load-failed]', error)
+  }
 })
 
 onBeforeUnmount(() => {
@@ -898,6 +889,13 @@ onBeforeUnmount(() => {
   if (persistLibraryTimer) {
     clearTimeout(persistLibraryTimer)
     persistLibraryTimer = null
+    if (libraryReady.value) {
+      void persistFaqLibrary(library, 'Persistencia final do rascunho no editor FAQ').catch(
+        (error) => {
+          console.error('[faq-builder][editor-library-final-save-failed]', error)
+        },
+      )
+    }
   }
   if (rebuildArtifactsTimer) {
     clearTimeout(rebuildArtifactsTimer)

@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { buildStudentFaqHomeEntries, buildStudentFaqRuntime } from '@/services/faqRuntime'
+import { buildOperatorFaqHomeEntries, buildOperatorFaqRuntime } from '@/services/faqRuntime'
 import { buildOperatorPlaybookGuide } from '@/services/operatorQueueRuntime'
 
 const route = useRoute()
@@ -19,7 +19,7 @@ function normalizeText(value = '') {
     .replace(/[\u0300-\u036f]/g, '')
 }
 
-const faqRuntime = computed(() => buildStudentFaqRuntime())
+const faqRuntime = computed(() => buildOperatorFaqRuntime())
 const faqNodeIndex = computed(() => {
   const index = new Map()
 
@@ -35,7 +35,7 @@ const faqNodeIndex = computed(() => {
 })
 
 const faqLeafNodes = computed(() => [...faqNodeIndex.value.values()].filter((node) => !node.children?.length))
-const rootEntries = computed(() => buildStudentFaqHomeEntries())
+const rootEntries = computed(() => buildOperatorFaqHomeEntries())
 const activeNode = computed(() =>
   selectedNodeId.value ? faqNodeIndex.value.get(selectedNodeId.value) || null : null,
 )

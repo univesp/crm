@@ -91,6 +91,7 @@ def _map_faq_context(faq_context: dict | None) -> dict:
 		node_id = str(path[-1] or "").strip()
 	return {
 		"bundle_id": bundle_id,
+		"bundle_version_id": str(faq_context.get("bundle_version_id") or "").strip(),
 		"node_id": node_id,
 		"resolved": bool(faq_context.get("resolved")),
 	}

@@ -30,6 +30,29 @@ class ChannelAdapterTests(unittest.TestCase):
 		with self.assertRaises(ChannelAdapterError):
 			normalize_channel_payload({"channel": "whatsapp", "description": "y"})
 
+	def test_preserves_complete_faq_lineage(self):
+		result = normalize_channel_payload(
+			{
+				"channel": "email",
+				"subject": "Duvida de acesso",
+				"description": "Preciso de ajuda",
+				"faq_context": {
+					"bundle_id": "bundle:acesso",
+					"bundle_version_id": "v3.0",
+					"path": ["acesso-root", "acesso-final"],
+				},
+			}
+		)
+		self.assertEqual(
+			result["knowledge"],
+			{
+				"bundle_id": "bundle:acesso",
+				"bundle_version_id": "v3.0",
+				"node_id": "acesso-final",
+				"resolved": False,
+			},
+		)
+
 
 class AcademicStubTests(unittest.TestCase):
 	def test_homolog001_returns_data(self):

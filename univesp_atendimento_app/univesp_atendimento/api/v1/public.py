@@ -58,7 +58,11 @@ def create_public_ticket(payload: dict | str | None = None):
 		raise PublicVisitorValidationError(_("Assunto e descricao sao obrigatorios."))
 
 	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
-	queue = str(data.get("queue") or DEFAULT_PUBLIC_QUEUE).strip()
+	knowledge_reference = _resolve_public_knowledge_reference(
+		knowledge,
+		_build_published_faq_entries("publico")[0],
+	)
+	queue = _resolve_public_queue(data)
 
 	doc = frappe.get_doc(
 		{
@@ -85,8 +89,9 @@ def create_public_ticket(payload: dict | str | None = None):
 				},
 				ensure_ascii=False,
 			),
-			"custom_source_bundle_id": str(knowledge.get("bundle_id") or ""),
-			"custom_source_node_id": str(knowledge.get("node_id") or ""),
+			"custom_source_bundle_id": knowledge_reference["bundle_id"],
+			"custom_source_bundle_version_id": knowledge_reference["bundle_version_id"],
+			"custom_source_node_id": knowledge_reference["node_id"],
 			"custom_channel_metadata_json": json.dumps(
 				{"visitor_type": visitor_type, "cpf_masked": _mask_cpf(cpf)},
 				ensure_ascii=False,
@@ -104,6 +109,54 @@ def create_public_ticket(payload: dict | str | None = None):
 		},
 		request_id=frappe.get_request_header("X-Request-ID") or "",
 	)
+
+
+def _resolve_public_knowledge_reference(knowledge: dict, entries: list[dict]) -> dict[str, str]:
+	if not knowledge:
+		return {"bundle_id": "", "bundle_version_id": "", "node_id": ""}
+
+	bundle_id = str(knowledge.get("bundle_id") or "").strip()
+	requested_version = str(knowledge.get("bundle_version_id") or "").strip()
+	node_id = str(knowledge.get("node_id") or "").strip()
+	if not bundle_id or not node_id:
+		raise PublicVisitorValidationError(_("Referencia da FAQ publica incompleta."))
+
+	entry = next(
+		(item for item in entries if str(item.get("bundle_id") or "").strip() == bundle_id),
+		None,
+	)
+	if not entry:
+		raise PublicVisitorValidationError(_("A orientacao selecionada nao esta publicada."))
+
+	package = entry.get("package") if isinstance(entry.get("package"), dict) else {}
+	versioning = package.get("versioning") if isinstance(package.get("versioning"), dict) else {}
+	publication = package.get("publication") if isinstance(package.get("publication"), dict) else {}
+	published_version = str(
+		entry.get("bundle_version_id")
+		or versioning.get("bundle_version_id")
+		or versioning.get("published_version")
+		or publication.get("active_bundle_version_id")
+		or ""
+	).strip()
+	if requested_version and requested_version != published_version:
+		raise PublicVisitorValidationError(_("A orientacao foi atualizada. Reabra a jornada antes de continuar."))
+
+	node_exists = any(
+		isinstance(node, dict) and str(node.get("id") or "").strip() == node_id
+		for node in package.get("nodes") or []
+	)
+	if not node_exists:
+		raise PublicVisitorValidationError(_("A etapa selecionada nao pertence a orientacao publicada."))
+
+	return {
+		"bundle_id": bundle_id,
+		"bundle_version_id": published_version,
+		"node_id": node_id,
+	}
+
+
+def _resolve_public_queue(_payload: dict | None = None) -> str:
+	return DEFAULT_PUBLIC_QUEUE
 
 
 def _mask_cpf(cpf: str) -> str:

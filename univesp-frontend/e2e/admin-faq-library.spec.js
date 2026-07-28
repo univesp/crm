@@ -4,6 +4,7 @@ test('biblioteca FAQ carrega e cria fluxo pela API institucional versionada', as
   let savedPayload = null
   await page.addInitScript(() => {
     window.sessionStorage.setItem('univesp.sso.devBypassProfile', 'admin_central')
+    window.localStorage.setItem('univesp:faq-builder:library:v1', 'sentinela-nao-alterar')
   })
   await page.route('**/api/app/v1/knowledge/library', async (route) => {
     const request = route.request()
@@ -35,16 +36,19 @@ test('biblioteca FAQ carrega e cria fluxo pela API institucional versionada', as
   })
 
   await page.goto('/crm/admin/faq')
-  await expect(page.getByRole('button', { name: 'Importar arquivo' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Nova FAQ' })).toBeVisible()
-  await page.getByRole('button', { name: 'Nova FAQ' }).click()
-  await page.getByLabel('Nome da FAQ').fill('Fluxo institucional E2E')
+  await page.getByText('Criar novo fluxo', { exact: false }).click()
+  await page.getByLabel('Nome do fluxo').fill('Fluxo institucional E2E')
 
-  await page.getByRole('button', { name: 'Criar FAQ' }).click()
+  await page.getByRole('button', { name: 'Criar fluxo' }).click()
 
   await expect.poll(() => savedPayload).not.toBeNull()
   expect(savedPayload.version).toBe('faq-version-1')
   expect(savedPayload.reason).toBe('Criacao de novo fluxo na biblioteca FAQ')
   expect(savedPayload.library.schemaVersion).toBe('faq-builder-library-v1')
   expect(savedPayload.library.bundles.some((bundle) => bundle.title === 'Fluxo institucional E2E')).toBe(true)
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.localStorage.getItem('univesp:faq-builder:library:v1')),
+    )
+    .toBe('sentinela-nao-alterar')
 })

@@ -184,7 +184,40 @@ function normalizeFrappePriority(value = '') {
 
 export async function submitStudentProtocolTicket(protocol) {
   const draft = buildStudentProtocolTicketDraft(protocol)
-  return unwrapFrappePayload(await createResource(draft.doctype, draft.payload))
+  const context = protocol.context || {}
+  const form = protocol.form || {}
+  const result = await createTicket({
+    subject: draft.payload.subject,
+    description: draft.payload.description,
+    priority: draft.payload.priority,
+    source: 'portal',
+    queue:
+      protocol.ownerQueue ||
+      protocol.queueLabel ||
+      context.routing?.currentQueueLabel ||
+      form.queueDestination ||
+      '',
+    area: protocol.ownerArea || protocol.lastMileAreaLabel || context.routing?.targetAreaLabel || '',
+    triage: {
+      theme: context.theme || '',
+      subtheme: context.subtheme || '',
+      breadcrumb: Array.isArray(context.breadcrumb) ? context.breadcrumb : [],
+    },
+    knowledge: {
+      bundle_id: protocol.sourceBundleId || form.bundleId || context.finalNode?.bundleId || '',
+      bundle_version_id:
+        protocol.sourceBundleVersionId ||
+        form.bundleVersionId ||
+        context.finalNode?.bundleVersionId ||
+        '',
+      node_id: protocol.sourceNodeId || form.sourceNodeId || context.finalNode?.id || '',
+    },
+  })
+  const remoteTicket = result.data || {}
+  return {
+    ...remoteTicket,
+    name: remoteTicket.name || remoteTicket.id || '',
+  }
 }
 
 export async function submitTicketDraft(ticketDraft) {

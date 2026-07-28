@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import AccessibilityPreferencesPanel from '@/components/AccessibilityPreferencesPanel.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
+import { loadPublishedFaqForProfile } from '@/services/publishedFaqBootstrap'
 import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
 
@@ -120,6 +121,7 @@ const routerBasePath = String(
   .replace(/\/+$/, '')
 
 let isRecoveringFaqBuilderRoute = false
+let publishedFaqLoadSequence = 0
 
 const fallbackRoute = computed(() => {
   if (auth.mockContext.isOperationalShell) {
@@ -345,6 +347,23 @@ function forceRouteReload() {
   }).href
   window.location.assign(nextHref)
 }
+
+watch(
+  () => auth.mockContext.profileKey,
+  async (profileKey) => {
+    const loadSequence = ++publishedFaqLoadSequence
+    try {
+      await loadPublishedFaqForProfile(profileKey)
+    } catch (error) {
+      if (loadSequence !== publishedFaqLoadSequence) return
+      console.error('[app][published-faq-load-failed]', {
+        profileKey,
+        message: String(error?.message || 'Falha ao carregar FAQ institucional.'),
+      })
+    }
+  },
+  { immediate: true },
+)
 
 watch(
   () => route.meta.stage,
