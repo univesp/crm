@@ -1,4 +1,5 @@
 import json
+import hashlib
 
 import frappe
 from frappe import _
@@ -62,7 +63,14 @@ def academic_summary(ra: str | None = None):
 def _lookup_students(*, email: str, cpf: str, ra: str):
 	filters = []
 	if cpf:
-		filters.append(["Univesp Student Directory", "cpf", "=", cpf])
+		filters.append(
+			[
+				"Univesp Student Directory",
+				"cpf_hash",
+				"=",
+				hashlib.sha256(cpf.encode("utf-8")).hexdigest(),
+			]
+		)
 	elif email:
 		filters.append(["Univesp Student Directory", "email", "=", email])
 	else:
@@ -74,7 +82,6 @@ def _lookup_students(*, email: str, cpf: str, ra: str):
 		filters=filters,
 		fields=[
 			"email",
-			"cpf",
 			"ra",
 			"nome",
 			"polo_id",
@@ -89,7 +96,6 @@ def _lookup_students(*, email: str, cpf: str, ra: str):
 def _serialize_student(row):
 	return {
 		"email": row.get("email"),
-		"cpf": row.get("cpf"),
 		"ra": row.get("ra"),
 		"nome": row.get("nome"),
 		"polo_id": row.get("polo_id"),

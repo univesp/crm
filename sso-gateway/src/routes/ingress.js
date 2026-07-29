@@ -38,6 +38,26 @@ router.post('/tickets', async (req, res) => {
   }
 })
 
+router.post('/email-replies', async (req, res) => {
+  const requestId = requestIdFor(req)
+  const secretError = verifyIngressSecret(req)
+  if (secretError) return sendError(res, 401, 'INGRESS_UNAUTHORIZED', secretError, requestId)
+  try {
+    const result = await callFrappe('ingress.receive_public_email_reply', {
+      user: {},
+      requestId,
+      body: { payload: JSON.stringify(req.body || {}) },
+      headers: {
+        'X-Univesp-Ingress-Secret': String(req.get('x-univesp-ingress-secret') || '').trim(),
+      },
+      httpMethod: 'POST',
+    })
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
 function verifyIngressSecret(req) {
   const expected = String(process.env.UNIVESP_INGRESS_SHARED_SECRET || '').trim()
   if (!expected) {

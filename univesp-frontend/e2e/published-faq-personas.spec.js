@@ -1,5 +1,20 @@
 import { expect, test } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/public/v1/academic-catalogs', (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        data: {
+          courses: [{ key: 'Engenharia', label: 'Engenharia' }],
+          poles: [{ key: 'guarulhos', label: 'Guarulhos' }],
+        },
+        error: null,
+      },
+    }),
+  )
+})
+
 function publishedPackage(faqType, prefix, rootTitle, answerTitle) {
   return {
     schema_version: '2.0.0',

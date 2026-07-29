@@ -21,6 +21,21 @@ def create_ticket(payload: dict | str | None = None):
 	return response(result, request_id=frappe.get_request_header("X-Request-ID") or "")
 
 
+@frappe.whitelist(methods=["POST"])
+def receive_public_email_reply(payload: dict | str | None = None):
+	verify_gateway_only()
+	verify_ingress_secret()
+	settings = frappe.get_single("Univesp Runtime Settings")
+	if not bool(getattr(settings, "faq_public_email_thread", False)):
+		raise frappe.PermissionError(_("Respostas públicas por e-mail estão desabilitadas."))
+	from univesp_atendimento.public_email import ingest_reply
+
+	return response(
+		ingest_reply(_payload(payload)),
+		request_id=frappe.get_request_header("X-Request-ID") or "",
+	)
+
+
 def _payload(value=None):
 	if isinstance(value, dict):
 		return value

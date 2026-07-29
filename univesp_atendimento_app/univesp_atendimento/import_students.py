@@ -1,4 +1,5 @@
 import json
+import hashlib
 
 import frappe
 from frappe import _
@@ -36,6 +37,7 @@ def upsert_rows(rows=None):
 		values = {
 			"email": email,
 			"cpf": cpf,
+			"cpf_hash": hashlib.sha256(cpf.encode("utf-8")).hexdigest(),
 			"ra": ra,
 			"nome": nome or email,
 			"polo_id": polo_id,
@@ -43,12 +45,24 @@ def upsert_rows(rows=None):
 			"curso": str(raw.get("curso") or "").strip(),
 			"situacao": str(raw.get("situacao") or "").strip(),
 			"pessoa_codigo": str(raw.get("pessoa_codigo") or "").strip(),
+			"source_updated_at": raw.get("source_updated_at"),
 			"last_import_at": now,
 		}
+		values["source_hash"] = hashlib.sha256(
+			json.dumps(
+				{key: value for key, value in values.items() if key not in {"last_import_at", "source_hash"}},
+				ensure_ascii=False,
+				sort_keys=True,
+				default=str,
+			).encode("utf-8")
+		).hexdigest()
 
 		existing = frappe.db.get_value("Univesp Student Directory", {"email": email}, "name")
 		if existing:
 			doc = frappe.get_doc("Univesp Student Directory", existing)
+			if doc.source_hash == values["source_hash"]:
+				skipped += 1
+				continue
 			doc.update(values)
 			doc.save(ignore_permissions=True)
 			updated += 1

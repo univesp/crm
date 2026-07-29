@@ -441,6 +441,14 @@ export async function getPublicRuntimeFlags() {
   return publicRequest('/runtime/flags')
 }
 
+export async function getPublicAcademicCatalogs() {
+  return publicRequest('/academic-catalogs')
+}
+
+export async function validatePublicLink(payload) {
+  return publicRequest('/validate-link', { method: 'POST', body: payload })
+}
+
 export async function createPublicTicket(payload) {
   return publicRequest('/tickets', { method: 'POST', body: payload })
 }

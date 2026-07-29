@@ -6,11 +6,12 @@ import secrets
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, now_datetime
+from frappe.utils import add_days, add_to_date, now_datetime
 from frappe.utils.file_manager import save_file
 
 from univesp_atendimento.api.v1.common import response, verify_gateway_only
 from univesp_atendimento.api.v1.knowledge import _build_published_faq_entries, _normalize_faq_type
+from univesp_atendimento.link_validation import classify_link, cpf_hash
 from univesp_atendimento.univesp_atendimento.doctype.univesp_student_directory.univesp_student_directory import (
 	normalize_cpf,
 )
@@ -55,6 +56,43 @@ def runtime_flags_public():
 	)
 
 
+@frappe.whitelist(methods=["GET"])
+def public_academic_catalogs():
+	verify_gateway_only()
+	rows = frappe.get_all(
+		"Univesp Student Directory",
+		fields=["curso", "polo_id", "polo_nome"],
+		filters={"situacao": ["not in", ["cancelado", "inativo"]]},
+		limit_page_length=0,
+	)
+	courses = sorted({str(row.curso or "").strip() for row in rows if str(row.curso or "").strip()})
+	poles = {
+		str(row.polo_id): str(row.polo_nome or row.polo_id)
+		for row in rows
+		if str(row.polo_id or "").strip()
+	}
+	return response(
+		{
+			"courses": [{"key": value, "label": value} for value in courses],
+			"poles": [{"key": key, "label": poles[key]} for key in sorted(poles)],
+		}
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def validate_public_link(payload: dict | str | None = None):
+	verify_gateway_only()
+	data = _payload(payload)
+	result = _resolve_link_validation(data)
+	return response(
+		{
+			"received": True,
+			"verified": result == "verified",
+			"requires_human_review": result in {"inconclusive", "conflicting", "unavailable"},
+		}
+	)
+
+
 @frappe.whitelist(methods=["POST"])
 def create_public_ticket(payload: dict | str | None = None):
 	verify_gateway_only()
@@ -94,6 +132,11 @@ def create_public_ticket(payload: dict | str | None = None):
 	intake_policy = knowledge_reference.pop("intake_policy", {})
 	document_policy = knowledge_reference.pop("document_policy", {"mode": "disabled"})
 	_validate_public_identity(visitor, cpf, intake_policy)
+	link_outcome = (
+		_resolve_link_validation(visitor)
+		if bool(getattr(settings, "faq_link_validation", False)) and visitor_type == "aluno"
+		else ""
+	)
 	if document_policy.get("mode") != "disabled" and not bool(
 		getattr(settings, "faq_public_documents", False)
 	):
@@ -120,6 +163,7 @@ def create_public_ticket(payload: dict | str | None = None):
 		"triage": data.get("triage") or {},
 		"routing": routing_decision,
 		"document_policy": document_policy,
+		"link_validation": link_outcome,
 		"public_upload_token_hash": _token_hash(upload_token),
 	}
 	doc = frappe.get_doc(
@@ -154,6 +198,21 @@ def create_public_ticket(payload: dict | str | None = None):
 	).insert(ignore_permissions=True)
 	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
 	doc.save(ignore_permissions=True)
+	if bool(getattr(settings, "faq_public_email_thread", False)):
+		from univesp_atendimento.public_email import send_protocol_confirmation
+
+		send_protocol_confirmation(doc)
+	if link_outcome in {"inconclusive", "not_found", "conflicting", "unavailable"}:
+		frappe.get_doc(
+			{
+				"doctype": "Univesp Link Validation",
+				"ticket": doc.name,
+				"outcome": link_outcome,
+				"state": "pending",
+				"assigned_group": "validacao-vinculo",
+				"sla_due_at": add_to_date(now_datetime(), hours=24),
+			}
+		).insert(ignore_permissions=True)
 	return response(
 		{
 			"id": doc.name,
@@ -306,6 +365,25 @@ def _validate_public_identity(visitor, cpf, policy):
 	for key in ("ra", "curso", "polo"):
 		if required[key] and not str(visitor.get(key) or "").strip():
 			raise PublicVisitorValidationError(_("Preencha os dados solicitados para este atendimento."))
+
+
+def _resolve_link_validation(visitor):
+	cpf = normalize_cpf(visitor.get("cpf") or "")
+	email = str(visitor.get("email") or "").strip().lower()
+	try:
+		filters = {"cpf_hash": cpf_hash(cpf)} if len(cpf) == 11 else {"email": email}
+		rows = frappe.get_all(
+			"Univesp Student Directory",
+			filters=filters,
+			fields=["email", "ra", "curso", "polo_id", "situacao"],
+			limit_page_length=2,
+		)
+	except Exception:
+		frappe.log_error(title="Student Directory indisponível", message=frappe.get_traceback())
+		return "unavailable"
+	if len(rows) != 1:
+		return "inconclusive" if len(rows) > 1 else "not_found"
+	return classify_link(rows[0], visitor)
 
 
 def _public_ticket_with_token(ticket_id):

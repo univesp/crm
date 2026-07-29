@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import {
   createPublicTicket,
   finalizePublicTicket,
+  getPublicAcademicCatalogs,
   getPublicRuntimeFlags,
   uploadPublicDocument,
 } from '@/services/appApi'
@@ -23,6 +24,7 @@ const protocol = ref('')
 const selectedNodeId = ref('')
 const selectedFile = ref(null)
 const flags = ref({ faq_public_documents: false })
+const academicCatalogs = ref({ courses: [], poles: [] })
 
 const visitor = ref({
   nome: '',
@@ -152,11 +154,13 @@ async function submitTicket() {
 
 onMounted(async () => {
   try {
-    const [, runtimeFlags] = await Promise.all([
+    const [, runtimeFlags, catalogs] = await Promise.all([
       loadPublishedFaqType('publico', { publicAccess: true }),
       getPublicRuntimeFlags(),
+      getPublicAcademicCatalogs(),
     ])
     flags.value = runtimeFlags.data || flags.value
+    academicCatalogs.value = catalogs.data || academicCatalogs.value
   } catch (error) {
     errorMessage.value = error?.message || 'Não foi possível carregar as orientações agora.'
   }
@@ -220,8 +224,20 @@ onMounted(async () => {
         </label>
         <label v-if="intakePolicy.requires_cpf">CPF<input v-model="visitor.cpf" inputmode="numeric" autocomplete="off" /></label>
         <label v-if="intakePolicy.requires_ra">RA<input v-model="visitor.ra" autocomplete="off" /></label>
-        <label v-if="intakePolicy.requires_course">Curso<input v-model="visitor.curso" /></label>
-        <label v-if="intakePolicy.requires_polo">Polo<input v-model="visitor.polo" /></label>
+        <label v-if="intakePolicy.requires_course">
+          Curso
+          <select v-model="visitor.curso">
+            <option value="">Selecione</option>
+            <option v-for="course in academicCatalogs.courses" :key="course.key" :value="course.key">{{ course.label }}</option>
+          </select>
+        </label>
+        <label v-if="intakePolicy.requires_polo">
+          Polo
+          <select v-model="visitor.polo">
+            <option value="">Selecione</option>
+            <option v-for="pole in academicCatalogs.poles" :key="pole.key" :value="pole.key">{{ pole.label }}</option>
+          </select>
+        </label>
       </div>
       <label>Assunto<input v-model="subject" /></label>
       <label>O que aconteceu?<textarea v-model="description" rows="5" /></label>

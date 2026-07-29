@@ -44,6 +44,31 @@ router.get('/runtime/flags', async (req, res) => {
   }
 })
 
+router.get('/academic-catalogs', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('public.public_academic_catalogs', { user: {}, requestId })
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.post('/validate-link', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('public.validate_public_link', {
+      user: {},
+      requestId,
+      body: { payload: JSON.stringify(req.body || {}) },
+      httpMethod: 'POST',
+    })
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
 router.post('/tickets', async (req, res) => {
   const requestId = requestIdFor(req)
   try {
