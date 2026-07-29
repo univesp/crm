@@ -1,10 +1,16 @@
 ﻿<script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import OperationalInterventionBanner from '@/components/operational/OperationalInterventionBanner.vue'
 import { buildAreaCaseSummaryBackendReadiness, buildAreaCaseSummaryPayload } from '@/contracts/areaCaseSummaryContract'
 import { AREA_OPERATIONAL_SERVER_PARITY_NOTE, canRunAreaAction } from '@/contracts/areaOperationalContracts'
+import {
+  getTicket,
+  isMockRuntimeEnabled,
+  submitAreaTicketAction,
+} from '@/services/appApi'
+import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import {
   buildInterventionContext,
   parseInterventionQuery,
@@ -1294,7 +1300,45 @@ const confirmationCopy = computed(() => {
   return null
 })
 
-function submitAreaAction(actionType) {
+async function loadLiveAreaCase() {
+  if (isMockRuntimeEnabled() || !caseId.value) return
+  try {
+    const result = await getTicket(caseId.value)
+    studentSupportStore.upsertLiveTicket(mapApiTicketToOperationalProtocol(result.data))
+  } catch (error) {
+    actionFeedback.value = {
+      type: 'error',
+      message: error?.message || 'Não foi possível carregar o caso institucional da área.',
+    }
+  }
+}
+
+async function submitLiveAreaAction(actionType) {
+  const note = actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value.trim()
+  const result = await submitAreaTicketAction(detail.value.id, {
+    action_type: actionType,
+    note,
+    destination_area: actionType === 'reassign' ? selectedDestinationArea.value : '',
+  })
+  const protocol = mapApiTicketToOperationalProtocol(result.data)
+  studentSupportStore.upsertLiveTicket(protocol)
+  return {
+    destinationLabel:
+      actionType === 'reassign'
+        ? selectedDestinationArea.value
+        : protocol.currentAreaLabel || protocol.queueLabel || 'Operação do polo',
+  }
+}
+
+onMounted(() => {
+  void loadLiveAreaCase()
+})
+
+watch(caseId, () => {
+  void loadLiveAreaCase()
+})
+
+async function submitAreaAction(actionType) {
   if (!detail.value || isSubmitting.value || !actionAvailability.value.canAct) {
     return
   }
@@ -1307,14 +1351,16 @@ function submitAreaAction(actionType) {
   clearFeedback()
   let actionLog = null
   try {
-    actionLog = studentSupportStore.registerAreaAction({
-      caseId: detail.value.id,
-      actionType,
-      note: actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value,
-      actorName: auth.mockContext.userName,
-      nextArea: selectedDestinationArea.value,
-      isManagerException: isManagerExceptionSelected.value,
-    })
+    actionLog = isMockRuntimeEnabled()
+      ? studentSupportStore.registerAreaAction({
+          caseId: detail.value.id,
+          actionType,
+          note: actionType === 'reassign' ? buildStructuredReassignNote() : actionNote.value,
+          actorName: auth.mockContext.userName,
+          nextArea: selectedDestinationArea.value,
+          isManagerException: isManagerExceptionSelected.value,
+        })
+      : await submitLiveAreaAction(actionType)
   } catch (error) {
     isSubmitting.value = false
     actionFeedback.value = {

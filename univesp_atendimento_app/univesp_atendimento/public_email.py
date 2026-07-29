@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import os
 
 import frappe
 from frappe import _
@@ -96,6 +97,12 @@ def _save_email_attachment(ticket, attachment):
 			"scan_detail": "Anexo recebido por e-mail e verificado.",
 			"uploaded_at": now_datetime(),
 			"scanned_at": now_datetime(),
-			"retention_until": add_days(now_datetime(), int(frappe.conf.get("public_document_retention_days", 180))),
+			"retention_until": add_days(
+				now_datetime(),
+				int(
+					os.getenv("PUBLIC_DOCUMENT_RETENTION_DAYS")
+					or frappe.conf.get("public_document_retention_days", 180)
+				),
+			),
 		}
 	).insert(ignore_permissions=True)

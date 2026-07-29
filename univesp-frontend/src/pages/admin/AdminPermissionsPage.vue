@@ -1,7 +1,16 @@
 ﻿<script setup>
-import { computed, reactive, watch, watchEffect } from 'vue'
+import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import MetricCard from '@/components/MetricCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import {
+  approveAccessRequest,
+  getAdminCatalogs,
+  getAdminUser,
+  isMockRuntimeEnabled,
+  listAccessRequests,
+  listAdminUsers,
+  updateAdminUser,
+} from '@/services/appApi'
 import { useAuthStore } from '@/stores/auth'
 import {
   applyPermissionEntryUpdate,
@@ -14,6 +23,105 @@ import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
+const liveUsers = ref([])
+const liveAccessRequests = ref([])
+const liveCatalogs = ref({ profiles: [], queues: [], polos: [], areas: [] })
+const livePanel = reactive({
+  loading: false,
+  error: '',
+  mode: 'users',
+  selectedUser: null,
+  selectedRequest: null,
+  userActive: true,
+  userReason: '',
+  approvalProfile: '',
+  approvalQueues: [],
+  approvalReason: '',
+})
+
+async function loadInstitutionalAccess() {
+  if (isMockRuntimeEnabled()) return
+  livePanel.loading = true
+  livePanel.error = ''
+  try {
+    const [catalogs, users, requests] = await Promise.all([
+      getAdminCatalogs(),
+      listAdminUsers({ page: 1, page_size: 25 }),
+      listAccessRequests({ page: 1, page_size: 25, status: 'pending' }),
+    ])
+    liveCatalogs.value = catalogs.data || liveCatalogs.value
+    liveUsers.value = Array.isArray(users.data) ? users.data : []
+    liveAccessRequests.value = Array.isArray(requests.data) ? requests.data : []
+  } catch (error) {
+    livePanel.error = error?.message || 'Não foi possível carregar pessoas e solicitações.'
+  } finally {
+    livePanel.loading = false
+  }
+}
+
+async function openLiveUser(user) {
+  livePanel.error = ''
+  try {
+    const result = await getAdminUser(user.email || user.id)
+    livePanel.selectedUser = result.data || user
+    livePanel.userActive = Boolean(livePanel.selectedUser.active)
+    livePanel.userReason = ''
+  } catch (error) {
+    livePanel.error = error?.message || 'Não foi possível carregar o usuário.'
+  }
+}
+
+async function saveLiveUser() {
+  const user = livePanel.selectedUser
+  if (!user) return
+  try {
+    const result = await updateAdminUser(user.email || user.id, {
+      active: livePanel.userActive,
+      version: user.version,
+      reason: livePanel.userReason.trim(),
+    })
+    livePanel.selectedUser = result.data || { ...user, active: livePanel.userActive }
+    liveUsers.value = liveUsers.value.map((entry) =>
+      entry.id === user.id ? livePanel.selectedUser : entry,
+    )
+  } catch (error) {
+    livePanel.error = error?.message || 'Não foi possível salvar o usuário.'
+  }
+}
+
+function openLiveRequest(request) {
+  livePanel.selectedRequest = request
+  livePanel.approvalProfile = ''
+  livePanel.approvalQueues = []
+  livePanel.approvalReason = ''
+}
+
+async function approveLiveRequest() {
+  const request = livePanel.selectedRequest
+  if (!request) return
+  const profile = liveCatalogs.value.profiles.find(
+    (entry) => entry.key === livePanel.approvalProfile,
+  )
+  const scopeKey = profile?.scope_key || ''
+  const scopes = scopeKey
+    ? { [scopeKey]: scopeKey === 'queues' ? [...livePanel.approvalQueues] : [] }
+    : {}
+  try {
+    await approveAccessRequest(request.id, {
+      profile_key: livePanel.approvalProfile,
+      scopes,
+      reason: livePanel.approvalReason.trim(),
+    })
+    liveAccessRequests.value = liveAccessRequests.value.filter((entry) => entry.id !== request.id)
+    livePanel.selectedRequest = null
+  } catch (error) {
+    livePanel.error = error?.message || 'Não foi possível aprovar a solicitação.'
+  }
+}
+
+onMounted(() => {
+  void loadInstitutionalAccess()
+})
 const permissionsDraft = reactive(cloneAdminPermissionsDraft())
 const form = reactive({
   id: '',
@@ -302,6 +410,128 @@ function savePermissionChanges() {
           Usuarios
         </button>
       </div>
+    </section>
+
+    <section
+      v-if="!isMockRuntimeEnabled()"
+      class="grid gap-4 rounded-[8px] border border-slate-200 bg-white p-4"
+      aria-label="Acessos institucionais"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-950">Pessoas e solicitações institucionais</h2>
+          <p class="text-sm text-slate-500">Dados carregados da API com alterações auditáveis.</p>
+        </div>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="rounded-[8px] border border-slate-200 px-3 py-2 text-sm font-semibold"
+            @click="livePanel.mode = 'users'; livePanel.selectedRequest = null"
+          >
+            Usuários ativos
+          </button>
+          <button
+            type="button"
+            class="rounded-[8px] border border-slate-200 px-3 py-2 text-sm font-semibold"
+            @click="livePanel.mode = 'requests'; livePanel.selectedUser = null"
+          >
+            Solicitacoes pendentes
+          </button>
+        </div>
+      </div>
+
+      <p v-if="livePanel.error" role="alert" class="text-sm font-semibold text-red-700">
+        {{ livePanel.error }}
+      </p>
+
+      <div v-if="livePanel.mode === 'users'" class="grid gap-2">
+        <button
+          v-for="user in liveUsers"
+          :key="user.id"
+          type="button"
+          class="rounded-[8px] border border-slate-200 px-3 py-3 text-left hover:bg-slate-50"
+          @click="openLiveUser(user)"
+        >
+          <span class="block font-semibold text-slate-950">{{ user.display_name }}</span>
+          <span class="block text-xs text-slate-500">{{ user.email }}</span>
+        </button>
+      </div>
+
+      <form
+        v-if="livePanel.selectedUser"
+        class="grid gap-3 rounded-[8px] bg-slate-50 p-4"
+        @submit.prevent="saveLiveUser"
+      >
+        <h3 class="font-semibold text-slate-950">{{ livePanel.selectedUser.display_name }}</h3>
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input v-model="livePanel.userActive" type="checkbox" />
+          Usuario ativo
+        </label>
+        <input
+          v-model="livePanel.userReason"
+          type="text"
+          class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm"
+          placeholder="Obrigatorio para auditoria"
+        />
+        <button type="submit" class="w-fit rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+          Salvar
+        </button>
+      </form>
+
+      <div v-if="livePanel.mode === 'requests'" class="grid gap-2">
+        <button
+          v-for="request in liveAccessRequests"
+          :key="request.id"
+          type="button"
+          class="rounded-[8px] border border-slate-200 px-3 py-3 text-left hover:bg-slate-50"
+          @click="openLiveRequest(request)"
+        >
+          <span class="block font-semibold text-slate-950">{{ request.display_name }}</span>
+          <span class="block text-xs text-slate-500">{{ request.email }}</span>
+        </button>
+      </div>
+
+      <form
+        v-if="livePanel.selectedRequest"
+        class="grid gap-3 rounded-[8px] bg-slate-50 p-4"
+        @submit.prevent="approveLiveRequest"
+      >
+        <h3 class="font-semibold text-slate-950">{{ livePanel.selectedRequest.display_name }}</h3>
+        <label class="grid gap-1 text-sm font-semibold text-slate-700">
+          <span>Perfil</span>
+          <select
+            v-model="livePanel.approvalProfile"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2"
+          >
+            <option value="">Selecione</option>
+            <option v-for="profile in liveCatalogs.profiles" :key="profile.key" :value="profile.key">
+              {{ profile.label }}
+            </option>
+          </select>
+        </label>
+        <div class="grid gap-2">
+          <p class="text-sm font-semibold text-slate-700">Filas</p>
+          <label
+            v-for="queue in liveCatalogs.queues"
+            :key="queue.value"
+            class="flex items-center gap-2 text-sm text-slate-700"
+          >
+            <input v-model="livePanel.approvalQueues" type="checkbox" :value="queue.value" />
+            <span>{{ queue.label }}</span>
+          </label>
+        </div>
+        <label class="grid gap-1 text-sm font-semibold text-slate-700">
+          <span>Motivo da decisao</span>
+          <input
+            v-model="livePanel.approvalReason"
+            type="text"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2"
+          />
+        </label>
+        <button type="submit" class="w-fit rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+          Aprovar acesso
+        </button>
+      </form>
     </section>
 
     <template v-if="ui.activeModule === 'profiles'">

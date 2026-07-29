@@ -80,6 +80,12 @@ MODE=full ./ops/cloudrun/set-service-mode.sh
 - `PUBLIC_DOMAIN=homolog-crm.univesp.br`
 - `GATEWAY_IMAGE_NAME=crm-sso-gateway`
 - `GATEWAY_SERVICE=crm-homolog-sso-gateway`
+- `ANTIMALWARE_IMAGE_NAME=crm-faq-antimalware` (opcional; há default)
+- `MEDIA_PROCESSOR_IMAGE_NAME=crm-faq-media-processor` (opcional; há default)
+- `ANTIMALWARE_SERVICE=crm-homolog-antimalware` (opcional; há default)
+- `MEDIA_PROCESSOR_SERVICE=crm-homolog-media-processor` (opcional; há default)
+- `ANTIMALWARE_TOKEN_SECRET_NAME=crm-homolog-antimalware-token` (opcional; criado automaticamente)
+- `MEDIA_PROCESSOR_TOKEN_SECRET_NAME=crm-homolog-media-processor-token` (opcional; criado automaticamente)
 - `FRAPPE_SERVICE_USER_EMAIL=<conta-tecnica>`
 - IDs/tenants e nomes de secrets descritos em `docs/TI_HOMOLOGACAO.md`
 - `DB_TYPE=postgres`
@@ -213,6 +219,8 @@ export SITES_BUCKET=univesp-201808-crm-homolog-sites
 export VPC_CONNECTOR=crm-homolog-connector
 export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
 export SSO_GATEWAY_ORIGIN=https://<origem-do-sso-gateway>
+export ANTIMALWARE_ENDPOINT=https://<servico-antimalware>/scan
+export MEDIA_PROCESSOR_ENDPOINT=https://<servico-media>/convert-gif
 ./ops/cloudrun/deploy.sh
 ```
 
@@ -229,6 +237,8 @@ export VPC_CONNECTOR=crm-homolog-connector
 export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
 export DEPLOY_PROFILE=single-user
 export SSO_GATEWAY_ORIGIN=https://<origem-do-sso-gateway>
+export ANTIMALWARE_ENDPOINT=https://<servico-antimalware>/scan
+export MEDIA_PROCESSOR_ENDPOINT=https://<servico-media>/convert-gif
 ./ops/cloudrun/deploy.sh
 ```
 
@@ -269,3 +279,18 @@ PUBLIC_URL=https://<dominio-homolog> ./ops/cloudrun/collect-homolog-evidence.sh
 ```
 
 O workflow manual executa o preflight depois de sincronizar os secrets e coleta as evidências depois do deploy. O artefato fica disponível no GitHub Actions por 30 dias. Consulte `docs/HOMOLOG_READINESS.md` para os gates que continuam sob responsabilidade da TI.
+
+### Serviços privados da FAQ v3
+
+O mesmo workflow também:
+
+1. cria, quando ausentes, tokens aleatórios no Secret Manager;
+2. constrói `ops/antimalware` e `ops/media-processor`;
+3. publica os serviços `crm-homolog-antimalware` e
+   `crm-homolog-media-processor` sem acesso anônimo;
+4. concede `roles/run.invoker` apenas à service account de runtime;
+5. injeta endpoints, tokens e autenticação IAM no serviço Frappe;
+6. registra os dois serviços no preflight, manifesto e rollback.
+
+Os documentos pessoais ficam em `private/files` dentro do `SITES_BUCKET` montado.
+O upload permanece bloqueado até a flag `faq_public_documents` ser ativada.

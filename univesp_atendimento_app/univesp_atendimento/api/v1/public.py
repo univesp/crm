@@ -1,16 +1,18 @@
 import hashlib
 import json
 import mimetypes
+import os
 import re
 import secrets
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, add_to_date, now_datetime
+from frappe.utils import add_days, add_to_date, get_datetime, now_datetime
 from frappe.utils.file_manager import save_file
 
 from univesp_atendimento.api.v1.common import response, verify_gateway_only
 from univesp_atendimento.api.v1.knowledge import _build_published_faq_entries, _normalize_faq_type
+from univesp_atendimento.cloud_service_auth import configured_value, service_headers
 from univesp_atendimento.link_validation import classify_link, cpf_hash
 from univesp_atendimento.univesp_atendimento.doctype.univesp_student_directory.univesp_student_directory import (
 	normalize_cpf,
@@ -26,6 +28,7 @@ DEFAULT_PUBLIC_QUEUE = "atendimento-geral"
 ALLOWED_DOCUMENT_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
 ALLOWED_DOCUMENT_MIMES = {"application/pdf", "image/png", "image/jpeg"}
 MAX_PUBLIC_DOCUMENT_BYTES = 10 * 1024 * 1024
+DEFAULT_PUBLIC_UPLOAD_TTL_HOURS = 24
 
 
 @frappe.whitelist(methods=["GET"])
@@ -165,6 +168,15 @@ def create_public_ticket(payload: dict | str | None = None):
 		"document_policy": document_policy,
 		"link_validation": link_outcome,
 		"public_upload_token_hash": _token_hash(upload_token),
+		"public_upload_expires_at": str(
+			add_to_date(
+				now_datetime(),
+				hours=int(
+					os.getenv("PUBLIC_UPLOAD_TTL_HOURS")
+					or frappe.conf.get("public_upload_ttl_hours", DEFAULT_PUBLIC_UPLOAD_TTL_HOURS)
+				),
+			)
+		),
 	}
 	doc = frappe.get_doc(
 		{
@@ -266,7 +278,13 @@ def attach_public_document(ticket_id: str):
 			"scan_detail": "Verificado pelo serviço antimalware institucional.",
 			"uploaded_at": now_datetime(),
 			"scanned_at": now_datetime(),
-			"retention_until": add_days(now_datetime(), int(frappe.conf.get("public_document_retention_days", 180))),
+			"retention_until": add_days(
+				now_datetime(),
+				int(
+					os.getenv("PUBLIC_DOCUMENT_RETENTION_DAYS")
+					or frappe.conf.get("public_document_retention_days", 180)
+				),
+			),
 		}
 	).insert(ignore_permissions=True)
 	return response({"id": document.name, "file_name": uploaded.filename, "status": "clean"})
@@ -397,8 +415,14 @@ def _public_ticket_with_token(ticket_id):
 		raise frappe.PermissionError(_("Protocolo ou credencial inválidos."))
 	context = json.loads(doc.custom_univesp_context_json or "{}")
 	expected = str(context.get("public_upload_token_hash") or "")
+	expires_at = context.get("public_upload_expires_at")
 	supplied = str(frappe.get_request_header("X-Public-Upload-Token") or "")
-	if not expected or not secrets.compare_digest(expected, _token_hash(supplied)):
+	if (
+		not expected
+		or not expires_at
+		or get_datetime(expires_at) <= now_datetime()
+		or not secrets.compare_digest(expected, _token_hash(supplied))
+	):
 		raise frappe.PermissionError(_("Protocolo ou credencial inválidos."))
 	return doc, context
 
@@ -419,8 +443,9 @@ def _validate_document(filename, content_type, content):
 
 
 def _scan_document(filename, content_type, content):
-	endpoint = str(frappe.conf.get("antimalware_endpoint") or "").strip()
-	if not endpoint:
+	endpoint = configured_value(frappe, "antimalware_endpoint", "ANTIMALWARE_ENDPOINT")
+	token = configured_value(frappe, "antimalware_token", "ANTIMALWARE_TOKEN")
+	if not endpoint.startswith("https://") or not token:
 		raise frappe.ValidationError(_("Serviço antimalware não configurado."))
 	import requests
 
@@ -428,7 +453,7 @@ def _scan_document(filename, content_type, content):
 		result = requests.post(
 			endpoint,
 			files={"file": (filename, content, content_type)},
-			headers={"X-Antimalware-Token": str(frappe.conf.get("antimalware_token") or "")},
+			headers=service_headers(endpoint, "X-Antimalware-Token", token),
 			timeout=20,
 		)
 		result.raise_for_status()

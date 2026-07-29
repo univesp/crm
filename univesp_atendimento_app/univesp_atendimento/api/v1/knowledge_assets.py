@@ -6,6 +6,7 @@ from frappe import _
 from frappe.utils.file_manager import save_file
 
 from univesp_atendimento.api.v1.common import get_request_context, response
+from univesp_atendimento.cloud_service_auth import configured_value, service_headers
 from univesp_atendimento.knowledge_asset_security import signature_matches
 
 
@@ -111,15 +112,15 @@ def upload_asset():
 def _convert_gif(filename, content):
 	import requests
 
-	endpoint = str(frappe.conf.get("media_processor_endpoint") or "").strip()
-	token = str(frappe.conf.get("media_processor_token") or "").strip()
+	endpoint = configured_value(frappe, "media_processor_endpoint", "MEDIA_PROCESSOR_ENDPOINT")
+	token = configured_value(frappe, "media_processor_token", "MEDIA_PROCESSOR_TOKEN")
 	if not endpoint.startswith("https://") or not token:
 		frappe.throw(_("Conversor institucional de GIF não configurado."), frappe.ValidationError)
 	try:
 		result = requests.post(
 			endpoint,
 			files={"file": (filename, content, "image/gif")},
-			headers={"X-Media-Processor-Token": token},
+			headers=service_headers(endpoint, "X-Media-Processor-Token", token),
 			timeout=30,
 		)
 		result.raise_for_status()

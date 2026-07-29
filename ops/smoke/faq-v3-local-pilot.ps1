@@ -30,6 +30,7 @@ Invoke-Checked "Contratos puros do backend FAQ v3" $repoRoot {
   & $python -m unittest `
     univesp_atendimento.tests.test_knowledge_blocks `
     univesp_atendimento.tests.test_knowledge_asset_security `
+    univesp_atendimento.tests.test_cloud_service_auth `
     univesp_atendimento.tests.test_knowledge_graph `
     univesp_atendimento.tests.test_knowledge_migration `
     univesp_atendimento.tests.test_routing_engine `

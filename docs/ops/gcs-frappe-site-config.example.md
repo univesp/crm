@@ -1,4 +1,19 @@
-# GCS — exemplo site_config Frappe (nao commitar credenciais)
+# GCS — armazenamento privado Frappe
+
+## Cloud Run homolog (modo canônico)
+
+O deploy monta `SITES_BUCKET` no diretório do site Frappe e injeta:
+
+```text
+GCS_MOUNTED_STORAGE=true
+GCS_BUCKET=<SITES_BUCKET>
+```
+
+Nesse modo, `private/files` é gravado no bucket montado e não exige credenciais
+HMAC/S3 no `site_config`. O bucket não pode ter acesso público. A aplicação entrega
+documentos somente pelo endpoint autenticado, com token de uso único e auditoria.
+
+## VM/instalação sem volume GCS (compatibilidade S3)
 
 Apos criar bucket `univesp-crm-attachments-homolog` no projeto `univesp-201808`:
 
@@ -18,7 +33,7 @@ Apos criar bucket `univesp-crm-attachments-homolog` no projeto `univesp-201808`:
 }
 ```
 
-## Chaves esperadas
+### Chaves esperadas
 
 | Chave | Descricao |
 |-------|-----------|
@@ -35,7 +50,7 @@ Apos criar bucket `univesp-crm-attachments-homolog` no projeto `univesp-201808`:
 
 Credenciais HMAC do GCS via Service Account (Interoperability). Montar SA JSON em `/run/secrets/gcs-sa.json` na VM — ver `env.vm.example` (`GCS_PROJECT`, `GCS_BUCKET`, `GOOGLE_APPLICATION_CREDENTIALS`).
 
-## Validacao (sem bucket)
+### Validação (sem bucket)
 
 Na VM com bench:
 
@@ -46,7 +61,7 @@ chmod +x ops/vm/scripts/validate-gcs-site-config.sh
 
 Reporta chaves ausentes no `site_config` — util mesmo antes do bucket existir.
 
-## Validacao funcional
+### Validação funcional
 
 Upload de anexo no protocolo aluno; arquivo deve aparecer no bucket, nao no disco local.
 

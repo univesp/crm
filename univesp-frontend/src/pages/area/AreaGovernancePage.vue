@@ -1,15 +1,82 @@
 ﻿<script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
 import {
   AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
   buildAreaManagerBackendReadiness,
 } from '@/contracts/areaManagerOperationalContract'
+import {
+  getAreaGovernance,
+  isMockRuntimeEnabled,
+  listAreaMembers,
+  listTickets,
+  updateAreaGovernance,
+} from '@/services/appApi'
+import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
+const liveTeamMembers = ref([])
+const governanceState = reactive({
+  loading: false,
+  error: '',
+  version: '',
+})
+
+async function loadInstitutionalGovernance() {
+  if (isMockRuntimeEnabled()) return
+  const area = auth.mockContext.currentArea
+  if (!area) return
+  governanceState.loading = true
+  governanceState.error = ''
+  try {
+    const [stateResponse, membersResponse, ticketsResponse] = await Promise.all([
+      getAreaGovernance(area),
+      listAreaMembers(area),
+      listTickets({ page: 1, page_size: 100 }),
+    ])
+    studentSupportStore.areaSubjectRules = Array.isArray(stateResponse.data?.rules)
+      ? stateResponse.data.rules
+      : []
+    studentSupportStore.userAvailability = Array.isArray(stateResponse.data?.availability)
+      ? stateResponse.data.availability
+      : []
+    governanceState.version = String(stateResponse.data?.version || '')
+    liveTeamMembers.value = (membersResponse.data || [])
+      .map((member) => member.display_name)
+      .filter(Boolean)
+    studentSupportStore.replaceLiveTickets(
+      (ticketsResponse.data || []).map(mapApiTicketToOperationalProtocol),
+    )
+  } catch (error) {
+    governanceState.error = error?.message || 'Falha ao carregar a governança institucional da área.'
+    liveTeamMembers.value = []
+  } finally {
+    governanceState.loading = false
+  }
+}
+
+async function persistInstitutionalGovernance(reason) {
+  if (isMockRuntimeEnabled()) return
+  const area = auth.mockContext.currentArea
+  const response = await updateAreaGovernance(area, {
+    rules: studentSupportStore.areaSubjectRules.filter((rule) => rule.areaLabel === area),
+    availability: studentSupportStore.userAvailabilityCatalog.filter(
+      (record) => !record.areaLabel || record.areaLabel === area,
+    ),
+    version: governanceState.version,
+    reason,
+  })
+  governanceState.version = String(response.data?.version || governanceState.version)
+}
+
+watch(
+  () => auth.mockContext.currentArea,
+  () => loadInstitutionalGovernance(),
+  { immediate: true },
+)
 
 const governanceRows = computed(() => studentSupportStore.areaGovernanceRows(auth.mockContext))
 const managerOverview = computed(
@@ -24,7 +91,11 @@ const managerOverview = computed(
       ruleImpactHints: [],
     },
 )
-const areaTeamMembers = computed(() => studentSupportStore.areaTeamMembers(auth.mockContext.currentArea))
+const areaTeamMembers = computed(() =>
+  isMockRuntimeEnabled()
+    ? studentSupportStore.areaTeamMembers(auth.mockContext.currentArea)
+    : liveTeamMembers.value,
+)
 const availabilityRows = computed(() =>
   studentSupportStore.userAvailabilityCatalog
     .filter(
@@ -126,7 +197,7 @@ function toggleAnalyst(rowId, analystName) {
     : [...draft.allowedAnalysts, analystName]
 }
 
-function saveScopeRule(row) {
+async function saveScopeRule(row) {
   const draft = scopeDrafts[row.id]
   if (!draft) {
     return
@@ -142,8 +213,14 @@ function saveScopeRule(row) {
     actorName: auth.mockContext.userName,
   })
 
-  feedback.scope.type = 'success'
-  feedback.scope.message = `Regra de escopo atualizada para ${row.subjectLabel}.`
+  try {
+    await persistInstitutionalGovernance(`Atualização da regra de escopo: ${row.subjectLabel}`)
+    feedback.scope.type = 'success'
+    feedback.scope.message = `Regra de escopo atualizada para ${row.subjectLabel}.`
+  } catch (error) {
+    feedback.scope.type = 'error'
+    feedback.scope.message = error?.message || 'Falha ao persistir a regra de escopo.'
+  }
 }
 
 function statusLabel(statusCode = '') {

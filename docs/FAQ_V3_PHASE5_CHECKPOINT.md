@@ -34,13 +34,13 @@
 | Build Vite de produção | aprovado |
 | E2E FAQ/editor/público/sticky/governança | 14/14 |
 | Testes do SSO Gateway | 17/17 |
+| Testes Playwright globais | 28/28 |
+| Contratos do deploy Cloud Run | 27/27 |
 | `git diff --check` | aprovado |
 
-A suíte Playwright global foi também executada. Os 19 cenários ligados ao núcleo
-atual e ao FAQ passaram; nove cenários antigos de dashboard, parâmetros,
-permissões e operação continuam dependendo de mocks de endpoints que não
-interceptam o runtime atual. Eles não exercitam o código desta fase e ficam
-registrados como dívida da suíte global, sem serem tratados como evidência verde.
+A suíte Playwright global foi saneada sem ignorar testes. O wiring institucional
+que havia sido removido de Dashboard, Parâmetros, Pessoas/Acessos, Governança da
+Área e detalhes OP/Área foi restaurado. Os 28 cenários passam em conjunto.
 
 ## Evidências funcionais
 
@@ -55,14 +55,12 @@ registrados como dívida da suíte global, sem serem tratados como evidência ve
 
 ## Riscos e pendências
 
-- Cloud Run, GCS, ClamAV e Frappe real não existem dentro deste ambiente local.
-  A integração está pronta e falha fechada, mas precisa do ensaio no ambiente
-  integrado antes de ativar as flags em produção.
+- O workflow de homologação constrói e implanta ClamAV e o processador de mídia
+  como serviços Cloud Run privados, usa IAM entre serviços e injeta os segredos
+  pelo Secret Manager. O ambiente real ainda precisa executar o workflow e o
+  smoke integrado antes de ativar as flags em produção.
 - O bundle `exceljs` segue acima de 500 KiB. É aviso de performance da importação,
   não falha funcional ou de segurança desta fase.
-- Os nove testes globais antigos citados acima precisam ser modernizados em um
-  trabalho de saneamento transversal; não devem bloquear o piloto específico do
-  FAQ v3.
 
 ## Teste do usuário
 

@@ -31,6 +31,8 @@ printf '== Cloud Run local readiness ==\n'
 check_file "preflight-homolog.sh" "$ROOT/ops/cloudrun/preflight-homolog.sh"
 check_file "smoke-homolog.sh" "$ROOT/ops/cloudrun/smoke-homolog.sh"
 check_file "deploy.sh" "$ROOT/ops/cloudrun/deploy.sh"
+check_file "deploy-faq-services.sh" "$ROOT/ops/cloudrun/deploy-faq-services.sh"
+check_file "ensure-random-secret.sh" "$ROOT/ops/cloudrun/ensure-random-secret.sh"
 check_file "rollback.sh" "$ROOT/ops/cloudrun/rollback.sh"
 check_file "env.vm.example" "$ROOT/env.vm.example"
 check_file "docker-compose.vm.yml" "$ROOT/docker-compose.vm.yml"
@@ -40,13 +42,23 @@ check_file "TI handoff" "$ROOT/docs/TI_HOMOLOGACAO.md"
 check_file "GCS site_config doc" "$ROOT/docs/ops/gcs-frappe-site-config.example.md"
 check_executable "validate-gcs-site-config.sh" "$ROOT/ops/vm/scripts/validate-gcs-site-config.sh"
 
-if command -v python3 >/dev/null 2>&1; then
-  if python3 -m unittest discover -s "$ROOT/ops/cloudrun/tests" -p 'test_*.py' -q 2>/dev/null; then
+python_cmd=
+for candidate in python3 python; do
+  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" --version >/dev/null 2>&1; then
+    python_cmd=$candidate
+    break
+  fi
+done
+
+if [[ -n "$python_cmd" ]]; then
+  if "$python_cmd" -m unittest discover -s "$ROOT/ops/cloudrun/tests" -p 'test_*.py' -q 2>/dev/null; then
     printf 'OK   ops/cloudrun/tests (unittest)\n'
   else
     printf 'FALHA ops/cloudrun/tests\n'
     failures=$((failures + 1))
   fi
+else
+  printf 'AVISO Python indisponivel; testes unitarios nao executados\n'
 fi
 
 if [[ $failures -gt 0 ]]; then

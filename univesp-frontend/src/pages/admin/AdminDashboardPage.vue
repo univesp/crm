@@ -8,13 +8,51 @@ import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminDashboardView } from '@/services/adminDashboardRuntime'
 import { buildOperationalCockpitFromDashboard } from '@/services/operationalCockpitRuntime'
-import { getLegacyKnowledgeMetrics, isMockRuntimeEnabled } from '@/services/appApi'
+import { getLegacyKnowledgeMetrics, isMockRuntimeEnabled, listTickets } from '@/services/appApi'
+import { useProtocolSearch } from '@/composables/useProtocolSearch'
+import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 const knowledgeMetricOverrides = ref([])
+const protocolSearch = useProtocolSearch(ref('admin_central'))
+const liveState = reactive({
+  loading: false,
+  error: '',
+  total: 0,
+  loaded: 0,
+  truncated: false,
+})
+
+async function loadInstitutionalDashboard() {
+  if (isMockRuntimeEnabled()) return
+  liveState.loading = true
+  liveState.error = ''
+  try {
+    const pageSize = 100
+    const maxPages = 5
+    const tickets = []
+    let total = 0
+    for (let page = 1; page <= maxPages; page += 1) {
+      const response = await listTickets({ page, page_size: pageSize })
+      const batch = Array.isArray(response.data) ? response.data : []
+      tickets.push(...batch)
+      total = Number(response.meta?.total || tickets.length)
+      if (tickets.length >= total || batch.length < pageSize) break
+    }
+    studentSupportStore.replaceLiveTickets(tickets.map(mapApiTicketToOperationalProtocol))
+    liveState.total = total
+    liveState.loaded = tickets.length
+    liveState.truncated = tickets.length < total
+  } catch (error) {
+    studentSupportStore.replaceLiveTickets([])
+    liveState.error = error?.message || 'Falha ao carregar os indicadores institucionais.'
+  } finally {
+    liveState.loading = false
+  }
+}
 
 const filters = reactive({
   queue: 'todos',
@@ -54,6 +92,7 @@ const metricValue = (label) => metrics.value.find((metric) => metric.label === l
 
 onMounted(async () => {
   if (isMockRuntimeEnabled()) return
+  await loadInstitutionalDashboard()
   try {
     const response = await getLegacyKnowledgeMetrics()
     knowledgeMetricOverrides.value = Array.isArray(response.data?.legacy_metrics)
@@ -690,6 +729,25 @@ function getRiskLabel(row) {
         <div>
           <h1 class="text-xl font-semibold text-slate-950">Dashboard admin</h1>
           <p class="text-xs text-slate-500">Visao rapida da operacao</p>
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+            <span class="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">
+              Fonte institucional
+            </span>
+            <span class="text-slate-500">
+              {{ liveState.loading ? 'Atualizando...' : `${liveState.loaded} de ${liveState.total} tickets carregados` }}
+            </span>
+            <button
+              type="button"
+              class="font-semibold text-[var(--color-primary)] disabled:opacity-50"
+              :disabled="liveState.loading"
+              @click="loadInstitutionalDashboard"
+            >
+              Atualizar
+            </button>
+          </div>
+          <p v-if="liveState.error" class="mt-2 text-xs font-semibold text-red-700" role="alert">
+            {{ liveState.error }}
+          </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
@@ -748,6 +806,27 @@ function getRiskLabel(row) {
           </div>
         </div>
       </div>
+
+      <form class="mt-3 flex flex-wrap items-end gap-2" @submit.prevent="protocolSearch.submit">
+        <label class="grid min-w-[240px] flex-1 gap-1">
+          <span class="text-xs font-semibold text-slate-500">Buscar protocolo</span>
+          <input
+            v-model="protocolSearch.query.value"
+            type="search"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+          />
+        </label>
+        <button
+          type="submit"
+          class="rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          :disabled="protocolSearch.loading.value"
+        >
+          Buscar
+        </button>
+        <p v-if="protocolSearch.error.value" class="w-full text-xs font-semibold text-red-700" role="alert">
+          {{ protocolSearch.error.value }}
+        </p>
+      </form>
 
       <div class="mt-3 flex flex-wrap items-end gap-2">
         <label class="grid min-w-[130px] gap-1">
@@ -1150,7 +1229,7 @@ function getRiskLabel(row) {
       <div class="crm-dashboard-card">
         <div>
           <p class="text-xs font-semibold text-slate-500">Agora</p>
-          <p class="text-sm font-semibold text-slate-950">Acoes recomendadas</p>
+          <p class="text-sm font-semibold text-slate-950">Ações recomendadas</p>
         </div>
 
         <div class="crm-dashboard-card__body">
@@ -1210,7 +1289,7 @@ function getRiskLabel(row) {
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Escape da FAQ</p>
-          <p class="text-sm font-semibold text-slate-950">Saida apos FAQ</p>
+          <p class="text-sm font-semibold text-slate-950">Saída após a FAQ</p>
         </div>
 
         <!-- Dois indicadores de escape lado a lado -->
@@ -1332,10 +1411,10 @@ function getRiskLabel(row) {
       </div>
     </section>
 
-    <!-- 8. ANALISE AVANCADA (recolhida) -->
+    <!-- 8. ANALISE AVANCADA E AUDITORIA (recolhida) -->
     <details class="rounded-[8px] border border-slate-200 bg-white p-4">
       <summary class="cursor-pointer text-sm font-semibold text-slate-700">
-        Analise avancada
+        Análise avançada e auditoria
       </summary>
 
       <section class="mt-5">

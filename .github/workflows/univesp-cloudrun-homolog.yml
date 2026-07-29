@@ -31,6 +31,12 @@ jobs:
       IMAGE_NAME: ${{ vars.IMAGE_NAME }}
       GATEWAY_IMAGE_NAME: ${{ vars.GATEWAY_IMAGE_NAME }}
       GATEWAY_SERVICE: ${{ vars.GATEWAY_SERVICE }}
+      ANTIMALWARE_IMAGE_NAME: ${{ vars.ANTIMALWARE_IMAGE_NAME }}
+      MEDIA_PROCESSOR_IMAGE_NAME: ${{ vars.MEDIA_PROCESSOR_IMAGE_NAME }}
+      ANTIMALWARE_SERVICE: ${{ vars.ANTIMALWARE_SERVICE }}
+      MEDIA_PROCESSOR_SERVICE: ${{ vars.MEDIA_PROCESSOR_SERVICE }}
+      ANTIMALWARE_TOKEN_SECRET_NAME: ${{ vars.ANTIMALWARE_TOKEN_SECRET_NAME }}
+      MEDIA_PROCESSOR_TOKEN_SECRET_NAME: ${{ vars.MEDIA_PROCESSOR_TOKEN_SECRET_NAME }}
       FRAPPE_SITE_NAME: ${{ vars.FRAPPE_SITE_NAME }}
       FRAPPE_SERVICE_USER_EMAIL: ${{ vars.FRAPPE_SERVICE_USER_EMAIL }}
       INITIAL_ADMIN_EMAIL: ${{ vars.INITIAL_ADMIN_EMAIL }}
@@ -190,6 +196,13 @@ jobs:
           reuse_or_sync_secret "${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}" "${AZURE_ACADEMICO_CLIENT_SECRET_VALUE}"
           reuse_or_sync_secret "${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}" "${SAML_IDP_CERT_VALUE}"
 
+      - name: Ensure private FAQ service tokens
+        run: |
+          SECRET_NAME="${ANTIMALWARE_TOKEN_SECRET_NAME:-crm-homolog-antimalware-token}" \
+            ./ops/cloudrun/ensure-random-secret.sh
+          SECRET_NAME="${MEDIA_PROCESSOR_TOKEN_SECRET_NAME:-crm-homolog-media-processor-token}" \
+            ./ops/cloudrun/ensure-random-secret.sh
+
       - name: Run read-only GCP preflight
         env:
           PREFLIGHT_MODE: gcp
@@ -200,10 +213,16 @@ jobs:
         run: |
           image_name="${IMAGE_NAME:-frappe-crm}"
           gateway_image_name="${GATEWAY_IMAGE_NAME:-crm-sso-gateway}"
+          antimalware_image_name="${ANTIMALWARE_IMAGE_NAME:-crm-faq-antimalware}"
+          media_processor_image_name="${MEDIA_PROCESSOR_IMAGE_NAME:-crm-faq-media-processor}"
           IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${image_name}:${GITHUB_SHA}"
           GATEWAY_IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${gateway_image_name}:${GITHUB_SHA}"
+          ANTIMALWARE_IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${antimalware_image_name}:${GITHUB_SHA}"
+          MEDIA_PROCESSOR_IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${media_processor_image_name}:${GITHUB_SHA}"
           echo "image_uri=${IMAGE_URI}" >> "${GITHUB_OUTPUT}"
           echo "gateway_image_uri=${GATEWAY_IMAGE_URI}" >> "${GITHUB_OUTPUT}"
+          echo "antimalware_image_uri=${ANTIMALWARE_IMAGE_URI}" >> "${GITHUB_OUTPUT}"
+          echo "media_processor_image_uri=${MEDIA_PROCESSOR_IMAGE_URI}" >> "${GITHUB_OUTPUT}"
           APPS_JSON=$(jq -cn \
             --arg crm_url "https://github.com/${GITHUB_REPOSITORY}" \
             --arg crm_branch "${GITHUB_REF_NAME}" \
@@ -232,6 +251,22 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.gateway_image_uri }}
 
+      - name: Build and push FAQ antimalware image
+        uses: docker/build-push-action@v6
+        with:
+          context: ops/antimalware
+          file: ops/antimalware/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.antimalware_image_uri }}
+
+      - name: Build and push FAQ media processor image
+        uses: docker/build-push-action@v6
+        with:
+          context: ops/media-processor
+          file: ops/media-processor/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.media_processor_image_uri }}
+
       - name: Deploy SSO Gateway
         env:
           GATEWAY_IMAGE_URI: ${{ steps.meta.outputs.gateway_image_uri }}
@@ -248,6 +283,19 @@ jobs:
             --format='value(status.url)')
           test -n "${gateway_origin}"
           echo "SSO_GATEWAY_ORIGIN=${gateway_origin}" >> "${GITHUB_ENV}"
+
+      - name: Deploy private FAQ processing services
+        env:
+          ANTIMALWARE_IMAGE_URI: ${{ steps.meta.outputs.antimalware_image_uri }}
+          MEDIA_PROCESSOR_IMAGE_URI: ${{ steps.meta.outputs.media_processor_image_uri }}
+        run: |
+          output=$(./ops/cloudrun/deploy-faq-services.sh)
+          printf '%s\n' "${output}"
+          antimalware_endpoint=$(printf '%s\n' "${output}" | sed -n 's/^ANTIMALWARE_ENDPOINT=//p' | tail -1)
+          media_processor_endpoint=$(printf '%s\n' "${output}" | sed -n 's/^MEDIA_PROCESSOR_ENDPOINT=//p' | tail -1)
+          test -n "${antimalware_endpoint}" && test -n "${media_processor_endpoint}"
+          echo "ANTIMALWARE_ENDPOINT=${antimalware_endpoint}" >> "${GITHUB_ENV}"
+          echo "MEDIA_PROCESSOR_ENDPOINT=${media_processor_endpoint}" >> "${GITHUB_ENV}"
 
       - name: Deploy Frappe services and bootstrap academic apps
         env:

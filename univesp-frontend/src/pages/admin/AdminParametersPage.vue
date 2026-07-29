@@ -1,16 +1,24 @@
 ﻿<script setup>
-import { computed, reactive, watchEffect } from 'vue'
+import { computed, onMounted, reactive, ref, watchEffect } from 'vue'
 import MetricCard from '@/components/MetricCard.vue'
 import SectionPanel from '@/components/SectionPanel.vue'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminParametersRuntime, cloneAdminParametersDraft, findApplicationRule, findParameterLevel } from '@/services/adminParametersRuntime'
+import { getRuntimeSettings, isMockRuntimeEnabled, updateRuntimeSettings } from '@/services/appApi'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 const parameterDraft = reactive(cloneAdminParametersDraft())
+const settingsVersion = ref('')
+const saveState = reactive({
+  loading: false,
+  error: '',
+  success: '',
+  reason: '',
+})
 const ui = reactive({
   selectedCriticalityKey: null,
   selectedSlaKey: null,
@@ -101,10 +109,94 @@ function selectSlaLevel(key) {
 function selectRule(ruleId) {
   ui.selectedRuleId = ruleId
 }
+
+async function loadRuntimeSettings() {
+  if (isMockRuntimeEnabled()) return
+  saveState.loading = true
+  saveState.error = ''
+  try {
+    const result = await getRuntimeSettings()
+    settingsVersion.value = result.data?.version || ''
+    const parameters = result.data?.parameters || {}
+    if (
+      Array.isArray(parameters.criticalityLevels)
+      && Array.isArray(parameters.slaLevels)
+      && Array.isArray(parameters.applicationRules)
+    ) {
+      Object.assign(parameterDraft, JSON.parse(JSON.stringify(parameters)))
+    }
+  } catch (error) {
+    saveState.error = error?.message || 'Nao foi possivel carregar os parametros institucionais.'
+  } finally {
+    saveState.loading = false
+  }
+}
+
+async function saveRuntimeSettings() {
+  saveState.error = ''
+  saveState.success = ''
+  if (saveState.reason.trim().length < 5) {
+    saveState.error = 'Informe uma justificativa com pelo menos 5 caracteres.'
+    return
+  }
+  saveState.loading = true
+  try {
+    const result = await updateRuntimeSettings({
+      version: settingsVersion.value,
+      reason: saveState.reason.trim(),
+      parameters: JSON.parse(JSON.stringify(parameterDraft)),
+    })
+    settingsVersion.value = result.data?.version || ''
+    saveState.reason = ''
+    saveState.success = 'Parametros salvos no Frappe com versao e auditoria.'
+  } catch (error) {
+    saveState.error = error?.message || 'Nao foi possivel salvar os parametros institucionais.'
+  } finally {
+    saveState.loading = false
+  }
+}
+
+onMounted(() => {
+  void loadRuntimeSettings()
+})
 </script>
 
 <template>
   <div class="grid gap-6">
+    <section class="rounded-[8px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <button type="button" class="text-sm font-semibold text-slate-900">Padrões oficiais</button>
+          <p class="mt-1 text-xs text-slate-500">Alterações são versionadas e registradas para auditoria.</p>
+        </div>
+        <div class="grid w-full gap-2 lg:max-w-xl lg:grid-cols-[minmax(0,1fr)_auto]">
+          <label class="grid gap-1 text-sm font-semibold text-slate-700">
+            <span>Justificativa da alteração</span>
+            <input
+              v-model="saveState.reason"
+              type="text"
+              class="min-h-10 rounded-[8px] border border-slate-200 px-3 font-normal"
+              placeholder="Explique o ajuste operacional"
+            />
+          </label>
+          <button
+            type="button"
+            :disabled="saveState.loading"
+            class="min-h-10 self-end rounded-[8px] bg-slate-950 px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+            @click="saveRuntimeSettings"
+          >
+            {{ saveState.loading ? 'Salvando...' : 'Salvar alterações' }}
+          </button>
+        </div>
+      </div>
+      <p v-if="saveState.error" class="mt-3 text-sm font-medium text-[var(--color-danger)]" role="alert">
+        {{ saveState.error }}
+      </p>
+      <p v-if="saveState.success" class="mt-3 text-sm font-medium text-[var(--color-success)]" role="status">
+        {{ saveState.success }}
+      </p>
+    </section>
+
     <SectionPanel
       eyebrow="Admin"
       title="Parametros de SLA e criticidade"

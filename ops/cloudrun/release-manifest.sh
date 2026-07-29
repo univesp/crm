@@ -6,13 +6,15 @@ WEB_SERVICE=${WEB_SERVICE:-crm-homolog-web}
 WORKER_SERVICE=${WORKER_SERVICE:-crm-homolog-worker}
 SCHEDULER_SERVICE=${SCHEDULER_SERVICE:-crm-homolog-scheduler}
 GATEWAY_SERVICE=${GATEWAY_SERVICE:-crm-homolog-sso-gateway}
+ANTIMALWARE_SERVICE=${ANTIMALWARE_SERVICE:-crm-homolog-antimalware}
+MEDIA_PROCESSOR_SERVICE=${MEDIA_PROCESSOR_SERVICE:-crm-homolog-media-processor}
 BOOTSTRAP_JOB=${BOOTSTRAP_JOB:-crm-homolog-bootstrap}
 OUTPUT_PATH=${OUTPUT_PATH:-}
 RELEASE_SHA=${RELEASE_SHA:-${GITHUB_SHA:-unknown}}
 for command_name in gcloud jq; do command -v "$command_name" >/dev/null || { printf '%s is required.\n' "$command_name" >&2; exit 1; }; done
 [[ -n "$PROJECT_ID" ]] || { printf 'GCP_PROJECT_ID is required.\n' >&2; exit 1; }
 services_json='[]'
-for service in "$WEB_SERVICE" "$WORKER_SERVICE" "$SCHEDULER_SERVICE" "$GATEWAY_SERVICE"; do
+for service in "$WEB_SERVICE" "$WORKER_SERVICE" "$SCHEDULER_SERVICE" "$GATEWAY_SERVICE" "$ANTIMALWARE_SERVICE" "$MEDIA_PROCESSOR_SERVICE"; do
   description=$(gcloud run services describe "$service" --project "$PROJECT_ID" --region "$REGION" --format=json)
   entry=$(jq -c --arg name "$service" '{name: $name, url: (.status.url // null), revision: (.status.latestReadyRevisionName // null), image: (.spec.template.spec.containers[0].image // null), traffic: [(.status.traffic // [])[] | {revision: (.revisionName // null), percent: (.percent // 0), latest: (.latestRevision // false)}]}' <<<"$description")
   services_json=$(jq -c --argjson entry "$entry" '. + [$entry]' <<<"$services_json")

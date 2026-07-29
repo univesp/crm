@@ -4,23 +4,28 @@
 
 As Fases 0–5 estão implementadas no código e o piloto local automatizado está
 verde. A afirmação é limitada ao que este ambiente consegue provar: não há Bench,
-gcloud, site Frappe nem credenciais GCS/SMTP configuradas nesta máquina. Portanto,
-o ensaio contra serviços reais continua sendo gate de homologação, não uma
-evidência inventada.
+gcloud, site Frappe nem credenciais GCS/SMTP configuradas nesta máquina. O
+workflow de homologação agora também constrói e implanta os processadores privados
+de documentos e mídia, configura autenticação IAM entre serviços e usa o bucket
+GCS montado pelo Cloud Run. O ensaio contra serviços reais continua sendo gate de
+homologação, não uma evidência inventada.
 
 ## Evidência consolidada
 
 | Camada | Resultado |
 |---|---|
-| Contratos puros backend do piloto | 22/22 |
+| Contratos puros backend do piloto | 25/25 |
 | SSO Gateway | 17/17 |
 | Contratos canônicos do CRM | 68/68 |
 | E2E FAQ v3 e personas | 17/17 |
+| E2E global do frontend | 28/28 |
+| Contratos do deploy Cloud Run | 27/27 |
 | Typecheck e ESLint | aprovados |
 | Build de produção | aprovado |
 | Imagem media processor | construída e iniciada |
 | Imagem antimalware | construída e iniciada |
 | Health e bloqueio sem token dos containers | aprovados |
+| Sintaxe Bash e workflow YAML | aprovados |
 
 Runner reproduzível:
 
@@ -42,6 +47,21 @@ Runner reproduzível:
 | 3 | público sem SSO e documentos seguros | jornada pública, GCS privado, scanner e E2E | implementado; ativação depende de configuração |
 | 4 | diretório, validação e e-mail correlacionado | import incremental, estados, ingress assinado | implementado; ensaio SMTP/Frappe pendente |
 | 5 | mídia acessível e hardening | assets, conversor, validações e containers | implementado |
+
+## Integração de homologação
+
+- `crm-homolog-antimalware` e `crm-homolog-media-processor` são serviços
+  privados, sem acesso anônimo.
+- O service account do Frappe recebe `roles/run.invoker` somente nesses serviços.
+- Cada chamada usa token IAM de identidade e segredo compartilhado armazenado no
+  Secret Manager.
+- O deploy do Frappe recebe os endpoints HTTPS, os segredos e
+  `GCS_MOUNTED_STORAGE=true`; não depende de credenciais S3/HMAC para o volume
+  GCS já montado.
+- A credencial pública de upload é armazenada somente como hash e expira em 24
+  horas por padrão (`PUBLIC_UPLOAD_TTL_HOURS`).
+- Preflight, release manifest e rollback incluem os dois serviços.
+- O workflow permanece manual e protegido pelo ambiente `homolog`.
 
 ## Jornada `acesso-ava`
 

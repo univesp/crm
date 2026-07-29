@@ -6,11 +6,15 @@ PROJECT_ID=${GCP_PROJECT_ID:-${PROJECT_ID:-}}
 REGION=${GCP_REGION:-us-east1}
 ROLLBACK_IMAGE_URI=${ROLLBACK_IMAGE_URI:-}
 ROLLBACK_GATEWAY_IMAGE_URI=${ROLLBACK_GATEWAY_IMAGE_URI:-}
+ROLLBACK_ANTIMALWARE_IMAGE_URI=${ROLLBACK_ANTIMALWARE_IMAGE_URI:-}
+ROLLBACK_MEDIA_PROCESSOR_IMAGE_URI=${ROLLBACK_MEDIA_PROCESSOR_IMAGE_URI:-}
 CONFIRM_ROLLBACK=${CONFIRM_ROLLBACK:-}
 WEB_SERVICE=${WEB_SERVICE:-crm-homolog-web}
 WORKER_SERVICE=${WORKER_SERVICE:-crm-homolog-worker}
 SCHEDULER_SERVICE=${SCHEDULER_SERVICE:-crm-homolog-scheduler}
 GATEWAY_SERVICE=${GATEWAY_SERVICE:-crm-homolog-sso-gateway}
+ANTIMALWARE_SERVICE=${ANTIMALWARE_SERVICE:-crm-homolog-antimalware}
+MEDIA_PROCESSOR_SERVICE=${MEDIA_PROCESSOR_SERVICE:-crm-homolog-media-processor}
 EVIDENCE_DIR=${EVIDENCE_DIR:-artifacts/homolog/rollback-$(date -u +%Y%m%dT%H%M%SZ)}
 
 if [[ -z "$PROJECT_ID" || -z "$ROLLBACK_IMAGE_URI" || -z "$ROLLBACK_GATEWAY_IMAGE_URI" ]]; then
@@ -29,6 +33,8 @@ validate_immutable_image() {
 }
 validate_immutable_image "$ROLLBACK_IMAGE_URI"
 validate_immutable_image "$ROLLBACK_GATEWAY_IMAGE_URI"
+if [[ -n "$ROLLBACK_ANTIMALWARE_IMAGE_URI" ]]; then validate_immutable_image "$ROLLBACK_ANTIMALWARE_IMAGE_URI"; fi
+if [[ -n "$ROLLBACK_MEDIA_PROCESSOR_IMAGE_URI" ]]; then validate_immutable_image "$ROLLBACK_MEDIA_PROCESSOR_IMAGE_URI"; fi
 
 mkdir -p "$EVIDENCE_DIR"
 OUTPUT_PATH="$EVIDENCE_DIR/pre-rollback-manifest.json" "$SCRIPT_DIR/release-manifest.sh"
@@ -45,6 +51,12 @@ for service in "${services[@]}"; do
   gcloud run services update "$service" --project "$PROJECT_ID" --region "$REGION" --image "$ROLLBACK_IMAGE_URI" --quiet
 done
 gcloud run services update "$GATEWAY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$ROLLBACK_GATEWAY_IMAGE_URI" --quiet
+if [[ -n "$ROLLBACK_ANTIMALWARE_IMAGE_URI" ]]; then
+  gcloud run services update "$ANTIMALWARE_SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$ROLLBACK_ANTIMALWARE_IMAGE_URI" --quiet
+fi
+if [[ -n "$ROLLBACK_MEDIA_PROCESSOR_IMAGE_URI" ]]; then
+  gcloud run services update "$MEDIA_PROCESSOR_SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$ROLLBACK_MEDIA_PROCESSOR_IMAGE_URI" --quiet
+fi
 OUTPUT_PATH="$EVIDENCE_DIR/post-rollback-manifest.json" "$SCRIPT_DIR/release-manifest.sh"
 printf 'Image rollback completed for Frappe and gateway. Run smoke-homolog.sh next.\n'
 printf 'This script does not reverse migrations or restore data.\n'
