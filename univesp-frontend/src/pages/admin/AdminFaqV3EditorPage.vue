@@ -2,9 +2,9 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import FaqV3FlowMap from '@/components/admin/faq-v3/FaqV3FlowMap.vue'
 import FaqV3FlowSettingsPanel from '@/components/admin/faq-v3/FaqV3FlowSettingsPanel.vue'
 import FaqV3JourneySimulator from '@/components/admin/faq-v3/FaqV3JourneySimulator.vue'
+import FaqV3MapOverlay from '@/components/admin/faq-v3/FaqV3MapOverlay.vue'
 import FaqV3PlaybookPreviewDialog from '@/components/admin/faq-v3/FaqV3PlaybookPreviewDialog.vue'
 import FaqV3SubmitReviewDialog from '@/components/admin/faq-v3/FaqV3SubmitReviewDialog.vue'
 import FaqV3VersionHistoryDialog from '@/components/admin/faq-v3/FaqV3VersionHistoryDialog.vue'
@@ -60,7 +60,6 @@ const versions = ref([])
 const etag = ref('')
 const selectedNodeId = ref('')
 const activeTab = ref('student')
-const viewMode = ref('map')
 const simulatorOpen = ref(false)
 const playbookPreviewOpen = ref(false)
 const settingsOpen = ref(false)
@@ -234,9 +233,6 @@ const playbookPreviewLayers = computed(() => {
 })
 
 onMounted(() => {
-  if (typeof window !== 'undefined' && window.matchMedia('(max-width: 54rem)').matches) {
-    viewMode.value = 'list'
-  }
   loadEditor()
 })
 
@@ -1024,6 +1020,11 @@ function deleteStageFromMenu() {
   stageActionsOpen.value = false
   removeSelectedNode()
 }
+
+function handleMapSelectNode(nodeId) {
+  selectedNodeId.value = nodeId
+  mapOpen.value = false
+}
 </script>
 
 <template>
@@ -1259,36 +1260,7 @@ function deleteStageFromMenu() {
             <h2 id="flow-tree-title">Etapas do fluxo</h2>
             <p>Escolha a etapa que deseja editar.</p>
           </div>
-          <div class="faq-view-toggle" role="tablist" aria-label="Visualização do fluxo">
-            <button
-              type="button"
-              role="tab"
-              class="faq-view-toggle__button"
-              :class="{ 'is-active': viewMode === 'map' }"
-              :aria-selected="viewMode === 'map'"
-              @click="viewMode = 'map'"
-            >
-              Mapa do fluxo
-            </button>
-            <button
-              type="button"
-              role="tab"
-              class="faq-view-toggle__button"
-              :class="{ 'is-active': viewMode === 'list' }"
-              :aria-selected="viewMode === 'list'"
-              @click="viewMode = 'list'"
-            >
-              Lista de etapas
-            </button>
-          </div>
-          <FaqV3FlowMap
-            v-if="viewMode === 'map'"
-            :payload="payload"
-            :selected-node-id="selectedNodeId"
-            :node-issues="nodeIssues"
-            @select-node="selectedNodeId = $event"
-          />
-          <ol v-else class="faq-tree__list">
+          <ol class="faq-tree__list">
             <li v-for="node in treeNodes" :key="node.node_id">
               <button
                 type="button"
@@ -1836,6 +1808,15 @@ function deleteStageFromMenu() {
         @close="simulatorOpen = false"
       />
 
+      <FaqV3MapOverlay
+        :open="mapOpen"
+        :payload="payload"
+        :selected-node-id="selectedNodeId"
+        :node-issues="nodeIssues"
+        @close="mapOpen = false"
+        @select-node="handleMapSelectNode"
+      />
+
       <FaqV3FlowSettingsPanel
         :open="settingsOpen"
         :can-edit="canEdit"
@@ -2045,28 +2026,6 @@ function deleteStageFromMenu() {
 .faq-editor-v3__meta dd {
   margin: 0;
   font-weight: 600;
-}
-
-.faq-view-toggle {
-  display: inline-flex;
-  gap: var(--space-1);
-  margin-block: var(--space-3);
-  padding: var(--space-1);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-}
-
-.faq-view-toggle__button {
-  min-height: 2.5rem;
-  padding-inline: var(--space-3);
-  border-radius: var(--radius-sm);
-}
-
-.faq-view-toggle__button.is-active {
-  background: var(--color-surface);
-  color: var(--color-primary-dark);
-  font-weight: 700;
 }
 
 .faq-settings,

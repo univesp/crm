@@ -74,7 +74,6 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
   await expect(page.getByText('Canais de disponibilidade', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Fechar' }).click()
 
-  await page.getByRole('tab', { name: 'Lista de etapas' }).click()
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
   await page.getByRole('button', { name: 'Orientação', exact: true }).click()
   await page.getByLabel('Conteúdo', { exact: true }).fill('Recupere sua senha pelo portal do aluno.')
@@ -132,9 +131,10 @@ test('mapa do fluxo seleciona a etapa e a simulação percorre a jornada', async
   await mockKnowledgeV3(page, { payload })
   await page.goto('/crm/admin/faq-editor/acesso-ava')
 
-  await page.getByRole('tab', { name: 'Mapa do fluxo' }).click()
-  await expect(page.getByRole('heading', { name: 'Mapa do fluxo' })).toBeVisible()
-  await page.getByRole('button', { name: /Início|Etapa:/ }).first().click()
+  await page.getByRole('button', { name: 'Ver mapa' }).click()
+  const mapDialog = page.getByRole('dialog', { name: 'Mapa do fluxo' })
+  await expect(mapDialog.getByRole('heading', { name: 'Mapa do fluxo' })).toBeVisible()
+  await mapDialog.getByRole('button', { name: /Etapa:|Resposta final:/ }).first().click()
   await expect(page.getByLabel('Nome da etapa')).toBeVisible()
 
   await page.getByRole('button', { name: 'Simular jornada' }).click()
@@ -182,7 +182,6 @@ test('editor envia mídia institucional e preserva o asset no rascunho', async (
   })
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
-  await page.getByRole('tab', { name: 'Lista de etapas' }).click()
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
   await page.getByRole('button', { name: 'Orientação', exact: true }).click()
   await page.getByLabel('Tipo do bloco').selectOption('image')
