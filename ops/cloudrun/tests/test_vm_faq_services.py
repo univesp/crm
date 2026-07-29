@@ -23,7 +23,10 @@ class VmFaqServicesTest(unittest.TestCase):
 		self.assertIn('VERSION_ID:-}" != "12"', self.dependencies)
 		self.assertIn("apt-get install -y --no-install-recommends", self.dependencies)
 		self.assertIn("docker.io docker-compose", self.dependencies)
-		self.assertNotIn("curl", self.dependencies)
+		self.assertIn('compose_version="v2.40.3"', self.dependencies)
+		self.assertIn('compose_sha256="dba9d98e', self.dependencies)
+		self.assertIn("sha256sum --check -", self.dependencies)
+		self.assertNotIn("curl |", self.dependencies)
 
 	def test_deploy_supports_compose_plugin_and_debian_binary(self):
 		self.assertIn("compose=(docker compose)", self.deploy)
