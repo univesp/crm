@@ -5,10 +5,10 @@ Branch: `codex/faq-v3-phase0`
 
 ## Estado
 
-Implementação local concluída. A ativação em homolog permanece pendente porque a
-sessão disponível não está autenticada como Admin central. Esse limite impede, de
-forma legítima, exportar a biblioteca administrativa atual, publicar os três seeds
-e produzir evidência autenticada das jornadas em homolog.
+Implementação local concluída. A ativação em homolog permanece pendente até o
+merge e o deploy autorizados. O bootstrap de homolog agora exporta a biblioteca
+v2 para arquivo privado, publica os três seeds, publica o piloto v3, cria os
+perfis sintéticos e habilita as flags de forma idempotente e auditável.
 
 O código não usa credenciais embutidas e não contorna SSO.
 
@@ -34,21 +34,23 @@ O código não usa credenciais embutidas e não contorna SSO.
 | `npm run typecheck` | passou |
 | ESLint dos arquivos alterados | passou |
 | `npm run build` | passou; apenas aviso de chunks acima de 500 kB |
-| Playwright FAQ focado | 4 testes passaram |
-| Playwright `mvp-wiring.spec.js` | 2 testes passaram |
+| Playwright FAQ/piloto focado | 18 testes passaram |
+| Playwright completo | 29 testes passaram |
+| Contratos canônicos | 68 testes passaram |
+| Gateway | 18 testes passaram |
+| Contratos Cloud Run | 33 testes passaram |
 | Ruff dos arquivos Python alterados | passou |
-| Smoke público de homolog | saúde e FAQ pública responderam |
 | Backend Frappe local | não executado: ambiente Python local não possui `frappe` |
 
 ## Riscos e pendências
 
-1. O gate remoto da Fase 0 exige uma sessão Admin central em homolog para:
-   exportar a biblioteca v2, publicar os três seeds e executar o smoke autenticado.
+1. O gate remoto da Fase 0 exige executar o workflow manual de homolog. O job de
+   bootstrap e o smoke falham se seeds, versão v3, filas ou flags não existirem.
 2. A auditoria de dependências encontrou vulnerabilidades transitivas de severidade
    alta em dependências do `exceljs`. Não foi aplicado downgrade forçado; o risco
    será tratado na Fase 1e e no hardening.
-3. A branch ainda não foi implantada em homolog. Portanto, os resultados remotos
-   observados são baseline, não evidência do código novo.
+3. A branch ainda não foi implantada em homolog. Não há evidência remota do código
+   novo até o workflow concluir e publicar seu pacote de evidências.
 
 ## Teste do usuário
 

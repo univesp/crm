@@ -15,11 +15,11 @@ homologação, não uma evidência inventada.
 | Camada | Resultado |
 |---|---|
 | Contratos puros backend do piloto | 25/25 |
-| SSO Gateway | 17/17 |
+| SSO Gateway | 18/18 |
 | Contratos canônicos do CRM | 68/68 |
 | E2E FAQ v3 e personas | 18/18 |
 | E2E global do frontend | 29/29 |
-| Contratos do deploy Cloud Run | 27/27 |
+| Contratos do deploy Cloud Run | 33/33 |
 | Typecheck e ESLint | aprovados |
 | Build de produção | aprovado |
 | Imagem media processor | construída e iniciada |
@@ -64,6 +64,14 @@ Runner reproduzível:
   quarentena e a finalização é idempotente sob lock transacional.
 - Preflight, release manifest e rollback incluem os dois serviços.
 - O workflow permanece manual e protegido pelo ambiente `homolog`.
+- O job de bootstrap publica os três seeds v2 e o piloto v3, preserva backup
+  privado da biblioteca anterior, cria dados sintéticos e registra a publicação
+  em `Univesp Access Audit`.
+- O verificador consulta os logs da execução específica e falha se versão,
+  bundles, filas ou flags esperadas não estiverem ativos.
+- A jornada pública v3 fixa a versão no backend, usa binding opaco em cookie
+  `HttpOnly` e envia lineage completo ao protocolo sem expor esse binding ao
+  navegador.
 
 ## Jornada `acesso-ava`
 

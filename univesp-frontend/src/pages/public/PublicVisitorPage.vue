@@ -15,6 +15,10 @@ import {
   getPublishedFaqLoadState,
 } from '@/services/faqRuntime'
 import { loadPublishedFaqType } from '@/services/publishedFaqBootstrap'
+import {
+  ensurePublicFaqSessionForNode,
+  recordPublicFaqJourneyEvent,
+} from '@/services/publicFaqSessionRuntime'
 
 const router = useRouter()
 const step = ref('faq')
@@ -69,19 +73,42 @@ const documentEnabled = computed(
   () => flags.value.faq_public_documents && documentPolicy.value.mode !== 'disabled',
 )
 
-function selectNode(node) {
+async function selectNode(node) {
   selectedNodeId.value = node.id
   errorMessage.value = ''
+  try {
+    await ensurePublicFaqSessionForNode(node)
+    await recordPublicFaqJourneyEvent('faq.node_viewed', node)
+  } catch (error) {
+    errorMessage.value = error?.message || 'Não foi possível iniciar esta orientação.'
+  }
 }
 
-function beginTicket() {
+async function beginTicket() {
   if (!canOpenTicket.value) {
     errorMessage.value = 'Escolha uma resposta final antes de abrir o atendimento.'
+    return
+  }
+  try {
+    await ensurePublicFaqSessionForNode(activeNode.value)
+    await recordPublicFaqJourneyEvent('faq.ticket_open_started', activeNode.value)
+  } catch (error) {
+    errorMessage.value = error?.message || 'Não foi possível continuar esta orientação.'
     return
   }
   subject.value = activeNode.value.titulo_exibido || activeNode.value.pergunta_exibida || ''
   step.value = 'open_ticket'
   errorMessage.value = ''
+}
+
+async function markResolved() {
+  try {
+    await ensurePublicFaqSessionForNode(activeNode.value)
+    await recordPublicFaqJourneyEvent('faq.resolved_without_ticket', activeNode.value)
+    selectedNodeId.value = ''
+  } catch (error) {
+    errorMessage.value = error?.message || 'Não foi possível registrar a conclusão.'
+  }
 }
 
 function onFile(event) {
@@ -125,8 +152,10 @@ async function submitTicket() {
   submitting.value = true
   errorMessage.value = ''
   try {
+    const activeSession = await ensurePublicFaqSessionForNode(activeNode.value)
     const response = await createPublicIntake({
       lgpd_consent: true,
+      faq_session_id: activeSession?.faq_session_id || '',
       visitor: {
         ...visitor.value,
         cpf: visitor.value.cpf.replace(/\D/g, ''),
@@ -225,7 +254,7 @@ onMounted(async () => {
         </ul>
         <div v-if="canOpenTicket" class="public-visitor__resolved">
           <p>Esta orientação resolveu sua dúvida?</p>
-          <button type="button" class="public-visitor__secondary" @click="router.push('/login')">Sim, encerrar</button>
+          <button type="button" class="public-visitor__secondary" @click="markResolved">Sim, encerrar</button>
           <button type="button" @click="beginTicket">Não, abrir atendimento</button>
         </div>
       </div>

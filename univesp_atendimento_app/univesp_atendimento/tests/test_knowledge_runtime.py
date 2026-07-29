@@ -44,7 +44,7 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 				"bundle_key": self.bundle_key,
 				"title": "Runtime",
 				"theme_key": self.theme_key,
-				"audience_profile": "student",
+				"audience_profile": "mixed",
 				"status": "active",
 				"created_by_email": "author.runtime@univesp.br",
 				"created_at": now_datetime(),
@@ -60,6 +60,7 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 		)
 		settings = frappe.get_single("Univesp Runtime Settings")
 		settings.knowledge_v3_read = 1
+		settings.faq_public_anonymous = 1
 		settings.knowledge_session_ttl_seconds = 7200
 		settings.save(ignore_permissions=True)
 
@@ -73,13 +74,13 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 			"theme_key": self.theme_key,
 			"metadata": {
 				"title": "Runtime",
-				"audience_profile": "student",
+				"audience_profile": "mixed",
 				"criticidade_default_key": "media",
 				"sla_policy_key": "48h",
 			},
 			"graph": {
 				"student_root_node_id": "root",
-				"public_root_node_id": None,
+				"public_root_node_id": "root",
 				"internal_root_node_id": None,
 			},
 			"routing_policy": {
@@ -92,23 +93,26 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 					"node_id": "root",
 					"stable_key": "root",
 					"node_kind": "path",
-					"audiences": ["student"],
+					"audiences": ["student", "public"],
 					"display": {"title": "Runtime"},
-					"content": {"student": {"blocks": []}, "public": None},
+					"content": {"student": {"blocks": []}, "public": {"blocks": []}},
 					"playbooks": {"op": None, "bpo": None, "analyst": None},
 				},
 				{
 					"node_id": "final",
 					"stable_key": "final",
 					"node_kind": "final",
-					"audiences": ["student"],
+					"audiences": ["student", "public"],
 					"display": {"title": "Final"},
 					"content": {
 						"student": {
 							"blocks": [{"block_id": "b1", "type": "text", "body": "Resposta"}],
 							"outcome_key": "open_ticket",
 						},
-						"public": None,
+						"public": {
+							"blocks": [{"block_id": "public-b1", "type": "text", "body": "Resposta"}],
+							"outcome_key": "open_ticket",
+						},
 					},
 					"playbooks": {
 						"op": {"objective": "Resolver"},
@@ -124,7 +128,7 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 					"child_node_id": "final",
 					"order": 1,
 					"active": True,
-					"audiences": ["student"],
+					"audiences": ["student", "public"],
 				}
 			],
 		}
@@ -240,3 +244,55 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 				context=self.context,
 			)
 		self.assertEqual(ticket_decision, preview_decision)
+
+	def test_public_session_keeps_superseded_version_and_validates_lineage(self):
+		with patch.object(knowledge_runtime, "verify_gateway_only"):
+			started = knowledge_runtime.start_public_session(
+				{
+					"faq_session_id": self.session_id,
+					"binding_hash": self.binding_hash,
+					"bundle_key": self.bundle_key,
+					"bundle_version_id": self.version.version_id,
+				}
+			)["data"]
+			self.assertEqual(started["persona"], "public")
+			knowledge_runtime.advance_public_session(
+				self.session_id,
+				{
+					"binding_hash": self.binding_hash,
+					"node_id": "final",
+					"path": ["root", "final"],
+					"event_id": str(uuid.uuid4()),
+				},
+			)
+
+			old_version_id = started["bundle_version_id"]
+			self.version.lifecycle_state = "superseded"
+			self.version.superseded_at = now_datetime()
+			knowledge_v3._save_transition(self.version)
+			new_version = self._insert_published_version("public-version-2")
+			frappe.db.set_value(
+				"Univesp Knowledge Bundle",
+				self.bundle.name,
+				"published_version",
+				new_version.name,
+				update_modified=False,
+			)
+
+			lineage = knowledge_runtime.validate_public_session_lineage(
+				{
+					"bundle_id": self.bundle_key,
+					"bundle_version_id": old_version_id,
+					"node_id": "final",
+					"path": ["root", "final"],
+				},
+				self.session_id,
+				self.binding_hash,
+			)
+			entry = knowledge_runtime.public_session_entry(lineage)
+			self.assertEqual(entry["bundle_version_id"], old_version_id)
+			event = knowledge_runtime.record_public_protocol_created(
+				self.session_id,
+				f"HD-PUBLIC-{uuid.uuid4().hex[:8]}",
+			)
+			self.assertEqual(event.audience_layer, "public")

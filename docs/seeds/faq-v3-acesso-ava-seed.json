@@ -164,6 +164,48 @@
         "requires_polo": true
       },
       "media_refs": []
+    },
+    {
+      "node_id": "acesso-ava-informacoes-gerais",
+      "stable_key": "acesso-ava-informacoes-gerais",
+      "node_kind": "final",
+      "audiences": ["public"],
+      "display": {
+        "title": "Quero apenas uma orientação geral"
+      },
+      "content": {
+        "student": null,
+        "public": {
+          "blocks": [
+            {
+              "block_id": "acesso-ava-informacoes-gerais-public-text",
+              "type": "text",
+              "body": "Consulte as orientações disponíveis. Se ainda precisar de ajuda, abra um atendimento com seus dados de contato."
+            }
+          ],
+          "outcome_key": "open_ticket"
+        }
+      },
+      "playbooks": {
+        "op": null,
+        "bpo": null,
+        "analyst": null
+      },
+      "operational": {
+        "routing_override": "atendimento-geral",
+        "criticidade": "baixa",
+        "sla_policy_key": "48h"
+      },
+      "document_policy": {
+        "mode": "disabled"
+      },
+      "intake_policy": {
+        "requires_cpf": false,
+        "requires_ra": false,
+        "requires_course": false,
+        "requires_polo": false
+      },
+      "media_refs": []
     }
   ],
   "edges": [
@@ -174,6 +216,14 @@
       "order": 1,
       "active": true,
       "audiences": ["student", "public"]
+    },
+    {
+      "edge_id": "acesso-ava-link-2",
+      "parent_node_id": "acesso-ava-root",
+      "child_node_id": "acesso-ava-informacoes-gerais",
+      "order": 2,
+      "active": true,
+      "audiences": ["public"]
     }
   ],
   "calendar_highlights": []

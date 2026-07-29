@@ -10,7 +10,7 @@ def list_queues():
 	allowed = set(context.scopes.get("queues") or context.scopes.get("filas") or [])
 	rows = frappe.get_all(
 		"HD Team",
-		filters={"enabled": 1},
+		filters={"disabled": 0},
 		fields=["name", "team_name"],
 		order_by="team_name asc",
 	)

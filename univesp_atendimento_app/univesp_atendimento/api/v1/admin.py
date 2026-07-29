@@ -262,7 +262,7 @@ def reject_access_request(
 def catalogs():
 	context = _admin_context()
 	queues = frappe.get_all(
-		"HD Team", filters={"enabled": 1}, fields=["name", "team_name"], order_by="team_name asc"
+		"HD Team", filters={"disabled": 0}, fields=["name", "team_name"], order_by="team_name asc"
 	)
 	polos = _distinct_ticket_values("custom_student_polo", "polos")
 	areas = _distinct_ticket_values("custom_univesp_area", "areas")

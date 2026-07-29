@@ -160,11 +160,11 @@ Especificações: [EXEC](./FAQ_V3_EXECUTION_SPEC.md) | [UX](./FAQ_V3_PRODUCT_UX_
 
 | ID | História | Dep |
 |----|----------|-----|
-| S10-1 | intake_session + quarentena | S9, TI |
+| S10-1 | intake_session + quarentena | S9 |
 | S10-2 | document_policy backend | S10-1 |
 | S10-3 | CPF encrypt + mascaramento | S10-1 |
 | S10-4 | Matriz acesso + auditoria download | S10-2 |
-| S10-5 | Retenção jobs | PRIVACY OK |
+| S10-5 | Retenção jobs | S10-4 |
 | S10-6 | Gate produção documentos | S10-5 |
 
 ---
@@ -176,7 +176,7 @@ Especificações: [EXEC](./FAQ_V3_EXECUTION_SPEC.md) | [UX](./FAQ_V3_PRODUCT_UX_
 | ID | História | Dep |
 |----|----------|-----|
 | S11-1 | Catálogo polo/curso | S10 |
-| S11-2 | Cruzamento genérico | S11-1, Directory |
+| S11-2 | Cruzamento genérico | S11-1 |
 | S11-3 | Fila humana + painel | S11-2 |
 | S11-4 | Estado identidade no contexto | S11-2 |
 
@@ -189,7 +189,7 @@ Especificações: [EXEC](./FAQ_V3_EXECUTION_SPEC.md) | [UX](./FAQ_V3_PRODUCT_UX_
 | ID | História | Dep |
 |----|----------|-----|
 | S12-1 | Verificação e-mail código | S11 |
-| S12-2 | Thread channel_adapter | S12-1, ingress |
+| S12-2 | Thread channel_adapter | S12-1 |
 | S12-3 | Antispoof + auditoria | S12-2 |
 
 ---
@@ -212,10 +212,10 @@ Especificações: [EXEC](./FAQ_V3_EXECUTION_SPEC.md) | [UX](./FAQ_V3_PRODUCT_UX_
 
 | ID | História | Dep |
 |----|----------|-----|
-| S14-1 | Integração end-to-end homolog 5d | S13 |
-| S14-2 | Checklist expansão PROGRAM §13 | S14-1 |
-| S14-3 | Piloto prod 10d acesso-ava | S14-2 |
-| S14-4 | Runbooks rollback 4 níveis validados | S14-1 |
+| S14-1 | Integração end-to-end em homolog | S13 |
+| S14-2 | Checklist de aceite integrado | S14-1 |
+| S14-3 | Piloto `acesso-ava` | S14-2 |
+| S14-4 | Runbooks de rollback validados | S14-1 |
 
 ---
 

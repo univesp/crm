@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from univesp_atendimento.api.v1.common import (
+	RequestContext,
 	ensure_ticket_access,
 	get_request_context,
 	resolve_ticket_name,
@@ -25,6 +26,12 @@ from univesp_atendimento.knowledge_graph import (
 SESSION_PREFIX = "univesp:knowledge:session:"
 SESSION_PERSONAS = {"student", "op", "bpo", "analyst"}
 EVENT_METADATA_KEYS = {"outcome_key", "action_key", "source"}
+JOURNEY_EVENT_NAMES = {
+	"faq.node_viewed",
+	"faq.ticket_open_started",
+	"faq.resolved_without_ticket",
+	"faq.resolution_confirmed",
+}
 PROFILE_PERSONAS = {
 	"aluno": {"student"},
 	"op": {"op"},
@@ -97,6 +104,18 @@ def start_session(payload: dict | str | None = None):
 	context = get_request_context()
 	data = _payload(payload)
 	persona = _resolve_persona(context, data.get("persona"))
+	return _start_session(context, data, persona, _origin(data.get("origin"), context.profile_key))
+
+
+@frappe.whitelist(methods=["POST"])
+def start_public_session(payload: dict | str | None = None):
+	verify_gateway_only()
+	_require_public_anonymous()
+	data = _payload(payload)
+	return _start_session(_public_context(), data, "public", "publico")
+
+
+def _start_session(context, data, persona, origin):
 	bundle = _active_bundle(data.get("bundle_key"), persona)
 	version = _session_version(bundle, data.get("bundle_version_id"))
 	canonical = json.loads(version.payload_json)
@@ -107,7 +126,6 @@ def start_session(payload: dict | str | None = None):
 	root_id = runtime["root_node_id"]
 	session_id = _session_id(data.get("faq_session_id"))
 	binding_hash = _binding_hash(data.get("binding_hash"))
-	origin = _origin(data.get("origin"), context.profile_key)
 	ttl = _session_ttl()
 	record = {
 		"faq_session_id": session_id,
@@ -154,11 +172,34 @@ def get_session(faq_session_id: str, binding_hash: str):
 	return response(_public_session(record), request_id=context.request_id)
 
 
+@frappe.whitelist(methods=["GET"])
+def get_public_session(faq_session_id: str, binding_hash: str):
+	verify_gateway_only()
+	_require_public_anonymous()
+	context = _public_context()
+	record = _load_public_session(faq_session_id, binding_hash, context)
+	return response(_public_session(record), request_id=context.request_id)
+
+
 @frappe.whitelist(methods=["POST"])
 def advance_session(faq_session_id: str, payload: dict | str | None = None):
 	context = get_request_context()
 	data = _payload(payload)
 	record = _load_session(faq_session_id, data.get("binding_hash"), context)
+	return _advance_session(context, record, data)
+
+
+@frappe.whitelist(methods=["POST"])
+def advance_public_session(faq_session_id: str, payload: dict | str | None = None):
+	verify_gateway_only()
+	_require_public_anonymous()
+	context = _public_context()
+	data = _payload(payload)
+	record = _load_public_session(faq_session_id, data.get("binding_hash"), context)
+	return _advance_session(context, record, data)
+
+
+def _advance_session(context, record, data):
 	node_id = str(data.get("node_id") or "").strip()
 	if not node_id:
 		raise KnowledgeRuntimeValidationError(_("Nó de destino é obrigatório."))
@@ -199,7 +240,27 @@ def record_event(payload: dict | str | None = None):
 	context = get_request_context()
 	data = _payload(payload)
 	record = _load_session(data.get("faq_session_id"), data.get("binding_hash"), context)
+	return _record_event(context, record, data)
+
+
+@frappe.whitelist(methods=["POST"])
+def record_public_event(payload: dict | str | None = None):
+	verify_gateway_only()
+	_require_public_anonymous()
+	context = _public_context()
+	data = _payload(payload)
+	record = _load_public_session(
+		data.get("faq_session_id"),
+		data.get("binding_hash"),
+		context,
+	)
+	return _record_event(context, record, data)
+
+
+def _record_event(context, record, data):
 	event_name = str(data.get("event_name") or "").strip()
+	if event_name not in JOURNEY_EVENT_NAMES:
+		raise KnowledgeRuntimeValidationError(_("Evento de jornada não permitido."))
 	node_id = str(data.get("node_id") or record["path"][-1]).strip()
 	if node_id not in record["path"]:
 		raise KnowledgeRuntimeValidationError(_("Evento referencia nó fora do caminho da sessão."))
@@ -331,6 +392,40 @@ def validate_session_lineage(knowledge, context):
 	return record
 
 
+def validate_public_session_lineage(knowledge, faq_session_id, binding_hash):
+	context = _public_context()
+	record = _load_public_session(faq_session_id, binding_hash, context)
+	requested_path = knowledge.get("path") if isinstance(knowledge, dict) else None
+	if not isinstance(requested_path, list) or list(requested_path) != record["path"]:
+		raise KnowledgeRuntimeValidationError(_("Caminho informado diverge da sessão FAQ."))
+	if str(knowledge.get("bundle_id") or "") != record["bundle_key"]:
+		raise KnowledgeRuntimeValidationError(_("Bundle informado diverge da sessão FAQ."))
+	if str(knowledge.get("bundle_version_id") or "") != record["bundle_version_id"]:
+		raise KnowledgeRuntimeValidationError(_("Versão informada diverge da sessão FAQ."))
+	if str(knowledge.get("node_id") or "") != record["path"][-1]:
+		raise KnowledgeRuntimeValidationError(_("Nó informado diverge da sessão FAQ."))
+	return record
+
+
+def public_session_entry(record):
+	if record.get("persona") != "public":
+		raise KnowledgeRuntimeValidationError(_("Sessão não pertence à jornada pública."))
+	version = frappe.get_doc("Univesp Knowledge Version", record["bundle_version_id"])
+	if version.lifecycle_state not in {"published", "superseded"}:
+		raise KnowledgeRuntimeValidationError(_("Versão fixada não está disponível."))
+	bundle = frappe.get_doc("Univesp Knowledge Bundle", version.bundle)
+	if bundle.bundle_key != record["bundle_key"]:
+		raise KnowledgeRuntimeValidationError(_("Versão fixada não pertence ao fluxo."))
+	runtime = project_runtime(json.loads(version.payload_json), "public")
+	return {
+		"bundle_id": bundle.bundle_key,
+		"bundle_version_id": version.version_id,
+		"title": runtime["metadata"]["title"],
+		"runtime": runtime,
+		"package": _legacy_package(runtime, version),
+	}
+
+
 def record_protocol_created(context, session_record, ticket_name):
 	if not session_record:
 		return None
@@ -339,6 +434,25 @@ def record_protocol_created(context, session_record, ticket_name):
 		session_record,
 		"protocol.created",
 		session_record["path"][-1],
+		event_id=f"protocol:{ticket_name}",
+		metadata={"source": "ticket"},
+	)
+
+
+def record_public_protocol_created(faq_session_id, ticket_name):
+	if not faq_session_id:
+		return None
+	value = frappe.cache().get_value(f"{SESSION_PREFIX}{_session_id(faq_session_id)}")
+	if not value:
+		return None
+	record = json.loads(value)
+	if record.get("persona") != "public":
+		return None
+	return _append_event(
+		_public_context(),
+		record,
+		"protocol.created",
+		record["path"][-1],
 		event_id=f"protocol:{ticket_name}",
 		metadata={"source": "ticket"},
 	)
@@ -383,7 +497,13 @@ def _active_bundle(bundle_key, persona):
 	if not key or not frappe.db.exists("Univesp Knowledge Bundle", key):
 		raise KnowledgeRuntimeValidationError(_("Fluxo publicado não encontrado."))
 	bundle = frappe.get_doc("Univesp Knowledge Bundle", key)
-	allowed_profiles = {"student", "mixed"} if persona != "analyst" else {"student", "mixed", "internal"}
+	allowed_profiles = (
+		{"public", "mixed"}
+		if persona == "public"
+		else {"student", "mixed", "internal"}
+		if persona == "analyst"
+		else {"student", "mixed"}
+	)
 	if bundle.status != "active" or bundle.audience_profile not in allowed_profiles:
 		raise KnowledgeRuntimeValidationError(_("Fluxo indisponível para esta persona."))
 	return bundle
@@ -425,6 +545,13 @@ def _load_session(session_id, binding_hash, context):
 		raise frappe.PermissionError(_("Sessão FAQ não pertence a este navegador."))
 	if not hmac.compare_digest(record["actor_hash"], _actor_hash(context.email)):
 		raise frappe.PermissionError(_("Sessão FAQ não pertence ao usuário atual."))
+	return record
+
+
+def _load_public_session(session_id, binding_hash, context):
+	record = _load_session(session_id, binding_hash, context)
+	if record.get("persona") != "public" or record.get("profile_key") != "public":
+		raise frappe.PermissionError(_("Sessão FAQ não pertence à jornada pública."))
 	return record
 
 
@@ -575,6 +702,27 @@ def _resolve_persona(context, requested):
 def _session_ttl():
 	settings = frappe.get_single("Univesp Runtime Settings")
 	return max(int(settings.knowledge_session_ttl_seconds or 7200), 300)
+
+
+def _require_public_anonymous():
+	settings = frappe.get_single("Univesp Runtime Settings")
+	if not bool(getattr(settings, "knowledge_v3_read", False)) or not bool(
+		getattr(settings, "faq_public_anonymous", False)
+	):
+		raise frappe.PermissionError(_("Jornada FAQ pública indisponível."))
+
+
+def _public_context():
+	return RequestContext(
+		email="anonymous@public.invalid",
+		name="Visitante anônimo",
+		ra="",
+		profile_key="public",
+		scopes={},
+		actions=frozenset(),
+		request_id=frappe.get_request_header("X-Request-ID") or str(uuid.uuid4()),
+		actor_email="anonymous@public.invalid",
+	)
 
 
 def _actor_hash(email):

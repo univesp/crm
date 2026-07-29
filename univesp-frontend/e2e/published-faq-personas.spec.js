@@ -107,7 +107,10 @@ test('público consome API real e envia lineage sem escolher fila', async ({ pag
     'Orientação pública publicada',
     'Resposta pública vigente',
   )
+  publicPackage.schema_version = '3.0.0-runtime'
   let ticketPayload = null
+  const sessionId = '22222222-2222-4222-8222-222222222222'
+  const sessionCalls = []
   await page.route('**/api/public/v1/knowledge/faq-published?**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -120,9 +123,48 @@ test('público consome API real e envia lineage sem escolher fila', async ({ pag
           },
         ],
         error: null,
-        meta: { faq_type: 'publico', version: 'library-v3' },
+        meta: { faq_type: 'publico', version: 'library-v3', runtime_schema: '3.0.0' },
       },
     })
+  })
+  await page.route('**/api/public/v1/knowledge/v3/sessions', async (route) => {
+    sessionCalls.push('start')
+    await route.fulfill({
+      status: 201,
+      json: {
+        data: {
+          faq_session_id: sessionId,
+          bundle_key: 'bundle:publico:live',
+          bundle_version_id: 'v3.0',
+          persona: 'public',
+          path: ['public-live-root'],
+        },
+        error: null,
+      },
+    })
+  })
+  await page.route(
+    `**/api/public/v1/knowledge/v3/sessions/${sessionId}/advance`,
+    async (route) => {
+      sessionCalls.push('advance')
+      await route.fulfill({
+        status: 200,
+        json: {
+          data: {
+            faq_session_id: sessionId,
+            bundle_key: 'bundle:publico:live',
+            bundle_version_id: 'v3.0',
+            persona: 'public',
+            path: ['public-live-root', 'public-live-answer'],
+          },
+          error: null,
+        },
+      })
+    },
+  )
+  await page.route('**/api/public/v1/knowledge/v3/events', async (route) => {
+    sessionCalls.push(`event:${route.request().postDataJSON().event_name}`)
+    await route.fulfill({ status: 200, json: { data: { recorded: true }, error: null } })
   })
   await page.route('**/api/public/v1/runtime/flags', async (route) => {
     await route.fulfill({
@@ -166,12 +208,19 @@ test('público consome API real e envia lineage sem escolher fila', async ({ pag
 
   await expect.poll(() => ticketPayload).not.toBeNull()
   expect(ticketPayload.queue).toBeUndefined()
+  expect(ticketPayload.faq_session_id).toBe(sessionId)
   expect(ticketPayload.knowledge).toEqual({
     bundle_id: 'bundle:publico:live',
     bundle_version_id: 'v3.0',
     node_id: 'public-live-answer',
     path: ['public-live-root', 'public-live-answer'],
   })
+  expect(sessionCalls).toEqual([
+    'start',
+    'advance',
+    'event:faq.node_viewed',
+    'event:faq.ticket_open_started',
+  ])
 })
 
 test('público renderiza blocos editoriais acessíveis na ordem publicada', async ({ page }) => {

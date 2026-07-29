@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
 
@@ -38,6 +38,80 @@ router.get('/runtime/flags', async (req, res) => {
       requestId,
     })
     res.setHeader('X-Request-ID', requestId)
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.post('/knowledge/v3/sessions', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('knowledge_runtime.start_public_session', {
+      user: {},
+      requestId,
+      body: {
+        payload: JSON.stringify({
+          ...(req.body || {}),
+          faq_session_id: randomUUID(),
+          binding_hash: faqBinding(req, res),
+        }),
+      },
+      httpMethod: 'POST',
+    })
+    res.setHeader('X-Request-ID', requestId)
+    return res.status(201).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.get('/knowledge/v3/sessions/:sessionId', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('knowledge_runtime.get_public_session', {
+      user: {},
+      requestId,
+      query: {
+        faq_session_id: req.params.sessionId,
+        binding_hash: faqBinding(req, res),
+      },
+    })
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.post('/knowledge/v3/sessions/:sessionId/advance', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('knowledge_runtime.advance_public_session', {
+      user: {},
+      requestId,
+      body: {
+        faq_session_id: req.params.sessionId,
+        payload: JSON.stringify({ ...(req.body || {}), binding_hash: faqBinding(req, res) }),
+      },
+      httpMethod: 'POST',
+    })
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.post('/knowledge/v3/events', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('knowledge_runtime.record_public_event', {
+      user: {},
+      requestId,
+      body: {
+        payload: JSON.stringify({ ...(req.body || {}), binding_hash: faqBinding(req, res) }),
+      },
+      httpMethod: 'POST',
+    })
     return res.status(200).json(normalizeEnvelope(result, requestId))
   } catch (error) {
     return handleError(res, error, requestId)
@@ -91,7 +165,9 @@ router.post('/intakes', async (req, res) => {
     const result = await callFrappe('public.create_public_intake', {
       user: {},
       requestId,
-      body: { payload: JSON.stringify(req.body || {}) },
+      body: {
+        payload: JSON.stringify({ ...(req.body || {}), binding_hash: faqBinding(req, res) }),
+      },
       httpMethod: 'POST',
     })
     res.setHeader('X-Request-ID', requestId)
@@ -207,6 +283,24 @@ function normalizeEnvelope(result, requestId) {
 function requestIdFor(req) {
   const supplied = String(req.get('x-request-id') || '').trim()
   return /^[a-zA-Z0-9._:-]{8,128}$/.test(supplied) ? supplied : randomUUID()
+}
+
+function faqBinding(req, res) {
+  let raw = String(req.cookies?.faq_public_binding || '').trim()
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(raw)) {
+    raw = randomBytes(32).toString('base64url')
+    res.cookie('faq_public_binding', raw, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      domain: process.env.COOKIE_DOMAIN || undefined,
+      maxAge: Number(process.env.FAQ_BINDING_MAX_AGE_MS || 86400000),
+      path: '/api/public/v1',
+    })
+  }
+  return createHmac('sha256', String(process.env.SESSION_SECRET || 'development-only-secret'))
+    .update(`faq-public-binding:${raw}`)
+    .digest('hex')
 }
 
 function handleError(res, error, requestId) {

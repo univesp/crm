@@ -252,7 +252,7 @@ def _queue_exists(queue_key: str) -> bool:
 	return bool(
 		frappe.db.get_value(
 			"HD Team",
-			{"name": str(queue_key or "").strip(), "enabled": 1},
+			{"name": str(queue_key or "").strip(), "disabled": 0},
 			"name",
 		)
 	)

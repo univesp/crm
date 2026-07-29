@@ -25,6 +25,8 @@ jobs:
       name: homolog
       url: https://${{ vars.PUBLIC_DOMAIN }}
     env:
+      DEPLOYMENT_ENV: homolog
+      FAQ_V3_HOMOLOG_PILOT_ENABLED: "true"
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
       ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY }}
@@ -302,6 +304,9 @@ jobs:
           IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: ./ops/cloudrun/deploy.sh
+
+      - name: Verify FAQ v3 homolog pilot state
+        run: ./ops/cloudrun/verify-faq-v3-pilot.sh
 
       - name: Collect post-deploy homolog evidence
         env:

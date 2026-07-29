@@ -314,11 +314,10 @@ def create_public_ticket(payload: dict | str | None = None):
 	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
 	settings = frappe.get_single("Univesp Runtime Settings")
 	if bool(getattr(settings, "knowledge_v3_read", False)):
-		from univesp_atendimento.api.v1.knowledge_runtime import _published_v3_entries
-
-		published_entries = _published_v3_entries("public")
-	else:
-		published_entries = _build_published_faq_entries("publico")[0]
+		raise PublicVisitorValidationError(
+			_("Esta versão exige a abertura segura por intake antes de criar o protocolo.")
+		)
+	published_entries = _build_published_faq_entries("publico")[0]
 	knowledge_reference = _resolve_public_knowledge_reference(
 		knowledge,
 		published_entries,
@@ -433,6 +432,10 @@ def create_public_ticket(payload: dict | str | None = None):
 @frappe.whitelist(methods=["POST"])
 def attach_public_document(ticket_id: str):
 	verify_gateway_only()
+	if bool(getattr(frappe.get_single("Univesp Runtime Settings"), "knowledge_v3_read", False)):
+		raise PublicVisitorValidationError(
+			_("Esta versão recebe documentos somente na quarentena anterior ao protocolo.")
+		)
 	doc, context = _public_ticket_with_token(ticket_id)
 	settings = frappe.get_single("Univesp Runtime Settings")
 	if not bool(getattr(settings, "faq_public_documents", False)):
@@ -484,6 +487,10 @@ def attach_public_document(ticket_id: str):
 @frappe.whitelist(methods=["POST"])
 def finalize_public_ticket(ticket_id: str):
 	verify_gateway_only()
+	if bool(getattr(frappe.get_single("Univesp Runtime Settings"), "knowledge_v3_read", False)):
+		raise PublicVisitorValidationError(
+			_("Esta versão finaliza somente solicitações criadas pela quarentena segura.")
+		)
 	doc, context = _public_ticket_with_token(ticket_id)
 	policy = context.get("document_policy") or {}
 	clean_documents = frappe.db.count(
@@ -520,12 +527,26 @@ def _prepare_public_submission(data):
 	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
 	settings = frappe.get_single("Univesp Runtime Settings")
 	if bool(getattr(settings, "knowledge_v3_read", False)):
-		from univesp_atendimento.api.v1.knowledge_runtime import _published_v3_entries
+		from univesp_atendimento.api.v1.knowledge_runtime import (
+			public_session_entry,
+			validate_public_session_lineage,
+		)
 
-		published_entries = _published_v3_entries("public")
+		session_record = validate_public_session_lineage(
+			knowledge,
+			data.get("faq_session_id"),
+			data.get("binding_hash"),
+		)
+		published_entries = [public_session_entry(session_record)]
 	else:
+		session_record = None
 		published_entries = _build_published_faq_entries("publico")[0]
 	knowledge_reference = _resolve_public_knowledge_reference(knowledge, published_entries)
+	knowledge_reference["path"] = (
+		list(session_record["path"])
+		if session_record
+		else [str(item) for item in knowledge.get("path") or [] if str(item)]
+	)
 	intake_policy = knowledge_reference.pop("intake_policy", {})
 	document_policy = knowledge_reference.pop("document_policy", {"mode": "disabled"})
 	_validate_public_identity(visitor, cpf, intake_policy)
@@ -542,7 +563,7 @@ def _prepare_public_submission(data):
 		from univesp_atendimento.api.v1.routing import resolve_ticket_route
 
 		routing_decision = resolve_ticket_route(
-			session_record=None,
+			session_record=session_record,
 			knowledge=knowledge_reference,
 			student={"ra": visitor.get("ra")},
 			context=None,
@@ -606,6 +627,9 @@ def _insert_public_ticket_from_intake(intake, knowledge_reference, context):
 			"custom_source_bundle_id": knowledge_reference["bundle_id"],
 			"custom_source_bundle_version_id": knowledge_reference["bundle_version_id"],
 			"custom_source_node_id": knowledge_reference["node_id"],
+			"custom_source_path_json": json.dumps(knowledge_reference.get("path") or []),
+			"custom_source_audience": "public",
+			"custom_faq_session_id": intake.faq_session_id or "",
 			"custom_channel_metadata_json": json.dumps(
 				{
 					"visitor_type": intake.visitor_type,
@@ -623,6 +647,9 @@ def _insert_public_ticket_from_intake(intake, knowledge_reference, context):
 
 
 def _after_public_ticket_created(doc, link_outcome):
+	from univesp_atendimento.api.v1.knowledge_runtime import record_public_protocol_created
+
+	record_public_protocol_created(doc.custom_faq_session_id, doc.name)
 	settings = frappe.get_single("Univesp Runtime Settings")
 	if bool(getattr(settings, "faq_public_email_thread", False)):
 		frappe.enqueue(

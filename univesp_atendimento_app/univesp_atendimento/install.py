@@ -252,7 +252,7 @@ def seed_knowledge_v3_configuration():
 	if not frappe.db.exists("DocType", "Univesp Knowledge Routing Pattern"):
 		return
 	active_queue_keys = set(
-		frappe.get_all("HD Team", filters={"enabled": 1}, pluck="name", limit_page_length=0)
+		frappe.get_all("HD Team", filters={"disabled": 0}, pluck="name", limit_page_length=0)
 	)
 	allowed_routing_keys = sorted(active_queue_keys | {"atendimento-geral", "sra"})
 	patterns = (

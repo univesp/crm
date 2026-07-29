@@ -29,16 +29,32 @@ Invoke-Smoke "Stack health" {
 }
 
 Invoke-Smoke "FAQ publico (visitante)" {
-  try {
-    $r = Invoke-WebRequest -Uri "$base/api/public/v1/knowledge/faq-published?faq_type=publico" -UseBasicParsing
-    if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
-  } catch {
-    $status = $_.Exception.Response.StatusCode.value__
-    if ($status -eq 404) {
-      Write-Host "    AVISO: 404 - branch MVP ainda nao deployada neste ambiente" -ForegroundColor Yellow
-      return
+  $r = Invoke-WebRequest -Uri "$base/api/public/v1/knowledge/faq-published?faq_type=publico" -UseBasicParsing
+  if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
+  $payload = $r.Content | ConvertFrom-Json
+  if ($payload.meta.runtime_schema -ne "3.0.0") {
+    throw "Runtime FAQ nao esta em v3"
+  }
+  $pilot = @($payload.data | Where-Object {
+    $_.bundle_id -eq "acesso-ava" -and $_.bundle_version_id -eq "acesso-ava-homolog-v1"
+  })
+  if ($pilot.Count -ne 1) {
+    throw "Bundle acesso-ava-homolog-v1 nao publicado"
+  }
+}
+
+Invoke-Smoke "Flags publicas FAQ v3" {
+  $r = Invoke-WebRequest -Uri "$base/api/public/v1/runtime/flags" -UseBasicParsing
+  $payload = $r.Content | ConvertFrom-Json
+  foreach ($field in @(
+    "faq_public_anonymous",
+    "faq_public_documents",
+    "faq_link_validation",
+    "faq_public_email_thread"
+  )) {
+    if ($payload.data.$field -ne $true) {
+      throw "Flag publica inativa: $field"
     }
-    throw
   }
 }
 
@@ -72,28 +88,15 @@ if ($IncludeIngress) {
         Write-Host "    SKIP: ingress exige X-Univesp-Ingress-Secret (configurar UNIVESP_INGRESS_SHARED_SECRET)" -ForegroundColor Yellow
         return
       }
-      if ($status -eq 404) {
-        Write-Host "    AVISO: 404 - rota ingress ainda nao deployada" -ForegroundColor Yellow
-        return
-      }
       throw
     }
   }
 }
 
 if ($IncludePwa) {
-  Invoke-Smoke "PWA manifest" {
-    try {
-      $r = Invoke-WebRequest -Uri "$base/crm/manifest.webmanifest" -UseBasicParsing
-      if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
-    } catch {
-      $status = $_.Exception.Response.StatusCode.value__
-      if ($status -eq 404) {
-        Write-Host "    AVISO: 404 - PWA ainda nao deployada (rebuild frontend)" -ForegroundColor Yellow
-        return
-      }
-      throw
-    }
+Invoke-Smoke "PWA manifest" {
+    $r = Invoke-WebRequest -Uri "$base/crm/manifest.webmanifest" -UseBasicParsing
+    if ($r.StatusCode -ge 400) { throw "HTTP $($r.StatusCode)" }
   }
 }
 

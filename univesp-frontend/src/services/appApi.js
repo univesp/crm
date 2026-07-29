@@ -463,6 +463,25 @@ export async function getPublicRuntimeFlags() {
   return publicRequest('/runtime/flags')
 }
 
+export async function startPublicFaqSession(payload) {
+  return publicRequest('/knowledge/v3/sessions', { method: 'POST', body: payload })
+}
+
+export async function getPublicFaqSession(sessionId) {
+  return publicRequest(`/knowledge/v3/sessions/${encodeURIComponent(sessionId)}`)
+}
+
+export async function advancePublicFaqSession(sessionId, payload) {
+  return publicRequest(`/knowledge/v3/sessions/${encodeURIComponent(sessionId)}/advance`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function recordPublicFaqEvent(payload) {
+  return publicRequest('/knowledge/v3/events', { method: 'POST', body: payload })
+}
+
 export async function getPublicAcademicCatalogs() {
   return publicRequest('/academic-catalogs')
 }
@@ -529,7 +548,13 @@ async function publicRequest(path, options = {}) {
   const body = normalizeRequestBody(options.body, headers)
   const normalized = String(path || '').trim()
   const url = `${publicApiBase}${normalized.startsWith('/') ? normalized : `/${normalized}`}`
-  const response = await fetch(url, { method, body, headers, cache: 'no-store' })
+  const response = await fetch(url, {
+    method,
+    body,
+    headers,
+    credentials: 'include',
+    cache: 'no-store',
+  })
   const payload = await parseResponsePayload(response)
   const requestId =
     response.headers.get('X-Request-ID') || payload?.request_id || payload?.meta?.request_id || ''

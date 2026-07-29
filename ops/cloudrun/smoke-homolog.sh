@@ -13,6 +13,20 @@ check(){
  [[ "$passed" == true ]] || failures=$((failures+1))
  results=$(jq -c --arg profile "$profile" --arg path "$path" --arg status "${status:-0}" --arg expected "$expected" --arg latency "${latency:-0}" --argjson passed "$passed" '. + [{profile:$profile,path:$path,status:($status|tonumber),expected:$expected,latency_seconds:($latency|tonumber),passed:$passed}]' <<<"$results")
 }
+check_json(){
+ local profile=$1 path=$2 assertion=$3 label=$4
+ local body_file status latency passed=false
+ body_file=$(mktemp)
+ read -r status latency < <(
+  curl -sS -o "$body_file" --max-time 20 --connect-timeout 5 \
+   -w '%{http_code} %{time_total}' --request GET "$PUBLIC_URL$path" ||
+   printf '000 0'
+ )
+ if [[ "$status" == 200 ]] && jq -e "$assertion" "$body_file" >/dev/null 2>&1; then passed=true; fi
+ [[ "$passed" == true ]] || failures=$((failures+1))
+ results=$(jq -c --arg profile "$profile" --arg path "$path" --arg status "${status:-0}" --arg expected "$label" --arg latency "${latency:-0}" --argjson passed "$passed" '. + [{profile:$profile,path:$path,status:($status|tonumber),expected:$expected,latency_seconds:($latency|tonumber),passed:$passed}]' <<<"$results")
+ rm -f "$body_file"
+}
 check anonymous / 200
 check anonymous /login 200
 check anonymous /healthz 200
@@ -27,6 +41,15 @@ check anonymous /api/internal/institutional 404
 check anonymous '/api/sso/azure/start?tenant=admin' 302,303,307,308
 check anonymous '/api/sso/azure/start?tenant=academico' 302,303,307,308
 check anonymous /api/sso/saml/start 302,303,307,308
+check_json anonymous '/api/public/v1/knowledge/faq-published?faq_type=publico' \
+ '.meta.runtime_schema == "3.0.0" and any(.data[]; .bundle_id == "acesso-ava" and .bundle_version_id == "acesso-ava-homolog-v1")' \
+ 'runtime v3 acesso-ava publicado'
+check_json anonymous /api/public/v1/runtime/flags \
+ '.data.faq_public_anonymous == true and .data.faq_public_documents == true and .data.faq_link_validation == true and .data.faq_public_email_thread == true' \
+ 'flags publicas do piloto ativas'
+check_json anonymous /api/public/v1/academic-catalogs \
+ 'any(.data.courses[]; .key == "Licenciatura em Computacao") and any(.data.poles[]; .key == "237")' \
+ 'catalogos sinteticos do piloto'
 if [[ -n "${STUDENT_COOKIE_JAR:-}" ]]; then check student /api/me 200 "$STUDENT_COOKIE_JAR"; check student /api/app/v1/tickets 200 "$STUDENT_COOKIE_JAR"; check student /api/app/v1/knowledge/faq-published 200 "$STUDENT_COOKIE_JAR"; fi
 if [[ -n "${OP_COOKIE_JAR:-}" ]]; then check op /api/me 200 "$OP_COOKIE_JAR"; check op /api/app/v1/queues 200 "$OP_COOKIE_JAR"; check op /api/app/v1/tickets 200 "$OP_COOKIE_JAR"; fi
 if [[ -n "${AREA_COOKIE_JAR:-}" ]]; then check area /api/me 200 "$AREA_COOKIE_JAR"; check area /api/app/v1/queues 200 "$AREA_COOKIE_JAR"; fi
