@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global process, Buffer */
 /**
  * API mock local para preview do FAQ v3 sem bench Frappe.
  * Espelha os handlers usados nos E2E de admin-faq-library.spec.js.
@@ -29,7 +30,6 @@ const catalogs = {
 }
 
 const bundles = new Map()
-let revisionCounter = 1
 
 function jsonResponse(res, status, data, etag = '') {
   const body = JSON.stringify({
@@ -306,7 +306,6 @@ async function handleKnowledgeV3(req, res, pathname, method) {
       const body = await readBody(req)
       entry.revision += 1
       entry.payload = body.payload
-      revisionCounter = entry.revision
       return jsonResponse(res, 200, version(entry.payload, entry.revision), `"version-${entry.revision}"`)
     }
 
