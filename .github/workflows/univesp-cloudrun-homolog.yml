@@ -55,6 +55,7 @@ jobs:
       SMTP_USE_TLS: ${{ vars.SMTP_USE_TLS || 'true' }}
       SMTP_USE_SSL: ${{ vars.SMTP_USE_SSL || 'false' }}
       SMTP_NO_AUTHENTICATION: ${{ vars.SMTP_NO_AUTHENTICATION || 'false' }}
+      PREFLIGHT_ALLOW_UNVERIFIED_EXISTING_RESOURCES: ${{ vars.PREFLIGHT_ALLOW_UNVERIFIED_EXISTING_RESOURCES || 'false' }}
       DOMAIN_MAPPING_MODE: none
       DB_TYPE: ${{ vars.DB_TYPE }}
       DB_SETUP_MODE: ${{ vars.DB_SETUP_MODE }}
