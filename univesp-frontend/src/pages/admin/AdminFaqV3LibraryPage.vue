@@ -620,7 +620,7 @@ function cloneJson(value) {
       </p>
       <form
         v-if="grantCatalogs.profiles.length"
-        class="crm-form-grid faq-grants__form"
+        class="faq-grants__form"
         @submit.prevent="grantSuggestionAccess"
       >
         <label class="crm-field-label">
@@ -1143,6 +1143,12 @@ function cloneJson(value) {
   font-weight: 700;
 }
 
+.faq-grants__form {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .faq-grants > p,
 .faq-grants__form,
 .faq-grants .crm-table-scroll {
@@ -1169,7 +1175,7 @@ function cloneJson(value) {
 }
 
 .faq-grants__reason {
-  grid-column: span 2;
+  grid-column: auto;
 }
 
 .crm-table-secondary {
@@ -1283,11 +1289,5 @@ function cloneJson(value) {
   flex-wrap: wrap;
   gap: var(--space-2);
   justify-content: flex-end;
-}
-
-@media (max-width: 48rem) {
-  .faq-grants__reason {
-    grid-column: auto;
-  }
 }
 </style>

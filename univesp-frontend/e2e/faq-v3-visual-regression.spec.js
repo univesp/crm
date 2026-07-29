@@ -115,6 +115,102 @@ test('editor v3: vigência legível em somente leitura', async ({ page }) => {
   })
 })
 
+test('biblioteca: lista e painel de grants legíveis', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const payload = flowPayload('acesso-ava')
+  await mockKnowledgeV3(page, {
+    payload,
+    bundleList: sampleBundleList(),
+    includeGrants: true,
+  })
+
+  await page.goto('/crm/admin/faq')
+  await expect(page.getByRole('heading', { name: 'Biblioteca de fluxos' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'Acesso ao AVA' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'Matrícula e documentos' })).toBeVisible()
+  await expect(page).toHaveScreenshot('biblioteca-lista-1440x900.png', {
+    fullPage: true,
+    maxDiffPixelRatio: 0.02,
+  })
+
+  await page.getByText('Quem pode sugerir melhorias').click()
+  const grantsForm = page.locator('.faq-grants__form')
+  await expect(grantsForm).toBeVisible()
+  const subjectBox = await grantsForm.getByLabel('Pessoa ou grupo').boundingBox()
+  const profileBox = await grantsForm.getByLabel('Perfil').boundingBox()
+  expect(subjectBox).toBeTruthy()
+  expect(profileBox).toBeTruthy()
+  expect(profileBox.y).toBeGreaterThan(subjectBox.y + subjectBox.height * 0.5)
+  await expect(page.locator('.faq-grants')).toHaveScreenshot('biblioteca-grants-1440x900.png', {
+    maxDiffPixelRatio: 0.02,
+  })
+})
+
+test('biblioteca: modal Criar novo tema legível', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockKnowledgeV3(page, { payload: flowPayload('acesso-ava'), bundleList: sampleBundleList() })
+
+  await page.goto('/crm/admin/faq')
+  await page.getByRole('button', { name: 'Criar novo tema', exact: true }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Criar novo tema' })
+  await expect(dialog).toBeVisible()
+  const nameBox = await dialog.getByLabel('Nome do tema').boundingBox()
+  const areaBox = await dialog.getByLabel('Nome da área').boundingBox()
+  const ownerBox = await dialog.getByLabel('Responsável principal').boundingBox()
+  expect(nameBox).toBeTruthy()
+  expect(areaBox).toBeTruthy()
+  expect(ownerBox).toBeTruthy()
+  expect(areaBox.y).toBeGreaterThan(nameBox.y + nameBox.height * 0.5)
+  expect(ownerBox.y).toBeGreaterThan(areaBox.y + areaBox.height * 0.5)
+  await expect(dialog).toHaveScreenshot('criar-tema-modal-1440x900.png', {
+    maxDiffPixelRatio: 0.02,
+  })
+})
+
+test('editor v3: estado aguardando aprovação', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const payload = flowPayload('acesso-ava')
+  await mockKnowledgeV3(page, { payload, lifecycleState: 'pending_approval' })
+
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+  await expect(page.getByText('Aguardando aprovação', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Aprovar conteúdo' })).toBeVisible()
+  await expect(page).toHaveScreenshot('editor-estado-aguardando-aprovacao.png', {
+    fullPage: true,
+    maxDiffPixelRatio: 0.02,
+  })
+})
+
+test('editor v3: estado aprovado sem rascunho', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const payload = flowPayload('acesso-ava')
+  await mockKnowledgeV3(page, { payload, editorMode: 'approved' })
+
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+  await expect(page.getByRole('heading', { name: 'A versão está aprovada' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Publicar versão aprovada' })).toBeVisible()
+  await expect(page).toHaveScreenshot('editor-estado-aprovado.png', {
+    fullPage: true,
+    maxDiffPixelRatio: 0.02,
+  })
+})
+
+test('editor v3: estado publicado sem rascunho', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const payload = flowPayload('acesso-ava')
+  await mockKnowledgeV3(page, { payload, editorMode: 'published_only' })
+
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+  await expect(page.getByText('Publicado', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Este fluxo não tem rascunho em edição' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Criar novo rascunho' })).toBeVisible()
+  await expect(page).toHaveScreenshot('editor-estado-publicado.png', {
+    fullPage: true,
+    maxDiffPixelRatio: 0.02,
+  })
+})
+
 async function mockKnowledgeV3(
   page,
   {
@@ -124,9 +220,15 @@ async function mockKnowledgeV3(
     lifecycleState = 'draft',
     validFrom = '',
     validUntil = '',
+    editorMode = 'draft',
+    bundleList = null,
+    includeGrants = false,
   } = {},
 ) {
   let revision = 1
+  if (includeGrants) {
+    await mockAdminGrants(page)
+  }
   await page.route('**/api/app/v1/knowledge/v3/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -147,15 +249,18 @@ async function mockKnowledgeV3(
       return fulfill(route, catalogs.themes.at(-1))
     }
     if (path.endsWith('/bundles') && method === 'GET') {
-      return fulfill(route, [])
+      return fulfill(route, bundleList ?? [])
     }
     if (path.endsWith('/bundles') && method === 'POST') {
       const body = request.postDataJSON()
       onCreate(body)
-      return fulfill(route, bundleResponse(body.payload, body.title, revision, lifecycleState, validFrom, validUntil))
+      return fulfill(
+        route,
+        buildBundleResponse(body.payload, body.title, revision, lifecycleState, validFrom, validUntil, 'draft'),
+      )
     }
     if (path.endsWith(`/bundles/${bundleKey}/versions`)) {
-      return fulfill(route, [versionSummary(revision, lifecycleState, validFrom, validUntil)])
+      return fulfill(route, versionsForMode(editorMode, revision, lifecycleState, validFrom, validUntil))
     }
     if (path.endsWith(`/bundles/${bundleKey}/draft`) && method === 'PATCH') {
       const body = request.postDataJSON()
@@ -167,7 +272,7 @@ async function mockKnowledgeV3(
     if (path.endsWith(`/bundles/${bundleKey}`)) {
       return fulfill(
         route,
-        bundleResponse(payload, payload.metadata.title, revision, lifecycleState, validFrom, validUntil),
+        buildBundleResponse(payload, payload.metadata.title, revision, lifecycleState, validFrom, validUntil, editorMode),
         `"version-${revision}"`,
       )
     }
@@ -175,12 +280,135 @@ async function mockKnowledgeV3(
   })
 }
 
-function bundleResponse(payload, title, revision, lifecycleState = 'draft', validFrom = '', validUntil = '') {
+async function mockAdminGrants(page) {
+  await page.route('**/api/app/v1/admin/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path.endsWith('/users')) {
+      return fulfill(route, [
+        {
+          email: 'op.guara@univesp.br',
+          display_name: 'OP Guarulhos',
+          profile_key: 'op',
+        },
+      ])
+    }
+    if (path.endsWith('/access-groups')) return fulfill(route, [])
+    if (path.endsWith('/permission-profiles')) {
+      return fulfill(route, [
+        {
+          id: 'faq-contributor-op',
+          label: 'OP que sugere melhorias',
+          base_persona: 'op',
+          capabilities: ['suggest_knowledge'],
+        },
+      ])
+    }
+    if (path.endsWith('/profile-assignments')) return fulfill(route, [])
+    return route.fallback()
+  })
+}
+
+function sampleBundleList() {
+  return [
+    bundleListRow({
+      bundle_key: 'acesso-ava',
+      title: 'Acesso ao AVA',
+      lifecycle_state: 'draft',
+      published: true,
+    }),
+    bundleListRow({
+      bundle_key: 'matricula-docs',
+      title: 'Matrícula e documentos',
+      lifecycle_state: 'pending_approval',
+      published: false,
+    }),
+    bundleListRow({
+      bundle_key: 'prova-presencial',
+      title: 'Prova presencial',
+      lifecycle_state: 'approved',
+      published: true,
+    }),
+  ]
+}
+
+function bundleListRow({ bundle_key, title, lifecycle_state, published }) {
   return {
+    bundle_key,
+    title,
+    theme_key: 'acesso-ava',
+    audience_profile: 'student',
+    audiences: ['student'],
+    owner_email: 'gestor@univesp.br',
+    status: 'active',
+    published_version: published ? 'published-1' : '',
+    draft_summary: {
+      lifecycle_state,
+      valid_from: '2026-08-01T08:00',
+      valid_until: '2026-12-31T23:59',
+    },
+    published_summary: published
+      ? {
+          valid_from: '2026-08-01T08:00',
+          valid_until: '2026-12-31T23:59',
+        }
+      : null,
+    playbook_summary: { op: true, bpo: false, analyst: false },
+    modified: '2026-07-01T10:00:00Z',
+  }
+}
+
+function versionsForMode(editorMode, revision, lifecycleState, validFrom, validUntil) {
+  if (editorMode === 'approved') {
+    return [
+      versionSummary(revision, 'approved', validFrom, validUntil),
+      versionSummary(revision, 'published', validFrom, validUntil),
+    ]
+  }
+  if (editorMode === 'published_only') {
+    return [versionSummary(revision, 'published', validFrom, validUntil)]
+  }
+  return [versionSummary(revision, lifecycleState, validFrom, validUntil)]
+}
+
+function buildBundleResponse(
+  payload,
+  title,
+  revision,
+  lifecycleState = 'draft',
+  validFrom = '',
+  validUntil = '',
+  editorMode = 'draft',
+) {
+  const base = {
     bundle_key: payload.bundle_key,
     title,
     theme_key: payload.theme_key,
     audience_profile: 'student',
+    status: 'active',
+    published_version: editorMode === 'published_only' || editorMode === 'approved' ? 'published-1' : '',
+  }
+
+  if (editorMode === 'approved') {
+    return {
+      ...base,
+      draft_version: '',
+      published: version(payload, revision, 'published', validFrom, validUntil),
+    }
+  }
+
+  if (editorMode === 'published_only') {
+    return {
+      ...base,
+      draft_version: '',
+      published: version(payload, revision, 'published', validFrom, validUntil),
+    }
+  }
+
+  return {
+    ...base,
+    draft_version: 'version-1',
+    published_version: '',
     draft: version(payload, revision, lifecycleState, validFrom, validUntil),
   }
 }
