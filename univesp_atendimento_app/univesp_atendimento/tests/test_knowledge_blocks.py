@@ -19,7 +19,13 @@ class TestKnowledgeBlocks(TestCase):
 			validate_blocks(
 				[
 					{"block_id": "a", "type": "image", "url": "https://x/i.png", "alt": "Diagrama"},
-					{"block_id": "b", "type": "video", "url": "https://x/v.mp4", "captions_url": "https://x/v.vtt", "transcript": "Descrição do vídeo."},
+					{
+						"block_id": "b",
+						"type": "video",
+						"url": "https://x/v.mp4",
+						"captions_url": "https://x/v.vtt",
+						"transcript": "Descrição do vídeo.",
+					},
 				]
 			),
 			[],

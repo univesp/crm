@@ -60,9 +60,7 @@ def validate_knowledge_graph(payload):
 			content = (node.get("content") or {}).get(layer)
 			if isinstance(content, dict):
 				for message in validate_blocks(content.get("blocks")):
-					errors.append(
-						KnowledgeGraphError("INVALID_CONTENT_BLOCK", f"{node_id}: {message}")
-					)
+					errors.append(KnowledgeGraphError("INVALID_CONTENT_BLOCK", f"{node_id}: {message}"))
 
 	edge_ids = set()
 	for edge in edges:
@@ -107,9 +105,7 @@ def validate_knowledge_graph(payload):
 	for audience in ALLOWED_AUDIENCES:
 		root_id = str(graph.get(f"{audience}_root_node_id") or "").strip()
 		if audience in required_audiences and not root_id:
-			errors.append(
-				KnowledgeGraphError("ROOT_REQUIRED", f"Raiz obrigatória ausente para {audience}.")
-			)
+			errors.append(KnowledgeGraphError("ROOT_REQUIRED", f"Raiz obrigatória ausente para {audience}."))
 			continue
 		if not root_id:
 			continue
@@ -164,8 +160,7 @@ def project_runtime(payload, persona):
 	node_by_id = {
 		str(node.get("node_id") or "").strip(): node
 		for node in payload.get("nodes") or []
-		if isinstance(node, dict)
-		and audience in _audiences(node.get("audiences"))
+		if isinstance(node, dict) and audience in _audiences(node.get("audiences"))
 	}
 	root_id = str(graph.get(f"{audience}_root_node_id") or "").strip()
 	projected_nodes = []
@@ -217,9 +212,7 @@ def project_runtime(payload, persona):
 def _validate_audience_tree(node_by_id, edges, audience, root_id):
 	errors = []
 	visible = {
-		node_id: node
-		for node_id, node in node_by_id.items()
-		if audience in _audiences(node.get("audiences"))
+		node_id: node for node_id, node in node_by_id.items() if audience in _audiences(node.get("audiences"))
 	}
 	if root_id not in visible:
 		return [

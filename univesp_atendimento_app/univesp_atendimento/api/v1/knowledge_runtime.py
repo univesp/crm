@@ -324,10 +324,7 @@ def validate_session_lineage(knowledge, context):
 		raise KnowledgeRuntimeValidationError(_("Caminho informado diverge da sessão FAQ."))
 	if str(knowledge.get("bundle_id") or record["bundle_key"]) != record["bundle_key"]:
 		raise KnowledgeRuntimeValidationError(_("Bundle informado diverge da sessão FAQ."))
-	if (
-		str(knowledge.get("bundle_version_id") or record["bundle_version_id"])
-		!= record["bundle_version_id"]
-	):
+	if str(knowledge.get("bundle_version_id") or record["bundle_version_id"]) != record["bundle_version_id"]:
 		raise KnowledgeRuntimeValidationError(_("Versão informada diverge da sessão FAQ."))
 	if str(knowledge.get("node_id") or record["path"][-1]) != record["path"][-1]:
 		raise KnowledgeRuntimeValidationError(_("Nó informado diverge da sessão FAQ."))
@@ -445,11 +442,7 @@ def _append_event(context, record, event_name, node_id, *, event_id, metadata):
 	version = frappe.get_doc("Univesp Knowledge Version", record["bundle_version_id"])
 	payload = json.loads(version.payload_json)
 	node = next(
-		(
-			item
-			for item in payload.get("nodes") or []
-			if str(item.get("node_id") or "") == str(node_id)
-		),
+		(item for item in payload.get("nodes") or [] if str(item.get("node_id") or "") == str(node_id)),
 		None,
 	)
 	if not node:
@@ -488,7 +481,9 @@ def _legacy_package(runtime, version):
 		answer = "\n\n".join(
 			str(block.get("body") or "").strip()
 			for block in blocks or []
-			if isinstance(block, dict) and block.get("type") == "text" and str(block.get("body") or "").strip()
+			if isinstance(block, dict)
+			and block.get("type") == "text"
+			and str(block.get("body") or "").strip()
 		)
 		outcome = str(content.get("outcome_key") or "") if isinstance(content, dict) else ""
 		node_kind = (
@@ -614,9 +609,7 @@ def _safe_event_metadata(value):
 	if not isinstance(value, dict):
 		return {}
 	return {
-		key: str(value[key])[:180]
-		for key in EVENT_METADATA_KEYS
-		if key in value and value[key] is not None
+		key: str(value[key])[:180] for key in EVENT_METADATA_KEYS if key in value and value[key] is not None
 	}
 
 

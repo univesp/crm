@@ -14,7 +14,9 @@ class UnivespKnowledgeThemeGovernance(Document):
 		self.theme_label = str(self.theme_label or "").strip()
 		self.owner_email = str(self.owner_email or "").strip().lower()
 		if not KEY_PATTERN.fullmatch(self.theme_key):
-			frappe.throw(_("Chave do tema deve usar letras minúsculas, números e hífen."), frappe.ValidationError)
+			frappe.throw(
+				_("Chave do tema deve usar letras minúsculas, números e hífen."), frappe.ValidationError
+			)
 		if self.suggestion_sla_hours and int(self.suggestion_sla_hours) < 1:
 			frappe.throw(_("SLA de sugestões deve ser maior que zero."), frappe.ValidationError)
 		seen = set()

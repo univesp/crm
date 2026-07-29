@@ -51,7 +51,11 @@ class UnivespKnowledgeVersion(Document):
 			frappe.throw(_("Conteúdo excede o limite de 2 MiB."), frappe.ValidationError)
 
 	def _validate_period(self):
-		if self.valid_from and self.valid_until and get_datetime(self.valid_until) <= get_datetime(self.valid_from):
+		if (
+			self.valid_from
+			and self.valid_until
+			and get_datetime(self.valid_until) <= get_datetime(self.valid_from)
+		):
 			frappe.throw(_("Vigência final deve ser posterior à inicial."), frappe.ValidationError)
 
 	def _validate_single_active_draft(self):
@@ -123,4 +127,6 @@ class UnivespKnowledgeVersion(Document):
 				getattr(self.flags, "knowledge_lifecycle_transition", False)
 				or getattr(self.flags, "knowledge_schedule_publication", False)
 			):
-				frappe.throw(_("Metadados de lifecycle só podem ser alterados pela API."), frappe.PermissionError)
+				frappe.throw(
+					_("Metadados de lifecycle só podem ser alterados pela API."), frappe.PermissionError
+				)

@@ -70,7 +70,7 @@ def validate_env() -> dict[str, Any]:
 	password = os.environ.get("TRINO_PASSWORD", "")
 	report["checks"].append({"name": "TRINO_PASSWORD", "status": "pass" if password else "warn"})
 	try:
-		import trino  # noqa: F401
+		import trino
 
 		report["checks"].append({"name": "trino_package", "status": "pass"})
 	except ImportError:

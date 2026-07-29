@@ -25,8 +25,12 @@ class UnivespKnowledgeRoutingPattern(Document):
 			value = json.loads(self.get(fieldname) or "[]")
 		except (TypeError, json.JSONDecodeError) as exc:
 			raise frappe.ValidationError(_("Campo {0} deve ser JSON válido.").format(fieldname)) from exc
-		if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
-			frappe.throw(_("Campo {0} deve ser uma lista de textos.").format(fieldname), frappe.ValidationError)
+		if not isinstance(value, list) or any(
+			not isinstance(item, str) or not item.strip() for item in value
+		):
+			frappe.throw(
+				_("Campo {0} deve ser uma lista de textos.").format(fieldname), frappe.ValidationError
+			)
 		normalized = list(dict.fromkeys(item.strip() for item in value))
 		self.set(fieldname, json.dumps(normalized, ensure_ascii=False))
 		return normalized

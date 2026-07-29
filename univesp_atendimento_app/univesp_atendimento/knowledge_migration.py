@@ -25,7 +25,9 @@ def extract_v2_packages(library):
 		packages.append(
 			{
 				"legacy_bundle_id": str(entry.get("bundleId") or package.get("faq_id") or "").strip(),
-				"title": str(entry.get("title") or (package.get("metadata") or {}).get("title") or "").strip(),
+				"title": str(
+					entry.get("title") or (package.get("metadata") or {}).get("title") or ""
+				).strip(),
 				"package": package,
 			}
 		)
@@ -98,18 +100,24 @@ def _merge_group(bundle_key, sources, routing_pattern):
 		children = set()
 
 		metadata = package.get("metadata") if isinstance(package.get("metadata"), dict) else {}
-		owner_key = owner_key or str(
-			metadata.get("defaultOwnerId")
-			or metadata.get("default_owner_id")
-			or (package.get("operational_owner") or {}).get("queueKey")
-			or ""
-		).strip()
-		default_criticality = default_criticality or str(
-			metadata.get("default_criticidade") or metadata.get("criticidade_default_key") or ""
-		).strip()
-		default_sla = default_sla or str(
-			metadata.get("default_sla") or metadata.get("sla_policy_key") or ""
-		).strip()
+		owner_key = (
+			owner_key
+			or str(
+				metadata.get("defaultOwnerId")
+				or metadata.get("default_owner_id")
+				or (package.get("operational_owner") or {}).get("queueKey")
+				or ""
+			).strip()
+		)
+		default_criticality = (
+			default_criticality
+			or str(
+				metadata.get("default_criticidade") or metadata.get("criticidade_default_key") or ""
+			).strip()
+		)
+		default_sla = (
+			default_sla or str(metadata.get("default_sla") or metadata.get("sla_policy_key") or "").strip()
+		)
 
 		for legacy_node in package.get("nodes") or []:
 			if not isinstance(legacy_node, dict):
@@ -121,9 +129,7 @@ def _merge_group(bundle_key, sources, routing_pattern):
 				)
 				continue
 			suggested_key = _key(
-				node_map.get(legacy_node_id)
-				or legacy_node.get("stable_key")
-				or legacy_node_id
+				node_map.get(legacy_node_id) or legacy_node.get("stable_key") or legacy_node_id
 			)
 			matched_key = _match_existing_node(
 				nodes_by_key,
@@ -267,9 +273,7 @@ def _merge_group(bundle_key, sources, routing_pattern):
 		"payload": payload,
 		"report": report,
 		"blocking": any(
-			item.get("blocking")
-			for collection in ("conflicts", "orphans")
-			for item in report[collection]
+			item.get("blocking") for collection in ("conflicts", "orphans") for item in report[collection]
 		),
 	}
 
@@ -294,8 +298,7 @@ def _empty_node(stable_key, legacy):
 		"operational": {
 			"routing_override": str(legacy.get("fila_destino") or "").strip() or None,
 			"criticidade": str(legacy.get("criticidade") or "").strip() or None,
-			"sla_policy_key": str(legacy.get("sla_policy_key") or legacy.get("sla") or "").strip()
-			or None,
+			"sla_policy_key": str(legacy.get("sla_policy_key") or legacy.get("sla") or "").strip() or None,
 		},
 		"document_policy": {"mode": "disabled"} if kind == "final" else None,
 		"media_refs": _legacy_media(legacy, stable_key),
@@ -336,10 +339,7 @@ def _add_layer(node, legacy, audience):
 		return
 	node["playbooks"]["op"] = {
 		"objective": str(
-			legacy.get("objetivo")
-			or legacy.get("descricao_interna")
-			or legacy.get("titulo_exibido")
-			or ""
+			legacy.get("objetivo") or legacy.get("descricao_interna") or legacy.get("titulo_exibido") or ""
 		).strip(),
 		"checklist": _structured(
 			legacy.get("checklist_op") or [],

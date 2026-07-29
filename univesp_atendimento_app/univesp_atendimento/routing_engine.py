@@ -111,7 +111,7 @@ def resolve_route(
 	if not routing_key:
 		raise RoutingResolutionError("Nenhuma fila ativa satisfaz a política de roteamento.")
 
-	owner = ((bundle_payload.get("metadata") or {}).get("operational_owner") or {})
+	owner = (bundle_payload.get("metadata") or {}).get("operational_owner") or {}
 	area = _text((node.get("operational") or {}).get("area_key"))
 	if not area and owner.get("owner_type") == "area":
 		area = _text(owner.get("owner_key"))

@@ -89,7 +89,8 @@ def list_bundles(
 			row
 			for row in rows
 			if row.draft_version
-			and frappe.db.get_value("Univesp Knowledge Version", row.draft_version, "lifecycle_state") == expected
+			and frappe.db.get_value("Univesp Knowledge Version", row.draft_version, "lifecycle_state")
+			== expected
 		]
 	total = frappe.db.count("Univesp Knowledge Bundle", filters=filters)
 	return response(
@@ -195,9 +196,7 @@ def catalogs():
 					"bpo_enabled": bool(row.bpo_enabled),
 					"steps": frappe.parse_json(row.steps_json or "[]"),
 					"allowed_routing_keys": frappe.parse_json(row.allowed_routing_keys_json or "[]"),
-					"institutional_exceptions": frappe.parse_json(
-						row.institutional_exceptions_json or "[]"
-					),
+					"institutional_exceptions": frappe.parse_json(row.institutional_exceptions_json or "[]"),
 				}
 				for row in patterns
 			],
@@ -236,9 +235,7 @@ def apply_v2_migration(payload: dict | str | None = None):
 	blocked = [plan["bundle_key"] for plan in plans if plan["blocking"]]
 	if blocked:
 		raise KnowledgeV3ValidationError(
-			_("A migração possui conflitos ou órfãos não resolvidos: {0}.").format(
-				", ".join(blocked)
-			)
+			_("A migração possui conflitos ou órfãos não resolvidos: {0}.").format(", ".join(blocked))
 		)
 	results = []
 	for plan in plans:
@@ -511,7 +508,9 @@ def publish(version_id: str, payload: dict | str | None = None):
 	if version.valid_from and get_datetime(version.valid_from) > now_datetime():
 		version.flags.knowledge_schedule_publication = True
 		version.save(ignore_permissions=True)
-		_audit(context, "knowledge_publication_scheduled", version.name, {"valid_from": str(version.valid_from)})
+		_audit(
+			context, "knowledge_publication_scheduled", version.name, {"valid_from": str(version.valid_from)}
+		)
 		return response(
 			{**_serialize_version(version), "scheduled": True},
 			request_id=context.request_id,
@@ -627,9 +626,13 @@ def request_break_glass(version_id: str, operation: str = "publish"):
 		"confirmed_by": "",
 		"expires_at": str(add_to_date(now_datetime(), seconds=BREAK_GLASS_TTL_SECONDS)),
 	}
-	frappe.cache().set_value(_break_glass_key(token), json.dumps(record), expires_in_sec=BREAK_GLASS_TTL_SECONDS)
+	frappe.cache().set_value(
+		_break_glass_key(token), json.dumps(record), expires_in_sec=BREAK_GLASS_TTL_SECONDS
+	)
 	_audit(context, "knowledge_break_glass_requested", version.name, {"token_hash": _token_hash(token)})
-	return response({"confirmation_id": token, "expires_in": BREAK_GLASS_TTL_SECONDS}, request_id=context.request_id)
+	return response(
+		{"confirmation_id": token, "expires_in": BREAK_GLASS_TTL_SECONDS}, request_id=context.request_id
+	)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -690,7 +693,10 @@ def expire_published_versions():
 		version.lifecycle_state = "superseded"
 		version.superseded_at = now
 		_save_transition(version)
-		if frappe.db.get_value("Univesp Knowledge Bundle", version.bundle, "published_version") == version.name:
+		if (
+			frappe.db.get_value("Univesp Knowledge Bundle", version.bundle, "published_version")
+			== version.name
+		):
 			_set_bundle_pointer(version.bundle, "published_version", "")
 
 
@@ -737,9 +743,7 @@ def _v2_migration_plans(data):
 		packages = [
 			{
 				"legacy_bundle_id": str(
-					entry.get("legacy_bundle_id")
-					or (entry.get("package") or {}).get("faq_id")
-					or ""
+					entry.get("legacy_bundle_id") or (entry.get("package") or {}).get("faq_id") or ""
 				).strip(),
 				"title": str(
 					entry.get("title")
@@ -806,7 +810,7 @@ def _validate_publishable_payload(payload, bundle):
 		node_ids.add(node_id)
 		stable_keys.add(stable_key)
 		for layer in ("student", "public"):
-			for block in (((node.get("content") or {}).get(layer) or {}).get("blocks") or []):
+			for block in ((node.get("content") or {}).get(layer) or {}).get("blocks") or []:
 				asset_id = str(block.get("asset_id") or "").strip()
 				if asset_id and not frappe.db.exists(
 					"Univesp Knowledge Asset",
@@ -829,8 +833,7 @@ def _validate_publishable_payload(payload, bundle):
 	unresolved_import_nodes = [
 		node.get("stable_key")
 		for node in nodes
-		if node.get("import_status") == "missing_in_import"
-		and node.get("node_id") in active_node_ids
+		if node.get("import_status") == "missing_in_import" and node.get("node_id") in active_node_ids
 	]
 	if unresolved_import_nodes:
 		raise KnowledgeV3ValidationError(
@@ -952,12 +955,7 @@ def _bundle_content_summary(version_name):
 		payload = {}
 	nodes = [node for node in payload.get("nodes") or [] if isinstance(node, dict)]
 	audiences = sorted(
-		{
-			str(audience)
-			for node in nodes
-			for audience in node.get("audiences") or []
-			if str(audience)
-		}
+		{str(audience) for node in nodes for audience in node.get("audiences") or [] if str(audience)}
 	)
 	return {
 		"audiences": audiences,
@@ -1057,17 +1055,11 @@ def _ensure_theme_scope(context, theme_key):
 
 def _theme_scope_keys(context):
 	allowed = {
-		str(item).strip()
-		for item in (context.scopes.get("knowledge_themes") or [])
-		if str(item).strip()
+		str(item).strip() for item in (context.scopes.get("knowledge_themes") or []) if str(item).strip()
 	}
 	if context.profile_key not in {"analista_area", "gestor_area"}:
 		return allowed
-	areas = {
-		str(item).strip()
-		for item in (context.scopes.get("areas") or [])
-		if str(item).strip()
-	}
+	areas = {str(item).strip() for item in (context.scopes.get("areas") or []) if str(item).strip()}
 	if areas:
 		allowed.update(
 			frappe.get_all(

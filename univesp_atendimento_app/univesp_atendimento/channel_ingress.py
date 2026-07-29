@@ -70,11 +70,7 @@ def create_channel_ticket(data: dict) -> dict:
 			"custom_univesp_area": str(normalized.get("area") or ""),
 			"custom_univesp_context_json": json.dumps(
 				{
-					**(
-						normalized.get("triage")
-						if isinstance(normalized.get("triage"), dict)
-						else {}
-					),
+					**(normalized.get("triage") if isinstance(normalized.get("triage"), dict) else {}),
 					"routing": routing_decision,
 				},
 				ensure_ascii=False,

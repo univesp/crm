@@ -65,4 +65,6 @@ def _write_ai_stub(ticket_name: str, **fields) -> None:
 		"custom_ai_suggestion_json",
 		json.dumps(stub, ensure_ascii=False),
 	)
-	frappe.logger("univesp_atendimento").info("ai_suggestion ticket=%s status=%s", ticket_name, stub.get("status"))
+	frappe.logger("univesp_atendimento").info(
+		"ai_suggestion ticket=%s status=%s", ticket_name, stub.get("status")
+	)

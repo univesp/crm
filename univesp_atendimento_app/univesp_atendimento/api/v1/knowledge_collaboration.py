@@ -212,8 +212,7 @@ def incorporate_suggestion(suggestion_id: str, payload: dict | str | None = None
 	version.payload_json = _json(draft_payload)
 	version.revision = int(version.revision or 1) + 1
 	version.change_summary = str(
-		data.get("change_summary")
-		or f"Sugestão {doc.name} incorporada ao rascunho."
+		data.get("change_summary") or f"Sugestão {doc.name} incorporada ao rascunho."
 	).strip()
 	version.save(ignore_permissions=True)
 	doc.state = "incorporated"
@@ -361,9 +360,7 @@ def _target_value(payload, target_ref, layer):
 			raise KnowledgeV3ValidationError(_("Campo de playbook inválido."))
 		playbooks = node.get("playbooks") or {}
 		playbook = playbooks.get(layer)
-		if layer == "bpo" and (
-			not isinstance(playbook, dict) or playbook.get(field) is None
-		):
+		if layer == "bpo" and (not isinstance(playbook, dict) or playbook.get(field) is None):
 			playbook = playbooks.get("op")
 		if not isinstance(playbook, dict):
 			raise KnowledgeV3ValidationError(_("Playbook não existe nesta camada."))

@@ -111,9 +111,7 @@ def create(payload: dict | str | None = None):
 			"faq_session_id": session_record["faq_session_id"],
 		}
 	settings = frappe.get_single("Univesp Runtime Settings")
-	server_routing = bool(getattr(settings, "routing_server_authority", False)) or bool(
-		session_record
-	)
+	server_routing = bool(getattr(settings, "routing_server_authority", False)) or bool(session_record)
 	if server_routing:
 		from univesp_atendimento.api.v1.routing import resolve_ticket_route
 
@@ -161,11 +159,7 @@ def create(payload: dict | str | None = None):
 			"custom_univesp_area": area,
 			"custom_univesp_context_json": json.dumps(
 				{
-					**(
-						data.get("triage")
-						if isinstance(data.get("triage"), dict)
-						else {}
-					),
+					**(data.get("triage") if isinstance(data.get("triage"), dict) else {}),
 					"routing": routing_decision,
 				},
 				ensure_ascii=False,

@@ -38,20 +38,23 @@ def list_link_validations(state: str = "pending"):
 		limit_page_length=200,
 	)
 	for row in rows:
-		ticket = frappe.db.get_value(
-			"HD Ticket",
-			row.ticket,
-			[
-				"custom_univesp_protocol",
-				"custom_student_name",
-				"custom_student_email",
-				"custom_visitor_phone",
-				"custom_student_ra",
-				"custom_student_course",
-				"custom_student_polo",
-			],
-			as_dict=True,
-		) or {}
+		ticket = (
+			frappe.db.get_value(
+				"HD Ticket",
+				row.ticket,
+				[
+					"custom_univesp_protocol",
+					"custom_student_name",
+					"custom_student_email",
+					"custom_visitor_phone",
+					"custom_student_ra",
+					"custom_student_course",
+					"custom_student_polo",
+				],
+				as_dict=True,
+			)
+			or {}
+		)
 		row["protocol"] = ticket.get("custom_univesp_protocol") or row.ticket
 		row["person"] = ticket.get("custom_student_name") or "Pessoa não identificada"
 		row["email_masked"] = _mask_email(ticket.get("custom_student_email"))
@@ -62,9 +65,7 @@ def list_link_validations(state: str = "pending"):
 			"pole": ticket.get("custom_student_polo") or "",
 		}
 		row["overdue"] = bool(
-			row.get("state") == "pending"
-			and row.get("sla_due_at")
-			and row.get("sla_due_at") < now_datetime()
+			row.get("state") == "pending" and row.get("sla_due_at") and row.get("sla_due_at") < now_datetime()
 		)
 	return response(rows, request_id=context.request_id)
 

@@ -34,9 +34,7 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 				"theme_label": "Runtime",
 				"owner_email": "owner.runtime@univesp.br",
 				"approver_group": f"approvers-{suffix}",
-				"editor_areas": [
-					{"area_key": "sra", "area_label": "SRA", "can_edit_draft": 1}
-				],
+				"editor_areas": [{"area_key": "sra", "area_label": "SRA", "can_edit_draft": 1}],
 				"active": 1,
 			}
 		).insert(ignore_permissions=True, ignore_links=True)

@@ -70,9 +70,7 @@ def public_academic_catalogs():
 	)
 	courses = sorted({str(row.curso or "").strip() for row in rows if str(row.curso or "").strip()})
 	poles = {
-		str(row.polo_id): str(row.polo_nome or row.polo_id)
-		for row in rows
-		if str(row.polo_id or "").strip()
+		str(row.polo_id): str(row.polo_nome or row.polo_id) for row in rows if str(row.polo_id or "").strip()
 	}
 	return response(
 		{
@@ -497,7 +495,9 @@ def finalize_public_ticket(ticket_id: str):
 	context.pop("public_upload_token_hash", None)
 	doc.custom_univesp_context_json = json.dumps(context, ensure_ascii=False)
 	doc.save(ignore_permissions=True)
-	return response({"id": doc.name, "protocol": doc.custom_univesp_protocol, "status": doc.custom_univesp_status_code})
+	return response(
+		{"id": doc.name, "protocol": doc.custom_univesp_protocol, "status": doc.custom_univesp_status_code}
+	)
 
 
 def _prepare_public_submission(data):
@@ -662,7 +662,9 @@ def _public_intake_with_token(intake_id, allow_finalized=False):
 		or not intake.expires_at
 		or get_datetime(intake.expires_at) <= now_datetime()
 		or not secrets.compare_digest(str(intake.token_hash), _token_hash(supplied))
-		or (intake.state in {"expired", "finalized"} and not (allow_finalized and intake.state == "finalized"))
+		or (
+			intake.state in {"expired", "finalized"} and not (allow_finalized and intake.state == "finalized")
+		)
 	):
 		raise frappe.PermissionError(_("Solicitação ou credencial inválidos."))
 	return intake
@@ -684,8 +686,7 @@ def _public_upload_ttl_hours():
 
 def _public_document_retention_days():
 	return int(
-		os.getenv("PUBLIC_DOCUMENT_RETENTION_DAYS")
-		or frappe.conf.get("public_document_retention_days", 180)
+		os.getenv("PUBLIC_DOCUMENT_RETENTION_DAYS") or frappe.conf.get("public_document_retention_days", 180)
 	)
 
 
@@ -766,7 +767,9 @@ def _resolve_public_knowledge_reference(knowledge: dict, entries: list[dict]) ->
 		or ""
 	).strip()
 	if requested_version and requested_version != published_version:
-		raise PublicVisitorValidationError(_("A orientacao foi atualizada. Reabra a jornada antes de continuar."))
+		raise PublicVisitorValidationError(
+			_("A orientacao foi atualizada. Reabra a jornada antes de continuar.")
+		)
 
 	node = next(
 		(

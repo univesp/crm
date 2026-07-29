@@ -17,10 +17,7 @@ def service_headers(endpoint, token_header, token):
 	parts = urlsplit(endpoint)
 	audience = f"{parts.scheme}://{parts.netloc}"
 	result = requests.get(
-		(
-			"http://metadata.google.internal/computeMetadata/v1/instance/"
-			"service-accounts/default/identity"
-		),
+		("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity"),
 		params={"audience": audience, "format": "full"},
 		headers={"Metadata-Flavor": "Google"},
 		timeout=3,

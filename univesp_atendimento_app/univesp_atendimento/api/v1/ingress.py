@@ -5,7 +5,11 @@ from frappe import _
 
 from univesp_atendimento.api.v1.common import response, verify_gateway_only
 from univesp_atendimento.channel_adapter import ChannelAdapterError
-from univesp_atendimento.channel_ingress import ChannelIngressError, create_channel_ticket, verify_ingress_secret
+from univesp_atendimento.channel_ingress import (
+	ChannelIngressError,
+	create_channel_ticket,
+	verify_ingress_secret,
+)
 
 
 @frappe.whitelist(methods=["POST"])

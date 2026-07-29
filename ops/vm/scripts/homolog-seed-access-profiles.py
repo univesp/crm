@@ -2,4 +2,4 @@
 
 from univesp_atendimento.homolog_seed import inspect_homolog_state, upsert_homolog_access_profiles
 
-__all__ = ["upsert_homolog_access_profiles", "inspect_homolog_state"]
+__all__ = ["inspect_homolog_state", "upsert_homolog_access_profiles"]
