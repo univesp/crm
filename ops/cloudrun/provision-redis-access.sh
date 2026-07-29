@@ -14,6 +14,13 @@ for name in PROJECT_ID VPC_NETWORK VPC_CONNECTOR_RANGE REDIS_URL; do
 	fi
 done
 
+active_account=$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -1)
+if [[ -z "${active_account}" ]]; then
+	printf 'No active Google Cloud account is available for Redis access provisioning.\n' >&2
+	exit 1
+fi
+printf 'Redis access provisioner: %s\n' "${active_account}"
+
 redis_target=$(
 	REDIS_URL="${REDIS_URL}" node <<'NODE'
 const value = String(process.env.REDIS_URL || '').trim()

@@ -86,6 +86,8 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		self.assertIn("--source-ranges", redis_access)
 		self.assertIn("--destination-ranges", redis_access)
 		self.assertIn("tcp:6379", redis_access)
+		self.assertIn("Redis access provisioner:", redis_access)
+		self.assertIn("gcloud auth list", redis_access)
 		self.assertNotIn("printf '%s' \"${REDIS_URL}\"", redis_access)
 		self.assertIn("https://github.com/frappe/helpdesk", self.workflow)
 		self.assertIn("GATEWAY_REDIS_URL", self.deploy_gateway)
