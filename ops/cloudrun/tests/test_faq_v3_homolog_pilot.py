@@ -13,6 +13,8 @@ class FaqV3HomologPilotTest(unittest.TestCase):
 			encoding="utf-8"
 		)
 		cls.deploy = (CLOUDRUN / "deploy.sh").read_text(encoding="utf-8")
+		cls.deploy_gateway = (CLOUDRUN / "deploy-sso-gateway.sh").read_text(encoding="utf-8")
+		cls.common = (CLOUDRUN / "scripts" / "common.sh").read_text(encoding="utf-8")
 		cls.bootstrap = (CLOUDRUN / "scripts" / "start-bootstrap.sh").read_text(encoding="utf-8")
 		cls.verify = (CLOUDRUN / "verify-faq-v3-pilot.sh").read_text(encoding="utf-8")
 		cls.smoke = (CLOUDRUN / "smoke-homolog.sh").read_text(encoding="utf-8")
@@ -88,6 +90,24 @@ class FaqV3HomologPilotTest(unittest.TestCase):
 			"FAQ_V3_HOMOLOG_PILOT_ENABLED=${FAQ_V3_HOMOLOG_PILOT_ENABLED:-false}",
 			self.deploy,
 		)
+
+	def test_public_email_gate_requires_real_transport_and_shared_ingress(self):
+		for expected in (
+			"PUBLIC_REPLY_DOMAIN",
+			"SMTP_HOST",
+			"SMTP_USERNAME",
+			"SMTP_PASSWORD",
+			"SMTP_FROM_EMAIL",
+			"PUBLIC_EMAIL_REPLY_SECRET",
+			"UNIVESP_INGRESS_SHARED_SECRET",
+		):
+			self.assertIn(expected, self.common)
+		self.assertIn("verify_public_email_transport", self.bootstrap)
+		self.assertIn("SMTP_PASSWORD_VALUE", self.workflow)
+		self.assertIn("crm-homolog-public-email-reply-secret", self.workflow)
+		self.assertIn("crm-homolog-ingress-shared-secret", self.workflow)
+		self.assertIn("UNIVESP_INGRESS_SHARED_SECRET=", self.deploy_gateway)
+		self.assertIn('"public_email": {"ready": true', self.verify)
 
 
 if __name__ == "__main__":

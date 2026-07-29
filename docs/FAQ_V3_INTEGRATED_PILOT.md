@@ -45,7 +45,7 @@ Runner reproduzível:
 | 1e | importação/migração com diff e órfãos | importador XLSX/JSON/procedure e testes | implementado |
 | 2 | sugestões, grants e segregação de funções | APIs, DocTypes e E2E de quatro papéis | implementado |
 | 3 | público sem SSO e documentos seguros | jornada pública, GCS privado, scanner e E2E | implementado; ativação depende de configuração |
-| 4 | diretório, validação e e-mail correlacionado | import incremental, painel de fila humana, SLA, estados e ingress assinado | implementado; ensaio SMTP/Frappe pendente |
+| 4 | diretório, validação e e-mail correlacionado | import incremental, painel de fila humana, SLA, estados, ingress assinado e gate SMTP | implementado; autenticação SMTP real é gate do deploy |
 | 5 | mídia acessível e hardening | assets, conversor, validações e containers | implementado |
 
 ## Integração de homologação
@@ -69,6 +69,9 @@ Runner reproduzível:
   em `Univesp Access Audit`.
 - O verificador consulta os logs da execução específica e falha se versão,
   bundles, filas ou flags esperadas não estiverem ativos.
+- O bootstrap só ativa a thread pública de e-mail depois de validar configuração,
+  TLS/SSL, autenticação SMTP e o segredo compartilhado do ingress. Nenhum segredo
+  é versionado.
 - A jornada pública v3 fixa a versão no backend, usa binding opaco em cookie
   `HttpOnly` e envia lineage completo ao protocolo sem expor esse binding ao
   navegador.

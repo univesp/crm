@@ -39,10 +39,21 @@ jobs:
       MEDIA_PROCESSOR_SERVICE: ${{ vars.MEDIA_PROCESSOR_SERVICE }}
       ANTIMALWARE_TOKEN_SECRET_NAME: ${{ vars.ANTIMALWARE_TOKEN_SECRET_NAME }}
       MEDIA_PROCESSOR_TOKEN_SECRET_NAME: ${{ vars.MEDIA_PROCESSOR_TOKEN_SECRET_NAME }}
+      INGRESS_SHARED_SECRET_NAME: ${{ vars.INGRESS_SHARED_SECRET_NAME }}
+      PUBLIC_EMAIL_REPLY_SECRET_NAME: ${{ vars.PUBLIC_EMAIL_REPLY_SECRET_NAME }}
+      SMTP_PASSWORD_SECRET_NAME: ${{ vars.SMTP_PASSWORD_SECRET_NAME }}
       FRAPPE_SITE_NAME: ${{ vars.FRAPPE_SITE_NAME }}
       FRAPPE_SERVICE_USER_EMAIL: ${{ vars.FRAPPE_SERVICE_USER_EMAIL }}
       INITIAL_ADMIN_EMAIL: ${{ vars.INITIAL_ADMIN_EMAIL }}
       PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
+      PUBLIC_REPLY_DOMAIN: ${{ vars.PUBLIC_REPLY_DOMAIN || vars.PUBLIC_DOMAIN }}
+      SMTP_HOST: ${{ vars.SMTP_HOST }}
+      SMTP_PORT: ${{ vars.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
+      SMTP_FROM_EMAIL: ${{ vars.SMTP_FROM_EMAIL || vars.FRAPPE_SERVICE_USER_EMAIL }}
+      SMTP_FROM_NAME: ${{ vars.SMTP_FROM_NAME || 'Atendimento UNIVESP' }}
+      SMTP_USE_TLS: ${{ vars.SMTP_USE_TLS || 'true' }}
+      SMTP_USE_SSL: ${{ vars.SMTP_USE_SSL || 'false' }}
       DOMAIN_MAPPING_MODE: none
       DB_TYPE: ${{ vars.DB_TYPE }}
       DB_SETUP_MODE: ${{ vars.DB_SETUP_MODE }}
@@ -100,6 +111,7 @@ jobs:
           AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
           AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
           SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
+          SMTP_PASSWORD_VALUE: ${{ secrets.SMTP_PASSWORD }}
         run: |
           required_vars=(
             GCP_PROJECT_ID GCP_REGION ARTIFACT_REPOSITORY FRAPPE_SITE_NAME
@@ -108,12 +120,14 @@ jobs:
             AZURE_ADMIN_CLIENT_ID AZURE_ADMIN_TENANT_ID
             AZURE_ACADEMICO_CLIENT_ID AZURE_ACADEMICO_TENANT_ID
             SAML_IDP_SSO_URL SAML_ENTITY_ID
+            PUBLIC_REPLY_DOMAIN SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_FROM_EMAIL
           )
           required_secrets=(
             DB_PASSWORD_VALUE ADMIN_PASSWORD_VALUE REDIS_CACHE_VALUE REDIS_QUEUE_VALUE
             REDIS_SOCKETIO_VALUE BFF_SHARED_SECRET_VALUE EDGE_SHARED_SECRET_VALUE
             FRAPPE_API_KEY_VALUE FRAPPE_API_SECRET_VALUE GATEWAY_SESSION_SECRET_VALUE
             GATEWAY_JWT_SECRET_VALUE
+            SMTP_PASSWORD_VALUE
           )
           for name in "${required_vars[@]}" "${required_secrets[@]}"; do
             if [[ -z "${!name:-}" ]]; then
@@ -171,6 +185,7 @@ jobs:
           AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
           AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
           SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
+          SMTP_PASSWORD_VALUE: ${{ secrets.SMTP_PASSWORD }}
         run: |
           sync_secret() {
             SECRET_NAME="$1" SECRET_VALUE="$2" ./ops/cloudrun/sync_secret.sh
@@ -197,12 +212,17 @@ jobs:
           reuse_or_sync_secret "${AZURE_ADMIN_CLIENT_SECRET_NAME:-crm-homolog-azure-admin-client-secret}" "${AZURE_ADMIN_CLIENT_SECRET_VALUE}"
           reuse_or_sync_secret "${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}" "${AZURE_ACADEMICO_CLIENT_SECRET_VALUE}"
           reuse_or_sync_secret "${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}" "${SAML_IDP_CERT_VALUE}"
+          sync_secret "${SMTP_PASSWORD_SECRET_NAME:-crm-homolog-smtp-password}" "${SMTP_PASSWORD_VALUE}"
 
       - name: Ensure private FAQ service tokens
         run: |
           SECRET_NAME="${ANTIMALWARE_TOKEN_SECRET_NAME:-crm-homolog-antimalware-token}" \
             ./ops/cloudrun/ensure-random-secret.sh
           SECRET_NAME="${MEDIA_PROCESSOR_TOKEN_SECRET_NAME:-crm-homolog-media-processor-token}" \
+            ./ops/cloudrun/ensure-random-secret.sh
+          SECRET_NAME="${INGRESS_SHARED_SECRET_NAME:-crm-homolog-ingress-shared-secret}" \
+            ./ops/cloudrun/ensure-random-secret.sh
+          SECRET_NAME="${PUBLIC_EMAIL_REPLY_SECRET_NAME:-crm-homolog-public-email-reply-secret}" \
             ./ops/cloudrun/ensure-random-secret.sh
 
       - name: Run read-only GCP preflight

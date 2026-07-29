@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import smtplib
+import ssl
 
 import frappe
 from frappe.utils import now_datetime
@@ -575,7 +577,88 @@ def inspect_faq_v3_pilot() -> dict:
 			queue_key: bool(frappe.db.exists("HD Team", {"name": queue_key, "disabled": 0}))
 			for queue_key in ("atendimento-geral", "sra")
 		},
+		"public_email": _public_email_readiness(),
 	}
+
+
+def verify_public_email_transport() -> dict:
+	"""Confirma configuração e autenticação SMTP sem enviar mensagem."""
+	_require_homolog_confirmation(FAQ_V3_PILOT_CONFIRMATION)
+	readiness = _public_email_readiness()
+	if not readiness["ready"]:
+		raise frappe.ValidationError("Configuração de e-mail público incompleta em homolog.")
+
+	host = str(frappe.conf.get("mail_server") or "")
+	port = int(frappe.conf.get("mail_port") or 0)
+	username = str(frappe.conf.get("mail_login") or "")
+	password = str(frappe.conf.get("mail_password") or "")
+	use_ssl = _config_bool(frappe.conf.get("use_ssl"))
+	use_tls = _config_bool(frappe.conf.get("use_tls"))
+	client = None
+	try:
+		if use_ssl:
+			client = smtplib.SMTP_SSL(host, port, timeout=15, context=ssl.create_default_context())
+		else:
+			client = smtplib.SMTP(host, port, timeout=15)
+			client.ehlo()
+			if use_tls:
+				client.starttls(context=ssl.create_default_context())
+				client.ehlo()
+		client.login(username, password)
+		code, _message = client.noop()
+		if int(code) >= 400:
+			raise frappe.ValidationError("Servidor SMTP recusou a verificação de prontidão.")
+	finally:
+		if client is not None:
+			try:
+				client.quit()
+			except (OSError, smtplib.SMTPException):
+				client.close()
+	return {
+		"ready": True,
+		"authenticated": True,
+		"tls": use_tls,
+		"ssl": use_ssl,
+		"reply_domain_configured": True,
+	}
+
+
+def _public_email_readiness() -> dict:
+	required = {
+		"public_reply_domain": str(frappe.conf.get("public_reply_domain") or "").strip(),
+		"public_email_reply_secret": str(frappe.conf.get("public_email_reply_secret") or ""),
+		"univesp_ingress_shared_secret": str(frappe.conf.get("univesp_ingress_shared_secret") or ""),
+		"auto_email_id": str(frappe.conf.get("auto_email_id") or "").strip(),
+		"mail_server": str(frappe.conf.get("mail_server") or "").strip(),
+		"mail_login": str(frappe.conf.get("mail_login") or "").strip(),
+		"mail_password": str(frappe.conf.get("mail_password") or ""),
+	}
+	missing = [key for key, value in required.items() if not value]
+	if len(required["public_email_reply_secret"]) < 32:
+		missing.append("public_email_reply_secret_length")
+	if len(required["univesp_ingress_shared_secret"]) < 32:
+		missing.append("univesp_ingress_shared_secret_length")
+	port = int(frappe.conf.get("mail_port") or 0)
+	if port < 1 or port > 65535:
+		missing.append("mail_port")
+	if _config_bool(frappe.conf.get("use_ssl")) and _config_bool(frappe.conf.get("use_tls")):
+		missing.append("mail_transport_mode")
+	muted = _config_bool(frappe.conf.get("mute_emails"))
+	if muted:
+		missing.append("mute_emails")
+	return {
+		"ready": not missing,
+		"missing": sorted(set(missing)),
+		"muted": muted,
+		"tls": _config_bool(frappe.conf.get("use_tls")),
+		"ssl": _config_bool(frappe.conf.get("use_ssl")),
+	}
+
+
+def _config_bool(value) -> bool:
+	if isinstance(value, bool):
+		return value
+	return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _require_homolog_confirmation(confirmation: str):

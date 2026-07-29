@@ -36,6 +36,9 @@ secret_names=(
  ${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}
  ${ANTIMALWARE_TOKEN_SECRET_NAME:-crm-homolog-antimalware-token}
  ${MEDIA_PROCESSOR_TOKEN_SECRET_NAME:-crm-homolog-media-processor-token}
+ ${INGRESS_SHARED_SECRET_NAME:-crm-homolog-ingress-shared-secret}
+ ${PUBLIC_EMAIL_REPLY_SECRET_NAME:-crm-homolog-public-email-reply-secret}
+ ${SMTP_PASSWORD_SECRET_NAME:-crm-homolog-smtp-password}
 )
 command -v jq >/dev/null || { printf 'jq is required.\n' >&2; exit 1; }
 checks='[]'; failures=0
