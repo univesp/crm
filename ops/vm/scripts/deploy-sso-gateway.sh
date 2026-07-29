@@ -38,8 +38,11 @@ rsync -a --delete \
   --exclude '.env' \
   --exclude 'node_modules/' \
   --chown=www-data:www-data \
-  "$SOURCE_GATEWAY/" "$TARGET_GATEWAY/"
+	"$SOURCE_GATEWAY/" "$TARGET_GATEWAY/"
 
+if [[ -d "$TARGET_GATEWAY/node_modules" ]]; then
+	chown -R www-data:www-data "$TARGET_GATEWAY/node_modules"
+fi
 cd "$TARGET_GATEWAY"
 sudo -u www-data npm ci --omit=dev
 sudo -u www-data node --check src/index.js

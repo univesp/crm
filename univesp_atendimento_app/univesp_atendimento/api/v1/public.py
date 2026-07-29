@@ -12,7 +12,11 @@ from frappe.utils.file_manager import save_file
 
 from univesp_atendimento.api.v1.common import response, verify_gateway_only
 from univesp_atendimento.api.v1.knowledge import _build_published_faq_entries, _normalize_faq_type
-from univesp_atendimento.cloud_service_auth import configured_value, service_headers
+from univesp_atendimento.cloud_service_auth import (
+	allowed_service_endpoint,
+	configured_value,
+	service_headers,
+)
 from univesp_atendimento.link_validation import classify_link, cpf_hash
 from univesp_atendimento.univesp_atendimento.doctype.univesp_student_directory.univesp_student_directory import (
 	normalize_cpf,
@@ -894,7 +898,7 @@ def _validate_document(filename, content_type, content):
 def _scan_document(filename, content_type, content):
 	endpoint = configured_value(frappe, "antimalware_endpoint", "ANTIMALWARE_ENDPOINT")
 	token = configured_value(frappe, "antimalware_token", "ANTIMALWARE_TOKEN")
-	if not endpoint.startswith("https://") or not token:
+	if not allowed_service_endpoint(endpoint) or not token:
 		raise frappe.ValidationError(_("Serviço antimalware não configurado."))
 	import requests
 

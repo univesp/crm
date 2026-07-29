@@ -7,6 +7,20 @@ def configured_value(frappe, config_key, env_key):
 	return value or str(os.getenv(env_key, "")).strip()
 
 
+def allowed_service_endpoint(endpoint):
+	parts = urlsplit(str(endpoint or "").strip())
+	if parts.scheme == "https" and parts.netloc:
+		return True
+	try:
+		return (
+			parts.scheme == "http"
+			and parts.hostname in {"127.0.0.1", "::1", "localhost"}
+			and bool(parts.port)
+		)
+	except ValueError:
+		return False
+
+
 def service_headers(endpoint, token_header, token):
 	headers = {token_header: token}
 	if str(os.getenv("FAQ_CLOUD_RUN_IAM_AUTH", "")).strip().lower() not in {"1", "true", "yes"}:
