@@ -20,7 +20,9 @@
     "check": "npm run lint && npm run typecheck && npm run build",
     "test:foundation": "node scripts/run-canonical-tests.mjs",
     "test:e2e": "playwright test",
-    "test:e2e:visual": "playwright test e2e/faq-v3-visual-regression.spec.js"
+    "test:e2e:visual": "playwright test e2e/faq-v3-visual-regression.spec.js",
+    "test:e2e:visual:round2": "playwright test e2e/faq-v3-visual-regression-round2.spec.js e2e/crm-visual-regression-round2.spec.js",
+    "test:e2e:visual:all": "playwright test e2e/faq-v3-visual-regression.spec.js e2e/faq-v3-visual-regression-round2.spec.js e2e/crm-visual-regression-round2.spec.js"
   },
   "dependencies": {
     "@vue-flow/background": "^1.3.2",
