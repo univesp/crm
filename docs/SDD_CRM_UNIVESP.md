@@ -63,6 +63,19 @@ O front-end em Vue organiza a experiência de atendimento acadêmico em alta esc
 
 ## FAQ pública (não-aluno)
 
-- `faq_type: publico` na biblioteca de conhecimento
-- Rota `/publico` com registro leve + consentimento LGPD
+> **Nota histórica (substituída em 2026-07):** a seção abaixo descrevia `faq_type: publico` como biblioteca separada e registro antes da FAQ. A regra canônica atual está em **FAQ e Orientações v3**.
+
+- Legado: `faq_type: publico` na biblioteca v2
+- Rota `/publico` com registro leve + consentimento LGPD (após consulta FAQ quando aplicável)
 - API pública: `/api/public/v1/*` (sem sessão SSO)
+
+## FAQ e Orientações v3 (canônico)
+
+- **Um tema → um fluxo → uma árvore → um conjunto de nós.** Aluno e público externo são canais de apresentação do mesmo fluxo, não árvores distintas.
+- OP, BPO e Analista percorrem os mesmos nós e recebem playbooks anexados (`playbooks.op|bpo|analyst`).
+- Na criação: **Disponível em** (Portal do Aluno / Atendimento público sem login), um ou ambos.
+- Conteúdo principal escrito uma vez; opção avançada por nó: personalizar texto para o público externo (`presentation.public_content_mode`: `inherit_student` | `custom`).
+- Frappe é autoridade de publicação, versionamento, vigência, sticky version, auditoria e rollback.
+- Governança: Analista edita e envia para aprovação; Gestor aprova; **Admin pode publicar rascunho próprio diretamente** (`approval_mode=admin_direct`) ou publicar versão aprovada. Revisão é opcional para Admin.
+- Público consulta a FAQ antes de se identificar, quando o canal público estiver ativo.
+- Editor: mapa gráfico (Vue Flow) + lista acessível + simulador de jornada (estado próprio, distinto do mapa).

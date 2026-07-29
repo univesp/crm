@@ -50,6 +50,8 @@ class TestPublicTicketKnowledgeReference(TestCase):
 				"bundle_id": "bundle:publico:acesso",
 				"bundle_version_id": "v2.0",
 				"node_id": "acesso-final",
+				"document_policy": {"mode": "disabled"},
+				"intake_policy": {},
 			},
 		)
 

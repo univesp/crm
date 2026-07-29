@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import AccessibilityPreferencesPanel from '@/components/AccessibilityPreferencesPanel.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
+import AppUpdateBanner from '@/components/AppUpdateBanner.vue'
 import { loadPublishedFaqForProfile } from '@/services/publishedFaqBootstrap'
 import { useAuthStore } from '@/stores/auth'
 import { useJourneyStore } from '@/stores/journey'
@@ -405,6 +406,7 @@ onErrorCaptured((error) => {
   </div>
 
   <div v-else :class="['relative min-h-screen overflow-x-clip', shellThemeClass]">
+    <AppUpdateBanner />
     <a
       href="#main-content"
       class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[120] focus:rounded-full focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-slate-950"
@@ -554,7 +556,7 @@ onErrorCaptured((error) => {
         <RouterView v-slot="{ Component }">
           <Transition name="route" mode="out-in">
             <section
-              v-if="routeRenderError || (!Component && route.matched.length === 0)"
+              v-if="routeRenderError || (!Component && !route.name)"
               class="rounded-[8px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.75)] p-5 text-slate-800"
             >
               <p class="text-xs font-semibold uppercase tracking-normal text-[var(--color-danger)]">

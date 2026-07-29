@@ -1,4 +1,5 @@
 import AdminFaqV3EditorPage from '@/pages/admin/AdminFaqV3EditorPage.vue'
+import AdminFaqV3LibraryPage from '@/pages/admin/AdminFaqV3LibraryPage.vue'
 
 function normalizeFaqBuilderBundleId(rawValue = '') {
   let decoded = ''
@@ -458,7 +459,7 @@ const routes = [
   {
     path: '/admin/faq',
     name: 'admin-faq',
-    component: () => import('@/pages/admin/AdminFaqV3LibraryPage.vue'),
+    component: AdminFaqV3LibraryPage,
     meta: {
       title: 'FAQs e orientações',
       stage: 'admin-faq',

@@ -273,17 +273,89 @@ class TestKnowledgeV3Lifecycle(IntegrationTestCase):
 			patch.object(knowledge_v3, "_ensure_theme_approver"),
 		):
 			third = knowledge_v3.approve(self.bundle_key)["data"]
-			confirmation = knowledge_v3.request_break_glass(third["version_id"])["data"]
-		second_admin = self.context(
-			"second.admin.tests@univesp.br",
-			"admin_central",
-			{"publish_knowledge_version"},
-		)
-		with patch.object(knowledge_v3, "_write_context", return_value=second_admin):
-			knowledge_v3.confirm_break_glass(confirmation["confirmation_id"])
 		with patch.object(knowledge_v3, "_write_context", return_value=publisher):
-			break_glass_publish = knowledge_v3.publish(
-				third["version_id"],
-				{"confirmation_id": confirmation["confirmation_id"]},
+			# Admin pode publicar versão aprovada sem break-glass, mesmo sendo aprovador.
+			direct_publish = knowledge_v3.publish(third["version_id"])["data"]
+		self.assertEqual(direct_publish["lifecycle_state"], "published")
+		self.assertEqual(direct_publish.get("approval_mode"), "approved_path")
+
+	def test_admin_publishes_own_draft_directly(self):
+		admin = self.context(
+			"admin.direct@univesp.br",
+			"admin_central",
+			{"edit_knowledge_draft", "publish_knowledge_version"},
+		)
+		analyst = self.context(
+			"analyst.nopub@univesp.br",
+			"analista_area",
+			{"edit_knowledge_draft", "submit_knowledge_approval"},
+		)
+		unified = self.payload()
+		unified["graph"] = {
+			"student_root_node_id": "root",
+			"public_root_node_id": "root",
+			"internal_root_node_id": None,
+		}
+		unified["nodes"] = [
+			{
+				"node_id": "root",
+				"stable_key": "root",
+				"node_kind": "path",
+				"audiences": ["student", "public"],
+				"presentation": {"public_content_mode": "inherit_student"},
+				"content": {"student": {"blocks": []}, "public": None},
+				"playbooks": {"op": None, "bpo": None, "analyst": None},
+			},
+			{
+				"node_id": "final",
+				"stable_key": "final",
+				"node_kind": "final",
+				"audiences": ["student", "public"],
+				"presentation": {"public_content_mode": "inherit_student"},
+				"content": {
+					"student": {"blocks": [{"block_id": "ok", "type": "text", "body": "Ok"}], "outcome_key": "resolved"},
+					"public": None,
+				},
+				"playbooks": {"op": {"objective": "Resolver"}, "bpo": None, "analyst": None},
+			},
+		]
+		unified["edges"] = [
+			{
+				"edge_id": "root-final",
+				"parent_node_id": "root",
+				"child_node_id": "final",
+				"order": 1,
+				"active": True,
+				"audiences": ["student", "public"],
+			}
+		]
+		with patch.object(knowledge_v3, "_write_context", return_value=admin):
+			created = knowledge_v3.create_bundle(
+				{
+					"bundle_key": self.bundle_key,
+					"title": "Fluxo admin direto",
+					"theme_key": self.theme_key,
+					"audience_profile": "mixed",
+					"payload": unified,
+				}
 			)["data"]
-		self.assertEqual(break_glass_publish["lifecycle_state"], "published")
+			published = knowledge_v3.publish(
+				created["draft"]["version_id"],
+				{
+					"if_match": created["draft"]["etag"],
+					"change_summary": "Publicação direta do Admin no próprio rascunho.",
+				},
+			)["data"]
+		self.assertEqual(published["lifecycle_state"], "published")
+		self.assertEqual(published.get("approval_mode"), "admin_direct")
+
+		with patch.object(knowledge_v3, "_write_context", return_value=analyst):
+			forked = knowledge_v3.fork_draft(self.bundle_key)["data"]
+			with self.assertRaises(frappe.PermissionError):
+				knowledge_v3.publish(
+					forked["version_id"],
+					{
+						"if_match": forked["etag"],
+						"change_summary": "Analista não deve publicar diretamente o rascunho.",
+					},
+				)

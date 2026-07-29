@@ -86,7 +86,7 @@ Runner reproduzível:
 | 2. Editar | E2E editor, blocos e playbook | revisão visual |
 | 3. Sugerir | API + E2E colaboração | OP autorizado real |
 | 4. Aprovar | Gestor aprova; não publica | Gestor real |
-| 5. Publicar | Admin vê ação apenas após aprovação | transação Frappe |
+| 5. Publicar | Admin publica rascunho próprio (`admin_direct`) ou versão aprovada | transação Frappe |
 | 6. Iniciar jornada | aluno/público consomem publicado | API homolog |
 | 7. Abrir atendimento | lineage sem fila do cliente | ticket Frappe |
 | 8. Validar vínculo | 3 testes do classificador | Student Directory homolog |

@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
   archiveKnowledgeV3Bundle,
   createProfileAssignment,
   createKnowledgeV3Bundle,
+  createKnowledgeV3Theme,
   deleteKnowledgeV3Bundle,
   getKnowledgeV3Bundle,
   getKnowledgeV3Catalogs,
@@ -17,6 +18,12 @@ import {
   revokeProfileAssignment,
   unarchiveKnowledgeV3Bundle,
 } from '@/services/appApi'
+import {
+  audienceProfileFromChannels,
+  availableChannelLabels,
+  buildInitialUnifiedPayload,
+  channelsFromPayload,
+} from '@/services/faqV3PayloadAdapter.js'
 
 const router = useRouter()
 const loading = ref(true)
@@ -33,11 +40,27 @@ const grantCatalogs = reactive({
   assignments: [],
 })
 const filters = reactive({ search: '', status: 'active', audience: '' })
+const createModalOpen = ref(false)
+const themeModalOpen = ref(false)
+const themeSearch = ref('')
+const bundleKeyTouched = ref(false)
+const areaKeyTouched = ref(false)
 const createForm = reactive({
   title: '',
   bundle_key: '',
   theme_key: '',
-  audience_profile: 'student',
+  availableStudent: true,
+  availablePublic: false,
+  owner_email: '',
+  pattern_key: '',
+})
+const themeForm = reactive({
+  theme_label: '',
+  theme_key: '',
+  area_label: '',
+  area_key: '',
+  owner_email: '',
+  approver_group: '',
 })
 const grantForm = reactive({
   subject_type: 'person',
@@ -49,17 +72,28 @@ const grantForm = reactive({
   justification: '',
 })
 
-const audienceLabels = {
-  student: 'Aluno',
-  public: 'Público externo',
-  mixed: 'Mista',
-  internal: 'Interna',
+const availabilityFilterLabels = {
+  student: 'Portal do Aluno',
+  public: 'Atendimento público',
+  mixed: 'Portal do Aluno e Atendimento público',
 }
 const layerLabels = {
   student: 'Aluno',
   public: 'Público',
   internal: 'Interno',
 }
+
+const filteredThemes = computed(() => {
+  const term = normalize(themeSearch.value)
+  if (!term) return catalogs.themes
+  return catalogs.themes.filter((theme) =>
+    normalize(`${theme.theme_label} ${theme.theme_key}`).includes(term),
+  )
+})
+
+const selectedTheme = computed(
+  () => catalogs.themes.find((theme) => theme.theme_key === createForm.theme_key) || null,
+)
 
 const filteredRows = computed(() => {
   const term = normalize(filters.search)
@@ -79,6 +113,42 @@ const summary = computed(() => ({
   published: rows.value.filter((row) => Boolean(row.published_version)).length,
 }))
 
+watch(
+  () => createForm.theme_key,
+  (key) => {
+    const theme = catalogs.themes.find((item) => item.theme_key === key)
+    if (theme) {
+      createForm.owner_email = theme.owner_email || ''
+      themeSearch.value = theme.theme_label
+    }
+  },
+)
+
+watch(
+  () => createForm.title,
+  (title) => {
+    if (!bundleKeyTouched.value) {
+      createForm.bundle_key = slug(title).slice(0, 120)
+    }
+  },
+)
+
+watch(
+  () => themeForm.theme_label,
+  (label) => {
+    themeForm.theme_key = slug(label).slice(0, 120)
+  },
+)
+
+watch(
+  () => themeForm.area_label,
+  (label) => {
+    if (!areaKeyTouched.value) {
+      themeForm.area_key = slug(label).slice(0, 120)
+    }
+  },
+)
+
 onMounted(loadLibrary)
 
 async function loadLibrary() {
@@ -91,9 +161,6 @@ async function loadLibrary() {
     ])
     rows.value = bundleResponse.data || []
     Object.assign(catalogs, catalogResponse.data || {})
-    if (!createForm.theme_key && catalogs.themes.length) {
-      createForm.theme_key = catalogs.themes[0].theme_key
-    }
     await loadGrantCatalogs()
   } catch (error) {
     errorMessage.value =
@@ -101,6 +168,11 @@ async function loadLibrary() {
   } finally {
     loading.value = false
   }
+}
+
+async function refreshCatalogs() {
+  const catalogResponse = await getKnowledgeV3Catalogs()
+  Object.assign(catalogs, catalogResponse.data || {})
 }
 
 async function loadGrantCatalogs() {
@@ -163,34 +235,136 @@ const contributorAssignments = computed(() => {
   )
 })
 
+function resetCreateForm() {
+  bundleKeyTouched.value = false
+  Object.assign(createForm, {
+    title: '',
+    bundle_key: '',
+    theme_key: catalogs.themes[0]?.theme_key || '',
+    availableStudent: true,
+    availablePublic: false,
+    owner_email: catalogs.themes[0]?.owner_email || '',
+    pattern_key: catalogs.routing_patterns[0]?.pattern_key || 'op_then_area',
+  })
+  themeSearch.value = selectedTheme.value?.theme_label || ''
+}
+
+function openCreateModal() {
+  errorMessage.value = ''
+  resetCreateForm()
+  createModalOpen.value = true
+}
+
+function closeCreateModal() {
+  createModalOpen.value = false
+}
+
+function onAreaKeyInput() {
+  areaKeyTouched.value = true
+}
+
+function openThemeModal() {
+  errorMessage.value = ''
+  areaKeyTouched.value = false
+  Object.assign(themeForm, {
+    theme_label: '',
+    theme_key: '',
+    area_label: '',
+    area_key: '',
+    owner_email: '',
+    approver_group: '',
+  })
+  themeModalOpen.value = true
+}
+
+function closeThemeModal() {
+  themeModalOpen.value = false
+}
+
+function onBundleKeyInput() {
+  bundleKeyTouched.value = true
+}
+
+function availabilityChips(audienceProfile) {
+  const flags = channelsFromPayload(null, audienceProfile)
+  return availableChannelLabels(flags)
+}
+
 async function createFlow() {
   if (saving.value) return
   const title = createForm.title.trim()
   const bundleKey = (createForm.bundle_key.trim() || slug(title)).slice(0, 120)
   if (!title || !bundleKey || !createForm.theme_key) {
-    errorMessage.value = 'Informe nome, chave e tema para criar o fluxo.'
+    errorMessage.value = 'Informe nome e tema para criar o fluxo.'
+    return
+  }
+  if (!createForm.availableStudent && !createForm.availablePublic) {
+    errorMessage.value = 'Selecione ao menos um canal: Portal do Aluno ou Atendimento público.'
     return
   }
   saving.value = true
   errorMessage.value = ''
   try {
-    const payload = initialPayload({
+    const audienceProfile = audienceProfileFromChannels({
+      availableStudent: createForm.availableStudent,
+      availablePublic: createForm.availablePublic,
+    })
+    const payload = buildInitialUnifiedPayload({
       bundleKey,
       themeKey: createForm.theme_key,
       title,
-      audience: createForm.audience_profile,
-      patternKey: catalogs.routing_patterns[0]?.pattern_key || 'op_then_area',
+      availableStudent: createForm.availableStudent,
+      availablePublic: createForm.availablePublic,
+      patternKey: createForm.pattern_key || catalogs.routing_patterns[0]?.pattern_key || 'op_then_area',
     })
     await createKnowledgeV3Bundle({
       bundle_key: bundleKey,
       title,
       theme_key: createForm.theme_key,
-      audience_profile: createForm.audience_profile,
+      audience_profile: audienceProfile,
       payload,
     })
+    createModalOpen.value = false
     await openEditor(bundleKey)
   } catch (error) {
     errorMessage.value = error?.message || 'Não foi possível criar o fluxo.'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function createTheme() {
+  if (saving.value) return
+  const themeLabel = themeForm.theme_label.trim()
+  const themeKey = (themeForm.theme_key.trim() || slug(themeLabel)).slice(0, 120)
+  const areaLabel = themeForm.area_label.trim()
+  const areaKey = (themeForm.area_key.trim() || slug(areaLabel || 'geral')).slice(0, 120)
+  const ownerEmail = themeForm.owner_email.trim()
+  if (!themeLabel || !themeKey || !areaLabel || !areaKey || !ownerEmail) {
+    errorMessage.value = 'Informe nome, área e responsável para criar o tema.'
+    return
+  }
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    const response = await createKnowledgeV3Theme({
+      theme_label: themeLabel,
+      theme_key: themeKey,
+      area_label: areaLabel,
+      area_key: areaKey,
+      owner_email: ownerEmail,
+      approver_group: themeForm.approver_group.trim() || undefined,
+    })
+    await refreshCatalogs()
+    createForm.theme_key = response.data?.theme_key || themeKey
+    themeSearch.value = response.data?.theme_label || themeLabel
+    themeModalOpen.value = false
+    successMessage.value = `Tema “${response.data?.theme_label || themeLabel}” criado.`
+    if (createModalOpen.value) {
+      createForm.owner_email = response.data?.owner_email || ownerEmail
+    }
+  } catch (error) {
+    errorMessage.value = error?.message || 'Não foi possível criar o tema.'
   } finally {
     saving.value = false
   }
@@ -256,14 +430,18 @@ async function duplicateFlow(row) {
   errorMessage.value = ''
   try {
     const source = (await getKnowledgeV3Bundle(row.bundle_key)).data
+    const channelFlags = channelsFromPayload(null, row.audience_profile)
     const sourcePayload = cloneJson(
-      source.draft?.payload || source.published?.payload || initialPayload({
-        bundleKey: row.bundle_key,
-        themeKey: row.theme_key,
-        title: row.title,
-        audience: row.audience_profile,
-        patternKey: catalogs.routing_patterns[0]?.pattern_key || 'op_then_area',
-      }),
+      source.draft?.payload ||
+        source.published?.payload ||
+        buildInitialUnifiedPayload({
+          bundleKey: row.bundle_key,
+          themeKey: row.theme_key,
+          title: row.title,
+          availableStudent: channelFlags.availableStudent,
+          availablePublic: channelFlags.availablePublic,
+          patternKey: catalogs.routing_patterns[0]?.pattern_key || 'op_then_area',
+        }),
     )
     const suffix = Date.now().toString().slice(-6)
     const bundleKey = `${row.bundle_key}-copia-${suffix}`.slice(0, 120)
@@ -354,63 +532,6 @@ function validityLabel(row) {
   return `Vigente até ${formatDate(version.valid_until)}`
 }
 
-function initialPayload({ bundleKey, themeKey, title, audience, patternKey }) {
-  const audiences =
-    audience === 'mixed'
-      ? ['student', 'public']
-      : audience === 'internal'
-        ? ['internal']
-        : [audience]
-  const rootId = `${bundleKey}-inicio`
-  return {
-    schema_version: '3.0.0',
-    bundle_key: bundleKey,
-    theme_key: themeKey,
-    metadata: {
-      title,
-      audience_profile: audience,
-      operational_owner: {
-        owner_type: 'queue',
-        owner_key: 'atendimento-geral',
-      },
-      criticidade_default_key: 'media',
-      sla_policy_key: '48h',
-    },
-    graph: {
-      student_root_node_id: audiences.includes('student') ? rootId : null,
-      public_root_node_id: audiences.includes('public') ? rootId : null,
-      internal_root_node_id: audiences.includes('internal') ? rootId : null,
-    },
-    routing_policy: {
-      pattern_key: patternKey,
-      bpo_enabled: patternKey.includes('bpo'),
-      institutional_exceptions: ['provas', 'critica'],
-    },
-    nodes: [
-      {
-        node_id: rootId,
-        stable_key: rootId,
-        node_kind: 'path',
-        audiences,
-        display: { title: 'Início' },
-        content: {
-          student: audiences.includes('student') ? { blocks: [] } : null,
-          public: audiences.includes('public') ? { blocks: [] } : null,
-        },
-        playbooks: { op: null, bpo: null, analyst: null },
-        operational: {
-          routing_override: null,
-          criticidade: null,
-          sla_policy_key: null,
-        },
-        document_policy: null,
-        media_refs: [],
-      },
-    ],
-    edges: [],
-  }
-}
-
 function formatDate(value) {
   if (!value) return '—'
   const date = new Date(value)
@@ -447,6 +568,14 @@ function cloneJson(value) {
           Crie e mantenha a orientação do aluno e os playbooks da operação no mesmo fluxo.
         </p>
       </div>
+      <div class="crm-page-header__actions">
+        <button type="button" class="crm-button-secondary" @click="openThemeModal">
+          Criar novo tema
+        </button>
+        <button type="button" class="crm-button-primary" @click="openCreateModal">
+          Criar fluxo
+        </button>
+      </div>
     </header>
 
     <p v-if="errorMessage" class="crm-alert crm-alert--danger" role="alert">
@@ -481,58 +610,6 @@ function cloneJson(value) {
           <p class="crm-stat-tile__value">{{ summary.published }}</p>
         </div>
       </div>
-    </section>
-
-    <section class="crm-panel" aria-labelledby="create-flow-title">
-      <div class="crm-panel-header">
-        <div class="crm-panel-header__copy">
-          <h2 id="create-flow-title">Criar fluxo</h2>
-          <p>Comece pelo tema e pelo público. As orientações operacionais ficam no Editor.</p>
-        </div>
-      </div>
-      <form class="crm-form-grid" @submit.prevent="createFlow">
-        <label class="crm-field-label">
-          Nome do fluxo
-          <input v-model="createForm.title" class="crm-field" required />
-        </label>
-        <label class="crm-field-label">
-          Chave estável
-          <input
-            v-model="createForm.bundle_key"
-            class="crm-field"
-            :placeholder="slug(createForm.title) || 'acesso-ava'"
-          />
-        </label>
-        <label class="crm-field-label">
-          Tema
-          <select v-model="createForm.theme_key" class="crm-field" required>
-            <option
-              v-for="theme in catalogs.themes"
-              :key="theme.theme_key"
-              :value="theme.theme_key"
-            >
-              {{ theme.theme_label }}
-            </option>
-          </select>
-        </label>
-        <label class="crm-field-label">
-          Tipo de FAQ
-          <select v-model="createForm.audience_profile" class="crm-field">
-            <option
-              v-for="(label, value) in audienceLabels"
-              :key="value"
-              :value="value"
-            >
-              {{ label }}
-            </option>
-          </select>
-        </label>
-        <div class="crm-form-actions">
-          <button class="crm-button-primary" type="submit" :disabled="saving">
-            {{ saving ? 'Criando…' : 'Criar e abrir Editor' }}
-          </button>
-        </div>
-      </form>
     </section>
 
     <details class="crm-panel faq-grants">
@@ -687,11 +764,11 @@ function cloneJson(value) {
           </select>
         </label>
         <label class="crm-field-label">
-          Tipo de FAQ
+          Disponível em
           <select v-model="filters.audience" class="crm-field">
             <option value="">Todos</option>
             <option
-              v-for="(label, value) in audienceLabels"
+              v-for="(label, value) in availabilityFilterLabels"
               :key="value"
               :value="value"
             >
@@ -707,7 +784,7 @@ function cloneJson(value) {
           <thead>
             <tr>
               <th scope="col">Tema</th>
-              <th scope="col">Tipo de FAQ</th>
+              <th scope="col">Disponível em</th>
               <th scope="col">Públicos</th>
               <th scope="col">Playbooks</th>
               <th scope="col">Responsável</th>
@@ -723,10 +800,18 @@ function cloneJson(value) {
                 <strong>{{ row.title }}</strong>
                 <small class="crm-table-secondary">{{ row.theme_key }}</small>
               </td>
-              <td>{{ audienceLabels[row.audience_profile] || row.audience_profile }}</td>
               <td>
                 <span
-                  v-for="audience in row.audiences"
+                  v-for="label in availabilityChips(row.audience_profile)"
+                  :key="label"
+                  class="crm-chip"
+                >
+                  {{ label }}
+                </span>
+              </td>
+              <td>
+                <span
+                  v-for="audience in row.audiences || []"
                   :key="audience"
                   class="crm-chip"
                 >
@@ -793,6 +878,208 @@ function cloneJson(value) {
         </table>
       </div>
     </section>
+
+    <div
+      v-if="createModalOpen"
+      class="faq-library-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-flow-modal-title"
+    >
+      <div class="faq-library-modal__backdrop" @click="closeCreateModal" />
+      <section class="faq-library-modal__panel crm-panel">
+        <header class="faq-library-modal__header">
+          <div>
+            <h2 id="create-flow-modal-title">Criar fluxo</h2>
+            <p>Comece pelo tema e pelos canais. As orientações operacionais ficam no Editor.</p>
+          </div>
+          <button type="button" class="crm-button-secondary" @click="closeCreateModal">
+            Fechar
+          </button>
+        </header>
+
+        <form class="crm-form-grid faq-library-modal__form" @submit.prevent="createFlow">
+          <label class="crm-field-label">
+            Nome do fluxo
+            <input v-model="createForm.title" class="crm-field" required />
+          </label>
+
+          <div class="faq-library-modal__theme">
+            <label class="crm-field-label">
+              Buscar tema
+              <input
+                v-model="themeSearch"
+                class="crm-field"
+                type="search"
+                placeholder="Digite para filtrar…"
+                autocomplete="off"
+              />
+            </label>
+            <label class="crm-field-label">
+              Tema
+              <select v-model="createForm.theme_key" class="crm-field" required>
+                <option value="">Selecione um tema</option>
+                <option
+                  v-for="theme in filteredThemes"
+                  :key="theme.theme_key"
+                  :value="theme.theme_key"
+                >
+                  {{ theme.theme_label }}
+                </option>
+              </select>
+            </label>
+            <button
+              type="button"
+              class="crm-button-secondary faq-library-modal__theme-action"
+              @click="openThemeModal"
+            >
+              Criar novo tema
+            </button>
+          </div>
+
+          <fieldset class="faq-library-modal__channels">
+            <legend class="crm-field-label">Disponível em</legend>
+            <label>
+              <input v-model="createForm.availableStudent" type="checkbox" />
+              Portal do Aluno
+            </label>
+            <label>
+              <input v-model="createForm.availablePublic" type="checkbox" />
+              Atendimento público
+            </label>
+            <p class="faq-library-modal__hint">
+              Selecione ao menos um canal.
+            </p>
+          </fieldset>
+
+          <label class="crm-field-label">
+            Responsável operacional
+            <input
+              v-model="createForm.owner_email"
+              class="crm-field"
+              type="email"
+              :placeholder="selectedTheme?.owner_email || 'E-mail do responsável'"
+            />
+          </label>
+
+          <label class="crm-field-label">
+            Rota inicial
+            <select v-model="createForm.pattern_key" class="crm-field" required>
+              <option
+                v-for="pattern in catalogs.routing_patterns"
+                :key="pattern.pattern_key"
+                :value="pattern.pattern_key"
+              >
+                {{ pattern.label }}
+              </option>
+            </select>
+          </label>
+
+          <details class="faq-library-modal__advanced">
+            <summary>Configurações avançadas</summary>
+            <label class="crm-field-label">
+              Chave estável
+              <input
+                v-model="createForm.bundle_key"
+                class="crm-field"
+                :placeholder="slug(createForm.title) || 'acesso-ava'"
+                @input="onBundleKeyInput"
+              />
+            </label>
+          </details>
+
+          <div class="crm-form-actions faq-library-modal__actions">
+            <button type="button" class="crm-button-secondary" @click="closeCreateModal">
+              Cancelar
+            </button>
+            <button class="crm-button-primary" type="submit" :disabled="saving">
+              {{ saving ? 'Criando…' : 'Criar e abrir Editor' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div
+      v-if="themeModalOpen"
+      class="faq-library-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-theme-modal-title"
+    >
+      <div class="faq-library-modal__backdrop" @click="closeThemeModal" />
+      <section class="faq-library-modal__panel crm-panel">
+        <header class="faq-library-modal__header">
+          <div>
+            <h2 id="create-theme-modal-title">Criar novo tema</h2>
+            <p>Defina governança editorial antes de criar fluxos neste tema.</p>
+          </div>
+          <button type="button" class="crm-button-secondary" @click="closeThemeModal">
+            Fechar
+          </button>
+        </header>
+
+        <form class="crm-form-grid faq-library-modal__form" @submit.prevent="createTheme">
+          <label class="crm-field-label">
+            Nome do tema
+            <input v-model="themeForm.theme_label" class="crm-field" required />
+          </label>
+          <label class="crm-field-label">
+            Chave do tema
+            <input
+              v-model="themeForm.theme_key"
+              class="crm-field"
+              :placeholder="slug(themeForm.theme_label) || 'acesso-ava'"
+              required
+            />
+          </label>
+          <label class="crm-field-label">
+            Nome da área
+            <input v-model="themeForm.area_label" class="crm-field" required />
+          </label>
+          <label class="crm-field-label">
+            Chave da área
+            <input
+              v-model="themeForm.area_key"
+              class="crm-field"
+              :placeholder="slug(themeForm.area_label) || 'geral'"
+              required
+              @input="onAreaKeyInput"
+            />
+          </label>
+          <label class="crm-field-label">
+            Responsável principal
+            <input
+              v-model="themeForm.owner_email"
+              class="crm-field"
+              type="email"
+              required
+            />
+          </label>
+          <label class="crm-field-label">
+            Grupo aprovador
+            <select v-model="themeForm.approver_group" class="crm-field">
+              <option value="">Opcional</option>
+              <option
+                v-for="group in grantCatalogs.groups"
+                :key="group.id"
+                :value="group.id"
+              >
+                {{ group.label }}
+              </option>
+            </select>
+          </label>
+          <div class="crm-form-actions faq-library-modal__actions">
+            <button type="button" class="crm-button-secondary" @click="closeThemeModal">
+              Cancelar
+            </button>
+            <button class="crm-button-primary" type="submit" :disabled="saving">
+              {{ saving ? 'Criando…' : 'Criar tema' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   </main>
 </template>
 
@@ -805,6 +1092,28 @@ function cloneJson(value) {
   color: var(--color-primary-dark);
   font-size: var(--font-size-xs);
   font-weight: 700;
+}
+
+.crm-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.crm-page-header > :first-child {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.crm-page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex: 1 1 100%;
+  width: 100%;
+  justify-content: flex-start;
 }
 
 .crm-alert {
@@ -876,6 +1185,103 @@ function cloneJson(value) {
 
 .crm-table-scroll table {
   min-width: 72rem;
+}
+
+.faq-library-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.faq-library-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+.faq-library-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(42rem, 100%);
+  max-height: min(90vh, 52rem);
+  overflow: auto;
+}
+
+.faq-library-modal__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.faq-library-modal__header h2 {
+  margin: 0;
+}
+
+.faq-library-modal__form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.faq-library-modal__theme {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.faq-library-modal__theme-action {
+  justify-self: start;
+}
+
+.faq-library-modal__channels {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.faq-library-modal__channels legend {
+  padding-inline: var(--space-1);
+}
+
+.faq-library-modal__channels label {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.faq-library-modal__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.faq-library-modal__advanced {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.faq-library-modal__advanced summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.faq-library-modal__advanced label {
+  display: block;
+  margin-top: var(--space-3);
+}
+
+.faq-library-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
 @media (max-width: 48rem) {

@@ -167,7 +167,7 @@ def project_runtime(payload, persona):
 	for node_id, node in node_by_id.items():
 		content_layer = None
 		if audience in {"student", "public"}:
-			content_layer = (node.get("content") or {}).get(audience)
+			content_layer = _resolve_content_layer(node, audience)
 		playbook = _effective_playbook(node.get("playbooks") or {}, persona)
 		projected_nodes.append(
 			{
@@ -223,7 +223,7 @@ def _validate_audience_tree(node_by_id, edges, audience, root_id):
 		]
 	if audience in {"student", "public"}:
 		for node_id, node in visible.items():
-			if not isinstance((node.get("content") or {}).get(audience), dict):
+			if not isinstance(_resolve_content_layer(node, audience), dict):
 				errors.append(
 					KnowledgeGraphError(
 						"CONTENT_LAYER_REQUIRED",
@@ -278,6 +278,32 @@ def _validate_audience_tree(node_by_id, edges, audience, root_id):
 			KnowledgeGraphError("ORPHAN_NODES", f"Nós fora da árvore de {audience}: {', '.join(orphans)}.")
 		)
 	return errors
+
+
+def _public_content_mode(node):
+	presentation = node.get("presentation") if isinstance(node, dict) else None
+	if not isinstance(presentation, dict):
+		return ""
+	mode = str(presentation.get("public_content_mode") or "").strip()
+	if mode in {"inherit_student", "custom"}:
+		return mode
+	return ""
+
+
+def _inherits_student_content(node):
+	"""Herança pública só com modo explícito da nova interface."""
+	return _public_content_mode(node) == "inherit_student"
+
+
+def _resolve_content_layer(node, audience):
+	content = node.get("content") if isinstance(node, dict) else None
+	if not isinstance(content, dict):
+		return None
+	if audience == "public" and _inherits_student_content(node):
+		student = content.get("student")
+		return student if isinstance(student, dict) else None
+	layer = content.get(audience)
+	return layer if isinstance(layer, dict) else None
 
 
 def _effective_playbook(playbooks, persona):

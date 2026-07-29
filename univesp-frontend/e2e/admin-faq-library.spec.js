@@ -37,13 +37,18 @@ test('biblioteca v3 cria fluxo sem usar localStorage institucional', async ({ pa
 
   await page.goto('/crm/admin/faq')
   await expect(page.getByRole('heading', { name: 'Biblioteca de fluxos' })).toBeVisible()
-  await page.getByLabel('Nome do fluxo').fill('Novo fluxo')
-  await page.getByLabel('Chave estável').fill('novo-fluxo')
-  await page.getByRole('button', { name: 'Criar e abrir Editor' }).click()
+  await page.getByRole('button', { name: 'Criar fluxo', exact: true }).click()
+  const createDialog = page.getByRole('dialog', { name: 'Criar fluxo' })
+  await createDialog.getByLabel('Nome do fluxo').fill('Novo fluxo')
+  await createDialog.getByRole('combobox', { name: 'Tema' }).selectOption('acesso-ava')
+  await createDialog.getByRole('checkbox', { name: 'Portal do Aluno' }).check()
+  await createDialog.getByRole('button', { name: 'Criar e abrir Editor' }).click()
 
   await expect.poll(() => createdPayload).not.toBeNull()
   expect(createdPayload.bundle_key).toBe('novo-fluxo')
   expect(createdPayload.payload.schema_version).toBe('3.0.0')
+  expect(createdPayload.payload.graph.student_root_node_id).toBeTruthy()
+  expect(createdPayload.payload.graph.public_root_node_id).toBeFalsy()
   await expect(page).toHaveURL(/admin\/faq-editor\/novo-fluxo/)
   await expect(page.getByRole('heading', { name: 'Novo fluxo' })).toBeVisible()
   await expect
@@ -53,7 +58,7 @@ test('biblioteca v3 cria fluxo sem usar localStorage institucional', async ({ pa
     .toBe('sentinela-nao-alterar')
 })
 
-test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', async ({ page }) => {
+test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', async ({ page }) => {
   const payload = flowPayload('acesso-ava')
   let savedPayload = null
   await mockKnowledgeV3(page, {
@@ -65,9 +70,12 @@ test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', a
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
   await expect(page.getByRole('heading', { name: 'Acesso ao AVA' })).toBeVisible()
+  await expect(page.getByText('Tema', { exact: true })).toBeVisible()
+  await expect(page.getByText('Disponível em', { exact: true })).toBeVisible()
 
+  await page.getByRole('tab', { name: 'Lista de etapas' }).click()
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
-  await page.getByRole('button', { name: 'Aluno', exact: true }).click()
+  await page.getByRole('button', { name: 'Orientação', exact: true }).click()
   await page.getByLabel('Conteúdo', { exact: true }).fill('Recupere sua senha pelo portal do aluno.')
   await page.getByRole('button', { name: 'Adicionar bloco' }).click()
   await page.getByLabel('Tipo do bloco').last().selectOption('notice')
@@ -111,9 +119,32 @@ test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', a
       cpf_purpose: 'Confirmar a identidade antes de corrigir o cadastro de acesso.',
     })
 
-  await page.getByRole('button', { name: 'Ver como a jornada funciona' }).click()
-  await expect(page.getByRole('heading', { name: 'Prévia da jornada' })).toBeFocused()
+  await page.getByRole('button', { name: 'Simular jornada' }).click()
+  await expect(page.getByRole('heading', { name: 'Simular jornada' })).toBeVisible()
+  await page.getByRole('button', { name: 'Fechar' }).click()
   await expect(page.getByText('Nenhum bloqueio encontrado.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Publicar', exact: true })).toBeVisible()
+})
+
+test('mapa do fluxo seleciona a etapa e a simulação percorre a jornada', async ({ page }) => {
+  const payload = flowPayload('acesso-ava')
+  await mockKnowledgeV3(page, { payload })
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+
+  await page.getByRole('tab', { name: 'Mapa do fluxo' }).click()
+  await expect(page.getByRole('heading', { name: 'Mapa do fluxo' })).toBeVisible()
+  await page.getByRole('button', { name: /Início|Etapa:/ }).first().click()
+  await expect(page.getByLabel('Nome da etapa')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Simular jornada' }).click()
+  const simulator = page.getByRole('dialog', { name: 'Simular jornada' })
+  await expect(simulator.getByRole('heading', { name: 'Simular jornada' })).toBeVisible()
+  const choice = simulator.getByRole('button', { name: /Resposta final|Continuar/i }).first()
+  if (await choice.isVisible()) {
+    await choice.click()
+  }
+  await simulator.getByRole('button', { name: 'Reiniciar' }).click()
+  await simulator.getByRole('button', { name: 'Fechar' }).click()
 })
 
 test('editor envia mídia institucional e preserva o asset no rascunho', async ({ page }) => {
@@ -150,8 +181,9 @@ test('editor envia mídia institucional e preserva o asset no rascunho', async (
   })
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
+  await page.getByRole('tab', { name: 'Lista de etapas' }).click()
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
-  await page.getByRole('button', { name: 'Aluno', exact: true }).click()
+  await page.getByRole('button', { name: 'Orientação', exact: true }).click()
   await page.getByLabel('Tipo do bloco').selectOption('image')
   await page.getByLabel('Texto alternativo').fill('Tela de recuperação de acesso')
   await page.getByLabel('Enviar mídia institucional').setInputFiles({
@@ -298,6 +330,15 @@ async function mockKnowledgeV3(page, { payload, onCreate = () => {}, onSave = ()
 
     if (path.endsWith('/catalogs')) {
       return fulfill(route, catalogs)
+    }
+    if (path.endsWith('/themes') && method === 'POST') {
+      const body = request.postDataJSON()
+      catalogs.themes.push({
+        theme_key: body.theme_key || 'novo-tema',
+        theme_label: body.theme_label || body.name || 'Novo tema',
+        owner_email: body.owner_email || 'gestor@univesp.br',
+      })
+      return fulfill(route, catalogs.themes.at(-1))
     }
     if (path.endsWith('/bundles') && method === 'GET') {
       return fulfill(route, [])

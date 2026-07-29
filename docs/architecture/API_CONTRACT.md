@@ -41,7 +41,10 @@ resultado e nunca ampliam o escopo.
 
 - `GET /api/app/v1/queues`
 - `GET /api/app/v1/knowledge/published`
-- `GET /api/app/v1/knowledge/faq-published?faq_type=aluno|op|publico`
+- `GET /api/app/v1/knowledge/faq-published?faq_type=aluno|op|publico` (legado v2; não é fonte canônica)
+- Knowledge v3 (canônico): `/api/app/v1/knowledge/v3/*` — bundles, draft, publish, runtime, themes
+- `POST /api/app/v1/knowledge/v3/themes` — criar tema (Admin)
+- `POST /api/app/v1/knowledge/v3/versions/:versionId/publish` — Admin publica `draft` (`admin_direct`) ou `approved`
 
 ## Cadastro aluno (pos-SSO)
 

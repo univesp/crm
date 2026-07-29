@@ -1,8 +1,6 @@
 # FAQ v3 — Privacidade, operação e métricas
 
-Status: **v2** — padrões técnicos de privacidade, operação e métricas
-implementados para as Fases 3–5. Os valores são configuráveis, mas não dependem
-de aprovação externa para funcionar em homolog.
+Status: **v3** — inclui nota 2026-07: grupo aprovador é **condicional** (obrigatório ao enviar para revisão; opcional na criação de tema quando só Admin edita/publica).
 Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md), [FAQ_V3_PRODUCT_UX_SPEC.md](./FAQ_V3_PRODUCT_UX_SPEC.md), [FAQ_V3_BACKLOG.md](./FAQ_V3_BACKLOG.md).
 
 ---

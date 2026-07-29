@@ -1,7 +1,9 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import FaqV3FlowMap from '@/components/admin/faq-v3/FaqV3FlowMap.vue'
+import FaqV3JourneySimulator from '@/components/admin/faq-v3/FaqV3JourneySimulator.vue'
 import {
   approveKnowledgeV3Bundle,
   forkKnowledgeV3Draft,
@@ -20,6 +22,23 @@ import {
   resolveImportConflict,
   resolveImportOrphan,
 } from '@/services/faqV3Import'
+import {
+  applyChannelsToPayload,
+  availableChannelLabels,
+  audienceProfileFromChannels,
+  canonicalRootId,
+  channelAudiences,
+  channelsFromPayload,
+  flattenCanonicalTree,
+  inheritsPublicFromStudent,
+  isLegacyDualTree,
+  normalizePayloadForEditor,
+  PUBLIC_CONTENT_CUSTOM,
+  PUBLIC_CONTENT_INHERIT,
+  publicContentMode,
+  resolveNodeContent,
+  setPublicContentMode,
+} from '@/services/faqV3PayloadAdapter'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -36,11 +55,12 @@ const payload = ref(null)
 const versions = ref([])
 const etag = ref('')
 const selectedNodeId = ref('')
-const treeAudience = ref('student')
 const activeTab = ref('student')
-const previewPersona = ref('student')
-const previewVisible = ref(true)
-const previewHeading = ref(null)
+const viewMode = ref('map')
+const simulatorOpen = ref(false)
+const playbookPreviewOpen = ref(false)
+const settingsOpen = ref(false)
+const publishConfirmOpen = ref(false)
 const changeSummary = ref('')
 const importOpen = ref(false)
 const importBusy = ref(false)
@@ -48,10 +68,11 @@ const importDiff = ref(null)
 const assetBusy = ref(false)
 const mediaUploadEnabled = ref(false)
 const validity = reactive({ valid_from: '', valid_until: '' })
+const channelFlags = reactive({ availableStudent: true, availablePublic: false })
 const catalogs = reactive({ themes: [], routing_patterns: [] })
 
 const tabs = [
-  { key: 'student', label: 'Aluno' },
+  { key: 'student', label: 'Orientação' },
   { key: 'public', label: 'Público externo' },
   { key: 'op', label: 'OP' },
   { key: 'bpo', label: 'BPO' },
@@ -59,13 +80,6 @@ const tabs = [
   { key: 'routing', label: 'Encaminhamento' },
   { key: 'document', label: 'Documento' },
 ]
-const personaLabels = {
-  student: 'Aluno',
-  public: 'Público externo',
-  op: 'OP',
-  bpo: 'BPO',
-  analyst: 'Analista',
-}
 const lifecycleLabels = {
   draft: 'Rascunho',
   pending_approval: 'Aguardando aprovação',
@@ -98,6 +112,7 @@ const approvedVersion = computed(() =>
   versions.value.find((version) => version.lifecycle_state === 'approved'),
 )
 const allowedActions = computed(() => new Set(auth.mockContext.allowedActions || []))
+const isAdmin = computed(() => auth.mockContext.profileKey === 'admin_central')
 const canEdit = computed(
   () =>
     currentState.value === 'draft' &&
@@ -109,20 +124,52 @@ const canApprove = computed(
     currentState.value === 'pending_approval' &&
     allowedActions.value.has('approve_knowledge'),
 )
-const canPublish = computed(
+const canPublishDraft = computed(
   () =>
+    isAdmin.value &&
+    currentState.value === 'draft' &&
+    Boolean(draft.value) &&
+    allowedActions.value.has('publish_knowledge_version') &&
+    blockers.value.length === 0,
+)
+const canPublishApproved = computed(
+  () =>
+    isAdmin.value &&
     Boolean(approvedVersion.value) &&
     allowedActions.value.has('publish_knowledge_version'),
+)
+const canSubmitReview = computed(
+  () => canEdit.value && allowedActions.value.has('submit_knowledge_approval'),
 )
 const isAreaEditor = computed(() =>
   ['analista_area', 'gestor_area'].includes(auth.mockContext.profileKey),
 )
+const themeLabel = computed(() => {
+  const key = payload.value?.theme_key || bundle.value?.theme_key || ''
+  return (
+    catalogs.themes.find((theme) => theme.theme_key === key)?.theme_label || key || '—'
+  )
+})
+const channelLabelText = computed(() => availableChannelLabels(channelFlags).join(' · ') || '—')
+const visibleTabs = computed(() =>
+  tabs.filter((tab) => tab.key !== 'public' || channelFlags.availablePublic),
+)
+const publicContentIsCustom = computed(
+  () => publicContentMode(selectedNode.value) === PUBLIC_CONTENT_CUSTOM,
+)
+const finalNodeCount = computed(
+  () => (payload.value?.nodes || []).filter((node) => node.node_kind === 'final').length,
+)
 
-const treeNodes = computed(() => flattenTree(treeAudience.value))
+const treeNodes = computed(() => flattenCanonicalTree(payload.value))
 const blockers = computed(() => validateDraft())
-const previewContent = computed(() => buildPreview(previewPersona.value))
 
-onMounted(loadEditor)
+onMounted(() => {
+  if (typeof window !== 'undefined' && window.matchMedia('(max-width: 54rem)').matches) {
+    viewMode.value = 'list'
+  }
+  loadEditor()
+})
 
 watch(
   payload,
@@ -159,6 +206,15 @@ async function loadEditor() {
     etag.value = bundleResponse.meta?.etag || bundle.value?.draft?.etag || ''
     const editablePayload = bundle.value?.draft?.payload
     payload.value = editablePayload ? cloneJson(editablePayload) : null
+    if (payload.value) {
+      Object.assign(
+        channelFlags,
+        channelsFromPayload(payload.value, bundle.value?.audience_profile),
+      )
+      if (!isLegacyDualTree(payload.value)) {
+        payload.value = normalizePayloadForEditor(payload.value, channelFlags)
+      }
+    }
     ensureNodePolicies()
     changeSummary.value = bundle.value?.draft?.change_summary || ''
     validity.valid_from = toInputDate(bundle.value?.draft?.valid_from)
@@ -177,6 +233,13 @@ async function saveDraft({ silent = false } = {}) {
   saving.value = true
   errorMessage.value = ''
   try {
+    payload.value = applyChannelsToPayload(payload.value, channelFlags)
+    if (payload.value.metadata) {
+      payload.value.metadata.audience_profile = audienceProfileFromChannels(channelFlags)
+    }
+    if (payload.value.theme_key && bundle.value) {
+      bundle.value.theme_key = payload.value.theme_key
+    }
     const response = await saveKnowledgeV3Draft(
       bundleKey.value,
       {
@@ -247,12 +310,37 @@ async function approveDraft() {
 }
 
 async function publishApproved() {
-  if (!approvedVersion.value || saving.value) return
-  if (!window.confirm('Publicar esta versão para os públicos configurados?')) return
+  if (!canPublishApproved.value || saving.value) return
+  publishConfirmOpen.value = true
+}
+
+async function publishDraftDirect() {
+  if (!canPublishDraft.value) return
+  if (changeSummary.value.trim().length < 20) {
+    errorMessage.value = 'Explique as mudanças em pelo menos 20 caracteres.'
+    return
+  }
+  publishConfirmOpen.value = true
+}
+
+async function confirmPublish() {
+  publishConfirmOpen.value = false
+  const isDraftPublish = canPublishDraft.value && Boolean(draft.value?.version_id)
+  const versionId = isDraftPublish ? draft.value.version_id : approvedVersion.value?.version_id
+  if (!versionId || saving.value) return
+
+  if (isDraftPublish) {
+    if (dirty.value && !(await saveDraft({ silent: true }))) return
+    payload.value = applyChannelsToPayload(payload.value, channelFlags)
+  }
+
   saving.value = true
   errorMessage.value = ''
   try {
-    await publishKnowledgeV3Version(approvedVersion.value.version_id)
+    const publishPayload = isDraftPublish
+      ? { change_summary: changeSummary.value, if_match: etag.value }
+      : undefined
+    await publishKnowledgeV3Version(versionId, publishPayload)
     successMessage.value = 'Versão publicada.'
     await loadEditor()
   } catch (error) {
@@ -260,6 +348,22 @@ async function publishApproved() {
   } finally {
     saving.value = false
   }
+}
+
+function syncChannelSettings() {
+  if (!payload.value || isLegacyDualTree(payload.value)) return
+  payload.value = normalizePayloadForEditor(payload.value, channelFlags)
+  if (!channelFlags.availablePublic && activeTab.value === 'public') {
+    activeTab.value = 'student'
+  }
+}
+
+function togglePublicCustomization(enabled) {
+  if (!selectedNode.value) return
+  setPublicContentMode(
+    selectedNode.value,
+    enabled ? PUBLIC_CONTENT_CUSTOM : PUBLIC_CONTENT_INHERIT,
+  )
 }
 
 async function createDraftFromPublished() {
@@ -334,6 +438,10 @@ function applyImport() {
     return
   }
   payload.value = cloneJson(importDiff.value.payload)
+  Object.assign(channelFlags, channelsFromPayload(payload.value, bundle.value?.audience_profile))
+  if (!isLegacyDualTree(payload.value)) {
+    payload.value = normalizePayloadForEditor(payload.value, channelFlags)
+  }
   ensureNodePolicies()
   selectedNodeId.value = payload.value.nodes?.[0]?.node_id || ''
   changeSummary.value = `Importação ${importDiff.value.meta?.source_schema || 'FAQ'} revisada com diff.`
@@ -357,19 +465,17 @@ async function downloadTemplate() {
 function addNode(kind) {
   if (!canEdit.value || !selectedNode.value) return
   const id = `${bundleKey.value}-${kind}-${Date.now().toString(36)}`
-  const audiences =
-    treeAudience.value === 'internal'
-      ? ['internal']
-      : [...new Set(selectedNode.value.audiences || [treeAudience.value])]
+  const audiences = channelAudiences(channelFlags)
   payload.value.nodes.push({
     node_id: id,
     stable_key: id,
     node_kind: kind,
     audiences,
     display: { title: kind === 'final' ? 'Nova resposta final' : 'Nova etapa' },
+    presentation: { public_content_mode: PUBLIC_CONTENT_INHERIT },
     content: {
-      student: audiences.includes('student') ? emptyContent() : null,
-      public: audiences.includes('public') ? emptyContent() : null,
+      student: channelFlags.availableStudent ? emptyContent() : null,
+      public: null,
     },
     playbooks: { op: null, bpo: null, analyst: null },
     operational: {
@@ -492,13 +598,6 @@ function setOutcome(layer, value) {
   selectedNode.value.content[layer].outcome_key = value
 }
 
-function contentText(layer) {
-  return (
-    selectedNode.value?.content?.[layer]?.blocks?.find((block) => block.type === 'text')
-      ?.body || ''
-  )
-}
-
 function ensurePlaybook(layer) {
   if (!selectedNode.value.playbooks) {
     selectedNode.value.playbooks = { op: null, bpo: null, analyst: null }
@@ -577,80 +676,44 @@ function playbookItemLabel(item) {
   )
 }
 
-function showPreview() {
-  previewVisible.value = true
-  nextTick(() => previewHeading.value?.focus())
-}
-
-function flattenTree(audience) {
-  if (!payload.value) return []
-  const rootId =
-    audience === 'student'
-      ? payload.value.graph?.student_root_node_id
-      : audience === 'public'
-        ? payload.value.graph?.public_root_node_id
-        : payload.value.graph?.internal_root_node_id || payload.value.nodes?.[0]?.node_id
-  if (!rootId) return []
-  const result = []
-  const visit = (nodeId, depth) => {
-    const node = payload.value.nodes.find((item) => item.node_id === nodeId)
-    if (!node) return
-    if (
-      audience === 'internal' ||
-      (node.audiences || []).includes(audience)
-    ) {
-      result.push({ ...node, depth })
-    }
-    childEdges(nodeId)
-      .filter(
-        (edge) =>
-          audience === 'internal' ||
-          !edge.audiences?.length ||
-          edge.audiences.includes(audience),
-      )
-      .forEach((edge) => visit(edge.child_node_id, depth + 1))
-  }
-  visit(rootId, 0)
-  return result
-}
-
-function childEdges(nodeId) {
-  return (payload.value?.edges || [])
-    .filter((edge) => edge.active !== false && edge.parent_node_id === nodeId)
-    .sort((left, right) => Number(left.order || 0) - Number(right.order || 0))
-}
-
 function isRoot(nodeId) {
-  return Object.values(payload.value?.graph || {}).includes(nodeId)
+  return nodeId === canonicalRootId(payload.value)
 }
 
 function validateDraft() {
   if (!payload.value) return ['Crie ou abra um rascunho para editar.']
   const issues = []
-  const nodeIds = new Set(payload.value.nodes.map((node) => node.node_id))
-  for (const [field, label] of [
-    ['student_root_node_id', 'Aluno'],
-    ['public_root_node_id', 'Público externo'],
-    ['internal_root_node_id', 'Interno'],
-  ]) {
-    const root = payload.value.graph?.[field]
-    if (root && !nodeIds.has(root)) issues.push(`A raiz de ${label} não existe.`)
+  if (!channelFlags.availableStudent && !channelFlags.availablePublic) {
+    issues.push('Selecione ao menos um canal de disponibilidade.')
   }
+  const nodeIds = new Set(payload.value.nodes.map((node) => node.node_id))
+  const rootId = canonicalRootId(payload.value)
+  if (rootId && !nodeIds.has(rootId)) issues.push('A etapa inicial do fluxo não existe.')
   const patternHasOp = selectedPattern.value?.steps?.includes('op')
   payload.value.nodes.forEach((node) => {
-    if (!node.display?.title?.trim()) issues.push(`A etapa ${node.node_id} está sem título.`)
+    if (!node.display?.title?.trim()) {
+      issues.push(`A etapa “${node.display?.title || 'sem título'}” precisa de um nome.`)
+    }
     if (node.node_kind === 'final') {
-      for (const audience of node.audiences || []) {
-        if (
-          ['student', 'public'].includes(audience) &&
-          !node.content?.[audience]?.blocks?.some(blockHasContent)
-        ) {
-          issues.push(`A resposta final “${node.display?.title}” está vazia para ${personaLabels[audience]}.`)
+      if (channelFlags.availableStudent) {
+        const studentContent = resolveNodeContent(node, 'student')
+        if (!studentContent?.blocks?.some(blockHasContent)) {
+          issues.push(`A resposta final “${node.display?.title}” está vazia na orientação.`)
+        }
+      }
+      if (channelFlags.availablePublic) {
+        const publicContent = inheritsPublicFromStudent(node)
+          ? resolveNodeContent(node, 'student')
+          : resolveNodeContent(node, 'public')
+        if (!publicContent?.blocks?.some(blockHasContent)) {
+          issues.push(
+            `A resposta final “${node.display?.title}” está vazia para o público externo.`,
+          )
         }
       }
       if (
         patternHasOp &&
-        (node.audiences || []).includes('student') &&
+        channelFlags.availableStudent &&
         !node.playbooks?.op?.objective?.trim()
       ) {
         issues.push(`Defina o objetivo do playbook OP em “${node.display?.title}”.`)
@@ -670,24 +733,10 @@ function blockHasContent(block) {
   return Boolean(block?.url?.trim())
 }
 
-function buildPreview(persona) {
-  const node = selectedNode.value
-  if (!node) return null
-  if (persona === 'student' || persona === 'public') {
-    return {
-      title: node.display?.title,
-      body: contentText(persona),
-      lines: [],
-      inherited: false,
-    }
-  }
-  const playbook = effectivePlaybook(persona)
-  return {
-    title: playbook.objective || node.display?.title,
-    body: playbook.suggested_reply || '',
-    lines: playbook.checklist || [],
-    inherited: persona === 'bpo' && !node.playbooks?.bpo,
-  }
+function childEdges(nodeId) {
+  return (payload.value?.edges || [])
+    .filter((edge) => edge.active !== false && edge.parent_node_id === nodeId)
+    .sort((left, right) => Number(left.order || 0) - Number(right.order || 0))
 }
 
 function emptyContent() {
@@ -738,14 +787,44 @@ function cloneJson(value) {
         <h1 id="faq-editor-title" class="crm-page-title">
           {{ bundle?.title || 'Editor do fluxo' }}
         </h1>
-        <p class="crm-page-description">
-          Conteúdo para o aluno e orientações da operação, no mesmo fluxo.
-        </p>
+        <dl class="faq-editor-v3__meta">
+          <div>
+            <dt>Tema</dt>
+            <dd>{{ themeLabel }}</dd>
+          </div>
+          <div>
+            <dt>Disponível em</dt>
+            <dd>{{ channelLabelText }}</dd>
+          </div>
+          <div>
+            <dt>Responsável</dt>
+            <dd>{{ bundle?.owner_email || 'Não definido' }}</dd>
+          </div>
+        </dl>
       </div>
       <div class="faq-editor-v3__header-actions">
         <span class="crm-chip">
           {{ lifecycleLabels[currentState] || currentState }}
         </span>
+        <button type="button" class="crm-button-secondary" @click="simulatorOpen = true">
+          Simular jornada
+        </button>
+        <button
+          type="button"
+          class="crm-button-secondary"
+          :disabled="!selectedNode"
+          @click="playbookPreviewOpen = !playbookPreviewOpen"
+        >
+          Ver playbook
+        </button>
+        <button
+          v-if="canEdit"
+          type="button"
+          class="crm-button-secondary"
+          @click="settingsOpen = !settingsOpen"
+        >
+          Configurações do fluxo
+        </button>
         <button
           v-if="canEdit"
           type="button"
@@ -753,9 +832,6 @@ function cloneJson(value) {
           @click="importOpen = !importOpen"
         >
           Importar ou atualizar
-        </button>
-        <button type="button" class="crm-button-secondary" @click="showPreview">
-          Ver como a jornada funciona
         </button>
       </div>
     </header>
@@ -772,14 +848,14 @@ function cloneJson(value) {
       <h2>{{ approvedVersion ? 'A versão está aprovada' : 'Este fluxo não tem rascunho em edição' }}</h2>
       <p v-if="approvedVersion">
         {{
-          canPublish
+          canPublishApproved
             ? 'O conteúdo já passou pela aprovação e está pronto para publicação.'
             : 'O conteúdo já passou pela aprovação e aguarda publicação pelo Admin.'
         }}
       </p>
       <p v-else>Crie um novo rascunho a partir da versão publicada para fazer alterações.</p>
       <button
-        v-if="canPublish"
+        v-if="canPublishApproved"
         type="button"
         class="crm-button-primary"
         :disabled="saving"
@@ -822,6 +898,49 @@ function cloneJson(value) {
             :disabled="!canEdit"
           />
         </label>
+      </section>
+
+      <section
+        v-if="settingsOpen && canEdit"
+        class="crm-panel faq-settings"
+        aria-labelledby="faq-settings-title"
+      >
+        <h2 id="faq-settings-title">Configurações do fluxo</h2>
+        <div class="faq-settings__grid">
+          <fieldset class="faq-settings__channels">
+            <legend>Canais de disponibilidade</legend>
+            <label>
+              <input
+                v-model="channelFlags.availableStudent"
+                type="checkbox"
+                :disabled="!canEdit"
+                @change="syncChannelSettings"
+              />
+              Portal do Aluno
+            </label>
+            <label>
+              <input
+                v-model="channelFlags.availablePublic"
+                type="checkbox"
+                :disabled="!canEdit"
+                @change="syncChannelSettings"
+              />
+              Atendimento público
+            </label>
+          </fieldset>
+          <label class="crm-field-label">
+            Tema
+            <select v-model="payload.theme_key" class="crm-field" :disabled="!canEdit">
+              <option
+                v-for="theme in catalogs.themes"
+                :key="theme.theme_key"
+                :value="theme.theme_key"
+              >
+                {{ theme.theme_label }}
+              </option>
+            </select>
+          </label>
+        </div>
       </section>
 
       <section
@@ -945,17 +1064,37 @@ function cloneJson(value) {
         <aside class="crm-panel faq-tree" aria-labelledby="flow-tree-title">
           <div class="crm-panel-header__copy">
             <h2 id="flow-tree-title">Etapas do fluxo</h2>
-            <p>Escolha o público e depois a etapa que deseja editar.</p>
+            <p>Escolha a etapa que deseja editar.</p>
           </div>
-          <label class="crm-field-label">
-            Árvore para
-            <select v-model="treeAudience" class="crm-field">
-              <option value="student">Aluno</option>
-              <option value="public">Público externo</option>
-              <option value="internal">Operação interna</option>
-            </select>
-          </label>
-          <ol class="faq-tree__list">
+          <div class="faq-view-toggle" role="tablist" aria-label="Visualização do fluxo">
+            <button
+              type="button"
+              role="tab"
+              class="faq-view-toggle__button"
+              :class="{ 'is-active': viewMode === 'map' }"
+              :aria-selected="viewMode === 'map'"
+              @click="viewMode = 'map'"
+            >
+              Mapa do fluxo
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="faq-view-toggle__button"
+              :class="{ 'is-active': viewMode === 'list' }"
+              :aria-selected="viewMode === 'list'"
+              @click="viewMode = 'list'"
+            >
+              Lista de etapas
+            </button>
+          </div>
+          <FaqV3FlowMap
+            v-if="viewMode === 'map'"
+            :payload="payload"
+            :selected-node-id="selectedNodeId"
+            @select-node="selectedNodeId = $event"
+          />
+          <ol v-else class="faq-tree__list">
             <li v-for="node in treeNodes" :key="node.node_id">
               <button
                 type="button"
@@ -1012,7 +1151,7 @@ function cloneJson(value) {
 
             <nav class="faq-tabs" aria-label="Camadas da etapa">
               <button
-                v-for="tab in tabs"
+                v-for="tab in visibleTabs"
                 :key="tab.key"
                 type="button"
                 class="faq-tabs__button"
@@ -1024,14 +1163,14 @@ function cloneJson(value) {
               </button>
             </nav>
 
-            <div v-if="['student', 'public'].includes(activeTab)" class="faq-form-stack">
+            <div v-if="activeTab === 'student'" class="faq-form-stack">
               <p>
                 Escreva a orientação que a pessoa verá nesta etapa. Use linguagem direta e indique
                 o próximo passo.
               </p>
               <ol class="faq-blocks" aria-label="Blocos da orientação">
                 <li
-                  v-for="(block, index) in contentBlocks(activeTab)"
+                  v-for="(block, index) in contentBlocks('student')"
                   :key="block.block_id"
                   class="crm-card-muted faq-block"
                 >
@@ -1050,9 +1189,9 @@ function cloneJson(value) {
                       </select>
                     </label>
                     <div class="faq-block__actions">
-                      <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === 0" :aria-label="`Mover bloco ${index + 1} para cima`" @click="moveContentBlock(activeTab, index, -1)">Subir</button>
-                      <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === contentBlocks(activeTab).length - 1" :aria-label="`Mover bloco ${index + 1} para baixo`" @click="moveContentBlock(activeTab, index, 1)">Descer</button>
-                      <button type="button" class="crm-button-secondary" :disabled="!canEdit" :aria-label="`Excluir bloco ${index + 1}`" @click="removeContentBlock(activeTab, index)">Excluir</button>
+                      <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === 0" :aria-label="`Mover bloco ${index + 1} para cima`" @click="moveContentBlock('student', index, -1)">Subir</button>
+                      <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === contentBlocks('student').length - 1" :aria-label="`Mover bloco ${index + 1} para baixo`" @click="moveContentBlock('student', index, 1)">Descer</button>
+                      <button type="button" class="crm-button-secondary" :disabled="!canEdit" :aria-label="`Excluir bloco ${index + 1}`" @click="removeContentBlock('student', index)">Excluir</button>
                     </div>
                   </div>
                   <label v-if="['text', 'notice'].includes(block.type)" class="crm-field-label">
@@ -1093,24 +1232,99 @@ function cloneJson(value) {
                     </label>
                     <label v-if="mediaUploadEnabled && ['image', 'video'].includes(block.type)" class="crm-field-label">
                       Enviar mídia institucional
-                      <input type="file" :accept="block.type === 'image' ? 'image/png,image/jpeg,image/webp,image/gif' : 'video/mp4,video/webm'" :disabled="!canEdit || assetBusy" @change="uploadBlockAsset(activeTab, block, $event)" />
+                      <input type="file" :accept="block.type === 'image' ? 'image/png,image/jpeg,image/webp,image/gif' : 'video/mp4,video/webm'" :disabled="!canEdit || assetBusy" @change="uploadBlockAsset('student', block, $event)" />
                     </label>
                   </template>
                 </li>
               </ol>
-              <button type="button" class="crm-button-secondary" :disabled="!canEdit" @click="addContentBlock(activeTab)">
+              <button type="button" class="crm-button-secondary" :disabled="!canEdit" @click="addContentBlock('student')">
                 Adicionar bloco
               </button>
               <label v-if="selectedNode.node_kind === 'final'" class="crm-field-label">
                 Resultado esperado
                 <input
                   class="crm-field"
-                  :value="selectedNode.content?.[activeTab]?.outcome_key || ''"
+                  :value="selectedNode.content?.student?.outcome_key || ''"
                   :disabled="!canEdit"
                   placeholder="Ex.: resolveu ou abrir_atendimento"
-                  @input="setOutcome(activeTab, $event.target.value)"
+                  @input="setOutcome('student', $event.target.value)"
                 />
               </label>
+            </div>
+
+            <div v-else-if="activeTab === 'public'" class="faq-form-stack">
+              <label class="faq-public-toggle">
+                <input
+                  type="checkbox"
+                  :checked="publicContentIsCustom"
+                  :disabled="!canEdit"
+                  @change="togglePublicCustomization($event.target.checked)"
+                />
+                Personalizar texto para o público externo
+              </label>
+              <p v-if="!publicContentIsCustom" class="faq-inheritance">
+                O público externo vê a mesma orientação definida na aba Orientação.
+              </p>
+              <template v-else>
+                <p>
+                  Escreva uma orientação específica para quem acessa pelo atendimento público.
+                </p>
+                <ol class="faq-blocks" aria-label="Blocos da orientação pública">
+                  <li
+                    v-for="(block, index) in contentBlocks('public')"
+                    :key="block.block_id"
+                    class="crm-card-muted faq-block"
+                  >
+                    <div class="faq-block__header">
+                      <label v-if="block.type !== 'button'" class="crm-field-label">
+                        Tipo do bloco
+                        <select v-model="block.type" class="crm-field" :disabled="!canEdit">
+                          <option value="text">Texto</option>
+                          <option value="image">Imagem</option>
+                          <option value="link">Link</option>
+                          <option value="video">Vídeo</option>
+                          <option value="notice">Aviso</option>
+                          <option value="button">Botão controlado</option>
+                          <option value="file">Arquivo institucional</option>
+                          <option value="animation">Animação acessível</option>
+                        </select>
+                      </label>
+                      <div class="faq-block__actions">
+                        <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === 0" @click="moveContentBlock('public', index, -1)">Subir</button>
+                        <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === contentBlocks('public').length - 1" @click="moveContentBlock('public', index, 1)">Descer</button>
+                        <button type="button" class="crm-button-secondary" :disabled="!canEdit" @click="removeContentBlock('public', index)">Excluir</button>
+                      </div>
+                    </div>
+                    <label v-if="['text', 'notice'].includes(block.type)" class="crm-field-label">
+                      Conteúdo
+                      <textarea v-model="block.body" class="crm-field faq-textarea" :disabled="!canEdit" />
+                    </label>
+                    <template v-else>
+                      <label class="crm-field-label">
+                        Endereço HTTPS
+                        <input v-model="block.url" type="url" class="crm-field" :disabled="!canEdit" />
+                      </label>
+                      <label v-if="['link', 'file'].includes(block.type)" class="crm-field-label">
+                        Texto exibido
+                        <input v-model="block.body" class="crm-field" :disabled="!canEdit" />
+                      </label>
+                    </template>
+                  </li>
+                </ol>
+                <button type="button" class="crm-button-secondary" :disabled="!canEdit" @click="addContentBlock('public')">
+                  Adicionar bloco
+                </button>
+                <label v-if="selectedNode.node_kind === 'final'" class="crm-field-label">
+                  Resultado esperado
+                  <input
+                    class="crm-field"
+                    :value="selectedNode.content?.public?.outcome_key || ''"
+                    :disabled="!canEdit"
+                    placeholder="Ex.: resolveu ou abrir_atendimento"
+                    @input="setOutcome('public', $event.target.value)"
+                  />
+                </label>
+              </template>
             </div>
 
             <div v-else-if="['op', 'bpo', 'analyst'].includes(activeTab)" class="faq-form-stack">
@@ -1301,23 +1515,38 @@ function cloneJson(value) {
           </template>
         </section>
 
-        <aside v-if="previewVisible" class="faq-side-stack">
-          <section class="crm-panel faq-preview" aria-labelledby="preview-title">
-            <h2 id="preview-title" ref="previewHeading" tabindex="-1">Prévia da jornada</h2>
-            <label class="crm-field-label">
-              Ver como
-              <select v-model="previewPersona" class="crm-field">
-                <option v-for="(label, value) in personaLabels" :key="value" :value="value">
-                  {{ label }}
-                </option>
-              </select>
-            </label>
-            <article v-if="previewContent" class="crm-card-muted">
-              <p v-if="previewContent.inherited" class="crm-chip">Herdado do OP</p>
-              <h3>{{ previewContent.title || 'Sem conteúdo' }}</h3>
-              <p>{{ previewContent.body || 'Nenhuma orientação preenchida nesta camada.' }}</p>
-              <ol v-if="previewContent.lines.length">
-                <li v-for="line in previewContent.lines" :key="line">{{ line }}</li>
+        <aside class="faq-side-stack">
+          <section
+            v-if="playbookPreviewOpen && selectedNode"
+            class="crm-panel faq-playbook-preview"
+            aria-labelledby="playbook-preview-title"
+          >
+            <div class="faq-playbook-preview__header">
+              <h2 id="playbook-preview-title">Playbook da etapa</h2>
+              <button type="button" class="crm-button-secondary" @click="playbookPreviewOpen = false">
+                Fechar
+              </button>
+            </div>
+            <p class="faq-playbook-preview__context">
+              {{ selectedNode.display?.title || 'Etapa sem título' }}
+            </p>
+            <article v-for="layer in ['op', 'bpo', 'analyst']" :key="layer" class="crm-card-muted">
+              <h3>{{ tabs.find((tab) => tab.key === layer)?.label || layer }}</h3>
+              <p v-if="layer === 'bpo' && !selectedNode.playbooks?.bpo" class="crm-chip">
+                Herdado do OP
+              </p>
+              <p>
+                <strong>Objetivo:</strong>
+                {{ effectivePlaybook(layer).objective || 'Não definido' }}
+              </p>
+              <p v-if="effectivePlaybook(layer).suggested_reply">
+                <strong>Resposta sugerida:</strong>
+                {{ effectivePlaybook(layer).suggested_reply }}
+              </p>
+              <ol v-if="(effectivePlaybook(layer).checklist || []).length">
+                <li v-for="item in effectivePlaybook(layer).checklist" :key="playbookItemLabel(item)">
+                  {{ playbookItemLabel(item) }}
+                </li>
               </ol>
             </article>
           </section>
@@ -1357,6 +1586,24 @@ function cloneJson(value) {
         </div>
         <div class="faq-action-bar__buttons">
           <button
+            v-if="canPublishDraft"
+            type="button"
+            class="crm-button-primary"
+            :disabled="saving"
+            @click="publishDraftDirect"
+          >
+            Publicar
+          </button>
+          <button
+            v-if="canSubmitReview && isAdmin"
+            type="button"
+            class="crm-button-secondary"
+            :disabled="saving || blockers.length > 0"
+            @click="submitApproval"
+          >
+            Enviar para revisão
+          </button>
+          <button
             v-if="canEdit"
             type="button"
             class="crm-button-secondary"
@@ -1366,7 +1613,7 @@ function cloneJson(value) {
             Salvar rascunho
           </button>
           <button
-            v-if="canEdit"
+            v-if="canSubmitReview && !isAdmin"
             type="button"
             class="crm-button-primary"
             :disabled="saving || blockers.length > 0"
@@ -1383,18 +1630,50 @@ function cloneJson(value) {
           >
             Aprovar conteúdo
           </button>
+        </div>
+      </section>
+
+      <FaqV3JourneySimulator
+        :open="simulatorOpen"
+        :payload="payload"
+        @close="simulatorOpen = false"
+      />
+    </template>
+
+    <div
+      v-if="publishConfirmOpen"
+      class="faq-confirm-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="publish-confirm-title"
+    >
+      <section class="crm-panel faq-confirm-dialog">
+        <h2 id="publish-confirm-title">Confirmar publicação</h2>
+        <ul class="faq-confirm-dialog__details">
+          <li><strong>Canais:</strong> {{ channelLabelText }}</li>
+          <li>
+            <strong>Vigência:</strong>
+            {{ validity.valid_from ? formatDate(validity.valid_from) : 'Imediata' }}
+            até
+            {{ validity.valid_until ? formatDate(validity.valid_until) : 'sem fim definido' }}
+          </li>
+          <li v-if="payload"><strong>Respostas finais:</strong> {{ finalNodeCount }}</li>
+        </ul>
+        <div class="faq-confirm-dialog__actions">
+          <button type="button" class="crm-button-secondary" @click="publishConfirmOpen = false">
+            Cancelar
+          </button>
           <button
-            v-if="canPublish"
             type="button"
             class="crm-button-primary"
             :disabled="saving"
-            @click="publishApproved"
+            @click="confirmPublish"
           >
-            Publicar versão aprovada
+            Confirmar publicação
           </button>
         </div>
       </section>
-    </template>
+    </div>
   </main>
 </template>
 
@@ -1406,16 +1685,115 @@ function cloneJson(value) {
 
 .faq-editor-v3__header,
 .faq-editor-v3__header-actions,
+.faq-editor-v3__meta,
 .faq-node-editor__title,
 .faq-governance-strip,
 .faq-action-bar,
 .faq-action-bar__buttons,
-.faq-tree__actions {
+.faq-tree__actions,
+.faq-playbook-preview__header,
+.faq-confirm-dialog__actions,
+.faq-settings__grid {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: end;
   justify-content: space-between;
+}
+
+.faq-editor-v3__meta {
+  margin-top: var(--space-2);
+  align-items: start;
+}
+
+.faq-editor-v3__meta div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.faq-editor-v3__meta dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.faq-editor-v3__meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.faq-view-toggle {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-block: var(--space-3);
+  padding: var(--space-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.faq-view-toggle__button {
+  min-height: 2.5rem;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+.faq-view-toggle__button.is-active {
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-weight: 700;
+}
+
+.faq-settings,
+.faq-playbook-preview,
+.faq-confirm-dialog {
+  padding: var(--space-4);
+}
+
+.faq-settings__channels {
+  display: grid;
+  gap: var(--space-2);
+  border: 0;
+  padding: 0;
+}
+
+.faq-settings__channels label,
+.faq-public-toggle {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.faq-playbook-preview__context {
+  color: var(--color-text-muted);
+}
+
+.faq-playbook-preview article {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.faq-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-text) 35%, transparent);
+}
+
+.faq-confirm-dialog {
+  width: min(100%, 32rem);
+}
+
+.faq-confirm-dialog__details {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-3);
+  padding-left: var(--space-4);
 }
 
 .faq-back-link {
@@ -1511,7 +1889,9 @@ function cloneJson(value) {
 
 .faq-tree,
 .faq-node-editor,
-.faq-side-stack {
+.faq-side-stack,
+.faq-settings,
+.faq-playbook-preview {
   min-width: 0;
 }
 
@@ -1598,9 +1978,9 @@ function cloneJson(value) {
   padding: var(--space-3);
 }
 
-.faq-preview h3,
 .faq-validation h2,
-.faq-history h2 {
+.faq-history h2,
+.faq-playbook-preview h2 {
   margin-bottom: var(--space-2);
 }
 
