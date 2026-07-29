@@ -9,7 +9,7 @@ const props = defineProps({
   saving: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'confirm', 'update:changeSummary'])
+defineEmits(['close', 'confirm', 'update:changeSummary'])
 
 const title = computed(() => {
   if (props.intent === 'publish') return 'Resumo antes da publicação'

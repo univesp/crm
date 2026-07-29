@@ -169,12 +169,6 @@ const canSubmitReview = computed(
 const isAreaEditor = computed(() =>
   ['analista_area', 'gestor_area'].includes(auth.mockContext.profileKey),
 )
-const themeLabel = computed(() => {
-  const key = payload.value?.theme_key || bundle.value?.theme_key || ''
-  return (
-    catalogs.themes.find((theme) => theme.theme_key === key)?.theme_label || key || '—'
-  )
-})
 const channelLabelText = computed(() => availableChannelLabels(channelFlags).join(' · ') || '—')
 const visibleTabs = computed(() =>
   tabs.filter((tab) => tab.key !== 'public' || channelFlags.availablePublic),
@@ -990,11 +984,6 @@ function blockTypeOptions(currentType) {
     : [...SIMPLE_BLOCK_TYPES]
   if (currentType && !options.includes(currentType)) options.push(currentType)
   return options
-}
-
-function studentLayerEmpty(node) {
-  const content = resolveNodeContent(node, 'student')
-  return !(content?.blocks?.length && content.blocks.some(blockHasContent))
 }
 
 function readBlockCount(node, layer) {
@@ -1820,13 +1809,20 @@ function handleMapSelectNode(nodeId) {
       <FaqV3FlowSettingsPanel
         :open="settingsOpen"
         :can-edit="canEdit"
-        :payload="payload"
-        :channel-flags="channelFlags"
-        :validity="validity"
+        :theme-key="payload.theme_key"
+        :available-student="channelFlags.availableStudent"
+        :available-public="channelFlags.availablePublic"
+        :valid-from="validity.valid_from"
+        :valid-until="validity.valid_until"
         :themes="catalogs.themes"
         :owner-email="bundle?.owner_email || ''"
         @close="settingsOpen = false"
         @sync-channels="syncChannelSettings"
+        @update:theme-key="payload.theme_key = $event"
+        @update:available-student="channelFlags.availableStudent = $event"
+        @update:available-public="channelFlags.availablePublic = $event"
+        @update:valid-from="validity.valid_from = $event"
+        @update:valid-until="validity.valid_until = $event"
       />
 
       <FaqV3SubmitReviewDialog

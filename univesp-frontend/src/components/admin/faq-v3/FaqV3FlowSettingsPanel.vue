@@ -2,14 +2,34 @@
 defineProps({
   open: { type: Boolean, default: false },
   canEdit: { type: Boolean, default: false },
-  payload: { type: Object, required: true },
-  channelFlags: { type: Object, required: true },
-  validity: { type: Object, required: true },
+  themeKey: { type: String, default: '' },
+  availableStudent: { type: Boolean, default: true },
+  availablePublic: { type: Boolean, default: false },
+  validFrom: { type: String, default: '' },
+  validUntil: { type: String, default: '' },
   themes: { type: Array, default: () => [] },
   ownerEmail: { type: String, default: '' },
 })
 
-defineEmits(['close', 'sync-channels'])
+const emit = defineEmits([
+  'close',
+  'sync-channels',
+  'update:themeKey',
+  'update:availableStudent',
+  'update:availablePublic',
+  'update:validFrom',
+  'update:validUntil',
+])
+
+function onStudentChange(event) {
+  emit('update:availableStudent', event.target.checked)
+  emit('sync-channels')
+}
+
+function onPublicChange(event) {
+  emit('update:availablePublic', event.target.checked)
+  emit('sync-channels')
+}
 </script>
 
 <template>
@@ -34,26 +54,31 @@ defineEmits(['close', 'sync-channels'])
           <legend>Canais de disponibilidade</legend>
           <label>
             <input
-              v-model="channelFlags.availableStudent"
+              :checked="availableStudent"
               type="checkbox"
               :disabled="!canEdit"
-              @change="$emit('sync-channels')"
+              @change="onStudentChange"
             />
             Portal do Aluno
           </label>
           <label>
             <input
-              v-model="channelFlags.availablePublic"
+              :checked="availablePublic"
               type="checkbox"
               :disabled="!canEdit"
-              @change="$emit('sync-channels')"
+              @change="onPublicChange"
             />
             Atendimento público
           </label>
         </fieldset>
         <label class="crm-field-label">
           Tema
-          <select v-model="payload.theme_key" class="crm-field" :disabled="!canEdit">
+          <select
+            class="crm-field"
+            :value="themeKey"
+            :disabled="!canEdit"
+            @change="$emit('update:themeKey', $event.target.value)"
+          >
             <option v-for="theme in themes" :key="theme.theme_key" :value="theme.theme_key">
               {{ theme.theme_label }}
             </option>
@@ -66,19 +91,21 @@ defineEmits(['close', 'sync-channels'])
         <label class="crm-field-label">
           Início da vigência
           <input
-            v-model="validity.valid_from"
+            :value="validFrom"
             type="datetime-local"
             class="crm-field"
             :disabled="!canEdit"
+            @input="$emit('update:validFrom', $event.target.value)"
           />
         </label>
         <label class="crm-field-label">
           Fim da vigência
           <input
-            v-model="validity.valid_until"
+            :value="validUntil"
             type="datetime-local"
             class="crm-field"
             :disabled="!canEdit"
+            @input="$emit('update:validUntil', $event.target.value)"
           />
         </label>
       </div>
