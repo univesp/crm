@@ -36,4 +36,9 @@ bench --site '${SITE}' execute univesp_atendimento.homolog_seed.upsert_homolog_a
 bench --site '${SITE}' execute univesp_atendimento.homolog_seed.upsert_homolog_student_directory
 "
 
+echo "==> Restart Frappe services"
+sudo supervisorctl restart 'frappe-bench:*'
+sleep 3
+sudo supervisorctl status 'frappe-bench:*' | grep -q RUNNING
+
 echo "Backend atualizado em ${SITE}"

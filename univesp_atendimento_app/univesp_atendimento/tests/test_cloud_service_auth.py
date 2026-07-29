@@ -4,11 +4,24 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
 
-from univesp_atendimento.cloud_service_auth import configured_value, service_headers
+from univesp_atendimento.cloud_service_auth import (
+	allowed_service_endpoint,
+	configured_value,
+	service_headers,
+)
 from univesp_atendimento.gcs_config import inspect_gcs_site_config
 
 
 class TestCloudServiceAuth(TestCase):
+	def test_accepts_https_and_loopback_http_only(self):
+		self.assertTrue(allowed_service_endpoint("https://scanner.example/scan"))
+		self.assertTrue(allowed_service_endpoint("http://127.0.0.1:18081/scan"))
+		self.assertTrue(allowed_service_endpoint("http://localhost:18082/convert-gif"))
+		self.assertFalse(allowed_service_endpoint("http://10.0.0.8:8080/scan"))
+		self.assertFalse(allowed_service_endpoint("http://example.com/scan"))
+		self.assertFalse(allowed_service_endpoint("http://localhost:invalid/scan"))
+		self.assertFalse(allowed_service_endpoint("file:///tmp/scan"))
+
 	def test_config_prefers_site_config_and_falls_back_to_environment(self):
 		frappe = SimpleNamespace(conf={"endpoint": "https://site.example/scan"})
 		with patch.dict(os.environ, {"SERVICE_ENDPOINT": "https://env.example/scan"}):
