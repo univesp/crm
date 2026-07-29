@@ -12,6 +12,7 @@ CONTAINERFILE = ROOT / "ops" / "cloudrun" / "Containerfile"
 ROLLBACK = ROOT / "ops" / "cloudrun" / "rollback.sh"
 WORKFLOW = ROOT / ".github" / "workflows" / "univesp-cloudrun-homolog.yml"
 SYNC_SECRET = ROOT / "ops" / "cloudrun" / "sync_secret.sh"
+PROVISION = ROOT / "ops" / "cloudrun" / "provision.sh"
 
 
 class CloudRunFrontDoorTest(unittest.TestCase):
@@ -26,6 +27,7 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		cls.rollback = ROLLBACK.read_text(encoding="utf-8")
 		cls.workflow = WORKFLOW.read_text(encoding="utf-8")
 		cls.sync_secret = SYNC_SECRET.read_text(encoding="utf-8")
+		cls.provision = PROVISION.read_text(encoding="utf-8")
 
 	def test_academic_api_precedes_generic_api_block(self):
 		academic = self.config.index("location ^~ /api/app/v1/")
@@ -135,6 +137,11 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		preflight = self.workflow.index("Run read-only GCP preflight")
 		self.assertLess(provision, restore)
 		self.assertLess(restore, preflight)
+
+	def test_api_enablement_is_explicit_in_idempotent_provisioning(self):
+		self.assertIn("ENABLE_REQUIRED_APIS=${ENABLE_REQUIRED_APIS:-false}", self.provision)
+		self.assertIn('if [[ "${ENABLE_REQUIRED_APIS}" == "true" ]]', self.provision)
+		self.assertIn("Skipping API enablement", self.provision)
 
 	def test_rollback_requires_confirmation_and_immutable_images(self):
 		self.assertIn('CONFIRM_ROLLBACK" != homolog', self.rollback)

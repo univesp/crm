@@ -17,6 +17,7 @@ REDIS_VM_MACHINE_TYPE=${REDIS_VM_MACHINE_TYPE:-e2-small}
 REDIS_VM_TAG=${REDIS_VM_TAG:-crm-homolog-redis}
 REDIS_VM_PORT=${REDIS_VM_PORT:-6379}
 REDIS_VM_STARTUP_SCRIPT=${REDIS_VM_STARTUP_SCRIPT:-$(dirname "$0")/redis-vm-startup.sh}
+ENABLE_REQUIRED_APIS=${ENABLE_REQUIRED_APIS:-false}
 
 if [[ -z "${PROJECT_ID}" || -z "${RUNTIME_SERVICE_ACCOUNT}" || -z "${SITES_BUCKET}" || -z "${VPC_CONNECTOR}" ]]; then
 	printf 'GCP_PROJECT_ID, CLOUDRUN_RUNTIME_SERVICE_ACCOUNT, SITES_BUCKET and VPC_CONNECTOR are required.\n' >&2
@@ -25,16 +26,23 @@ fi
 
 gcloud config set project "${PROJECT_ID}" >/dev/null
 
-gcloud services enable \
-	run.googleapis.com \
-	artifactregistry.googleapis.com \
-	secretmanager.googleapis.com \
-	sqladmin.googleapis.com \
-	vpcaccess.googleapis.com \
-	redis.googleapis.com \
-	compute.googleapis.com \
-	iam.googleapis.com \
-	serviceusage.googleapis.com
+if [[ "${ENABLE_REQUIRED_APIS}" == "true" ]]; then
+	gcloud services enable \
+		run.googleapis.com \
+		artifactregistry.googleapis.com \
+		secretmanager.googleapis.com \
+		sqladmin.googleapis.com \
+		vpcaccess.googleapis.com \
+		redis.googleapis.com \
+		compute.googleapis.com \
+		iam.googleapis.com \
+		serviceusage.googleapis.com
+elif [[ "${ENABLE_REQUIRED_APIS}" != "false" ]]; then
+	printf 'ENABLE_REQUIRED_APIS must be true or false.\n' >&2
+	exit 1
+else
+	printf 'Skipping API enablement; deployment identity must target a project with required APIs already enabled.\n'
+fi
 
 if ! gcloud artifacts repositories describe "${ARTIFACT_REPOSITORY}" --location "${REGION}" >/dev/null 2>&1; then
 	gcloud artifacts repositories create "${ARTIFACT_REPOSITORY}" \
