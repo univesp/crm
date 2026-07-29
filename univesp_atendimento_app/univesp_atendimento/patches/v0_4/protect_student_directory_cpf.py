@@ -7,6 +7,12 @@ import frappe
 def execute():
 	if not frappe.db.exists("DocType", "Univesp Student Directory"):
 		return
+	frappe.reload_doc(
+		"univesp_atendimento",
+		"doctype",
+		"univesp_student_directory",
+		force=True,
+	)
 	for row in frappe.get_all(
 		"Univesp Student Directory",
 		fields=["name", "cpf", "cpf_hash"],
