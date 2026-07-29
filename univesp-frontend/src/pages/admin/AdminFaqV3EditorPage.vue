@@ -162,7 +162,21 @@ const finalNodeCount = computed(
 )
 
 const treeNodes = computed(() => flattenCanonicalTree(payload.value))
-const blockers = computed(() => validateDraft())
+const draftIssues = computed(() => collectIssues())
+const blockers = computed(() => [
+  ...new Set(
+    draftIssues.value.filter((issue) => issue.severity === 'error').map((issue) => issue.message),
+  ),
+])
+const nodeIssues = computed(() => {
+  const grouped = {}
+  for (const issue of draftIssues.value) {
+    if (!issue.nodeId) continue
+    if (!grouped[issue.nodeId]) grouped[issue.nodeId] = []
+    grouped[issue.nodeId].push(issue)
+  }
+  return grouped
+})
 
 onMounted(() => {
   if (typeof window !== 'undefined' && window.matchMedia('(max-width: 54rem)').matches) {
@@ -680,25 +694,66 @@ function isRoot(nodeId) {
   return nodeId === canonicalRootId(payload.value)
 }
 
-function validateDraft() {
-  if (!payload.value) return ['Crie ou abra um rascunho para editar.']
+function collectIssues() {
+  if (!payload.value) {
+    return [
+      {
+        id: 'no-payload',
+        severity: 'error',
+        message: 'Crie ou abra um rascunho para editar.',
+        nodeId: null,
+        layer: null,
+        fieldKey: 'draft',
+      },
+    ]
+  }
   const issues = []
   if (!channelFlags.availableStudent && !channelFlags.availablePublic) {
-    issues.push('Selecione ao menos um canal de disponibilidade.')
+    issues.push({
+      id: 'channels-required',
+      severity: 'error',
+      message: 'Selecione ao menos um canal de disponibilidade.',
+      nodeId: null,
+      layer: null,
+      fieldKey: 'channels',
+    })
   }
   const nodeIds = new Set(payload.value.nodes.map((node) => node.node_id))
   const rootId = canonicalRootId(payload.value)
-  if (rootId && !nodeIds.has(rootId)) issues.push('A etapa inicial do fluxo não existe.')
+  if (rootId && !nodeIds.has(rootId)) {
+    issues.push({
+      id: 'root-missing',
+      severity: 'error',
+      message: 'A etapa inicial do fluxo não existe.',
+      nodeId: rootId,
+      layer: null,
+      fieldKey: 'root',
+    })
+  }
   const patternHasOp = selectedPattern.value?.steps?.includes('op')
   payload.value.nodes.forEach((node) => {
     if (!node.display?.title?.trim()) {
-      issues.push(`A etapa “${node.display?.title || 'sem título'}” precisa de um nome.`)
+      issues.push({
+        id: `title:${node.node_id}`,
+        severity: 'error',
+        message: `A etapa “${node.display?.title || 'sem título'}” precisa de um nome.`,
+        nodeId: node.node_id,
+        layer: null,
+        fieldKey: 'title',
+      })
     }
     if (node.node_kind === 'final') {
       if (channelFlags.availableStudent) {
         const studentContent = resolveNodeContent(node, 'student')
         if (!studentContent?.blocks?.some(blockHasContent)) {
-          issues.push(`A resposta final “${node.display?.title}” está vazia na orientação.`)
+          issues.push({
+            id: `final-answer:${node.node_id}:student`,
+            severity: 'error',
+            message: `A resposta final “${node.display?.title}” está vazia na orientação.`,
+            nodeId: node.node_id,
+            layer: 'student',
+            fieldKey: 'final_answer',
+          })
         }
       }
       if (channelFlags.availablePublic) {
@@ -706,9 +761,14 @@ function validateDraft() {
           ? resolveNodeContent(node, 'student')
           : resolveNodeContent(node, 'public')
         if (!publicContent?.blocks?.some(blockHasContent)) {
-          issues.push(
-            `A resposta final “${node.display?.title}” está vazia para o público externo.`,
-          )
+          issues.push({
+            id: `final-answer:${node.node_id}:public`,
+            severity: 'error',
+            message: `A resposta final “${node.display?.title}” está vazia para o público externo.`,
+            nodeId: node.node_id,
+            layer: 'public',
+            fieldKey: 'final_answer',
+          })
         }
       }
       if (
@@ -716,16 +776,37 @@ function validateDraft() {
         channelFlags.availableStudent &&
         !node.playbooks?.op?.objective?.trim()
       ) {
-        issues.push(`Defina o objetivo do playbook OP em “${node.display?.title}”.`)
+        issues.push({
+          id: `op-objective:${node.node_id}`,
+          severity: 'error',
+          message: `Defina o objetivo do playbook OP em “${node.display?.title}”.`,
+          nodeId: node.node_id,
+          layer: 'op',
+          fieldKey: 'op_objective',
+        })
       }
       if (node.intake_policy?.requires_cpf && node.intake_policy.cpf_purpose?.trim().length < 10) {
-        issues.push(`Explique por que o CPF é necessário em “${node.display?.title}”.`)
+        issues.push({
+          id: `cpf-purpose:${node.node_id}`,
+          severity: 'error',
+          message: `Explique por que o CPF é necessário em “${node.display?.title}”.`,
+          nodeId: node.node_id,
+          layer: 'document',
+          fieldKey: 'cpf_purpose',
+        })
       }
     } else if (node.document_policy?.mode && node.document_policy.mode !== 'disabled') {
-      issues.push(`Documento só pode ser solicitado em resposta final: “${node.display?.title}”.`)
+      issues.push({
+        id: `document-mode:${node.node_id}`,
+        severity: 'error',
+        message: `Documento só pode ser solicitado em resposta final: “${node.display?.title}”.`,
+        nodeId: node.node_id,
+        layer: 'document',
+        fieldKey: 'document_mode',
+      })
     }
   })
-  return [...new Set(issues)]
+  return issues
 }
 
 function blockHasContent(block) {
@@ -1092,6 +1173,7 @@ function cloneJson(value) {
             v-if="viewMode === 'map'"
             :payload="payload"
             :selected-node-id="selectedNodeId"
+            :node-issues="nodeIssues"
             @select-node="selectedNodeId = $event"
           />
           <ol v-else class="faq-tree__list">
