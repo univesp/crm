@@ -95,8 +95,7 @@ class FaqV3HomologPilotTest(unittest.TestCase):
 		for expected in (
 			"PUBLIC_REPLY_DOMAIN",
 			"SMTP_HOST",
-			"SMTP_USERNAME",
-			"SMTP_PASSWORD",
+			"SMTP_NO_AUTHENTICATION",
 			"SMTP_FROM_EMAIL",
 			"PUBLIC_EMAIL_REPLY_SECRET",
 			"UNIVESP_INGRESS_SHARED_SECRET",
@@ -104,6 +103,9 @@ class FaqV3HomologPilotTest(unittest.TestCase):
 			self.assertIn(expected, self.common)
 		self.assertIn("verify_public_email_transport", self.bootstrap)
 		self.assertIn("SMTP_PASSWORD_VALUE", self.workflow)
+		self.assertIn('if [[ "${SMTP_NO_AUTHENTICATION}" == "true" ]]', self.workflow)
+		self.assertIn("client.mail(from_email)", self.seed)
+		self.assertIn("client.login(username, password)", self.seed)
 		self.assertIn("crm-homolog-public-email-reply-secret", self.workflow)
 		self.assertIn("crm-homolog-ingress-shared-secret", self.workflow)
 		self.assertIn("UNIVESP_INGRESS_SHARED_SECRET=", self.deploy_gateway)

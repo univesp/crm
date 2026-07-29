@@ -582,7 +582,7 @@ def inspect_faq_v3_pilot() -> dict:
 
 
 def verify_public_email_transport() -> dict:
-	"""Confirma configuração e autenticação SMTP sem enviar mensagem."""
+	"""Confirma transporte SMTP sem enviar mensagem."""
 	_require_homolog_confirmation(FAQ_V3_PILOT_CONFIRMATION)
 	readiness = _public_email_readiness()
 	if not readiness["ready"]:
@@ -594,6 +594,8 @@ def verify_public_email_transport() -> dict:
 	password = str(frappe.conf.get("mail_password") or "")
 	use_ssl = _config_bool(frappe.conf.get("use_ssl"))
 	use_tls = _config_bool(frappe.conf.get("use_tls"))
+	no_authentication = _config_bool(frappe.conf.get("no_smtp_authentication"))
+	from_email = str(frappe.conf.get("auto_email_id") or "").strip()
 	client = None
 	try:
 		if use_ssl:
@@ -604,7 +606,13 @@ def verify_public_email_transport() -> dict:
 			if use_tls:
 				client.starttls(context=ssl.create_default_context())
 				client.ehlo()
-		client.login(username, password)
+		if no_authentication:
+			code, _message = client.mail(from_email)
+			if int(code) >= 400:
+				raise frappe.ValidationError("Relay SMTP recusou o remetente institucional.")
+			client.rset()
+		else:
+			client.login(username, password)
 		code, _message = client.noop()
 		if int(code) >= 400:
 			raise frappe.ValidationError("Servidor SMTP recusou a verificação de prontidão.")
@@ -616,7 +624,8 @@ def verify_public_email_transport() -> dict:
 				client.close()
 	return {
 		"ready": True,
-		"authenticated": True,
+		"authentication_mode": "trusted_relay" if no_authentication else "credentials",
+		"authenticated": not no_authentication,
 		"tls": use_tls,
 		"ssl": use_ssl,
 		"reply_domain_configured": True,
@@ -630,9 +639,10 @@ def _public_email_readiness() -> dict:
 		"univesp_ingress_shared_secret": str(frappe.conf.get("univesp_ingress_shared_secret") or ""),
 		"auto_email_id": str(frappe.conf.get("auto_email_id") or "").strip(),
 		"mail_server": str(frappe.conf.get("mail_server") or "").strip(),
-		"mail_login": str(frappe.conf.get("mail_login") or "").strip(),
-		"mail_password": str(frappe.conf.get("mail_password") or ""),
 	}
+	if not _config_bool(frappe.conf.get("no_smtp_authentication")):
+		required["mail_login"] = str(frappe.conf.get("mail_login") or "").strip()
+		required["mail_password"] = str(frappe.conf.get("mail_password") or "")
 	missing = [key for key, value in required.items() if not value]
 	if len(required["public_email_reply_secret"]) < 32:
 		missing.append("public_email_reply_secret_length")
@@ -652,6 +662,9 @@ def _public_email_readiness() -> dict:
 		"muted": muted,
 		"tls": _config_bool(frappe.conf.get("use_tls")),
 		"ssl": _config_bool(frappe.conf.get("use_ssl")),
+		"authentication_mode": (
+			"trusted_relay" if _config_bool(frappe.conf.get("no_smtp_authentication")) else "credentials"
+		),
 	}
 
 

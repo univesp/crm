@@ -79,13 +79,13 @@ configure_public_email() {
 
 	require_env \
 		PUBLIC_REPLY_DOMAIN PUBLIC_EMAIL_REPLY_SECRET UNIVESP_INGRESS_SHARED_SECRET \
-		SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_PASSWORD SMTP_FROM_EMAIL
+		SMTP_HOST SMTP_PORT SMTP_FROM_EMAIL
 
 	if [[ ! "${SMTP_PORT}" =~ ^[0-9]+$ ]] || (( SMTP_PORT < 1 || SMTP_PORT > 65535 )); then
 		printf 'SMTP_PORT must be an integer between 1 and 65535.\n' >&2
 		exit 1
 	fi
-	for name in SMTP_USE_TLS SMTP_USE_SSL; do
+	for name in SMTP_USE_TLS SMTP_USE_SSL SMTP_NO_AUTHENTICATION; do
 		if [[ "${!name:-false}" != "true" && "${!name:-false}" != "false" ]]; then
 			printf '%s must be true or false.\n' "${name}" >&2
 			exit 1
@@ -95,6 +95,9 @@ configure_public_email() {
 		printf 'SMTP_USE_TLS and SMTP_USE_SSL cannot both be true.\n' >&2
 		exit 1
 	fi
+	if [[ "${SMTP_NO_AUTHENTICATION:-false}" != "true" ]]; then
+		require_env SMTP_USERNAME SMTP_PASSWORD
+	fi
 
 	bench --site "${SITE_NAME}" set-config public_reply_domain "${PUBLIC_REPLY_DOMAIN}"
 	bench --site "${SITE_NAME}" set-config public_email_reply_secret "${PUBLIC_EMAIL_REPLY_SECRET}"
@@ -103,8 +106,9 @@ configure_public_email() {
 	bench --site "${SITE_NAME}" set-config email_sender_name "${SMTP_FROM_NAME:-Atendimento UNIVESP}"
 	bench --site "${SITE_NAME}" set-config mail_server "${SMTP_HOST}"
 	bench --site "${SITE_NAME}" set-config --parse mail_port "${SMTP_PORT}"
-	bench --site "${SITE_NAME}" set-config mail_login "${SMTP_USERNAME}"
-	bench --site "${SITE_NAME}" set-config mail_password "${SMTP_PASSWORD}"
+	bench --site "${SITE_NAME}" set-config mail_login "${SMTP_USERNAME:-}"
+	bench --site "${SITE_NAME}" set-config mail_password "${SMTP_PASSWORD:-}"
+	bench --site "${SITE_NAME}" set-config --parse no_smtp_authentication "${SMTP_NO_AUTHENTICATION:-false}"
 	bench --site "${SITE_NAME}" set-config --parse use_tls "${SMTP_USE_TLS:-true}"
 	bench --site "${SITE_NAME}" set-config --parse use_ssl "${SMTP_USE_SSL:-false}"
 	bench --site "${SITE_NAME}" set-config --parse always_use_account_email_id_as_sender true
