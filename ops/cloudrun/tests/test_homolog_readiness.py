@@ -30,6 +30,14 @@ class HomologReadinessToolingTest(unittest.TestCase):
 		for mutation in (" services create ", " services update ", " deploy ", " secrets delete ", " rm "):
 			self.assertNotIn(mutation, self.preflight)
 
+	def test_preflight_can_defer_visibility_to_actual_deploy_only_when_explicit(self):
+		self.assertIn(
+			"PREFLIGHT_ALLOW_UNVERIFIED_EXISTING_RESOURCES=${PREFLIGHT_ALLOW_UNVERIFIED_EXISTING_RESOURCES:-false}",
+			self.preflight,
+		)
+		self.assertIn("configured-unverified", self.preflight)
+		self.assertIn("PREFLIGHT_ALLOW_UNVERIFIED_EXISTING_RESOURCES", self.workflow)
+
 	def test_manifest_captures_all_runtime_images_without_secret_values(self):
 		for name in (
 			"WEB_SERVICE",
