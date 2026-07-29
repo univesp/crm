@@ -106,6 +106,11 @@ class HomologReadinessToolingTest(unittest.TestCase):
 			self.assertNotIn(value_name, required_block)
 			self.assertIn(value_name, self.workflow)
 
+	def test_workflow_can_provision_scoped_redis_access_without_full_infra(self):
+		self.assertIn("provision_redis_access", self.workflow)
+		self.assertIn("./ops/cloudrun/provision-redis-access.sh", self.workflow)
+		self.assertIn("secrets.GATEWAY_REDIS_URL || secrets.REDIS_CACHE_URL", self.workflow)
+
 
 if __name__ == "__main__":
 	unittest.main()

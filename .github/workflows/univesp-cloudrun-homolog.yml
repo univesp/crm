@@ -12,6 +12,10 @@ on:
         description: "Provisionar Artifact Registry, bucket, service account e VPC connector antes do deploy"
         required: false
         default: "false"
+      provision_redis_access:
+        description: "Provisionar somente o firewall privado entre o connector Cloud Run e o Redis"
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -172,7 +176,7 @@ jobs:
         run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
       - name: Authenticate infrastructure provisioner
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.provision_infra == 'true' || inputs.provision_redis_access == 'true') }}
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -181,8 +185,14 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
         run: ./ops/cloudrun/provision.sh
 
+      - name: Optionally provision private Redis access
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_redis_access == 'true' }}
+        env:
+          REDIS_URL: ${{ secrets.GATEWAY_REDIS_URL || secrets.REDIS_CACHE_URL }}
+        run: ./ops/cloudrun/provision-redis-access.sh
+
       - name: Restore deployment identity
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.provision_infra == 'true' || inputs.provision_redis_access == 'true') }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
