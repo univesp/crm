@@ -70,8 +70,9 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
   await expect(page.getByRole('heading', { name: 'Acesso ao AVA' })).toBeVisible()
-  await expect(page.getByText('Tema', { exact: true })).toBeVisible()
-  await expect(page.getByText('Disponível em', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
+  await expect(page.getByText('Canais de disponibilidade', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Fechar' }).click()
 
   await page.getByRole('tab', { name: 'Lista de etapas' }).click()
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
@@ -241,7 +242,8 @@ test('importação v3 mostra diff e preserva etapa ausente após decisão explí
   ]
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
-  await page.getByRole('button', { name: 'Importar ou atualizar' }).click()
+  await page.getByRole('button', { name: 'Mais ações' }).click()
+  await page.getByRole('menuitem', { name: 'Importar ou atualizar' }).click()
   await page.getByLabel('Arquivo para comparar').setInputFiles({
     name: 'acesso-ava-v3.json',
     mimeType: 'application/json',

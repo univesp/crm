@@ -75,6 +75,9 @@ const issuesPanelOpen = ref(false)
 const historyOpen = ref(false)
 const submitDialogOpen = ref(false)
 const submitDialogIntent = ref('review')
+const mapOpen = ref(false)
+const moreActionsOpen = ref(false)
+const stageActionsOpen = ref(false)
 const validity = reactive({ valid_from: '', valid_until: '' })
 const channelFlags = reactive({ availableStudent: true, availablePublic: false })
 const catalogs = reactive({ themes: [], routing_patterns: [] })
@@ -898,63 +901,96 @@ function navigateToIssue(issue) {
   if (issue?.nodeId) selectedNodeId.value = issue.nodeId
   issuesPanelOpen.value = false
 }
+
+function openHistoryFromMenu() {
+  historyOpen.value = true
+  moreActionsOpen.value = false
+}
+
+function openPlaybookFromMenu() {
+  playbookPreviewOpen.value = true
+  moreActionsOpen.value = false
+}
+
+function openImportFromMenu() {
+  importOpen.value = true
+  moreActionsOpen.value = false
+}
+
+function deleteStageFromMenu() {
+  stageActionsOpen.value = false
+  removeSelectedNode()
+}
 </script>
 
 <template>
   <main class="faq-editor-v3 crm-page-wide" aria-labelledby="faq-editor-title">
     <header class="crm-page-header faq-editor-v3__header">
-      <div>
-        <button type="button" class="faq-back-link" @click="goBack">
-          {{ isAreaEditor ? 'Voltar para sugestões' : 'Voltar para a Biblioteca' }}
-        </button>
-        <h1 id="faq-editor-title" class="crm-page-title">
-          {{ bundle?.title || 'Editor do fluxo' }}
-        </h1>
-        <dl class="faq-editor-v3__meta">
-          <div>
-            <dt>Tema</dt>
-            <dd>{{ themeLabel }}</dd>
+      <div class="faq-editor-v3__header-main">
+        <div>
+          <button type="button" class="faq-back-link" @click="goBack">
+            {{ isAreaEditor ? 'Voltar para sugestões' : 'Voltar para a Biblioteca' }}
+          </button>
+          <h1 id="faq-editor-title" class="crm-page-title">
+            {{ bundle?.title || 'Editor do fluxo' }}
+          </h1>
+          <div class="faq-editor-v3__header-status">
+            <span class="crm-chip">
+              {{ lifecycleLabels[currentState] || currentState }}
+            </span>
+            <span v-if="dirty && canEdit" class="faq-editor-v3__dirty" role="status">
+              Alterações não salvas
+            </span>
           </div>
-          <div>
-            <dt>Disponível em</dt>
-            <dd>{{ channelLabelText }}</dd>
-          </div>
-          <div>
-            <dt>Responsável</dt>
-            <dd>{{ bundle?.owner_email || 'Não definido' }}</dd>
-          </div>
-        </dl>
+        </div>
       </div>
-      <div class="faq-editor-v3__header-actions">
-        <span class="crm-chip">
-          {{ lifecycleLabels[currentState] || currentState }}
-        </span>
+      <div v-if="payload" class="faq-editor-v3__header-toolbar">
+        <button type="button" class="crm-button-secondary" @click="mapOpen = true">Ver mapa</button>
         <button type="button" class="crm-button-secondary" @click="simulatorOpen = true">
           Simular jornada
         </button>
-        <button
-          type="button"
-          class="crm-button-secondary"
-          :disabled="!selectedNode"
-          @click="playbookPreviewOpen = true"
-        >
-          Ver playbook
-        </button>
-        <button
-          type="button"
-          class="crm-button-secondary"
-          @click="settingsOpen = true"
-        >
+        <button type="button" class="crm-button-secondary" @click="settingsOpen = true">
           Configurações do fluxo
         </button>
-        <button
-          v-if="canEdit"
-          type="button"
-          class="crm-button-secondary"
-          @click="importOpen = !importOpen"
-        >
-          Importar ou atualizar
-        </button>
+        <div class="faq-menu">
+          <button
+            type="button"
+            class="crm-button-secondary"
+            aria-haspopup="menu"
+            :aria-expanded="moreActionsOpen"
+            @click="moreActionsOpen = !moreActionsOpen"
+          >
+            Mais ações
+          </button>
+          <div v-if="moreActionsOpen" class="faq-menu__panel" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              class="faq-menu__item"
+              @click="openHistoryFromMenu"
+            >
+              Histórico de versões
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="faq-menu__item"
+              :disabled="!selectedNode"
+              @click="openPlaybookFromMenu"
+            >
+              Ver playbook
+            </button>
+            <button
+              v-if="canEdit"
+              type="button"
+              role="menuitem"
+              class="faq-menu__item"
+              @click="openImportFromMenu"
+            >
+              Importar ou atualizar
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -1194,14 +1230,28 @@ function navigateToIssue(issue) {
                   :disabled="!canEdit"
                 />
               </label>
-              <button
-                type="button"
-                class="crm-button-secondary"
-                :disabled="!canEdit || isRoot(selectedNode.node_id)"
-                @click="removeSelectedNode"
-              >
-                Excluir etapa
-              </button>
+              <div class="faq-menu">
+                <button
+                  type="button"
+                  class="crm-button-secondary"
+                  aria-haspopup="menu"
+                  :aria-expanded="stageActionsOpen"
+                  @click="stageActionsOpen = !stageActionsOpen"
+                >
+                  Ações da etapa
+                </button>
+                <div v-if="stageActionsOpen" class="faq-menu__panel" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="faq-menu__item faq-menu__item--danger"
+                    :disabled="!canEdit || isRoot(selectedNode.node_id)"
+                    @click="deleteStageFromMenu"
+                  >
+                    Excluir etapa
+                  </button>
+                </div>
+              </div>
             </div>
 
             <nav class="faq-tabs" aria-label="Camadas da etapa">
@@ -1588,9 +1638,6 @@ function navigateToIssue(issue) {
             >
               Ver pendências
             </button>
-            <button type="button" class="crm-button-secondary" @click="historyOpen = true">
-              Histórico de versões
-            </button>
           </div>
         </div>
         <div class="faq-action-bar__buttons">
@@ -1759,6 +1806,64 @@ function navigateToIssue(issue) {
   display: grid;
   gap: var(--space-4);
   padding-bottom: calc(var(--faq-action-bar-height, 5.5rem) + var(--space-4));
+}
+
+.faq-editor-v3__header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.faq-editor-v3__header-main,
+.faq-editor-v3__header-toolbar,
+.faq-editor-v3__header-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.faq-editor-v3__header-toolbar {
+  justify-content: flex-start;
+}
+
+.faq-editor-v3__dirty {
+  color: var(--color-warning, var(--color-text-muted));
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.faq-menu {
+  position: relative;
+}
+
+.faq-menu__panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 35;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 12rem;
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md, 0 0.5rem 1rem rgba(0, 0, 0, 0.12));
+}
+
+.faq-menu__item {
+  width: 100%;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: start;
+}
+
+.faq-menu__item:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+
+.faq-menu__item--danger {
+  color: var(--color-danger);
 }
 
 .faq-editor-v3__header,
