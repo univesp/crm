@@ -7,6 +7,7 @@ import json
 import os
 import smtplib
 import ssl
+from pathlib import Path
 
 import frappe
 from frappe.utils import now_datetime
@@ -686,7 +687,9 @@ def _load_seed(file_name: str) -> dict:
 	allowed_seeds = {*FAQ_V2_SEEDS, "faq-v3-acesso-ava-seed.json"}
 	if file_name not in allowed_seeds:
 		raise frappe.ValidationError("Seed fora da lista institucional permitida.")
-	path = frappe.get_app_source_path("crm", "docs", "seeds", file_name)
+	path = Path(__file__).resolve().parent / "seeds" / file_name
+	if not path.is_file():
+		raise frappe.ValidationError(f"Seed institucional não empacotado: {file_name}")
 	# The filename is selected exclusively from the immutable allowlist above.
 	with open(path, encoding="utf-8") as handle:  # nosemgrep
 		value = json.load(handle)

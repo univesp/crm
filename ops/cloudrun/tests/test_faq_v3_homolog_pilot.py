@@ -56,6 +56,10 @@ class FaqV3HomologPilotTest(unittest.TestCase):
 			self.assertIn(f'"{flag}"', self.seed)
 		for seed in ("faq-aluno-seed.json", "faq-op-seed.json", "faq-publico-seed.json"):
 			self.assertIn(seed, self.seed)
+			self.assertTrue((APP / "seeds" / seed).is_file())
+		self.assertTrue((APP / "seeds" / seed).read_text(encoding="utf-8").strip())
+		self.assertIn('Path(__file__).resolve().parent / "seeds"', self.seed)
+		self.assertTrue((APP / "seeds" / "faq-v3-acesso-ava-seed.json").is_file())
 
 	def test_verifier_and_smoke_fail_closed_on_missing_pilot_content(self):
 		for expected in (
