@@ -663,9 +663,7 @@ def _public_email_readiness() -> dict:
 		"tls": _config_bool(frappe.conf.get("use_tls")),
 		"ssl": _config_bool(frappe.conf.get("use_ssl")),
 		"authentication_mode": (
-			"trusted_relay"
-			if _config_bool(frappe.conf.get("no_smtp_authentication"))
-			else "credentials"
+			"trusted_relay" if _config_bool(frappe.conf.get("no_smtp_authentication")) else "credentials"
 		),
 	}
 
