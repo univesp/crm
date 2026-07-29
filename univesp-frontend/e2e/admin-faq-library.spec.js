@@ -98,11 +98,10 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
     .getByLabel('Finalidade objetiva do CPF')
     .fill('Confirmar a identidade antes de corrigir o cadastro de acesso.')
 
+  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
   await page.getByLabel('Início da vigência').fill('2026-08-01T08:00')
   await page.getByLabel('Fim da vigência').fill('2026-12-31T23:59')
-  await page.getByPlaceholder('Explique o que mudou e por quê.').fill(
-    'Atualiza orientação do aluno e playbook da operação.',
-  )
+  await page.getByRole('button', { name: 'Fechar' }).click()
   await page.getByRole('button', { name: 'Salvar rascunho' }).click()
 
   await expect.poll(() => savedPayload).not.toBeNull()

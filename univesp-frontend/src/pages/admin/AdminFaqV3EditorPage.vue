@@ -3,8 +3,10 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import FaqV3FlowMap from '@/components/admin/faq-v3/FaqV3FlowMap.vue'
+import FaqV3FlowSettingsPanel from '@/components/admin/faq-v3/FaqV3FlowSettingsPanel.vue'
 import FaqV3JourneySimulator from '@/components/admin/faq-v3/FaqV3JourneySimulator.vue'
 import FaqV3PlaybookPreviewDialog from '@/components/admin/faq-v3/FaqV3PlaybookPreviewDialog.vue'
+import FaqV3SubmitReviewDialog from '@/components/admin/faq-v3/FaqV3SubmitReviewDialog.vue'
 import FaqV3VersionHistoryDialog from '@/components/admin/faq-v3/FaqV3VersionHistoryDialog.vue'
 import {
   approveKnowledgeV3Bundle,
@@ -71,6 +73,8 @@ const assetBusy = ref(false)
 const mediaUploadEnabled = ref(false)
 const issuesPanelOpen = ref(false)
 const historyOpen = ref(false)
+const submitDialogOpen = ref(false)
+const submitDialogIntent = ref('review')
 const validity = reactive({ valid_from: '', valid_until: '' })
 const channelFlags = reactive({ availableStudent: true, availablePublic: false })
 const catalogs = reactive({ themes: [], routing_patterns: [] })
@@ -346,10 +350,28 @@ async function publishApproved() {
 async function publishDraftDirect() {
   if (!canPublishDraft.value) return
   if (changeSummary.value.trim().length < 20) {
-    errorMessage.value = 'Explique as mudanças em pelo menos 20 caracteres.'
+    submitDialogIntent.value = 'publish'
+    submitDialogOpen.value = true
     return
   }
   publishConfirmOpen.value = true
+}
+
+function openSubmitDialog(intent) {
+  submitDialogIntent.value = intent
+  submitDialogOpen.value = true
+}
+
+async function confirmSubmitDialog() {
+  if (changeSummary.value.trim().length < 20) return
+  if (submitDialogIntent.value === 'publish') {
+    submitDialogOpen.value = false
+    publishConfirmOpen.value = true
+    return
+  }
+  if (blockers.value.length) return
+  await submitApproval()
+  if (!errorMessage.value) submitDialogOpen.value = false
 }
 
 async function confirmPublish() {
@@ -919,10 +941,9 @@ function navigateToIssue(issue) {
           Ver playbook
         </button>
         <button
-          v-if="canEdit"
           type="button"
           class="crm-button-secondary"
-          @click="settingsOpen = !settingsOpen"
+          @click="settingsOpen = true"
         >
           Configurações do fluxo
         </button>
@@ -976,74 +997,6 @@ function navigateToIssue(issue) {
     </section>
 
     <template v-else>
-      <section class="crm-panel faq-governance-strip" aria-labelledby="governance-title">
-        <div>
-          <h2 id="governance-title">Vigência e aprovação</h2>
-          <p>Salvar mantém o rascunho. Enviar para aprovação avisa o grupo gestor deste tema.</p>
-        </div>
-        <label class="crm-field-label">
-          Início da vigência
-          <input
-            v-model="validity.valid_from"
-            type="datetime-local"
-            class="crm-field"
-            :disabled="!canEdit"
-          />
-        </label>
-        <label class="crm-field-label">
-          Fim da vigência
-          <input
-            v-model="validity.valid_until"
-            type="datetime-local"
-            class="crm-field"
-            :disabled="!canEdit"
-          />
-        </label>
-      </section>
-
-      <section
-        v-if="settingsOpen && canEdit"
-        class="crm-panel faq-settings"
-        aria-labelledby="faq-settings-title"
-      >
-        <h2 id="faq-settings-title">Configurações do fluxo</h2>
-        <div class="faq-settings__grid">
-          <fieldset class="faq-settings__channels">
-            <legend>Canais de disponibilidade</legend>
-            <label>
-              <input
-                v-model="channelFlags.availableStudent"
-                type="checkbox"
-                :disabled="!canEdit"
-                @change="syncChannelSettings"
-              />
-              Portal do Aluno
-            </label>
-            <label>
-              <input
-                v-model="channelFlags.availablePublic"
-                type="checkbox"
-                :disabled="!canEdit"
-                @change="syncChannelSettings"
-              />
-              Atendimento público
-            </label>
-          </fieldset>
-          <label class="crm-field-label">
-            Tema
-            <select v-model="payload.theme_key" class="crm-field" :disabled="!canEdit">
-              <option
-                v-for="theme in catalogs.themes"
-                :key="theme.theme_key"
-                :value="theme.theme_key"
-              >
-                {{ theme.theme_label }}
-              </option>
-            </select>
-          </label>
-        </div>
-      </section>
-
       <section
         v-if="importOpen"
         class="crm-panel faq-import"
@@ -1619,18 +1572,6 @@ function navigateToIssue(issue) {
       </div>
 
       <section class="crm-panel faq-action-bar" aria-label="Ações do editor">
-        <div class="faq-action-bar__summary">
-          <label class="crm-field-label">
-            Resumo das mudanças
-            <textarea
-              v-model="changeSummary"
-              class="crm-field"
-              :disabled="!canEdit"
-              placeholder="Explique o que mudou e por quê."
-            />
-          </label>
-          <small>Mínimo de 20 caracteres para enviar à aprovação.</small>
-        </div>
         <div class="faq-action-bar__status">
           <p v-if="dirty && canEdit" role="status">Alterações não salvas</p>
           <p v-if="!blockers.length" class="faq-ok" role="status">Nenhum bloqueio encontrado.</p>
@@ -1666,8 +1607,8 @@ function navigateToIssue(issue) {
             v-if="canSubmitReview && isAdmin"
             type="button"
             class="crm-button-secondary"
-            :disabled="saving || blockers.length > 0"
-            @click="submitApproval"
+            :disabled="saving"
+            @click="openSubmitDialog('review')"
           >
             Enviar para revisão
           </button>
@@ -1684,8 +1625,8 @@ function navigateToIssue(issue) {
             v-if="canSubmitReview && !isAdmin"
             type="button"
             class="crm-button-primary"
-            :disabled="saving || blockers.length > 0"
-            @click="submitApproval"
+            :disabled="saving"
+            @click="openSubmitDialog('approval')"
           >
             Enviar para aprovação
           </button>
@@ -1705,6 +1646,29 @@ function navigateToIssue(issue) {
         :open="simulatorOpen"
         :payload="payload"
         @close="simulatorOpen = false"
+      />
+
+      <FaqV3FlowSettingsPanel
+        :open="settingsOpen"
+        :can-edit="canEdit"
+        :payload="payload"
+        :channel-flags="channelFlags"
+        :validity="validity"
+        :themes="catalogs.themes"
+        :owner-email="bundle?.owner_email || ''"
+        @close="settingsOpen = false"
+        @sync-channels="syncChannelSettings"
+      />
+
+      <FaqV3SubmitReviewDialog
+        :open="submitDialogOpen"
+        :intent="submitDialogIntent"
+        :blockers="blockers"
+        :change-summary="changeSummary"
+        :saving="saving"
+        @close="submitDialogOpen = false"
+        @confirm="confirmSubmitDialog"
+        @update:change-summary="changeSummary = $event"
       />
 
       <FaqV3PlaybookPreviewDialog
@@ -2116,16 +2080,6 @@ function navigateToIssue(issue) {
   background: var(--color-surface);
   box-shadow: 0 -0.25rem 1rem color-mix(in srgb, var(--color-text) 8%, transparent);
   padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
-}
-
-.faq-action-bar__summary {
-  flex: 1 1 100%;
-  display: grid;
-  gap: var(--space-1);
-}
-
-.faq-action-bar__summary .crm-field {
-  min-height: 4rem;
 }
 
 .faq-action-bar__status {
