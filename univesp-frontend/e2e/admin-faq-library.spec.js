@@ -96,6 +96,66 @@ test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', a
   await expect(page.getByText('Nenhum bloqueio encontrado.')).toBeVisible()
 })
 
+test('importação v3 mostra diff e preserva etapa ausente após decisão explícita', async ({ page }) => {
+  const payload = flowPayload('acesso-ava')
+  let savedPayload = null
+  await mockKnowledgeV3(page, {
+    payload,
+    onSave(value) {
+      savedPayload = value
+    },
+  })
+  const imported = structuredClone(payload)
+  imported.nodes = [
+    imported.nodes[0],
+    {
+      ...structuredClone(imported.nodes[1]),
+      node_id: 'nova-final',
+      stable_key: 'nova-final',
+      display: { title: 'Nova resposta importada' },
+      content: {
+        student: {
+          blocks: [{ block_id: 'nova-final-texto', type: 'text', body: 'Conteúdo atualizado.' }],
+          outcome_key: 'open_ticket',
+        },
+        public: null,
+      },
+    },
+  ]
+  imported.edges = [
+    {
+      edge_id: 'root-nova-final',
+      parent_node_id: 'root',
+      child_node_id: 'nova-final',
+      order: 1,
+      active: true,
+      audiences: ['student'],
+    },
+  ]
+
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+  await page.getByRole('button', { name: 'Importar ou atualizar' }).click()
+  await page.getByLabel('Arquivo para comparar').setInputFiles({
+    name: 'acesso-ava-v3.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(imported)),
+  })
+
+  await expect(page.getByText('Nova resposta importada', { exact: true })).toBeVisible()
+  await expect(page.getByText('Ausente na planilha', { exact: true })).toBeVisible()
+  await page.getByLabel('Resolver etapa ausente').selectOption('keep')
+  await page.getByRole('button', { name: 'Aplicar ao rascunho' }).click()
+  await expect(page.getByText('Importação aplicada ao rascunho. Revise e salve para persistir.')).toBeVisible()
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click()
+
+  await expect.poll(() => savedPayload).not.toBeNull()
+  expect(savedPayload.payload.nodes.map((node) => node.stable_key)).toEqual(
+    expect.arrayContaining(['root', 'final', 'nova-final']),
+  )
+  expect(savedPayload.payload.nodes.find((node) => node.stable_key === 'final').import_status)
+    .toBeUndefined()
+})
+
 async function mockKnowledgeV3(page, { payload, onCreate = () => {}, onSave = () => {} }) {
   let revision = 1
   await page.route('**/api/app/v1/knowledge/v3/**', async (route) => {

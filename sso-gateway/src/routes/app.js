@@ -147,6 +147,12 @@ router.get('/knowledge/library', forward('knowledge.get_library'))
 router.patch('/knowledge/library', forward('knowledge.update_library', { wrapPayload: true }))
 router.get('/knowledge/v3/bundles', forward('knowledge_v3.list_bundles', { query: true }))
 router.get('/knowledge/v3/catalogs', forward('knowledge_v3.catalogs'))
+router.post('/knowledge/v3/migration/preview', forward('knowledge_v3.preview_v2_migration', {
+  wrapPayload: true,
+}))
+router.post('/knowledge/v3/migration/apply', forward('knowledge_v3.apply_v2_migration', {
+  wrapPayload: true,
+}))
 router.get('/knowledge/v3/runtime', forward('knowledge_runtime.published_runtime', { query: true }))
 router.post(
   '/knowledge/v3/sessions',

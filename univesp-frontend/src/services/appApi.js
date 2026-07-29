@@ -242,6 +242,14 @@ export async function getKnowledgeV3Catalogs() {
   return appRequest('/knowledge/v3/catalogs')
 }
 
+export async function previewKnowledgeV2Migration(payload = {}) {
+  return appRequest('/knowledge/v3/migration/preview', { method: 'POST', body: payload })
+}
+
+export async function applyKnowledgeV2Migration(payload = {}) {
+  return appRequest('/knowledge/v3/migration/apply', { method: 'POST', body: payload })
+}
+
 export async function createKnowledgeV3Bundle(payload) {
   return appRequest('/knowledge/v3/bundles', { method: 'POST', body: payload })
 }

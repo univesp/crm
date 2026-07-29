@@ -1,0 +1,24 @@
+{
+  "default_routing_pattern": "op_then_area",
+  "mappings": [
+    {
+      "legacy_bundle_id": "acesso-ava-seed",
+      "bundle_key": "acesso-ava",
+      "theme_key": "acesso-ava",
+      "audience": "student"
+    },
+    {
+      "legacy_bundle_id": "publico-atendimento-seed",
+      "bundle_key": "atendimento-publico",
+      "theme_key": "atendimento-publico",
+      "audience": "public"
+    },
+    {
+      "legacy_bundle_id": "op-playbook-matricula-seed",
+      "bundle_key": "matricula-rematricula",
+      "theme_key": "matricula",
+      "audience": "internal",
+      "allow_unmatched_operation": true
+    }
+  ]
+}

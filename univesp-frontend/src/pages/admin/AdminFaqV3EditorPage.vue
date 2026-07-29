@@ -12,6 +12,12 @@ import {
   saveKnowledgeV3Draft,
   submitKnowledgeV3Approval,
 } from '@/services/appApi'
+import {
+  downloadKnowledgeV3Template,
+  readKnowledgeV3Import,
+  resolveImportConflict,
+  resolveImportOrphan,
+} from '@/services/faqV3Import'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +38,9 @@ const previewPersona = ref('student')
 const previewVisible = ref(true)
 const previewHeading = ref(null)
 const changeSummary = ref('')
+const importOpen = ref(false)
+const importBusy = ref(false)
+const importDiff = ref(null)
 const validity = reactive({ valid_from: '', valid_until: '' })
 const catalogs = reactive({ themes: [], routing_patterns: [] })
 
@@ -59,6 +68,14 @@ const lifecycleLabels = {
   published: 'Publicado',
   superseded: 'Substituído',
   rejected: 'Ajustes solicitados',
+}
+const importStatusLabels = {
+  new: 'Nova',
+  changed: 'Alterada',
+  moved: 'Movida',
+  unchanged: 'Sem alteração',
+  missing_in_import: 'Ausente na planilha',
+  conflict: 'Conflito',
 }
 
 const draft = computed(() => bundle.value?.draft || null)
@@ -235,6 +252,73 @@ async function refreshVersions() {
   versions.value = (
     await listKnowledgeV3Versions(bundleKey.value, { page_size: 100 })
   ).data
+}
+
+async function inspectImport(event) {
+  const file = event.target.files?.[0]
+  if (!file || !payload.value) return
+  importBusy.value = true
+  errorMessage.value = ''
+  try {
+    importDiff.value = await readKnowledgeV3Import(file, payload.value)
+    if (importDiff.value.errors?.length) {
+      errorMessage.value = importDiff.value.errors.join(' ')
+    }
+  } finally {
+    importBusy.value = false
+    event.target.value = ''
+  }
+}
+
+function resolveConflict(stableKey, resolution) {
+  try {
+    importDiff.value = resolveImportConflict(importDiff.value, stableKey, resolution)
+  } catch (error) {
+    errorMessage.value = error.message
+  }
+}
+
+function resolveOrphan(stableKey, resolution, remapStableKey = '') {
+  try {
+    importDiff.value = resolveImportOrphan(
+      importDiff.value,
+      stableKey,
+      resolution,
+      remapStableKey,
+    )
+  } catch (error) {
+    errorMessage.value = error.message
+  }
+}
+
+function handleOrphanChoice(stableKey, value) {
+  const [resolution, remapStableKey = ''] = String(value || '').split(':')
+  if (resolution) resolveOrphan(stableKey, resolution, remapStableKey)
+}
+
+function applyImport() {
+  if (!importDiff.value?.payload || importDiff.value.summary?.blockers) {
+    errorMessage.value = 'Resolva conflitos e etapas ausentes que ainda bloqueiam a importação.'
+    return
+  }
+  payload.value = cloneJson(importDiff.value.payload)
+  selectedNodeId.value = payload.value.nodes?.[0]?.node_id || ''
+  changeSummary.value = `Importação ${importDiff.value.meta?.source_schema || 'FAQ'} revisada com diff.`
+  dirty.value = true
+  importOpen.value = false
+  successMessage.value = 'Importação aplicada ao rascunho. Revise e salve para persistir.'
+}
+
+async function downloadTemplate() {
+  if (!payload.value || importBusy.value) return
+  importBusy.value = true
+  try {
+    await downloadKnowledgeV3Template(payload.value)
+  } catch (error) {
+    errorMessage.value = error?.message || 'Não foi possível gerar a planilha.'
+  } finally {
+    importBusy.value = false
+  }
 }
 
 function addNode(kind) {
@@ -573,6 +657,14 @@ function cloneJson(value) {
         <span class="crm-chip">
           {{ lifecycleLabels[currentState] || currentState }}
         </span>
+        <button
+          v-if="canEdit"
+          type="button"
+          class="crm-button-secondary"
+          @click="importOpen = !importOpen"
+        >
+          Importar ou atualizar
+        </button>
         <button type="button" class="crm-button-secondary" @click="showPreview">
           Ver como a jornada funciona
         </button>
@@ -637,6 +729,123 @@ function cloneJson(value) {
             :disabled="!canEdit"
           />
         </label>
+      </section>
+
+      <section
+        v-if="importOpen"
+        class="crm-panel faq-import"
+        aria-labelledby="faq-import-title"
+      >
+        <div class="faq-import__header">
+          <div>
+            <h2 id="faq-import-title">Importar e comparar</h2>
+            <p>
+              Aceita XLSX v3, JSON v2/v3 e procedure-capture-v1. Nada é salvo antes da
+              sua confirmação.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="crm-button-secondary"
+            :disabled="importBusy"
+            @click="downloadTemplate"
+          >
+            Baixar planilha deste fluxo
+          </button>
+        </div>
+        <label class="crm-field-label faq-import__file">
+          Arquivo para comparar
+          <input
+            type="file"
+            accept=".xlsx,.json,application/json"
+            class="crm-field"
+            :disabled="importBusy"
+            @change="inspectImport"
+          />
+        </label>
+        <p v-if="importBusy" role="status">Analisando arquivo…</p>
+
+        <template v-if="importDiff?.summary">
+          <div class="faq-import__summary" aria-label="Resumo da comparação">
+            <span>Novas: {{ importDiff.summary.new }}</span>
+            <span>Alteradas: {{ importDiff.summary.changed }}</span>
+            <span>Movidas: {{ importDiff.summary.moved }}</span>
+            <span>Ausentes: {{ importDiff.summary.missing_in_import }}</span>
+            <span>Conflitos: {{ importDiff.summary.conflict }}</span>
+          </div>
+          <div class="faq-import__table-wrap">
+            <table class="faq-import__table">
+              <thead>
+                <tr>
+                  <th>Etapa</th>
+                  <th>Situação</th>
+                  <th>Decisão necessária</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in importDiff.rows" :key="row.stable_key">
+                  <td>
+                    <strong>{{ row.title }}</strong>
+                    <small>{{ row.stable_key }}</small>
+                  </td>
+                  <td>{{ importStatusLabels[row.status] || row.status }}</td>
+                  <td>
+                    <div v-if="row.status === 'conflict' && !row.resolution" class="faq-import__choices">
+                      <button
+                        type="button"
+                        class="crm-button-secondary"
+                        @click="resolveConflict(row.stable_key, 'current')"
+                      >
+                        Manter atual
+                      </button>
+                      <button
+                        type="button"
+                        class="crm-button-secondary"
+                        @click="resolveConflict(row.stable_key, 'imported')"
+                      >
+                        Usar importado
+                      </button>
+                    </div>
+                    <select
+                      v-else-if="row.status === 'missing_in_import' && !row.resolution"
+                      class="crm-field"
+                      aria-label="Resolver etapa ausente"
+                      @change="handleOrphanChoice(row.stable_key, $event.target.value)"
+                    >
+                      <option value="">Escolha uma ação</option>
+                      <option value="keep">Manter no fluxo</option>
+                      <option value="archive">Arquivar esta etapa</option>
+                      <option
+                        v-for="target in importDiff.payload.nodes.filter(
+                          (node) => node.stable_key !== row.stable_key,
+                        )"
+                        :key="target.stable_key"
+                        :value="`remap:${target.stable_key}`"
+                      >
+                        Remapear para {{ target.display?.title || target.stable_key }}
+                      </option>
+                    </select>
+                    <span v-else>{{ row.resolution ? 'Resolvido' : 'Nenhuma' }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="faq-import__footer">
+            <p v-if="importDiff.summary.blockers" class="faq-alert--danger">
+              {{ importDiff.summary.blockers }} decisão(ões) bloqueiam a aplicação.
+            </p>
+            <p v-else class="faq-ok">Comparação pronta para aplicar ao rascunho.</p>
+            <button
+              type="button"
+              class="crm-button-primary"
+              :disabled="Boolean(importDiff.summary.blockers)"
+              @click="applyImport"
+            >
+              Aplicar ao rascunho
+            </button>
+          </div>
+        </template>
       </section>
 
       <div class="faq-editor-v3__workspace">
@@ -1046,6 +1255,7 @@ function cloneJson(value) {
 .faq-alert,
 .faq-empty-state,
 .faq-governance-strip,
+.faq-import,
 .faq-tree,
 .faq-node-editor,
 .faq-preview,
@@ -1053,6 +1263,57 @@ function cloneJson(value) {
 .faq-history,
 .faq-action-bar {
   padding: var(--space-4);
+}
+
+.faq-import,
+.faq-import__table td:first-child {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.faq-import__header,
+.faq-import__footer,
+.faq-import__choices,
+.faq-import__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.faq-import__file {
+  max-width: 40rem;
+}
+
+.faq-import__summary span {
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.faq-import__table-wrap {
+  overflow-x: auto;
+}
+
+.faq-import__table {
+  width: 100%;
+  min-width: 48rem;
+  border-collapse: collapse;
+}
+
+.faq-import__table th,
+.faq-import__table td {
+  border-bottom: 1px solid var(--border-default);
+  padding: var(--space-2);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.faq-import__table small {
+  color: var(--color-text-muted);
 }
 
 .faq-alert {

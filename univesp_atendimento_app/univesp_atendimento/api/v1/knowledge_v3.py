@@ -9,6 +9,7 @@ from frappe.utils import add_to_date, get_datetime, now_datetime
 from univesp_atendimento.api.v1.common import get_request_context, response
 from univesp_atendimento.api.v1.routing import validate_payload_routing
 from univesp_atendimento.knowledge_graph import KnowledgeGraphError, assert_valid_knowledge_graph
+from univesp_atendimento.knowledge_migration import extract_v2_packages, plan_v2_migration
 
 
 ACTIVE_DRAFT_STATES = {"draft", "pending_approval"}
@@ -203,6 +204,113 @@ def catalogs():
 		},
 		request_id=context.request_id,
 	)
+
+
+@frappe.whitelist(methods=["POST"])
+def preview_v2_migration(payload: dict | str | None = None):
+	context = _write_context("edit_knowledge_draft")
+	if context.profile_key != "admin_central":
+		raise frappe.PermissionError(_("Somente Admin central pode migrar a biblioteca v2."))
+	data = _payload(payload)
+	plans = _v2_migration_plans(data)
+	return response(
+		{
+			"plans": plans,
+			"summary": {
+				"bundles": len(plans),
+				"blocking": sum(1 for plan in plans if plan["blocking"]),
+				"source_bundles": sum(len(plan["legacy_bundle_ids"]) for plan in plans),
+			},
+		},
+		request_id=context.request_id,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_v2_migration(payload: dict | str | None = None):
+	context = _write_context("edit_knowledge_draft")
+	if context.profile_key != "admin_central":
+		raise frappe.PermissionError(_("Somente Admin central pode migrar a biblioteca v2."))
+	data = _payload(payload)
+	plans = _v2_migration_plans(data)
+	blocked = [plan["bundle_key"] for plan in plans if plan["blocking"]]
+	if blocked:
+		raise KnowledgeV3ValidationError(
+			_("A migração possui conflitos ou órfãos não resolvidos: {0}.").format(
+				", ".join(blocked)
+			)
+		)
+	results = []
+	for plan in plans:
+		_ensure_theme_scope(context, plan["theme_key"])
+		if not frappe.db.exists("Univesp Knowledge Theme Governance", plan["theme_key"]):
+			raise KnowledgeV3ValidationError(
+				_("Tema sem governança configurada: {0}.").format(plan["theme_key"])
+			)
+		existing_version = frappe.db.exists(
+			"Univesp Knowledge Version",
+			{"migration_idempotency_key": plan["migration_idempotency_key"]},
+		)
+		if existing_version:
+			results.append(
+				{
+					"bundle_key": plan["bundle_key"],
+					"version_id": frappe.db.get_value(
+						"Univesp Knowledge Version",
+						existing_version,
+						"version_id",
+					),
+					"status": "already_applied",
+				}
+			)
+			continue
+		if frappe.db.exists("Univesp Knowledge Bundle", plan["bundle_key"]):
+			raise KnowledgeV3ConflictError(
+				_("O fluxo {0} já existe e não pertence a esta migração.").format(plan["bundle_key"])
+			)
+		try:
+			assert_valid_knowledge_graph(plan["payload"])
+		except KnowledgeGraphError as exc:
+			raise KnowledgeV3ValidationError(str(exc)) from exc
+		bundle = frappe.get_doc(
+			{
+				"doctype": "Univesp Knowledge Bundle",
+				"bundle_key": plan["bundle_key"],
+				"title": plan["title"],
+				"theme_key": plan["theme_key"],
+				"audience_profile": plan["audience_profile"],
+				"status": "active",
+				"legacy_v2_bundle_id": plan["legacy_bundle_ids"][0],
+				"created_by_email": context.email,
+				"created_at": now_datetime(),
+			}
+		).insert(ignore_permissions=True)
+		version = _create_draft(
+			bundle,
+			context.email,
+			plan["payload"],
+			import_source="migration_v2",
+			migration_key=plan["migration_idempotency_key"],
+		)
+		_set_bundle_pointer(bundle.name, "draft_version", version.name)
+		_audit(
+			context,
+			"knowledge_v2_migrated",
+			bundle.name,
+			{
+				"version_id": version.version_id,
+				"legacy_bundle_ids": plan["legacy_bundle_ids"],
+				"migration_idempotency_key": plan["migration_idempotency_key"],
+			},
+		)
+		results.append(
+			{
+				"bundle_key": plan["bundle_key"],
+				"version_id": version.version_id,
+				"status": "created",
+			}
+		)
+	return response({"results": results}, request_id=context.request_id)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -623,6 +731,42 @@ def _create_draft(
 	).insert(ignore_permissions=True)
 
 
+def _v2_migration_plans(data):
+	source_packages = data.get("packages")
+	if isinstance(source_packages, list):
+		packages = [
+			{
+				"legacy_bundle_id": str(
+					entry.get("legacy_bundle_id")
+					or (entry.get("package") or {}).get("faq_id")
+					or ""
+				).strip(),
+				"title": str(
+					entry.get("title")
+					or ((entry.get("package") or {}).get("metadata") or {}).get("title")
+					or ""
+				).strip(),
+				"package": entry.get("package"),
+			}
+			for entry in source_packages
+			if isinstance(entry, dict) and isinstance(entry.get("package"), dict)
+		]
+	else:
+		doc = frappe.get_single("Univesp Knowledge Library")
+		try:
+			library = json.loads(doc.library_json or "{}")
+		except json.JSONDecodeError as exc:
+			raise KnowledgeV3ValidationError(_("Biblioteca v2 contém JSON inválido.")) from exc
+		packages = extract_v2_packages(library)
+	if not packages:
+		raise KnowledgeV3ValidationError(_("Nenhum bundle v2 disponível para migração."))
+	return plan_v2_migration(
+		packages,
+		data.get("mappings") if isinstance(data.get("mappings"), list) else [],
+		default_routing_pattern=str(data.get("default_routing_pattern") or "op_then_area").strip(),
+	)
+
+
 def _activate_version(bundle, version, context):
 	current_name = str(bundle.published_version or "")
 	if current_name and current_name != version.name:
@@ -666,6 +810,24 @@ def _validate_publishable_payload(payload, bundle):
 			raise KnowledgeV3ValidationError(_("Conexão inválida."))
 		if edge.get("parent_node_id") not in node_ids or edge.get("child_node_id") not in node_ids:
 			raise KnowledgeV3ValidationError(_("Conexão referencia nó inexistente."))
+	active_node_ids = {
+		str(edge.get(field) or "").strip()
+		for edge in edges
+		if edge.get("active") is not False
+		for field in ("parent_node_id", "child_node_id")
+	}
+	unresolved_import_nodes = [
+		node.get("stable_key")
+		for node in nodes
+		if node.get("import_status") == "missing_in_import"
+		and node.get("node_id") in active_node_ids
+	]
+	if unresolved_import_nodes:
+		raise KnowledgeV3ValidationError(
+			_("Resolva etapas ausentes da importação antes de publicar: {0}.").format(
+				", ".join(sorted(unresolved_import_nodes))
+			)
+		)
 	routing = payload.get("routing_policy")
 	if not isinstance(routing, dict):
 		raise KnowledgeV3ValidationError(_("Política de roteamento é obrigatória."))

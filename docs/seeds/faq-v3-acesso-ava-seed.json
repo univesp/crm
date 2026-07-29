@@ -1,0 +1,173 @@
+{
+  "schema_version": "3.0.0",
+  "bundle_key": "acesso-ava",
+  "theme_key": "acesso-ava",
+  "metadata": {
+    "title": "Acesso ao AVA",
+    "audience_profile": "mixed",
+    "operational_owner": {
+      "owner_type": "queue",
+      "owner_key": "atendimento-geral"
+    },
+    "criticidade_default_key": "media",
+    "sla_policy_key": "48h"
+  },
+  "routing_policy": {
+    "pattern_key": "op_then_area",
+    "bpo_enabled": false,
+    "institutional_exceptions": []
+  },
+  "graph": {
+    "student_root_node_id": "acesso-ava-root",
+    "public_root_node_id": "acesso-ava-root",
+    "internal_root_node_id": null
+  },
+  "nodes": [
+    {
+      "node_id": "acesso-ava-root",
+      "stable_key": "acesso-ava-root",
+      "node_kind": "path",
+      "audiences": ["student", "public"],
+      "display": {
+        "title": "Acesso ao AVA"
+      },
+      "content": {
+        "student": {
+          "blocks": [],
+          "outcome_key": ""
+        },
+        "public": {
+          "blocks": [],
+          "outcome_key": ""
+        }
+      },
+      "playbooks": {
+        "op": null,
+        "bpo": null,
+        "analyst": null
+      },
+      "operational": {
+        "routing_override": null,
+        "criticidade": null,
+        "sla_policy_key": null
+      },
+      "document_policy": null,
+      "media_refs": []
+    },
+    {
+      "node_id": "acesso-ava-recuperar",
+      "stable_key": "acesso-ava-recuperar",
+      "node_kind": "final",
+      "audiences": ["student", "public"],
+      "display": {
+        "title": "Como recuperar o acesso?"
+      },
+      "content": {
+        "student": {
+          "blocks": [
+            {
+              "block_id": "acesso-ava-recuperar-student-text",
+              "type": "text",
+              "body": "Use Esqueci minha senha no portal do aluno com o e-mail institucional. Se não receber o link, abra um atendimento."
+            }
+          ],
+          "outcome_key": "open_ticket"
+        },
+        "public": {
+          "blocks": [
+            {
+              "block_id": "acesso-ava-recuperar-public-text",
+              "type": "text",
+              "body": "Se você não consegue acessar o portal, use a recuperação de senha. Caso não resolva, abra um atendimento."
+            }
+          ],
+          "outcome_key": "open_ticket"
+        }
+      },
+      "playbooks": {
+        "op": {
+          "objective": "Confirmar a recuperação de acesso sem solicitar ou expor credenciais.",
+          "checklist": [
+            {
+              "checklist_item_id": "acesso-ava-op-check-1",
+              "text": "Confirmar o e-mail institucional cadastrado",
+              "label": "Confirmar o e-mail institucional cadastrado"
+            },
+            {
+              "checklist_item_id": "acesso-ava-op-check-2",
+              "text": "Orientar a opção Esqueci minha senha",
+              "label": "Orientar a opção Esqueci minha senha"
+            },
+            {
+              "checklist_item_id": "acesso-ava-op-check-3",
+              "text": "Registrar a tentativa no atendimento",
+              "label": "Registrar a tentativa no atendimento"
+            }
+          ],
+          "systems": [
+            {
+              "system_ref_id": "acesso-ava-op-system-1",
+              "system_key": "portal-aluno",
+              "label": "portal-aluno"
+            },
+            {
+              "system_ref_id": "acesso-ava-op-system-2",
+              "system_key": "ava",
+              "label": "ava"
+            }
+          ],
+          "documents_to_request": [],
+          "suggested_reply": "Orientamos a recuperação pelo portal. Se o e-mail não chegar em 15 minutos, verifique a caixa de spam.",
+          "allowed_actions": [
+            {
+              "action_id": "acesso-ava-op-action-1",
+              "action_key": "reply_ticket",
+              "label": "reply_ticket"
+            },
+            {
+              "action_id": "acesso-ava-op-action-2",
+              "action_key": "request_complement",
+              "label": "request_complement"
+            }
+          ],
+          "escalation_criteria": "E-mail institucional inexistente ou bloqueio de conta.",
+          "escalation_reason_template": "Cadastro ou acesso requer intervenção da área responsável.",
+          "possible_outcomes": [
+            {
+              "outcome_id": "acesso-ava-op-outcome-1",
+              "outcome_key": "resolved",
+              "label": "resolved"
+            },
+            {
+              "outcome_id": "acesso-ava-op-outcome-2",
+              "outcome_key": "escalated",
+              "label": "escalated"
+            }
+          ]
+        },
+        "bpo": null,
+        "analyst": null
+      },
+      "operational": {
+        "routing_override": "atendimento-geral",
+        "criticidade": "media",
+        "sla_policy_key": "48h"
+      },
+      "document_policy": {
+        "mode": "disabled"
+      },
+      "media_refs": []
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "acesso-ava-link-1",
+      "parent_node_id": "acesso-ava-root",
+      "child_node_id": "acesso-ava-recuperar",
+      "order": 1,
+      "active": true,
+      "audiences": ["student", "public"]
+    }
+  ],
+  "calendar_highlights": []
+}

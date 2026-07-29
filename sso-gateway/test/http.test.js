@@ -31,6 +31,16 @@ test('protege dashboard e biblioteca FAQ contra sessao anonima', async () => {
     ['/api/app/v1/knowledge/library', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}' }],
     ['/api/app/v1/knowledge/v3/bundles', {}],
     ['/api/app/v1/knowledge/v3/bundles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }],
+    ['/api/app/v1/knowledge/v3/migration/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }],
+    ['/api/app/v1/knowledge/v3/migration/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }],
     ['/api/app/v1/routing/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
