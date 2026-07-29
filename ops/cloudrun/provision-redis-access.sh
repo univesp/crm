@@ -20,6 +20,8 @@ if [[ -z "${active_account}" ]]; then
 	exit 1
 fi
 printf 'Redis access provisioner: %s\n' "${active_account}"
+account_fingerprint=$(printf '%s' "${active_account}" | sha256sum | cut -c1-16)
+printf 'Redis access provisioner fingerprint: %s\n' "${account_fingerprint}"
 
 redis_target=$(
 	REDIS_URL="${REDIS_URL}" node <<'NODE'
