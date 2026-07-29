@@ -79,6 +79,9 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 	def test_gateway_is_built_and_deployed_with_managed_secrets(self):
 		self.assertIn("Build and push SSO Gateway image", self.workflow)
 		self.assertIn("./ops/cloudrun/deploy-sso-gateway.sh", self.workflow)
+		self.assertIn("Collect SSO Gateway failure diagnostics", self.workflow)
+		self.assertIn("cloud_run_revision", self.workflow)
+		self.assertIn("sso-gateway-failure.log", self.workflow)
 		self.assertIn("https://github.com/frappe/helpdesk", self.workflow)
 		self.assertIn("GATEWAY_REDIS_URL", self.deploy_gateway)
 		self.assertIn("UNIVESP_EDGE_SHARED_SECRET", self.deploy_gateway)

@@ -339,6 +339,37 @@ jobs:
           test -n "${gateway_origin}"
           echo "SSO_GATEWAY_ORIGIN=${gateway_origin}" >> "${GITHUB_ENV}"
 
+      - name: Collect SSO Gateway failure diagnostics
+        if: failure()
+        env:
+          EVIDENCE_DIR: artifacts/homolog/${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          mkdir -p "${EVIDENCE_DIR}"
+          gateway_service="${GATEWAY_SERVICE:-crm-homolog-sso-gateway}"
+          revision=$(gcloud run revisions list \
+            --service "${gateway_service}" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --sort-by='~metadata.creationTimestamp' \
+            --limit 1 \
+            --format='value(metadata.name)' 2>/dev/null || true)
+          {
+            printf 'service=%s\nrevision=%s\n' "${gateway_service}" "${revision:-unavailable}"
+            if [[ -n "${revision}" ]]; then
+              gcloud run revisions describe "${revision}" \
+                --project "${GCP_PROJECT_ID}" \
+                --region "${GCP_REGION}" \
+                --format='yaml(metadata.name,status.conditions,status.logUrl)' || true
+              gcloud logging read \
+                "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${gateway_service}\" AND resource.labels.revision_name=\"${revision}\"" \
+                --project "${GCP_PROJECT_ID}" \
+                --freshness=30m \
+                --limit=100 \
+                --order=asc \
+                --format='value(timestamp,severity,textPayload,jsonPayload.message)' || true
+            fi
+          } > "${EVIDENCE_DIR}/sso-gateway-failure.log" 2>&1
+
       - name: Deploy private FAQ processing services
         env:
           ANTIMALWARE_IMAGE_URI: ${{ steps.meta.outputs.antimalware_image_uri }}
