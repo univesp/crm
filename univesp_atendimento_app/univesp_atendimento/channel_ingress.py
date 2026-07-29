@@ -8,6 +8,7 @@ import frappe
 from frappe import _
 
 from univesp_atendimento.channel_adapter import ChannelAdapterError, normalize_channel_payload
+from univesp_atendimento.ticket_protocol import persist_ticket_protocol
 
 
 class ChannelIngressError(frappe.ValidationError):
@@ -88,8 +89,7 @@ def create_channel_ticket(data: dict) -> dict:
 			"custom_ai_suggestion_json": "",
 		}
 	).insert(ignore_permissions=True)
-	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
-	doc.save(ignore_permissions=True)
+	persist_ticket_protocol(frappe, doc, _public_protocol(doc.name, doc.creation))
 
 	from univesp_atendimento.ticket_hooks import enqueue_ai_suggestion
 

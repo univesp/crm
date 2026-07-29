@@ -15,6 +15,7 @@ from univesp_atendimento.api.v1.common import (
 	response,
 	ticket_scope_filters,
 )
+from univesp_atendimento.ticket_protocol import persist_ticket_protocol
 
 
 STATUS_LABELS = {
@@ -178,8 +179,7 @@ def create(payload: dict | str | None = None):
 			"custom_ai_suggestion_json": "",
 		}
 	).insert(ignore_permissions=True)
-	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
-	doc.save(ignore_permissions=True)
+	persist_ticket_protocol(frappe, doc, _public_protocol(doc.name, doc.creation))
 	from univesp_atendimento.api.v1.knowledge_runtime import record_protocol_created
 
 	record_protocol_created(context, session_record, doc.name)

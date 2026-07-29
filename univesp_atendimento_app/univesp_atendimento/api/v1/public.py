@@ -18,6 +18,7 @@ from univesp_atendimento.cloud_service_auth import (
 	service_headers,
 )
 from univesp_atendimento.link_validation import classify_link, cpf_hash
+from univesp_atendimento.ticket_protocol import persist_ticket_protocol
 from univesp_atendimento.univesp_atendimento.doctype.univesp_student_directory.univesp_student_directory import (
 	normalize_cpf,
 )
@@ -404,8 +405,7 @@ def create_public_ticket(payload: dict | str | None = None):
 			"custom_ai_suggestion_json": "",
 		}
 	).insert(ignore_permissions=True)
-	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
-	doc.save(ignore_permissions=True)
+	persist_ticket_protocol(frappe, doc, _public_protocol(doc.name, doc.creation))
 	if bool(getattr(settings, "faq_public_email_thread", False)):
 		frappe.enqueue(
 			"univesp_atendimento.public_email.send_protocol_confirmation",
@@ -647,8 +647,7 @@ def _insert_public_ticket_from_intake(intake, knowledge_reference, context):
 			"custom_ai_suggestion_json": "",
 		}
 	).insert(ignore_permissions=True)
-	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
-	doc.save(ignore_permissions=True)
+	persist_ticket_protocol(frappe, doc, _public_protocol(doc.name, doc.creation))
 	return doc
 
 
