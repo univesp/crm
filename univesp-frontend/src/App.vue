@@ -40,7 +40,11 @@ const pageTitle = computed(() => {
     }
 
     if (route.name === 'area-knowledge-review') {
-      return 'Mudancas pendentes'
+      return 'Sugestões de melhoria'
+    }
+
+    if (route.name === 'area-faq-editor') {
+      return 'Editar FAQ e orientação'
     }
 
     if (route.name === 'area-governance') {

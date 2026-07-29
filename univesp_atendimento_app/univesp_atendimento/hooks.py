@@ -22,5 +22,8 @@ scheduler_events = {
 			"univesp_atendimento.api.v1.knowledge_v3.activate_scheduled_versions",
 			"univesp_atendimento.api.v1.knowledge_v3.expire_published_versions",
 		],
-	}
+	},
+	"hourly": [
+		"univesp_atendimento.api.v1.knowledge_collaboration.alert_overdue_suggestions",
+	],
 }

@@ -18,9 +18,11 @@ import {
   resolveImportConflict,
   resolveImportOrphan,
 } from '@/services/faqV3Import'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const bundleKey = computed(() => String(route.params.bundleId || '').trim())
 const loading = ref(true)
 const saving = ref(false)
@@ -92,9 +94,26 @@ const allowedRoutingKeys = computed(() => selectedPattern.value?.allowed_routing
 const approvedVersion = computed(() =>
   versions.value.find((version) => version.lifecycle_state === 'approved'),
 )
-const canEdit = computed(() => currentState.value === 'draft' && Boolean(draft.value))
-const canApprove = computed(() => currentState.value === 'pending_approval')
-const canPublish = computed(() => Boolean(approvedVersion.value))
+const allowedActions = computed(() => new Set(auth.mockContext.allowedActions || []))
+const canEdit = computed(
+  () =>
+    currentState.value === 'draft' &&
+    Boolean(draft.value) &&
+    allowedActions.value.has('edit_knowledge_draft'),
+)
+const canApprove = computed(
+  () =>
+    currentState.value === 'pending_approval' &&
+    allowedActions.value.has('approve_knowledge'),
+)
+const canPublish = computed(
+  () =>
+    Boolean(approvedVersion.value) &&
+    allowedActions.value.has('publish_knowledge_version'),
+)
+const isAreaEditor = computed(() =>
+  ['analista_area', 'gestor_area'].includes(auth.mockContext.profileKey),
+)
 
 const treeNodes = computed(() => flattenTree(treeAudience.value))
 const blockers = computed(() => validateDraft())
@@ -294,6 +313,10 @@ function resolveOrphan(stableKey, resolution, remapStableKey = '') {
 function handleOrphanChoice(stableKey, value) {
   const [resolution, remapStableKey = ''] = String(value || '').split(':')
   if (resolution) resolveOrphan(stableKey, resolution, remapStableKey)
+}
+
+function goBack() {
+  return router.push({ name: isAreaEditor.value ? 'area-knowledge-review' : 'admin-faq' })
 }
 
 function applyImport() {
@@ -643,8 +666,8 @@ function cloneJson(value) {
   <main class="faq-editor-v3 crm-page-wide" aria-labelledby="faq-editor-title">
     <header class="crm-page-header faq-editor-v3__header">
       <div>
-        <button type="button" class="faq-back-link" @click="router.push({ name: 'admin-faq' })">
-          Voltar para a Biblioteca
+        <button type="button" class="faq-back-link" @click="goBack">
+          {{ isAreaEditor ? 'Voltar para sugestões' : 'Voltar para a Biblioteca' }}
         </button>
         <h1 id="faq-editor-title" class="crm-page-title">
           {{ bundle?.title || 'Editor do fluxo' }}
@@ -680,9 +703,13 @@ function cloneJson(value) {
     <p v-if="loading" role="status">Carregando Editor…</p>
 
     <section v-else-if="!payload" class="crm-panel faq-empty-state">
-      <h2>{{ canPublish ? 'A versão está aprovada' : 'Este fluxo não tem rascunho em edição' }}</h2>
-      <p v-if="canPublish">
-        O conteúdo já passou pela aprovação e está pronto para publicação.
+      <h2>{{ approvedVersion ? 'A versão está aprovada' : 'Este fluxo não tem rascunho em edição' }}</h2>
+      <p v-if="approvedVersion">
+        {{
+          canPublish
+            ? 'O conteúdo já passou pela aprovação e está pronto para publicação.'
+            : 'O conteúdo já passou pela aprovação e aguarda publicação pelo Admin.'
+        }}
       </p>
       <p v-else>Crie um novo rascunho a partir da versão publicada para fazer alterações.</p>
       <button
@@ -695,7 +722,7 @@ function cloneJson(value) {
         Publicar versão aprovada
       </button>
       <button
-        v-else
+        v-else-if="!approvedVersion"
         type="button"
         class="crm-button-primary"
         :disabled="saving"

@@ -93,14 +93,15 @@ export function buildNavigationSections(mockContext) {
                 route: '/area/orientacao',
                 description: 'Consulta da FAQ, da orientacao operacional e do playbook vigente da area.',
               },
+              {
+                id: 'area-knowledge-review',
+                label: 'Sugestões de melhoria',
+                route: '/area/mudancas',
+                prefixMatches: ['/area/faq/'],
+                description: 'Sugestões recebidas e rascunhos em preparação para aprovação.',
+              },
               ...(mockContext.profileKey === 'gestor_area'
                 ? [
-                    {
-                      id: 'area-knowledge-review',
-                      label: 'Mudanças pendentes',
-                      route: '/area/mudancas',
-                      description: 'Sugestoes aguardando decisao e leitura da trilha vigente de publicacao.',
-                    },
                     {
                       id: 'area-governance',
                       label: 'Regras operacionais',

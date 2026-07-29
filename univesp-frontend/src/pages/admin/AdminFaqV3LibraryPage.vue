@@ -4,11 +4,17 @@ import { useRouter } from 'vue-router'
 
 import {
   archiveKnowledgeV3Bundle,
+  createProfileAssignment,
   createKnowledgeV3Bundle,
   deleteKnowledgeV3Bundle,
   getKnowledgeV3Bundle,
   getKnowledgeV3Catalogs,
+  listAccessGroups,
+  listAdminUsers,
   listKnowledgeV3Bundles,
+  listPermissionProfiles,
+  listProfileAssignments,
+  revokeProfileAssignment,
   unarchiveKnowledgeV3Bundle,
 } from '@/services/appApi'
 
@@ -19,12 +25,28 @@ const errorMessage = ref('')
 const successMessage = ref('')
 const rows = ref([])
 const catalogs = reactive({ themes: [], routing_patterns: [] })
+const grantCatalogs = reactive({
+  users: [],
+  groups: [],
+  profiles: [],
+  allProfiles: [],
+  assignments: [],
+})
 const filters = reactive({ search: '', status: 'active', audience: '' })
 const createForm = reactive({
   title: '',
   bundle_key: '',
   theme_key: '',
   audience_profile: 'student',
+})
+const grantForm = reactive({
+  subject_type: 'person',
+  subject_id: '',
+  permission_profile: '',
+  theme_keys: [],
+  valid_from: '',
+  valid_until: '',
+  justification: '',
 })
 
 const audienceLabels = {
@@ -72,6 +94,7 @@ async function loadLibrary() {
     if (!createForm.theme_key && catalogs.themes.length) {
       createForm.theme_key = catalogs.themes[0].theme_key
     }
+    await loadGrantCatalogs()
   } catch (error) {
     errorMessage.value =
       error?.message || 'Não foi possível carregar os fluxos. Tente novamente.'
@@ -79,6 +102,66 @@ async function loadLibrary() {
     loading.value = false
   }
 }
+
+async function loadGrantCatalogs() {
+  try {
+    const [usersResponse, groupsResponse, profilesResponse, assignmentsResponse] =
+      await Promise.all([
+        listAdminUsers({ page_size: 200 }),
+        listAccessGroups(),
+        listPermissionProfiles(),
+        listProfileAssignments(),
+      ])
+    grantCatalogs.users = usersResponse.data || []
+    grantCatalogs.groups = groupsResponse.data || []
+    grantCatalogs.allProfiles = profilesResponse.data || []
+    grantCatalogs.profiles = grantCatalogs.allProfiles.filter(
+      (profile) =>
+        profile.capabilities?.includes('suggest_knowledge') &&
+        ['op', 'op_externo'].includes(profile.base_persona),
+    )
+    grantCatalogs.assignments = assignmentsResponse.data || []
+    if (!grantForm.permission_profile && grantCatalogs.profiles.length) {
+      grantForm.permission_profile = grantCatalogs.profiles[0].id
+    }
+  } catch {
+    grantCatalogs.users = []
+    grantCatalogs.groups = []
+    grantCatalogs.profiles = []
+    grantCatalogs.assignments = []
+  }
+}
+
+const grantSubjects = computed(() =>
+  grantForm.subject_type === 'group'
+    ? grantCatalogs.groups.map((group) => ({
+        value: group.id,
+        label: group.label,
+        base_persona: grantCatalogs.allProfiles.find(
+          (profile) => profile.id === group.permission_profile,
+        )?.base_persona,
+      }))
+    : grantCatalogs.users
+        .filter((user) => ['op', 'op_externo'].includes(user.profile_key))
+        .map((user) => ({
+          value: user.email,
+          label: `${user.display_name || user.email} · ${user.profile_key === 'op_externo' ? 'BPO' : 'OP'}`,
+          base_persona: user.profile_key,
+        })),
+)
+
+const eligibleGrantProfiles = computed(() => {
+  const selected = grantSubjects.value.find((item) => item.value === grantForm.subject_id)
+  return selected
+    ? grantCatalogs.profiles.filter((profile) => profile.base_persona === selected.base_persona)
+    : grantCatalogs.profiles
+})
+const contributorAssignments = computed(() => {
+  const profileIds = new Set(grantCatalogs.profiles.map((profile) => profile.id))
+  return grantCatalogs.assignments.filter((assignment) =>
+    profileIds.has(assignment.permission_profile),
+  )
+})
 
 async function createFlow() {
   if (saving.value) return
@@ -111,6 +194,60 @@ async function createFlow() {
   } finally {
     saving.value = false
   }
+}
+
+async function grantSuggestionAccess() {
+  if (
+    !grantForm.subject_id ||
+    !grantForm.permission_profile ||
+    !grantForm.theme_keys.length ||
+    grantForm.justification.trim().length < 5
+  ) {
+    errorMessage.value = 'Selecione pessoa/grupo, temas e informe uma justificativa.'
+    return
+  }
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await createProfileAssignment({
+      subject_type: grantForm.subject_type,
+      subject_id: grantForm.subject_id,
+      permission_profile: grantForm.permission_profile,
+      scopes: { knowledge_themes: grantForm.theme_keys },
+      valid_from: grantForm.valid_from || null,
+      valid_until: grantForm.valid_until || null,
+      reason: grantForm.justification.trim(),
+    })
+    successMessage.value = 'Permissão para sugerir concedida no escopo e período informados.'
+    Object.assign(grantForm, {
+      subject_id: '',
+      theme_keys: [],
+      valid_from: '',
+      valid_until: '',
+      justification: '',
+    })
+    grantCatalogs.assignments = (await listProfileAssignments()).data || []
+  } catch (error) {
+    errorMessage.value = error?.message || 'Não foi possível conceder a permissão.'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function revokeSuggestionAccess(assignment) {
+  if (!window.confirm(`Revogar a permissão de ${assignment.subject_id}?`)) return
+  try {
+    await revokeProfileAssignment(assignment.id)
+    successMessage.value = 'Permissão revogada.'
+    grantCatalogs.assignments = (await listProfileAssignments()).data || []
+  } catch (error) {
+    errorMessage.value = error?.message || 'Não foi possível revogar a permissão.'
+  }
+}
+
+function onGrantSubjectChange() {
+  const first = eligibleGrantProfiles.value[0]
+  grantForm.permission_profile = first?.id || ''
 }
 
 async function duplicateFlow(row) {
@@ -398,6 +535,133 @@ function cloneJson(value) {
       </form>
     </section>
 
+    <details class="crm-panel faq-grants">
+      <summary>Quem pode sugerir melhorias</summary>
+      <p>
+        OP e BPO só veem o botão de sugestão quando recebem esta permissão para os
+        temas e o período definidos.
+      </p>
+      <form
+        v-if="grantCatalogs.profiles.length"
+        class="crm-form-grid faq-grants__form"
+        @submit.prevent="grantSuggestionAccess"
+      >
+        <label class="crm-field-label">
+          Conceder para
+          <select
+            v-model="grantForm.subject_type"
+            class="crm-field"
+            @change="grantForm.subject_id = ''; onGrantSubjectChange()"
+          >
+            <option value="person">Uma pessoa</option>
+            <option value="group">Um grupo</option>
+          </select>
+        </label>
+        <label class="crm-field-label">
+          Pessoa ou grupo
+          <select
+            v-model="grantForm.subject_id"
+            class="crm-field"
+            required
+            @change="onGrantSubjectChange"
+          >
+            <option value="">Selecione</option>
+            <option
+              v-for="subject in grantSubjects"
+              :key="subject.value"
+              :value="subject.value"
+            >
+              {{ subject.label }}
+            </option>
+          </select>
+        </label>
+        <label class="crm-field-label">
+          Perfil
+          <select v-model="grantForm.permission_profile" class="crm-field" required>
+            <option
+              v-for="profile in eligibleGrantProfiles"
+              :key="profile.id"
+              :value="profile.id"
+            >
+              {{ profile.label }}
+            </option>
+          </select>
+        </label>
+        <fieldset class="faq-grants__themes">
+          <legend>Temas permitidos</legend>
+          <label v-for="theme in catalogs.themes" :key="theme.theme_key">
+            <input
+              v-model="grantForm.theme_keys"
+              type="checkbox"
+              :value="theme.theme_key"
+            />
+            {{ theme.theme_label }}
+          </label>
+        </fieldset>
+        <label class="crm-field-label">
+          Válido a partir de
+          <input v-model="grantForm.valid_from" type="datetime-local" class="crm-field" />
+        </label>
+        <label class="crm-field-label">
+          Válido até
+          <input v-model="grantForm.valid_until" type="datetime-local" class="crm-field" />
+        </label>
+        <label class="crm-field-label faq-grants__reason">
+          Justificativa
+          <input
+            v-model="grantForm.justification"
+            class="crm-field"
+            placeholder="Por que esta pessoa ou grupo deve sugerir?"
+            required
+          />
+        </label>
+        <div class="crm-form-actions">
+          <button type="submit" class="crm-button-primary" :disabled="saving">
+            Conceder permissão
+          </button>
+        </div>
+      </form>
+      <p v-else>
+        Os perfis de contribuição ainda não foram sincronizados neste ambiente.
+      </p>
+
+      <div v-if="contributorAssignments.length" class="crm-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Pessoa ou grupo</th>
+              <th>Temas</th>
+              <th>Validade</th>
+              <th>Situação</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="assignment in contributorAssignments" :key="assignment.id">
+              <td>{{ assignment.subject_id }}</td>
+              <td>{{ assignment.scopes?.knowledge_themes?.join(', ') || '—' }}</td>
+              <td>
+                {{ assignment.valid_from ? formatDate(assignment.valid_from) : 'Agora' }}
+                a
+                {{ assignment.valid_until ? formatDate(assignment.valid_until) : 'Sem prazo final' }}
+              </td>
+              <td>{{ assignment.active ? 'Ativa' : 'Revogada' }}</td>
+              <td>
+                <button
+                  v-if="assignment.active"
+                  type="button"
+                  class="crm-button-secondary"
+                  @click="revokeSuggestionAccess(assignment)"
+                >
+                  Revogar
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
     <section class="crm-panel" aria-labelledby="available-flows-title">
       <div class="crm-panel-header">
         <div class="crm-panel-header__copy">
@@ -564,6 +828,41 @@ function cloneJson(value) {
   align-items: end;
 }
 
+.faq-grants > summary {
+  cursor: pointer;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.faq-grants > p,
+.faq-grants__form,
+.faq-grants .crm-table-scroll {
+  margin-top: var(--space-3);
+}
+
+.faq-grants__themes {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.faq-grants__themes legend {
+  padding-inline: var(--space-1);
+  font-weight: 700;
+}
+
+.faq-grants__themes label {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.faq-grants__reason {
+  grid-column: span 2;
+}
+
 .crm-table-secondary {
   display: block;
   margin-top: 0.25rem;
@@ -577,5 +876,11 @@ function cloneJson(value) {
 
 .crm-table-scroll table {
   min-width: 72rem;
+}
+
+@media (max-width: 48rem) {
+  .faq-grants__reason {
+    grid-column: auto;
+  }
 }
 </style>

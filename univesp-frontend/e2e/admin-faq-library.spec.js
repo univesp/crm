@@ -156,6 +156,61 @@ test('importação v3 mostra diff e preserva etapa ausente após decisão explí
     .toBeUndefined()
 })
 
+test('Admin concede sugestão a OP com tema e validade explícitos', async ({ page }) => {
+  const payload = flowPayload('acesso-ava')
+  let grantPayload = null
+  await mockKnowledgeV3(page, { payload })
+  await page.route('**/api/app/v1/admin/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path.endsWith('/users')) {
+      return fulfill(route, [
+        {
+          email: 'op.guara@univesp.br',
+          display_name: 'OP Guarulhos',
+          profile_key: 'op',
+        },
+      ])
+    }
+    if (path.endsWith('/access-groups')) return fulfill(route, [])
+    if (path.endsWith('/permission-profiles')) {
+      return fulfill(route, [
+        {
+          id: 'faq-contributor-op',
+          label: 'OP que sugere melhorias',
+          base_persona: 'op',
+          capabilities: ['suggest_knowledge'],
+        },
+      ])
+    }
+    if (path.endsWith('/profile-assignments') && request.method() === 'GET') {
+      return fulfill(route, [])
+    }
+    if (path.endsWith('/profile-assignments') && request.method() === 'POST') {
+      grantPayload = request.postDataJSON()
+      return fulfill(route, { id: 'grant-1' })
+    }
+    return route.fallback()
+  })
+
+  await page.goto('/crm/admin/faq')
+  await page.getByText('Quem pode sugerir melhorias').click()
+  await page.getByLabel('Pessoa ou grupo').selectOption('op.guara@univesp.br')
+  await page.getByRole('checkbox', { name: 'Acesso ao AVA' }).check()
+  await page.getByLabel('Válido até').fill('2026-12-31T23:59')
+  await page.getByLabel('Justificativa').fill('Piloto controlado do tema acesso ao AVA.')
+  await page.getByRole('button', { name: 'Conceder permissão' }).click()
+
+  await expect.poll(() => grantPayload).not.toBeNull()
+  expect(grantPayload).toMatchObject({
+    subject_type: 'person',
+    subject_id: 'op.guara@univesp.br',
+    permission_profile: 'faq-contributor-op',
+    scopes: { knowledge_themes: ['acesso-ava'] },
+    valid_until: '2026-12-31T23:59',
+  })
+})
+
 async function mockKnowledgeV3(page, { payload, onCreate = () => {}, onSave = () => {} }) {
   let revision = 1
   await page.route('**/api/app/v1/knowledge/v3/**', async (route) => {

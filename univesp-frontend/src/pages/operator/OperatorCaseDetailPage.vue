@@ -7,7 +7,7 @@ import {
   buildInterventionContext,
   parseInterventionQuery,
 } from '@/services/operationalInterventionRuntime'
-import { recordCaseKnowledgeApplied } from '@/services/appApi'
+import { createKnowledgeSuggestion, recordCaseKnowledgeApplied } from '@/services/appApi'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
@@ -32,6 +32,11 @@ const lastSuggestedNote = ref('')
 const confirmationPanelRef = ref(null)
 const completedGuidanceItems = ref(new Set())
 const knowledgeFeedback = ref('')
+const suggestionOpen = ref(false)
+const suggestionReason = ref('')
+const suggestionText = ref('')
+const suggestionBusy = ref(false)
+const suggestionFeedback = ref('')
 const queueFlashStorageKey = computed(() => `univesp-operator-queue-flash:${auth.mockContext.profileKey}`)
 
 const detail = computed(() => studentSupportStore.operatorCaseById(route.params.caseId, auth.mockContext))
@@ -53,6 +58,15 @@ const escalationReason = computed(() =>
   detail.value?.playbook.escalationCriteria ||
   'Escalonamento operacional necessario para continuidade segura.',
 )
+const canSuggestKnowledge = computed(() => {
+  const knowledge = detail.value?.knowledge
+  return Boolean(
+    auth.mockContext.allowedActions?.includes('suggest_knowledge') &&
+      knowledge?.bundle_id &&
+      knowledge?.bundle_version_id &&
+      knowledge?.node_id,
+  )
+})
 
 function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -229,6 +243,44 @@ async function registerKnowledgeUse(actionKey = 'explicit_use') {
   } catch (error) {
     knowledgeFeedback.value =
       error?.message || 'Não foi possível registrar o uso da orientação.'
+  }
+}
+
+async function submitKnowledgeSuggestion() {
+  if (!canSuggestKnowledge.value || suggestionBusy.value) return
+  if (suggestionReason.value.trim().length < 10 || !suggestionText.value.trim()) {
+    suggestionFeedback.value = 'Explique o motivo e escreva a resposta sugerida.'
+    return
+  }
+  const knowledge = detail.value.knowledge
+  suggestionBusy.value = true
+  suggestionFeedback.value = ''
+  try {
+    await createKnowledgeSuggestion({
+      bundle_key: knowledge.bundle_id,
+      version_id: knowledge.bundle_version_id,
+      node_id: knowledge.node_id,
+      audience_layer: auth.mockContext.profileKey === 'op_externo' ? 'bpo' : 'op',
+      target_path:
+        Array.isArray(knowledge.path) && knowledge.path.length
+          ? knowledge.path
+          : [knowledge.node_id],
+      target_ref: {
+        type: 'playbook_field',
+        node_id: knowledge.node_id,
+        field: 'suggested_reply',
+      },
+      proposed_value: suggestionText.value.trim(),
+      reason: suggestionReason.value.trim(),
+    })
+    suggestionFeedback.value = 'Sugestão enviada para a equipe gestora do tema.'
+    suggestionReason.value = ''
+    suggestionText.value = ''
+    suggestionOpen.value = false
+  } catch (error) {
+    suggestionFeedback.value = error?.message || 'Não foi possível enviar a sugestão.'
+  } finally {
+    suggestionBusy.value = false
   }
 }
 
@@ -810,9 +862,64 @@ const confirmationCopy = computed(() => {
                   >
                     Registrei uso desta orientação
                   </button>
+                  <button
+                    v-if="canSuggestKnowledge"
+                    type="button"
+                    class="crm-button-secondary"
+                    @click="suggestionOpen = !suggestionOpen"
+                  >
+                    Sugerir melhoria
+                  </button>
                 </div>
+                <form
+                  v-if="suggestionOpen"
+                  class="mt-4 grid gap-3 rounded-[8px] border border-slate-200 bg-slate-50 p-4"
+                  @submit.prevent="submitKnowledgeSuggestion"
+                >
+                  <div>
+                    <p class="text-sm font-semibold text-slate-950">Sugerir ajuste desta resposta</p>
+                    <p class="mt-1 text-sm text-slate-600">
+                      A sugestão não altera o conteúdo publicado. Ela seguirá para revisão.
+                    </p>
+                  </div>
+                  <label class="grid gap-1 text-sm font-semibold text-slate-700">
+                    Resposta sugerida
+                    <textarea
+                      v-model="suggestionText"
+                      class="crm-field min-h-28"
+                      :placeholder="detail.playbook.responseTemplate || 'Escreva uma resposta mais clara.'"
+                    ></textarea>
+                  </label>
+                  <label class="grid gap-1 text-sm font-semibold text-slate-700">
+                    Por que mudar?
+                    <textarea
+                      v-model="suggestionReason"
+                      class="crm-field min-h-24"
+                      placeholder="Explique o problema observado no atendimento."
+                    ></textarea>
+                  </label>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      type="submit"
+                      class="crm-button-primary"
+                      :disabled="suggestionBusy"
+                    >
+                      {{ suggestionBusy ? 'Enviando…' : 'Enviar sugestão' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="crm-button-secondary"
+                      @click="suggestionOpen = false"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
                 <p v-if="knowledgeFeedback" class="mt-2 text-sm text-slate-600" role="status">
                   {{ knowledgeFeedback }}
+                </p>
+                <p v-if="suggestionFeedback" class="mt-2 text-sm text-slate-600" role="status">
+                  {{ suggestionFeedback }}
                 </p>
               </div>
               <div

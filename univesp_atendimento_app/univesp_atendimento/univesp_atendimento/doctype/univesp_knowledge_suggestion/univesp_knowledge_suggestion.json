@@ -1,0 +1,159 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Knowledge Suggestion",
+  "module": "Univesp Atendimento",
+  "autoname": "hash",
+  "title_field": "reason",
+  "track_changes": 1,
+  "field_order": [
+    "bundle",
+    "source_version",
+    "node_id",
+    "audience_layer",
+    "target_path_json",
+    "target_ref_json",
+    "current_value_json",
+    "current_hash",
+    "proposed_value_json",
+    "reason",
+    "author_email",
+    "state",
+    "reviewer_email",
+    "reviewed_at",
+    "review_notes",
+    "draft_version_created",
+    "sla_due_at",
+    "sla_alerted_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "bundle",
+      "fieldtype": "Link",
+      "label": "Fluxo",
+      "options": "Univesp Knowledge Bundle",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "source_version",
+      "fieldtype": "Link",
+      "label": "Versão de origem",
+      "options": "Univesp Knowledge Version",
+      "reqd": 1
+    },
+    {
+      "fieldname": "node_id",
+      "fieldtype": "Data",
+      "label": "Etapa",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "audience_layer",
+      "fieldtype": "Select",
+      "label": "Camada",
+      "options": "student\npublic\nop\nbpo\nanalyst",
+      "reqd": 1
+    },
+    {
+      "fieldname": "target_path_json",
+      "fieldtype": "Code",
+      "label": "Caminho de destino",
+      "options": "JSON",
+      "reqd": 1
+    },
+    {
+      "fieldname": "target_ref_json",
+      "fieldtype": "Code",
+      "label": "Referência estável",
+      "options": "JSON",
+      "reqd": 1
+    },
+    {
+      "fieldname": "current_value_json",
+      "fieldtype": "Long Text",
+      "label": "Conteúdo atual",
+      "reqd": 1
+    },
+    {
+      "fieldname": "current_hash",
+      "fieldtype": "Data",
+      "label": "Hash do conteúdo atual",
+      "reqd": 1
+    },
+    {
+      "fieldname": "proposed_value_json",
+      "fieldtype": "Long Text",
+      "label": "Conteúdo proposto",
+      "reqd": 1
+    },
+    {
+      "fieldname": "reason",
+      "fieldtype": "Text",
+      "label": "Motivo",
+      "reqd": 1
+    },
+    {
+      "fieldname": "author_email",
+      "fieldtype": "Data",
+      "label": "Autor",
+      "options": "Email",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "state",
+      "fieldtype": "Select",
+      "label": "Situação",
+      "options": "received\nin_review\nincorporated\nrejected",
+      "default": "received",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "reviewer_email",
+      "fieldtype": "Data",
+      "label": "Revisor",
+      "options": "Email"
+    },
+    {
+      "fieldname": "reviewed_at",
+      "fieldtype": "Datetime",
+      "label": "Revisado em"
+    },
+    {
+      "fieldname": "review_notes",
+      "fieldtype": "Text",
+      "label": "Observações da revisão"
+    },
+    {
+      "fieldname": "draft_version_created",
+      "fieldtype": "Link",
+      "label": "Rascunho criado",
+      "options": "Univesp Knowledge Version"
+    },
+    {
+      "fieldname": "sla_due_at",
+      "fieldtype": "Datetime",
+      "label": "Prazo de revisão",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "sla_alerted_at",
+      "fieldtype": "Datetime",
+      "label": "Alerta de SLA enviado em"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "report": 1
+    }
+  ]
+}

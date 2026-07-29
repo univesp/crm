@@ -250,6 +250,34 @@ export async function applyKnowledgeV2Migration(payload = {}) {
   return appRequest('/knowledge/v3/migration/apply', { method: 'POST', body: payload })
 }
 
+export async function listKnowledgeSuggestions(params = {}) {
+  return appRequest(withQuery('/knowledge/v3/suggestions', params))
+}
+
+export async function createKnowledgeSuggestion(payload) {
+  return appRequest('/knowledge/v3/suggestions', { method: 'POST', body: payload })
+}
+
+export async function startKnowledgeSuggestionReview(suggestionId) {
+  return appRequest(`/knowledge/v3/suggestions/${encodeURIComponent(suggestionId)}/review`, {
+    method: 'POST',
+  })
+}
+
+export async function incorporateKnowledgeSuggestion(suggestionId, payload = {}) {
+  return appRequest(`/knowledge/v3/suggestions/${encodeURIComponent(suggestionId)}/incorporate`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function rejectKnowledgeSuggestion(suggestionId, payload) {
+  return appRequest(`/knowledge/v3/suggestions/${encodeURIComponent(suggestionId)}/reject`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
 export async function createKnowledgeV3Bundle(payload) {
   return appRequest('/knowledge/v3/bundles', { method: 'POST', body: payload })
 }
@@ -369,6 +397,10 @@ export async function updateAccessGroup(groupId, payload) {
 
 export async function createProfileAssignment(payload) {
   return appRequest('/admin/profile-assignments', { method: 'POST', body: payload })
+}
+
+export async function listProfileAssignments(params = {}) {
+  return appRequest(withQuery('/admin/profile-assignments', params))
 }
 
 export async function revokeProfileAssignment(assignmentId) {

@@ -2,7 +2,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, now_datetime
+from frappe.utils import cint, get_datetime, now_datetime
 
 from univesp_atendimento.access_control import profile_catalog
 from univesp_atendimento.api.v1.common import get_request_context, response
@@ -465,6 +465,52 @@ def update_access_group(group_id: str, payload: dict | str | None = None):
 	return response(_serialize_group(doc), request_id=context.request_id)
 
 
+@frappe.whitelist(methods=["GET"])
+def list_profile_assignments(subject_type: str | None = None, subject_id: str | None = None):
+	context = _permissions_context()
+	filters = {}
+	if subject_type:
+		filters["subject_type"] = str(subject_type).strip().lower()
+	if subject_id:
+		filters["subject_id"] = str(subject_id).strip().lower()
+	rows = frappe.get_all(
+		"Univesp Permission Assignment",
+		filters=filters,
+		fields=[
+			"name",
+			"subject_type",
+			"subject_id",
+			"permission_profile",
+			"scopes_json",
+			"valid_from",
+			"valid_until",
+			"justification",
+			"active",
+			"creation",
+		],
+		order_by="creation desc",
+		limit_page_length=500,
+	)
+	return response(
+		[
+			{
+				"id": row.name,
+				"subject_type": row.subject_type,
+				"subject_id": row.subject_id,
+				"permission_profile": row.permission_profile,
+				"scopes": frappe.parse_json(row.scopes_json or "{}"),
+				"valid_from": str(row.valid_from or ""),
+				"valid_until": str(row.valid_until or ""),
+				"justification": row.justification,
+				"active": bool(row.active),
+				"created_at": str(row.creation or ""),
+			}
+			for row in rows
+		],
+		request_id=context.request_id,
+	)
+
+
 @frappe.whitelist(methods=["POST"])
 def create_profile_assignment(payload: dict | str | None = None):
 	context = _permissions_context()
@@ -475,25 +521,63 @@ def create_profile_assignment(payload: dict | str | None = None):
 	profile = str(data.get("permission_profile") or "").strip()
 	if subject_type not in {"person", "group"} or not subject_id:
 		raise UnivespValidationError(_("Pessoa ou grupo invalido."))
-	if not frappe.db.exists("Univesp Permission Profile", {"name": profile, "active": 1}):
+	permission_profile = frappe.db.get_value(
+		"Univesp Permission Profile",
+		{"name": profile, "active": 1},
+		["name", "base_persona", "capabilities_json"],
+		as_dict=True,
+	)
+	if not permission_profile:
 		raise UnivespValidationError(_("Perfil de acesso invalido."))
-	if subject_type == "person" and not frappe.db.exists(
-		"Univesp Access Profile", {"user_email": subject_id, "active": 1}
-	):
-		raise UnivespValidationError(_("Pessoa nao cadastrada ou inativa."))
-	if subject_type == "group" and not frappe.db.exists(
-		"Univesp Access Group", {"name": subject_id, "active": 1}
-	):
-		raise UnivespValidationError(_("Grupo nao cadastrado ou inativo."))
+	if subject_type == "person":
+		base_persona = frappe.db.get_value(
+			"Univesp Access Profile",
+			{"user_email": subject_id, "active": 1},
+			"profile_key",
+		)
+		if not base_persona:
+			raise UnivespValidationError(_("Pessoa nao cadastrada ou inativa."))
+	else:
+		group_profile = frappe.db.get_value(
+			"Univesp Access Group",
+			{"name": subject_id, "active": 1},
+			"permission_profile",
+		)
+		if not group_profile:
+			raise UnivespValidationError(_("Grupo nao cadastrado ou inativo."))
+		base_persona = frappe.db.get_value(
+			"Univesp Permission Profile",
+			group_profile,
+			"base_persona",
+		)
+	if base_persona != permission_profile.base_persona:
+		raise UnivespValidationError(_("O grant deve usar o mesmo perfil base da pessoa ou grupo."))
+	scopes = data.get("scopes") if isinstance(data.get("scopes"), dict) else {}
+	knowledge_themes = scopes.get("knowledge_themes")
+	capabilities = set(frappe.parse_json(permission_profile.capabilities_json or "[]"))
+	if "suggest_knowledge" in capabilities:
+		if not isinstance(knowledge_themes, list) or not knowledge_themes:
+			raise UnivespValidationError(_("Selecione ao menos um tema de conhecimento para o grant."))
+		invalid_themes = [
+			key
+			for key in knowledge_themes
+			if not frappe.db.exists("Univesp Knowledge Theme Governance", str(key).strip())
+		]
+		if invalid_themes:
+			raise UnivespValidationError(_("Grant contém tema de conhecimento inexistente."))
+	valid_from = data.get("valid_from")
+	valid_until = data.get("valid_until")
+	if valid_from and valid_until and get_datetime(valid_from) >= get_datetime(valid_until):
+		raise UnivespValidationError(_("A validade final deve ser posterior à inicial."))
 	doc = frappe.get_doc(
 		{
 			"doctype": "Univesp Permission Assignment",
 			"subject_type": subject_type,
 			"subject_id": subject_id,
 			"permission_profile": profile,
-			"scopes_json": json.dumps(data.get("scopes") if isinstance(data.get("scopes"), dict) else {}),
-			"valid_from": data.get("valid_from"),
-			"valid_until": data.get("valid_until"),
+			"scopes_json": json.dumps(scopes),
+			"valid_from": valid_from,
+			"valid_until": valid_until,
 			"justification": reason,
 			"active": 1,
 		}

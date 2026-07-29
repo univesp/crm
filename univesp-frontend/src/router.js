@@ -353,14 +353,27 @@ const routes = [
   {
     path: '/area/mudancas',
     name: 'area-knowledge-review',
-    component: () => import('@/pages/area/AreaKnowledgeReviewPage.vue'),
+    component: () => import('@/pages/area/AreaKnowledgeSuggestionsPage.vue'),
     meta: {
-      title: 'Mudanças pendentes',
+      title: 'Sugestões de melhoria',
       stage: 'area-knowledge-review',
       requiresAuth: true,
       shellKey: 'operational',
-      allowedProfiles: ['gestor_area'],
-      requiredActions: ['approve_knowledge'],
+      allowedProfiles: ['analista_area', 'gestor_area'],
+      requiredActions: ['edit_knowledge_draft'],
+    },
+  },
+  {
+    path: '/area/faq/:bundleId',
+    name: 'area-faq-editor',
+    component: AdminFaqV3EditorPage,
+    meta: {
+      title: 'Editar FAQ',
+      stage: 'area-knowledge-review',
+      requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['analista_area', 'gestor_area'],
+      requiredActions: ['edit_knowledge_draft'],
     },
   },
   {

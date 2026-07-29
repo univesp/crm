@@ -78,6 +78,7 @@ router.patch('/admin/access-groups/:groupId', forward('admin.update_access_group
   routeParams: { group_id: 'groupId' },
   wrapPayload: true,
 }))
+router.get('/admin/profile-assignments', forward('admin.list_profile_assignments', { query: true }))
 router.post('/admin/profile-assignments', forward('admin.create_profile_assignment', { wrapPayload: true }))
 router.delete('/admin/profile-assignments/:assignmentId', forward('admin.delete_profile_assignment', {
   routeParams: { assignment_id: 'assignmentId' },
@@ -153,6 +154,24 @@ router.post('/knowledge/v3/migration/preview', forward('knowledge_v3.preview_v2_
 router.post('/knowledge/v3/migration/apply', forward('knowledge_v3.apply_v2_migration', {
   wrapPayload: true,
 }))
+router.get('/knowledge/v3/suggestions', forward('knowledge_collaboration.list_suggestions', {
+  query: true,
+}))
+router.post('/knowledge/v3/suggestions', forward('knowledge_collaboration.create_suggestion', {
+  wrapPayload: true,
+}))
+router.post('/knowledge/v3/suggestions/:suggestionId/review', forward(
+  'knowledge_collaboration.start_review',
+  { routeParams: { suggestion_id: 'suggestionId' } },
+))
+router.post('/knowledge/v3/suggestions/:suggestionId/incorporate', forward(
+  'knowledge_collaboration.incorporate_suggestion',
+  { routeParams: { suggestion_id: 'suggestionId' }, wrapPayload: true },
+))
+router.post('/knowledge/v3/suggestions/:suggestionId/reject', forward(
+  'knowledge_collaboration.reject_suggestion',
+  { routeParams: { suggestion_id: 'suggestionId' }, wrapPayload: true },
+))
 router.get('/knowledge/v3/runtime', forward('knowledge_runtime.published_runtime', { query: true }))
 router.post(
   '/knowledge/v3/sessions',
