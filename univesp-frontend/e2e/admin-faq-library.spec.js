@@ -176,6 +176,27 @@ test('pendência em camada avançada navega até o campo Objetivo', async ({ pag
   await expect(page.locator('#faq-field-op-objective')).toBeFocused()
 })
 
+test('vigência permanece legível com campos desabilitados fora de rascunho', async ({ page }) => {
+  const payload = flowPayload('acesso-ava')
+  await mockKnowledgeV3(page, {
+    payload,
+    lifecycleState: 'pending_approval',
+    validFrom: '2026-08-01T08:00',
+    validUntil: '2026-12-31T23:59',
+  })
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+
+  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
+  const validFrom = page.getByLabel('Início da vigência')
+  const validUntil = page.getByLabel('Fim da vigência')
+  await expect(validFrom).toBeVisible()
+  await expect(validUntil).toBeVisible()
+  await expect(validFrom).toBeDisabled()
+  await expect(validUntil).toBeDisabled()
+  await expect(validFrom).toHaveValue('2026-08-01T08:00')
+  await expect(validUntil).toHaveValue('2026-12-31T23:59')
+})
+
 test('mapa do fluxo seleciona a etapa e a simulação percorre a jornada', async ({ page }) => {
   const payload = flowPayload('acesso-ava')
   await mockKnowledgeV3(page, { payload })
@@ -370,7 +391,17 @@ test('Admin concede sugestão a OP com tema e validade explícitos', async ({ pa
   })
 })
 
-async function mockKnowledgeV3(page, { payload, onCreate = () => {}, onSave = () => {} }) {
+async function mockKnowledgeV3(
+  page,
+  {
+    payload,
+    onCreate = () => {},
+    onSave = () => {},
+    lifecycleState = 'draft',
+    validFrom = '',
+    validUntil = '',
+  } = {},
+) {
   let revision = 1
   await page.route('**/api/app/v1/knowledge/v3/**', async (route) => {
     const request = route.request()
@@ -397,26 +428,30 @@ async function mockKnowledgeV3(page, { payload, onCreate = () => {}, onSave = ()
     if (path.endsWith('/bundles') && method === 'POST') {
       const body = request.postDataJSON()
       onCreate(body)
-      return fulfill(route, bundleResponse(body.payload, body.title, revision))
+      return fulfill(route, bundleResponse(body.payload, body.title, revision, lifecycleState, validFrom, validUntil))
     }
     if (path.endsWith(`/bundles/${bundleKey}/versions`)) {
-      return fulfill(route, [versionSummary(revision)])
+      return fulfill(route, [versionSummary(revision, lifecycleState, validFrom, validUntil)])
     }
     if (path.endsWith(`/bundles/${bundleKey}/draft`) && method === 'PATCH') {
       const body = request.postDataJSON()
       onSave(body)
       revision += 1
       payload = structuredClone(body.payload)
-      return fulfill(route, version(payload, revision), `"version-${revision}"`)
+      return fulfill(route, version(payload, revision, lifecycleState, validFrom, validUntil), `"version-${revision}"`)
     }
     if (path.endsWith(`/bundles/${bundleKey}`)) {
-      return fulfill(route, bundleResponse(payload, payload.metadata.title, revision), `"version-${revision}"`)
+      return fulfill(
+        route,
+        bundleResponse(payload, payload.metadata.title, revision, lifecycleState, validFrom, validUntil),
+        `"version-${revision}"`,
+      )
     }
     return fulfill(route, {})
   })
 }
 
-function bundleResponse(payload, title, revision) {
+function bundleResponse(payload, title, revision, lifecycleState = 'draft', validFrom = '', validUntil = '') {
   return {
     bundle_key: payload.bundle_key,
     title,
@@ -425,33 +460,33 @@ function bundleResponse(payload, title, revision) {
     status: 'active',
     draft_version: 'version-1',
     published_version: '',
-    draft: version(payload, revision),
+    draft: version(payload, revision, lifecycleState, validFrom, validUntil),
   }
 }
 
-function version(payload, revision) {
+function version(payload, revision, lifecycleState = 'draft', validFrom = '', validUntil = '') {
   return {
     version_id: 'version-1',
     version_label: 'rascunho',
     revision,
-    lifecycle_state: 'draft',
+    lifecycle_state: lifecycleState,
     change_summary: '',
-    valid_from: '',
-    valid_until: '',
+    valid_from: validFrom,
+    valid_until: validUntil,
     etag: `"version-${revision}"`,
     payload,
   }
 }
 
-function versionSummary(revision) {
+function versionSummary(revision, lifecycleState = 'draft', validFrom = '', validUntil = '') {
   return {
     version_id: 'version-1',
     version_label: 'rascunho',
     revision,
-    lifecycle_state: 'draft',
+    lifecycle_state: lifecycleState,
     change_summary: '',
-    valid_from: '',
-    valid_until: '',
+    valid_from: validFrom,
+    valid_until: validUntil,
     etag: `"version-${revision}"`,
   }
 }
