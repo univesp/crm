@@ -898,7 +898,7 @@ function cloneJson(value) {
           </button>
         </header>
 
-        <form class="crm-form-grid faq-library-modal__form" @submit.prevent="createFlow">
+        <form class="faq-library-modal__form" @submit.prevent="createFlow">
           <label class="crm-field-label">
             Nome do fluxo
             <input v-model="createForm.title" class="crm-field" required />
@@ -1019,7 +1019,7 @@ function cloneJson(value) {
           </button>
         </header>
 
-        <form class="crm-form-grid faq-library-modal__form" @submit.prevent="createTheme">
+        <form class="faq-library-modal__form" @submit.prevent="createTheme">
           <label class="crm-field-label">
             Nome do tema
             <input v-model="themeForm.theme_label" class="crm-field" required />
@@ -1226,6 +1226,7 @@ function cloneJson(value) {
 .faq-library-modal__form {
   display: grid;
   gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .faq-library-modal__theme {
