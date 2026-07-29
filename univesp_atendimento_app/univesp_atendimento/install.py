@@ -75,11 +75,26 @@ def setup_schema():
 					"insert_after": "custom_student_email",
 				},
 				{
+					"fieldname": "custom_visitor_phone",
+					"label": "Celular para contato",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_student_name",
+				},
+				{
+					"fieldname": "custom_visitor_cpf",
+					"label": "CPF protegido",
+					"fieldtype": "Password",
+					"read_only": 1,
+					"hidden": 1,
+					"insert_after": "custom_visitor_phone",
+				},
+				{
 					"fieldname": "custom_student_ra",
 					"label": "RA",
 					"fieldtype": "Data",
 					"in_standard_filter": 1,
-					"insert_after": "custom_student_name",
+					"insert_after": "custom_visitor_cpf",
 				},
 				{
 					"fieldname": "custom_student_polo",

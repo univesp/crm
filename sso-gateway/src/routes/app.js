@@ -128,6 +128,32 @@ router.post('/tickets', attachFaqBindingToTicket, forward('tickets.create', { wr
 router.get('/tickets/:ticketId', forward('tickets.get', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/messages', forward('tickets.add_message', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/attachments', forward('tickets.attach', { routeParams: { ticket_id: 'ticketId' }, rawBody: true }))
+router.post('/tickets/:ticketId/reveal-contact', forward('tickets.reveal_public_contact', { routeParams: { ticket_id: 'ticketId' } }))
+router.post('/tickets/:ticketId/documents/:documentId/download-link', forward('tickets.issue_document_download', {
+  routeParams: { ticket_id: 'ticketId', document_id: 'documentId' },
+}))
+router.get('/tickets/:ticketId/documents/:documentId/content', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('tickets.download_document', {
+      user: req.session.user,
+      simulation: frappeSimulationContext(req.simulation),
+      requestId,
+      query: {
+        ticket_id: req.params.ticketId,
+        document_id: req.params.documentId,
+        token: String(req.query.token || ''),
+      },
+      rawResponse: true,
+    })
+    res.setHeader('X-Request-ID', requestId)
+    res.setHeader('Content-Type', result.headers.get('content-type') || 'application/octet-stream')
+    res.setHeader('Content-Disposition', result.headers.get('content-disposition') || 'attachment')
+    return res.send(Buffer.from(await result.arrayBuffer()))
+  } catch (error) {
+    return handleForwardError(res, error, requestId)
+  }
+})
 router.post('/tickets/:ticketId/assign', forward('tickets.assign', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/transition', forward('tickets.transition', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/escalate', forward('tickets.escalate_to_internal', { routeParams: { ticket_id: 'ticketId' } }))

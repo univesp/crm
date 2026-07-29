@@ -154,7 +154,14 @@
         "sla_policy_key": "48h"
       },
       "document_policy": {
-        "mode": "disabled"
+        "mode": "optional"
+      },
+      "intake_policy": {
+        "requires_cpf": true,
+        "cpf_purpose": "Confirmar a identidade antes de corrigir o cadastro de acesso.",
+        "requires_ra": true,
+        "requires_course": true,
+        "requires_polo": true
       },
       "media_refs": []
     }

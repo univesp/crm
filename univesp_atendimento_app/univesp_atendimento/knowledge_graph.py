@@ -46,6 +46,13 @@ def validate_knowledge_graph(payload):
 					f"Política documental só pode existir em nó final: {node_id}.",
 				)
 			)
+		if node.get("node_kind") != "final" and node.get("intake_policy") not in (None, {}):
+			errors.append(
+				KnowledgeGraphError(
+					"INTAKE_POLICY_ONLY_FINAL",
+					f"Política de identificação só pode existir em nó final: {node_id}.",
+				)
+			)
 
 	edge_ids = set()
 	for edge in edges:
@@ -166,6 +173,7 @@ def project_runtime(payload, persona):
 				"content": content_layer,
 				"playbook": playbook,
 				"document_policy": node.get("document_policy") if audience == "public" else None,
+				"intake_policy": node.get("intake_policy") if audience == "public" else None,
 			}
 		)
 	projected_edges = [

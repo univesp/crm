@@ -28,7 +28,7 @@ function publishedPackage(faqType, prefix, rootTitle, answerTitle) {
       },
       {
         id: `${prefix}-answer`,
-        node_kind: 'answer',
+        node_kind: 'leaf',
         perfil: faqType,
         titulo_exibido: answerTitle,
         resposta: 'Conteúdo oficial publicado.',
@@ -109,28 +109,45 @@ test('público consome API real e envia lineage sem escolher fila', async ({ pag
       },
     })
   })
+  await page.route('**/api/public/v1/runtime/flags', async (route) => {
+    await route.fulfill({
+      status: 200,
+      json: { data: { faq_public_anonymous: true, faq_public_documents: false }, error: null },
+    })
+  })
   await page.route('**/api/public/v1/tickets', async (route) => {
     ticketPayload = route.request().postDataJSON()
     await route.fulfill({
       status: 200,
       json: {
-        data: { id: 'HD-TICKET-1', protocol: 'PRT-2026-000001', status: 'open' },
+        data: {
+          id: 'HD-TICKET-1',
+          protocol: 'PRT-2026-000001',
+          status: 'open',
+          upload_token: 'public-token',
+        },
         error: null,
         meta: {},
       },
     })
   })
+  await page.route('**/api/public/v1/tickets/HD-TICKET-1/finalize', async (route) => {
+    await route.fulfill({
+      status: 200,
+      json: { data: { id: 'HD-TICKET-1', protocol: 'PRT-2026-000001' }, error: null },
+    })
+  })
 
   await page.goto('/crm/publico')
-  await page.getByLabel('Nome completo').fill('Pessoa de Teste')
-  await page.getByLabel('CPF').fill('12345678909')
-  await page.getByLabel('E-mail').fill('pessoa.teste@example.com')
-  await page.getByText('Autorizo o uso dos dados').click()
-  await page.getByRole('button', { name: 'Continuar para FAQ' }).click()
   await page.getByRole('button', { name: 'Orientação pública publicada' }).click()
   await page.getByRole('button', { name: 'Resposta pública vigente' }).click()
+  await page.getByRole('button', { name: 'Não, abrir atendimento' }).click()
+  await page.getByLabel('Nome completo').fill('Pessoa de Teste')
+  await page.getByLabel('E-mail').fill('pessoa.teste@example.com')
+  await page.getByLabel('Celular').fill('11999990000')
+  await page.getByLabel('O que aconteceu?').fill('Preciso de orientação adicional.')
+  await page.getByText('Autorizo o uso destes dados').click()
   await page.getByLabel('Assunto').fill('Acesso ao portal')
-  await page.getByLabel('Descricao').fill('Preciso de orientação adicional.')
   await page.getByRole('button', { name: 'Abrir protocolo' }).click()
 
   await expect.poll(() => ticketPayload).not.toBeNull()
@@ -139,5 +156,128 @@ test('público consome API real e envia lineage sem escolher fila', async ({ pag
     bundle_id: 'bundle:publico:live',
     bundle_version_id: 'v3.0',
     node_id: 'public-live-answer',
+    path: ['public-live-root', 'public-live-answer'],
   })
+})
+
+test('fluxo público pede CPF por finalidade e envia documento opcional', async ({ page }) => {
+  const publicPackage = publishedPackage(
+    'publico',
+    'login-live',
+    'Problemas de acesso',
+    'Não consigo entrar',
+  )
+  publicPackage.nodes[1].document_policy = { mode: 'optional' }
+  publicPackage.nodes[1].intake_policy = {
+    requires_cpf: true,
+    cpf_purpose: 'Confirmar identidade para corrigir o cadastro.',
+    requires_ra: true,
+    requires_course: false,
+    requires_polo: false,
+  }
+  let uploadToken = ''
+  await page.route('**/api/public/v1/knowledge/faq-published?**', (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        data: [{ bundle_id: 'login-live', bundle_version_id: 'v3.1', package: publicPackage }],
+        error: null,
+      },
+    }),
+  )
+  await page.route('**/api/public/v1/runtime/flags', (route) =>
+    route.fulfill({
+      status: 200,
+      json: { data: { faq_public_anonymous: true, faq_public_documents: true }, error: null },
+    }),
+  )
+  await page.route('**/api/public/v1/tickets', (route) =>
+    route.fulfill({
+      status: 201,
+      json: {
+        data: { id: 'HD-DOC-1', protocol: 'PRT-2026-000002', upload_token: 'token-doc' },
+        error: null,
+      },
+    }),
+  )
+  await page.route('**/api/public/v1/tickets/HD-DOC-1/documents', (route) => {
+    uploadToken = route.request().headers()['x-public-upload-token']
+    return route.fulfill({
+      status: 201,
+      json: { data: { id: 'DOC-1', file_name: 'evidencia.pdf', status: 'clean' }, error: null },
+    })
+  })
+  await page.route('**/api/public/v1/tickets/HD-DOC-1/finalize', (route) =>
+    route.fulfill({
+      status: 200,
+      json: { data: { id: 'HD-DOC-1', protocol: 'PRT-2026-000002' }, error: null },
+    }),
+  )
+
+  await page.goto('/crm/publico')
+  await page.getByRole('button', { name: 'Problemas de acesso' }).click()
+  await page.getByRole('button', { name: 'Não consigo entrar' }).click()
+  await page.getByRole('button', { name: 'Não, abrir atendimento' }).click()
+  await expect(page.getByLabel('CPF')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'RA', exact: true })).toBeVisible()
+  await page.getByLabel('Nome completo').fill('Aluno sem acesso')
+  await page.getByLabel('E-mail').fill('aluno@example.com')
+  await page.getByLabel('Celular').fill('11999990000')
+  await page.getByLabel('CPF').fill('12345678909')
+  await page.getByRole('textbox', { name: 'RA', exact: true }).fill('1234567')
+  await page.getByLabel('O que aconteceu?').fill('A recuperação de senha não envia o link.')
+  await page.getByLabel('Documento opcional').setInputFiles({
+    name: 'evidencia.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 teste'),
+  })
+  await page.getByText('Autorizo o uso destes dados').click()
+  await page.getByRole('button', { name: 'Abrir protocolo' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Protocolo registrado' })).toBeVisible()
+  expect(uploadToken).toBe('token-doc')
+})
+
+test('documento obrigatório bloqueia envio antes de criar protocolo', async ({ page }) => {
+  const publicPackage = publishedPackage(
+    'publico',
+    'required-live',
+    'Envio de comprovante',
+    'Anexar comprovante',
+  )
+  publicPackage.nodes[1].document_policy = { mode: 'required' }
+  let ticketCreated = false
+  await page.route('**/api/public/v1/knowledge/faq-published?**', (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        data: [{ bundle_id: 'required-live', bundle_version_id: 'v3.1', package: publicPackage }],
+        error: null,
+      },
+    }),
+  )
+  await page.route('**/api/public/v1/runtime/flags', (route) =>
+    route.fulfill({
+      status: 200,
+      json: { data: { faq_public_anonymous: true, faq_public_documents: true }, error: null },
+    }),
+  )
+  await page.route('**/api/public/v1/tickets', (route) => {
+    ticketCreated = true
+    return route.abort()
+  })
+
+  await page.goto('/crm/publico')
+  await page.getByRole('button', { name: 'Envio de comprovante' }).click()
+  await page.getByRole('button', { name: 'Anexar comprovante' }).click()
+  await page.getByRole('button', { name: 'Não, abrir atendimento' }).click()
+  await page.getByLabel('Nome completo').fill('Visitante')
+  await page.getByLabel('E-mail').fill('visitante@example.com')
+  await page.getByLabel('Celular').fill('11999990000')
+  await page.getByLabel('O que aconteceu?').fill('Preciso encaminhar o comprovante.')
+  await page.getByText('Autorizo o uso destes dados').click()
+  await page.getByRole('button', { name: 'Abrir protocolo' }).click()
+
+  await expect(page.getByRole('alert')).toContainText('exige um documento')
+  expect(ticketCreated).toBe(false)
 })

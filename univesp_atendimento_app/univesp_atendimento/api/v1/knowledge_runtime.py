@@ -530,6 +530,8 @@ def _legacy_package(runtime, version):
 					or ""
 				),
 				"playbook_v3": playbook or None,
+				"document_policy": node.get("document_policy"),
+				"intake_policy": node.get("intake_policy"),
 			}
 		)
 	return {

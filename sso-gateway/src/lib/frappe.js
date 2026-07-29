@@ -95,6 +95,7 @@ export async function callFrappe(method, options = {}) {
     clearTimeout(timeout)
   }
 
+  if (options.rawResponse && response.ok) return response
   const payload = await parsePayload(response)
   if (!response.ok) {
     throw new FrappeApiError(extractMessage(payload), {

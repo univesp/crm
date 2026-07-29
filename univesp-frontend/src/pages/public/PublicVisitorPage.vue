@@ -2,7 +2,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { createPublicTicket } from '@/services/appApi'
+import {
+  createPublicTicket,
+  finalizePublicTicket,
+  getPublicRuntimeFlags,
+  uploadPublicDocument,
+} from '@/services/appApi'
 import {
   buildPublicFaqHomeEntries,
   buildPublicFaqRuntime,
@@ -11,16 +16,23 @@ import {
 import { loadPublishedFaqType } from '@/services/publishedFaqBootstrap'
 
 const router = useRouter()
-const step = ref('register')
+const step = ref('faq')
 const submitting = ref(false)
 const errorMessage = ref('')
 const protocol = ref('')
+const selectedNodeId = ref('')
+const selectedFile = ref(null)
+const flags = ref({ faq_public_documents: false })
 
 const visitor = ref({
   nome: '',
-  cpf: '',
   email: '',
+  celular: '',
   tipo: 'visitante',
+  cpf: '',
+  ra: '',
+  curso: '',
+  polo: '',
 })
 const lgpdConsent = ref(false)
 const subject = ref('')
@@ -29,50 +41,78 @@ const description = ref('')
 const faqRuntime = computed(() => buildPublicFaqRuntime())
 const faqLoadState = computed(() => getPublishedFaqLoadState('publico'))
 const rootEntries = computed(() => buildPublicFaqHomeEntries())
-const selectedNodeId = ref('')
-
 const faqNodeIndex = computed(() => {
   const index = new Map()
-  function walk(nodes) {
-    for (const node of nodes) {
+  const walk = (nodes) =>
+    nodes.forEach((node) => {
       index.set(node.id, node)
       walk(node.children || [])
-    }
-  }
+    })
   walk(faqRuntime.value.tree)
   return index
 })
-
 const activeNode = computed(() =>
   selectedNodeId.value ? faqNodeIndex.value.get(selectedNodeId.value) || null : null,
 )
 const activeChildren = computed(() => activeNode.value?.children || [])
+const intakePolicy = computed(() => activeNode.value?.intake_policy || {})
+const documentPolicy = computed(() => activeNode.value?.document_policy || { mode: 'disabled' })
+const canOpenTicket = computed(() => Boolean(activeNode.value?.runtime?.isTerminal))
+const documentEnabled = computed(
+  () => flags.value.faq_public_documents && documentPolicy.value.mode !== 'disabled',
+)
 
-function normalizeCpf(value) {
-  return String(value || '').replace(/\D/g, '')
+function selectNode(node) {
+  selectedNodeId.value = node.id
+  errorMessage.value = ''
 }
 
-function canContinueRegister() {
-  return (
-    visitor.value.nome.trim() &&
-    normalizeCpf(visitor.value.cpf).length === 11 &&
-    visitor.value.email.includes('@') &&
-    lgpdConsent.value
-  )
-}
-
-function goToFaq() {
-  if (!canContinueRegister()) {
-    errorMessage.value = 'Preencha nome, CPF, e-mail e aceite o consentimento LGPD.'
+function beginTicket() {
+  if (!canOpenTicket.value) {
+    errorMessage.value = 'Escolha uma resposta final antes de abrir o atendimento.'
     return
   }
+  subject.value = activeNode.value.titulo_exibido || activeNode.value.pergunta_exibida || ''
+  step.value = 'open_ticket'
   errorMessage.value = ''
-  step.value = 'faq'
+}
+
+function onFile(event) {
+  selectedFile.value = event.target.files?.[0] || null
+}
+
+function validateForm() {
+  const value = visitor.value
+  if (!value.nome.trim() || !value.email.includes('@') || value.celular.replace(/\D/g, '').length < 10) {
+    return 'Preencha nome, e-mail e celular.'
+  }
+  if (!description.value.trim()) return 'Descreva o que aconteceu.'
+  if (!lgpdConsent.value) return 'Confirme o uso dos dados para este atendimento.'
+  if (intakePolicy.value.requires_cpf && value.cpf.replace(/\D/g, '').length !== 11) {
+    return 'Informe o CPF solicitado por este fluxo.'
+  }
+  for (const [required, field] of [
+    ['requires_ra', 'ra'],
+    ['requires_course', 'curso'],
+    ['requires_polo', 'polo'],
+  ]) {
+    if (intakePolicy.value[required] && !value[field].trim()) {
+      return 'Preencha os dados acadêmicos solicitados.'
+    }
+  }
+  if (documentPolicy.value.mode === 'required' && !selectedFile.value) {
+    return 'Este atendimento exige um documento.'
+  }
+  if (documentPolicy.value.mode !== 'disabled' && !flags.value.faq_public_documents) {
+    return 'O envio de documentos está temporariamente indisponível.'
+  }
+  return ''
 }
 
 async function submitTicket() {
-  if (!subject.value.trim() || !description.value.trim()) {
-    errorMessage.value = 'Informe assunto e descricao do atendimento.'
+  const validationError = validateForm()
+  if (validationError) {
+    errorMessage.value = validationError
     return
   }
   submitting.value = true
@@ -80,22 +120,31 @@ async function submitTicket() {
   try {
     const response = await createPublicTicket({
       lgpd_consent: true,
-      visitor: { ...visitor.value, cpf: normalizeCpf(visitor.value.cpf) },
+      visitor: {
+        ...visitor.value,
+        cpf: visitor.value.cpf.replace(/\D/g, ''),
+        celular: visitor.value.celular.replace(/\D/g, ''),
+      },
       subject: subject.value.trim(),
       description: description.value.trim(),
-      knowledge: activeNode.value
-        ? {
-            node_id: activeNode.value.id,
-            bundle_id: activeNode.value.bundle_id || faqRuntime.value.bundleId,
-            bundle_version_id:
-              activeNode.value.bundle_version_id || faqRuntime.value.bundleVersionId,
-          }
-        : {},
+      knowledge: {
+        node_id: activeNode.value.id,
+        bundle_id: activeNode.value.bundle_id || faqRuntime.value.bundleId,
+        bundle_version_id:
+          activeNode.value.bundle_version_id || faqRuntime.value.bundleVersionId,
+        path: activeNode.value.runtime?.lineage || [],
+      },
     })
-    protocol.value = response.data?.protocol || ''
+    const ticket = response.data
+    if (selectedFile.value) {
+      await uploadPublicDocument(ticket.id, ticket.upload_token, selectedFile.value)
+    }
+    await finalizePublicTicket(ticket.id, ticket.upload_token)
+    protocol.value = ticket.protocol || ''
     step.value = 'done'
   } catch (error) {
-    errorMessage.value = error.message || 'Nao foi possivel abrir o protocolo.'
+    errorMessage.value =
+      error?.message || 'Não foi possível abrir o protocolo. Revise os dados e tente novamente.'
   } finally {
     submitting.value = false
   }
@@ -103,10 +152,13 @@ async function submitTicket() {
 
 onMounted(async () => {
   try {
-    await loadPublishedFaqType('publico', { publicAccess: true })
+    const [, runtimeFlags] = await Promise.all([
+      loadPublishedFaqType('publico', { publicAccess: true }),
+      getPublicRuntimeFlags(),
+    ])
+    flags.value = runtimeFlags.data || flags.value
   } catch (error) {
-    errorMessage.value =
-      error?.message || 'Não foi possível carregar a FAQ institucional agora.'
+    errorMessage.value = error?.message || 'Não foi possível carregar as orientações agora.'
   }
 })
 </script>
@@ -114,120 +166,114 @@ onMounted(async () => {
 <template>
   <main class="public-visitor">
     <header class="public-visitor__header">
-      <h1>Atendimento publico UNIVESP</h1>
-      <p>Candidatos, ex-alunos e visitantes.</p>
-      <router-link to="/login">Ja sou aluno — entrar com SSO</router-link>
+      <p class="public-visitor__eyebrow">Atendimento UNIVESP</p>
+      <h1>Encontre uma orientação antes de abrir atendimento</h1>
+      <p>A consulta é anônima. Seus dados serão pedidos somente se você precisar abrir um protocolo.</p>
+      <router-link to="/login">Entrar no portal do aluno</router-link>
     </header>
 
-    <p v-if="errorMessage" class="public-visitor__error">{{ errorMessage }}</p>
+    <p v-if="errorMessage" class="public-visitor__error" role="alert">{{ errorMessage }}</p>
 
-    <section v-if="step === 'register'" class="public-visitor__panel">
-      <h2>Identificacao</h2>
-      <label>
-        Nome completo
-        <input v-model="visitor.nome" type="text" autocomplete="name" />
-      </label>
-      <label>
-        CPF
-        <input v-model="visitor.cpf" type="text" inputmode="numeric" autocomplete="off" />
-      </label>
-      <label>
-        E-mail
-        <input v-model="visitor.email" type="email" autocomplete="email" />
-      </label>
-      <label>
-        Tipo
-        <select v-model="visitor.tipo">
-          <option value="candidato">Candidato</option>
-          <option value="ex_aluno">Ex-aluno</option>
-          <option value="visitante">Visitante</option>
-          <option value="outro">Outro</option>
-        </select>
+    <section v-if="step === 'faq'" class="public-visitor__panel">
+      <div class="public-visitor__step"><strong>1</strong><span>Escolha sua dúvida</span></div>
+      <p v-if="faqLoadState.status === 'loading'">Carregando orientações institucionais...</p>
+      <p v-else-if="faqLoadState.status === 'error'" role="alert">{{ faqLoadState.error }}</p>
+      <p v-else-if="faqLoadState.status === 'empty'">Nenhuma orientação pública está disponível.</p>
+      <ul v-else-if="!activeNode" class="public-visitor__faq-list">
+        <li v-for="entry in rootEntries" :key="entry.id">
+          <button type="button" @click="selectNode(entry)">{{ entry.title }}</button>
+        </li>
+      </ul>
+      <div v-else class="public-visitor__answer">
+        <button type="button" class="public-visitor__back" @click="selectedNodeId = ''">Voltar aos temas</button>
+        <h2>{{ activeNode.titulo_exibido }}</h2>
+        <p class="public-visitor__answer-text">{{ activeNode.resposta || activeNode.pergunta_exibida }}</p>
+        <ul v-if="activeChildren.length" class="public-visitor__faq-list">
+          <li v-for="child in activeChildren" :key="child.id">
+            <button type="button" @click="selectNode(child)">{{ child.titulo_exibido }}</button>
+          </li>
+        </ul>
+        <div v-if="canOpenTicket" class="public-visitor__resolved">
+          <p>Esta orientação resolveu sua dúvida?</p>
+          <button type="button" class="public-visitor__secondary" @click="router.push('/login')">Sim, encerrar</button>
+          <button type="button" @click="beginTicket">Não, abrir atendimento</button>
+        </div>
+      </div>
+    </section>
+
+    <section v-else-if="step === 'open_ticket'" class="public-visitor__panel">
+      <div class="public-visitor__step"><strong>2</strong><span>Abra o atendimento</span></div>
+      <p>Os dados abaixo serão usados apenas para registrar e responder este protocolo.</p>
+      <div class="public-visitor__grid">
+        <label>Nome completo<input v-model="visitor.nome" autocomplete="name" /></label>
+        <label>E-mail<input v-model="visitor.email" type="email" autocomplete="email" /></label>
+        <label>Celular<input v-model="visitor.celular" type="tel" autocomplete="tel" /></label>
+        <label>
+          Vínculo
+          <select v-model="visitor.tipo">
+            <option value="aluno">Aluno com problema de acesso</option>
+            <option value="candidato">Candidato</option>
+            <option value="ex_aluno">Ex-aluno</option>
+            <option value="visitante">Visitante</option>
+            <option value="outro">Outro</option>
+          </select>
+        </label>
+        <label v-if="intakePolicy.requires_cpf">CPF<input v-model="visitor.cpf" inputmode="numeric" autocomplete="off" /></label>
+        <label v-if="intakePolicy.requires_ra">RA<input v-model="visitor.ra" autocomplete="off" /></label>
+        <label v-if="intakePolicy.requires_course">Curso<input v-model="visitor.curso" /></label>
+        <label v-if="intakePolicy.requires_polo">Polo<input v-model="visitor.polo" /></label>
+      </div>
+      <label>Assunto<input v-model="subject" /></label>
+      <label>O que aconteceu?<textarea v-model="description" rows="5" /></label>
+      <label v-if="documentEnabled" class="public-visitor__upload">
+        Documento {{ documentPolicy.mode === 'required' ? 'obrigatório' : 'opcional' }}
+        <input type="file" accept=".pdf,.png,.jpg,.jpeg" @change="onFile" />
+        <small>PDF, PNG ou JPG, até 10 MiB. O arquivo passa por verificação de segurança.</small>
       </label>
       <label class="public-visitor__consent">
         <input v-model="lgpdConsent" type="checkbox" />
-        Autorizo o uso dos dados para este atendimento, conforme a LGPD.
+        Autorizo o uso destes dados para tratar este atendimento.
       </label>
-      <button type="button" :disabled="!canContinueRegister()" @click="goToFaq">Continuar para FAQ</button>
-    </section>
-
-    <section v-else-if="step === 'faq'" class="public-visitor__panel">
-      <h2>Como podemos ajudar?</h2>
-      <p v-if="faqLoadState.status === 'loading'">Carregando orientações institucionais...</p>
-      <p v-else-if="faqLoadState.status === 'error'" role="alert">
-        {{ faqLoadState.error }}
-      </p>
-      <p v-else-if="faqLoadState.status === 'empty'">
-        Nenhuma orientação pública está publicada no momento.
-      </p>
-      <ul v-else-if="!activeNode" class="public-visitor__faq-list">
-        <li v-for="entry in rootEntries" :key="entry.id">
-          <button type="button" @click="selectedNodeId = entry.id">{{ entry.title }}</button>
-        </li>
-      </ul>
-      <div v-else>
-        <p>{{ activeNode.resposta || activeNode.titulo_exibido }}</p>
-        <ul v-if="activeChildren.length" class="public-visitor__faq-list">
-          <li v-for="child in activeChildren" :key="child.id">
-            <button type="button" @click="selectedNodeId = child.id">
-              {{ child.titulo_exibido }}
-            </button>
-          </li>
-        </ul>
-        <button type="button" @click="selectedNodeId = ''">Voltar</button>
+      <div class="public-visitor__actions">
+        <button type="button" class="public-visitor__secondary" @click="step = 'faq'">Voltar</button>
+        <button type="button" :disabled="submitting" @click="submitTicket">
+          {{ submitting ? 'Registrando...' : 'Abrir protocolo' }}
+        </button>
       </div>
-      <hr />
-      <h3>Ainda preciso de atendimento</h3>
-      <label>
-        Assunto
-        <input v-model="subject" type="text" />
-      </label>
-      <label>
-        Descricao
-        <textarea v-model="description" rows="4" />
-      </label>
-      <button type="button" :disabled="submitting" @click="submitTicket">
-        {{ submitting ? 'Enviando...' : 'Abrir protocolo' }}
-      </button>
     </section>
 
-    <section v-else class="public-visitor__panel">
+    <section v-else class="public-visitor__panel" aria-live="polite">
       <h2>Protocolo registrado</h2>
-      <p v-if="protocol">Numero: <strong>{{ protocol }}</strong></p>
-      <p>Retornaremos pelo e-mail informado.</p>
-      <button type="button" @click="router.push('/login')">Ir para login de aluno</button>
+      <p v-if="protocol">Número: <strong>{{ protocol }}</strong></p>
+      <p>Guarde este número. O retorno será enviado ao e-mail informado.</p>
+      <button type="button" @click="router.push('/login')">Ir para o portal do aluno</button>
     </section>
   </main>
 </template>
 
 <style scoped>
-.public-visitor {
-  max-width: 42rem;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
-.public-visitor__header {
-  margin-bottom: 1rem;
-}
-.public-visitor__panel {
-  display: grid;
-  gap: 0.75rem;
-}
-.public-visitor__panel label {
-  display: grid;
-  gap: 0.25rem;
-}
-.public-visitor__consent {
-  grid-template-columns: auto 1fr;
-  align-items: start;
-}
-.public-visitor__faq-list {
-  list-style: none;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-.public-visitor__error {
-  color: #b42318;
-}
+.public-visitor { max-width: 54rem; margin: 0 auto; padding: clamp(1rem, 4vw, 3rem); color: #172033; }
+.public-visitor__header { margin-bottom: 2rem; }
+.public-visitor__header h1 { max-width: 46rem; margin: .25rem 0 .75rem; font-size: clamp(1.75rem, 4vw, 2.5rem); }
+.public-visitor__eyebrow { margin: 0; color: #3157a5; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.public-visitor__panel { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 2rem); border: 1px solid #d8deea; border-radius: 1rem; background: #fff; box-shadow: 0 12px 32px rgb(15 31 61 / 8%); }
+.public-visitor__step { display: flex; align-items: center; gap: .75rem; }
+.public-visitor__step strong { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: #3157a5; color: #fff; }
+.public-visitor__faq-list { display: grid; gap: .75rem; margin: 0; padding: 0; list-style: none; }
+.public-visitor button { min-height: 2.75rem; padding: .7rem 1rem; border: 0; border-radius: .6rem; background: #3157a5; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.public-visitor__faq-list button { width: 100%; border: 1px solid #ccd5e5; background: #f7f9fd; color: #172033; text-align: left; }
+.public-visitor__secondary, .public-visitor__back { background: #eef2f8 !important; color: #263d6b !important; }
+.public-visitor__answer, .public-visitor__resolved, .public-visitor__actions { display: grid; gap: .75rem; }
+.public-visitor__answer-text { padding: 1rem; border-left: .25rem solid #3157a5; background: #f7f9fd; white-space: pre-line; }
+.public-visitor__resolved { margin-top: .5rem; padding-top: 1rem; border-top: 1px solid #d8deea; }
+.public-visitor__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.public-visitor label { display: grid; gap: .35rem; font-weight: 650; }
+.public-visitor input, .public-visitor select, .public-visitor textarea { min-height: 2.75rem; padding: .65rem .75rem; border: 1px solid #aeb9cc; border-radius: .5rem; font: inherit; }
+.public-visitor__upload { padding: 1rem; border: 1px dashed #8696b2; border-radius: .75rem; }
+.public-visitor__upload small { font-weight: 400; }
+.public-visitor__consent { grid-template-columns: auto 1fr; align-items: start; font-weight: 400 !important; }
+.public-visitor__consent input { min-height: auto; margin-top: .25rem; }
+.public-visitor__actions { grid-template-columns: auto 1fr; }
+.public-visitor__error { padding: .75rem 1rem; border-left: .25rem solid #b42318; background: #fff1f0; color: #8a1c13; }
+@media (max-width: 40rem) { .public-visitor__grid { grid-template-columns: 1fr; } }
 </style>

@@ -13,7 +13,14 @@ def _published_entries():
 			"bundle_id": "bundle:publico:acesso",
 			"package": {
 				"versioning": {"bundle_version_id": "v2.0"},
-				"nodes": [{"id": "acesso-final"}],
+				"nodes": [
+					{
+						"id": "acesso-final",
+						"node_kind": "leaf",
+						"document_policy": {"mode": "disabled"},
+						"intake_policy": {},
+					}
+				],
 			},
 		}
 	]
@@ -32,6 +39,8 @@ class TestPublicTicketKnowledgeReference(TestCase):
 				"bundle_id": "bundle:publico:acesso",
 				"bundle_version_id": "v2.0",
 				"node_id": "acesso-final",
+				"document_policy": {"mode": "disabled"},
+				"intake_policy": {},
 			},
 			_published_entries(),
 		)

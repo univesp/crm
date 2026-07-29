@@ -192,6 +192,20 @@ export async function listPublishedFaq(params = {}) {
   return appRequest(withQuery('/knowledge/faq-published', params))
 }
 
+export async function revealPublicContact(ticketId, payload) {
+  return appRequest(`/tickets/${encodeURIComponent(ticketId)}/reveal-contact`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function issuePublicDocumentDownload(ticketId, documentId, reason) {
+  return appRequest(
+    `/tickets/${encodeURIComponent(ticketId)}/documents/${encodeURIComponent(documentId)}/download-link`,
+    { method: 'POST', body: { reason } },
+  )
+}
+
 export async function listPublishedFaqRuntime(params = {}) {
   return appRequest(withQuery('/knowledge/v3/runtime', params))
 }
@@ -423,8 +437,30 @@ export async function listPublicFaq(params = {}) {
   return publicRequest(withQuery('/knowledge/faq-published', { faq_type: 'publico', ...params }))
 }
 
+export async function getPublicRuntimeFlags() {
+  return publicRequest('/runtime/flags')
+}
+
 export async function createPublicTicket(payload) {
   return publicRequest('/tickets', { method: 'POST', body: payload })
+}
+
+export async function uploadPublicDocument(ticketId, uploadToken, file) {
+  const body = new FormData()
+  body.append('files', file)
+  return publicRequest(`/tickets/${encodeURIComponent(ticketId)}/documents`, {
+    method: 'POST',
+    body,
+    headers: { 'X-Public-Upload-Token': uploadToken },
+  })
+}
+
+export async function finalizePublicTicket(ticketId, uploadToken) {
+  return publicRequest(`/tickets/${encodeURIComponent(ticketId)}/finalize`, {
+    method: 'POST',
+    body: {},
+    headers: { 'X-Public-Upload-Token': uploadToken },
+  })
 }
 
 async function publicRequest(path, options = {}) {

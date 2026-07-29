@@ -19,6 +19,7 @@ PROFILE_DEFINITIONS = {
 			"attach_ticket",
 			"transition_ticket",
 			"view_playbook_op",
+			"view_contact_details",
 		],
 	},
 	"op_externo": {
@@ -33,12 +34,13 @@ PROFILE_DEFINITIONS = {
 			"view_area_guidance",
 			"view_playbook_op",
 			"view_playbook_bpo",
+			"view_contact_details",
 		],
 	},
 	"gestor_polos": {
 		"label": "Gestor de polos",
 		"scope_key": "polos",
-		"actions": ["view_ticket", "view_playbook_op"],
+		"actions": ["view_ticket", "view_playbook_op", "view_contact_details"],
 	},
 	"analista_area": {
 		"label": "Analista de area",
@@ -56,6 +58,7 @@ PROFILE_DEFINITIONS = {
 			"view_playbook_analyst",
 			"edit_knowledge_draft",
 			"submit_knowledge_approval",
+			"view_contact_details",
 		],
 	},
 	"gestor_area": {
@@ -109,6 +112,7 @@ PROFILE_DEFINITIONS = {
 			"view_playbook_analyst",
 			"view_routing_preview",
 			"view_knowledge_history",
+			"view_contact_details",
 			"view_contact_details",
 			"view_sensitive_identity",
 			"manage_user_availability",

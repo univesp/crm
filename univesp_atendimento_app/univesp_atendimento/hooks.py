@@ -26,4 +26,7 @@ scheduler_events = {
 	"hourly": [
 		"univesp_atendimento.api.v1.knowledge_collaboration.alert_overdue_suggestions",
 	],
+	"daily": [
+		"univesp_atendimento.api.v1.public.purge_expired_public_documents",
+	],
 }

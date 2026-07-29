@@ -151,6 +151,7 @@ async function loadEditor() {
     etag.value = bundleResponse.meta?.etag || bundle.value?.draft?.etag || ''
     const editablePayload = bundle.value?.draft?.payload
     payload.value = editablePayload ? cloneJson(editablePayload) : null
+    ensureNodePolicies()
     changeSummary.value = bundle.value?.draft?.change_summary || ''
     validity.valid_from = toInputDate(bundle.value?.draft?.valid_from)
     validity.valid_until = toInputDate(bundle.value?.draft?.valid_until)
@@ -325,6 +326,7 @@ function applyImport() {
     return
   }
   payload.value = cloneJson(importDiff.value.payload)
+  ensureNodePolicies()
   selectedNodeId.value = payload.value.nodes?.[0]?.node_id || ''
   changeSummary.value = `Importação ${importDiff.value.meta?.source_schema || 'FAQ'} revisada com diff.`
   dirty.value = true
@@ -368,6 +370,16 @@ function addNode(kind) {
       sla_policy_key: null,
     },
     document_policy: kind === 'final' ? { mode: 'disabled' } : null,
+    intake_policy:
+      kind === 'final'
+        ? {
+            requires_cpf: false,
+            cpf_purpose: '',
+            requires_ra: false,
+            requires_course: false,
+            requires_polo: false,
+          }
+        : null,
     media_refs: [],
   })
   payload.value.edges.push({
@@ -379,6 +391,20 @@ function addNode(kind) {
     audiences,
   })
   selectedNodeId.value = id
+}
+
+function ensureNodePolicies() {
+  for (const node of payload.value?.nodes || []) {
+    if (node.node_kind !== 'final') continue
+    node.document_policy ||= { mode: 'disabled' }
+    node.intake_policy ||= {
+      requires_cpf: false,
+      cpf_purpose: '',
+      requires_ra: false,
+      requires_course: false,
+      requires_polo: false,
+    }
+  }
 }
 
 function removeSelectedNode() {
@@ -596,6 +622,9 @@ function validateDraft() {
         !node.playbooks?.op?.objective?.trim()
       ) {
         issues.push(`Defina o objetivo do playbook OP em “${node.display?.title}”.`)
+      }
+      if (node.intake_policy?.requires_cpf && node.intake_policy.cpf_purpose?.trim().length < 10) {
+        issues.push(`Explique por que o CPF é necessário em “${node.display?.title}”.`)
       }
     } else if (node.document_policy?.mode && node.document_policy.mode !== 'disabled') {
       issues.push(`Documento só pode ser solicitado em resposta final: “${node.display?.title}”.`)
@@ -1139,6 +1168,35 @@ function cloneJson(value) {
                   <option value="required">Obrigatório</option>
                 </select>
               </label>
+              <fieldset class="crm-card-muted faq-form-stack">
+                <legend>Dados pedidos ao abrir atendimento</legend>
+                <p>Nome, e-mail e celular são sempre pedidos. Marque somente o que esta resposta exige.</p>
+                <label>
+                  <input v-model="selectedNode.intake_policy.requires_cpf" type="checkbox" :disabled="!canEdit" />
+                  Solicitar CPF
+                </label>
+                <label v-if="selectedNode.intake_policy.requires_cpf" class="crm-field-label">
+                  Finalidade objetiva do CPF
+                  <textarea
+                    v-model="selectedNode.intake_policy.cpf_purpose"
+                    class="crm-field faq-textarea"
+                    :disabled="!canEdit"
+                    placeholder="Explique por que este fluxo precisa confirmar o CPF."
+                  />
+                </label>
+                <label>
+                  <input v-model="selectedNode.intake_policy.requires_ra" type="checkbox" :disabled="!canEdit" />
+                  Solicitar RA
+                </label>
+                <label>
+                  <input v-model="selectedNode.intake_policy.requires_course" type="checkbox" :disabled="!canEdit" />
+                  Solicitar curso
+                </label>
+                <label>
+                  <input v-model="selectedNode.intake_policy.requires_polo" type="checkbox" :disabled="!canEdit" />
+                  Solicitar polo
+                </label>
+              </fieldset>
             </div>
 
             <div v-else-if="activeTab === 'media'" class="faq-form-stack">

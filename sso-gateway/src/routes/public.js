@@ -60,6 +60,46 @@ router.post('/tickets', async (req, res) => {
   }
 })
 
+router.post('/tickets/:ticketId/documents', async (req, res) => {
+  const requestId = requestIdFor(req)
+  const maximum = Number(process.env.MAX_PUBLIC_DOCUMENT_BYTES || 10485760)
+  if (Number(req.get('content-length') || 0) > maximum + 65536) {
+    return sendError(res, 413, 'PAYLOAD_TOO_LARGE', 'Documento maior que 10 MiB.', requestId)
+  }
+  try {
+    const result = await callFrappe('public.attach_public_document', {
+      user: {},
+      requestId,
+      query: { ticket_id: req.params.ticketId },
+      rawBody: req,
+      contentType: req.headers['content-type'],
+      headers: { 'X-Public-Upload-Token': String(req.get('x-public-upload-token') || '') },
+      httpMethod: 'POST',
+    })
+    res.setHeader('X-Request-ID', requestId)
+    return res.status(201).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.post('/tickets/:ticketId/finalize', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('public.finalize_public_ticket', {
+      user: {},
+      requestId,
+      body: { ticket_id: req.params.ticketId },
+      headers: { 'X-Public-Upload-Token': String(req.get('x-public-upload-token') || '') },
+      httpMethod: 'POST',
+    })
+    res.setHeader('X-Request-ID', requestId)
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
 function normalizeEnvelope(result, requestId) {
   if (result && typeof result === 'object' && 'data' in result && 'error' in result) {
     return { ...result, request_id: result.request_id || requestId }

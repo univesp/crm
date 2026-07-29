@@ -1,10 +1,12 @@
 import json
+import secrets
 from datetime import datetime
 
 import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime
 from frappe.utils.file_manager import save_file
+from frappe.utils.file_manager import get_file
 
 from univesp_atendimento.api.v1.common import (
 	ensure_ticket_access,
@@ -300,6 +302,117 @@ def attach(ticket_id: str):
 		file_doc = save_file(uploaded.filename, uploaded.stream.read(), "HD Ticket", name, is_private=1)
 		created.append({"id": file_doc.name, "file_name": file_doc.file_name})
 	return response(created, request_id=context.request_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def reveal_public_contact(ticket_id: str, reason: str | None = None, include_cpf: int | str = 0):
+	context = get_request_context("view_contact_details")
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	justification = str(reason or "").strip()
+	if len(justification) < 10:
+		frappe.throw(_("Informe um motivo com ao menos 10 caracteres."), frappe.ValidationError)
+	doc = frappe.get_doc("HD Ticket", name)
+	result = {
+		"email": doc.custom_student_email,
+		"phone": getattr(doc, "custom_visitor_phone", "") or "",
+	}
+	if cint(include_cpf):
+		if "view_sensitive_identity" not in context.actions:
+			raise frappe.PermissionError(_("Seu perfil não permite visualizar CPF."))
+		result["cpf"] = doc.get_password("custom_visitor_cpf") if doc.custom_visitor_cpf else ""
+	frappe.get_doc(
+		{
+			"doctype": "Univesp Access Audit",
+			"actor_email": context.actor_email or context.email,
+			"target_email": doc.custom_student_email or "publico@univesp.br",
+			"operation": "public_contact_revealed",
+			"reason": justification,
+			"before_json": "",
+			"after_json": json.dumps(
+				{"ticket": doc.name, "fields": sorted(result), "cpf_included": bool(cint(include_cpf))},
+				ensure_ascii=False,
+			),
+			"request_id": context.request_id,
+			"event_at": now_datetime(),
+		}
+	).insert(ignore_permissions=True)
+	return response(result, request_id=context.request_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def issue_document_download(ticket_id: str, document_id: str, reason: str | None = None):
+	context = get_request_context("view_ticket")
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	justification = str(reason or "").strip()
+	if len(justification) < 10:
+		frappe.throw(_("Informe um motivo com ao menos 10 caracteres."), frappe.ValidationError)
+	document = frappe.get_doc("Univesp Public Document", document_id)
+	if document.ticket != name or document.scan_status != "clean":
+		raise frappe.PermissionError(_("Documento indisponível."))
+	token = secrets.token_urlsafe(32)
+	frappe.cache().set_value(
+		f"univesp:public-document-download:{token}",
+		json.dumps(
+			{
+				"document_id": document.name,
+				"ticket": name,
+				"actor_email": context.actor_email or context.email,
+				"reason": justification,
+			}
+		),
+		expires_in_sec=300,
+	)
+	return response(
+		{
+			"url": f"/api/app/v1/tickets/{name}/documents/{document.name}/content?token={token}",
+			"expires_in_seconds": 300,
+		},
+		request_id=context.request_id,
+	)
+
+
+@frappe.whitelist(methods=["GET"])
+def download_document(ticket_id: str, document_id: str, token: str):
+	context = get_request_context("view_ticket")
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	cache_key = f"univesp:public-document-download:{str(token or '').strip()}"
+	raw = frappe.cache().get_value(cache_key)
+	if not raw:
+		raise frappe.PermissionError(_("Link expirado ou inválido."))
+	grant = json.loads(raw)
+	if (
+		grant.get("document_id") != document_id
+		or grant.get("ticket") != name
+		or grant.get("actor_email") != (context.actor_email or context.email)
+	):
+		raise frappe.PermissionError(_("Link expirado ou inválido."))
+	frappe.cache().delete_value(cache_key)
+	document = frappe.get_doc("Univesp Public Document", document_id)
+	if document.ticket != name or document.scan_status != "clean":
+		raise frappe.PermissionError(_("Documento indisponível."))
+	file_doc = frappe.get_doc("File", document.file)
+	filename, content = get_file(file_doc.file_url)
+	frappe.get_doc(
+		{
+			"doctype": "Univesp Access Audit",
+			"actor_email": context.actor_email or context.email,
+			"target_email": frappe.db.get_value("HD Ticket", name, "custom_student_email")
+			or "publico@univesp.br",
+			"operation": "public_document_downloaded",
+			"reason": grant.get("reason"),
+			"before_json": "",
+			"after_json": json.dumps({"ticket": name, "document": document.name}),
+			"request_id": context.request_id,
+			"event_at": now_datetime(),
+		}
+	).insert(ignore_permissions=True)
+	frappe.local.response.filename = filename
+	frappe.local.response.filecontent = content
+	frappe.local.response.type = "download"
+	frappe.local.response.display_content_as = "attachment"
 
 
 @frappe.whitelist(methods=["POST"])
@@ -631,9 +744,23 @@ def _ticket_timeline(ticket_name):
 
 
 def _ticket_attachments(ticket_name):
-	return frappe.get_all(
+	rows = frappe.get_all(
 		"File",
 		filters={"attached_to_doctype": "HD Ticket", "attached_to_name": ticket_name, "is_private": 1},
 		fields=["name as id", "file_name", "file_size", "creation as created_at"],
 		order_by="creation asc",
 	)
+	public_documents = {
+		row.file: row
+		for row in frappe.get_all(
+			"Univesp Public Document",
+			filters={"ticket": ticket_name},
+			fields=["name", "file", "scan_status"],
+			limit_page_length=0,
+		)
+	}
+	for row in rows:
+		document = public_documents.get(row.id)
+		row["public_document_id"] = document.name if document else ""
+		row["security_status"] = document.scan_status if document else "private"
+	return rows

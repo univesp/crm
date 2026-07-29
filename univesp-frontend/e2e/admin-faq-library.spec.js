@@ -79,6 +79,13 @@ test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', a
   await page.getByRole('button', { name: 'BPO', exact: true }).click()
   await expect(page.getByText('Herdado do OP', { exact: true }).first()).toBeVisible()
 
+  await page.getByRole('button', { name: 'Documento', exact: true }).click()
+  await page.getByLabel('Envio de documento pelo aluno').selectOption('optional')
+  await page.getByText('Solicitar CPF', { exact: true }).click()
+  await page
+    .getByLabel('Finalidade objetiva do CPF')
+    .fill('Confirmar a identidade antes de corrigir o cadastro de acesso.')
+
   await page.getByLabel('Início da vigência').fill('2026-08-01T08:00')
   await page.getByLabel('Fim da vigência').fill('2026-12-31T23:59')
   await page.getByPlaceholder('Explique o que mudou e por quê.').fill(
@@ -90,6 +97,11 @@ test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', a
   expect(savedPayload.valid_from).toBe('2026-08-01T08:00')
   expect(savedPayload.payload.nodes.find((node) => node.node_id === 'final').playbooks.op.objective)
     .toBe('Restabelecer o acesso sem expor credenciais.')
+  expect(savedPayload.payload.nodes.find((node) => node.node_id === 'final').intake_policy)
+    .toMatchObject({
+      requires_cpf: true,
+      cpf_purpose: 'Confirmar a identidade antes de corrigir o cadastro de acesso.',
+    })
 
   await page.getByRole('button', { name: 'Ver como a jornada funciona' }).click()
   await expect(page.getByRole('heading', { name: 'Prévia da jornada' })).toBeFocused()
