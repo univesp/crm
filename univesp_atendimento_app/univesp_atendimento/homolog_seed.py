@@ -675,7 +675,7 @@ def _load_seed(file_name: str) -> dict:
 		raise frappe.ValidationError("Seed fora da lista institucional permitida.")
 	path = frappe.get_app_source_path("crm", "docs", "seeds", file_name)
 	# The filename is selected exclusively from the immutable allowlist above.
-	with open(path, encoding="utf-8") as handle:  # nosemgrep: allowlisted repository seed
+	with open(path, encoding="utf-8") as handle:  # nosemgrep
 		value = json.load(handle)
 	if not isinstance(value, dict):
 		raise frappe.ValidationError(f"Seed inválido: {file_name}")
