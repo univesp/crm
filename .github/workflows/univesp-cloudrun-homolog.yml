@@ -54,6 +54,7 @@ jobs:
       SMTP_FROM_NAME: ${{ vars.SMTP_FROM_NAME || 'Atendimento UNIVESP' }}
       SMTP_USE_TLS: ${{ vars.SMTP_USE_TLS || 'true' }}
       SMTP_USE_SSL: ${{ vars.SMTP_USE_SSL || 'false' }}
+      SMTP_NO_AUTHENTICATION: ${{ vars.SMTP_NO_AUTHENTICATION || 'false' }}
       DOMAIN_MAPPING_MODE: none
       DB_TYPE: ${{ vars.DB_TYPE }}
       DB_SETUP_MODE: ${{ vars.DB_SETUP_MODE }}
@@ -120,14 +121,13 @@ jobs:
             AZURE_ADMIN_CLIENT_ID AZURE_ADMIN_TENANT_ID
             AZURE_ACADEMICO_CLIENT_ID AZURE_ACADEMICO_TENANT_ID
             SAML_IDP_SSO_URL SAML_ENTITY_ID
-            PUBLIC_REPLY_DOMAIN SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_FROM_EMAIL
+            PUBLIC_REPLY_DOMAIN SMTP_HOST SMTP_PORT SMTP_FROM_EMAIL
           )
           required_secrets=(
             DB_PASSWORD_VALUE ADMIN_PASSWORD_VALUE REDIS_CACHE_VALUE REDIS_QUEUE_VALUE
             REDIS_SOCKETIO_VALUE BFF_SHARED_SECRET_VALUE EDGE_SHARED_SECRET_VALUE
             FRAPPE_API_KEY_VALUE FRAPPE_API_SECRET_VALUE GATEWAY_SESSION_SECRET_VALUE
             GATEWAY_JWT_SECRET_VALUE
-            SMTP_PASSWORD_VALUE
           )
           for name in "${required_vars[@]}" "${required_secrets[@]}"; do
             if [[ -z "${!name:-}" ]]; then
@@ -135,6 +135,20 @@ jobs:
               exit 1
             fi
           done
+          case "${SMTP_NO_AUTHENTICATION}" in
+            true)
+              ;;
+            false)
+              [[ -n "${SMTP_USERNAME:-}" ]] ||
+                { printf 'Missing required homolog configuration: SMTP_USERNAME\n' >&2; exit 1; }
+              [[ -n "${SMTP_PASSWORD_VALUE:-}" ]] ||
+                { printf 'Missing required homolog configuration: SMTP_PASSWORD_VALUE\n' >&2; exit 1; }
+              ;;
+            *)
+              printf 'SMTP_NO_AUTHENTICATION must be true or false.\n' >&2
+              exit 1
+              ;;
+          esac
           [[ "${BFF_SHARED_SECRET_VALUE}" =~ ^[^[:space:]]{32,}$ ]] ||
             { printf 'UNIVESP_BFF_SHARED_SECRET must contain at least 32 non-space characters.\n' >&2; exit 1; }
           [[ "${EDGE_SHARED_SECRET_VALUE}" =~ ^[[:xdigit:]]{64}$ ]] ||
@@ -212,7 +226,12 @@ jobs:
           reuse_or_sync_secret "${AZURE_ADMIN_CLIENT_SECRET_NAME:-crm-homolog-azure-admin-client-secret}" "${AZURE_ADMIN_CLIENT_SECRET_VALUE}"
           reuse_or_sync_secret "${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}" "${AZURE_ACADEMICO_CLIENT_SECRET_VALUE}"
           reuse_or_sync_secret "${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}" "${SAML_IDP_CERT_VALUE}"
-          sync_secret "${SMTP_PASSWORD_SECRET_NAME:-crm-homolog-smtp-password}" "${SMTP_PASSWORD_VALUE}"
+          if [[ "${SMTP_NO_AUTHENTICATION}" == "true" ]]; then
+            SECRET_NAME="${SMTP_PASSWORD_SECRET_NAME:-crm-homolog-smtp-password}" \
+              ./ops/cloudrun/ensure-random-secret.sh
+          else
+            sync_secret "${SMTP_PASSWORD_SECRET_NAME:-crm-homolog-smtp-password}" "${SMTP_PASSWORD_VALUE}"
+          fi
 
       - name: Ensure private FAQ service tokens
         run: |

@@ -47,7 +47,7 @@ Runner reproduzível:
 | 1e | importação/migração com diff e órfãos | importador XLSX/JSON/procedure e testes | implementado |
 | 2 | sugestões, grants e segregação de funções | APIs, DocTypes e E2E de quatro papéis | implementado |
 | 3 | público sem SSO e documentos seguros | jornada pública, GCS privado, scanner e E2E | implementado; ativação depende de configuração |
-| 4 | diretório, validação e e-mail correlacionado | import incremental, painel de fila humana, SLA, estados, ingress assinado e gate SMTP | implementado; autenticação SMTP real é gate do deploy |
+| 4 | diretório, validação e e-mail correlacionado | import incremental, painel de fila humana, SLA, estados, ingress assinado e gate SMTP | implementado; transporte SMTP autenticado ou relay institucional é validado no deploy |
 | 5 | mídia acessível e hardening | assets, conversor, validações e containers | implementado |
 
 ## Integração de homologação

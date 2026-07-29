@@ -16,10 +16,16 @@ Variáveis do ambiente `homolog`:
 | `SMTP_FROM_NAME` | `Atendimento UNIVESP` |
 | `SMTP_USE_TLS` | `true` |
 | `SMTP_USE_SSL` | `false` |
+| `SMTP_NO_AUTHENTICATION` | `false`; use `true` somente para relay institucional confiável |
 
-Segredo obrigatório do ambiente:
+No modo autenticado, configure:
 
-- `SMTP_PASSWORD`.
+- `SMTP_USERNAME`;
+- segredo `SMTP_PASSWORD`.
+
+No modo relay institucional (`SMTP_NO_AUTHENTICATION=true`), usuário e senha não
+são usados. O workflow mantém um segredo opaco apenas para preservar o contrato
+de montagem entre revisões, mas o site configura `no_smtp_authentication=true`.
 
 O workflow cria automaticamente, no Secret Manager, os segredos aleatórios
 `crm-homolog-public-email-reply-secret` e
@@ -27,8 +33,9 @@ O workflow cria automaticamente, no Secret Manager, os segredos aleatórios
 na configuração do site Frappe.
 
 O bootstrap falha antes de ativar `faq_public_email_thread` se a configuração
-estiver incompleta ou se não conseguir autenticar no SMTP. A verificação executa
-`EHLO`, TLS/SSL, login e `NOOP`; não envia mensagem.
+estiver incompleta. No modo autenticado, executa `EHLO`, TLS/SSL, login e `NOOP`.
+No modo relay, executa `EHLO`, TLS/SSL, valida `MAIL FROM`, aplica `RSET` e
+`NOOP`. Nenhum dos dois modos envia mensagem durante o gate.
 
 O Frappe envia a confirmação com `Reply-To` no formato
 `reply+TICKET.TOKEN@dominio`. O provedor de e-mail encaminha a mensagem normalizada

@@ -246,7 +246,7 @@ grupo aprovador e fallback configurados antes da publicação.
 | `faq_public_anonymous` | Admin | FAQ pública publicada e rate limit |
 | `faq_public_documents` | Admin | GCS privado + antimalware + job de retenção |
 | `faq_identity_verification` | Admin | Directory + fila humana |
-| `faq_public_email_thread` | Admin | SMTP autenticado + ingress assinado |
+| `faq_public_email_thread` | Admin | SMTP autenticado ou relay confiável + ingress assinado |
 
 ---
 
