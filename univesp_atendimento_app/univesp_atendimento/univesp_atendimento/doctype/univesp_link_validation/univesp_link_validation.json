@@ -4,13 +4,15 @@
   "module": "Univesp Atendimento",
   "autoname": "hash",
   "track_changes": 1,
-  "field_order": ["ticket", "outcome", "state", "assigned_group", "sla_due_at", "reviewer", "reviewed_at", "notes"],
+  "field_order": ["ticket", "outcome", "state", "assigned_group", "sla_due_at", "escalated_at", "escalation_group", "reviewer", "reviewed_at", "notes"],
   "fields": [
     {"fieldname": "ticket", "fieldtype": "Link", "options": "HD Ticket", "reqd": 1, "unique": 1},
     {"fieldname": "outcome", "fieldtype": "Select", "options": "verified\ninconclusive\nnot_found\nconflicting\nunavailable", "reqd": 1},
     {"fieldname": "state", "fieldtype": "Select", "options": "pending\nverified\nrejected", "default": "pending", "reqd": 1},
     {"fieldname": "assigned_group", "fieldtype": "Data", "reqd": 1, "default": "validacao-vinculo"},
     {"fieldname": "sla_due_at", "fieldtype": "Datetime", "reqd": 1},
+    {"fieldname": "escalated_at", "fieldtype": "Datetime", "read_only": 1},
+    {"fieldname": "escalation_group", "fieldtype": "Data", "read_only": 1},
     {"fieldname": "reviewer", "fieldtype": "Link", "options": "User"},
     {"fieldname": "reviewed_at", "fieldtype": "Datetime"},
     {"fieldname": "notes", "fieldtype": "Small Text"}

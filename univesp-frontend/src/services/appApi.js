@@ -76,6 +76,17 @@ export async function listTickets(params = {}) {
   return appRequest(withQuery('/tickets', params))
 }
 
+export async function listIdentityValidations(params = {}) {
+  return appRequest(withQuery('/identity-validations', params))
+}
+
+export async function decideIdentityValidation(validationId, payload) {
+  return appRequest(`/identity-validations/${encodeURIComponent(validationId)}/decision`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
 export async function getTicket(ticketId) {
   return appRequest(`/tickets/${encodeURIComponent(ticketId)}`)
 }
@@ -462,6 +473,34 @@ export async function validatePublicLink(payload) {
 
 export async function createPublicTicket(payload) {
   return publicRequest('/tickets', { method: 'POST', body: payload })
+}
+
+export async function createPublicIntake(payload) {
+  return publicRequest('/intakes', { method: 'POST', body: payload })
+}
+
+export async function uploadPublicIntakeDocument(intakeId, uploadToken, file) {
+  const body = new FormData()
+  body.append('files', file)
+  return publicRequest(`/intakes/${encodeURIComponent(intakeId)}/documents`, {
+    method: 'POST',
+    body,
+    headers: { 'X-Public-Upload-Token': uploadToken },
+  })
+}
+
+export async function getPublicIntakeStatus(intakeId, uploadToken) {
+  return publicRequest(`/intakes/${encodeURIComponent(intakeId)}`, {
+    headers: { 'X-Public-Upload-Token': uploadToken },
+  })
+}
+
+export async function finalizePublicIntake(intakeId, uploadToken) {
+  return publicRequest(`/intakes/${encodeURIComponent(intakeId)}/finalize`, {
+    method: 'POST',
+    body: {},
+    headers: { 'X-Public-Upload-Token': uploadToken },
+  })
 }
 
 export async function uploadPublicDocument(ticketId, uploadToken, file) {

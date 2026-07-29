@@ -5,6 +5,7 @@
   "autoname": "hash",
   "track_changes": 1,
   "field_order": [
+    "intake_session",
     "ticket",
     "file",
     "original_name",
@@ -18,7 +19,8 @@
     "retention_until"
   ],
   "fields": [
-    {"fieldname": "ticket", "fieldtype": "Link", "options": "HD Ticket", "reqd": 1},
+    {"fieldname": "intake_session", "fieldtype": "Link", "options": "Univesp Public Intake"},
+    {"fieldname": "ticket", "fieldtype": "Link", "options": "HD Ticket"},
     {"fieldname": "file", "fieldtype": "Link", "options": "File", "reqd": 1},
     {"fieldname": "original_name", "fieldtype": "Data", "reqd": 1},
     {"fieldname": "content_type", "fieldtype": "Data", "reqd": 1},

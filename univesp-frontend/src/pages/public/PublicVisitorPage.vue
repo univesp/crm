@@ -3,11 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
-  createPublicTicket,
-  finalizePublicTicket,
+  createPublicIntake,
+  finalizePublicIntake,
   getPublicAcademicCatalogs,
   getPublicRuntimeFlags,
-  uploadPublicDocument,
+  uploadPublicIntakeDocument,
 } from '@/services/appApi'
 import {
   buildPublicFaqHomeEntries,
@@ -125,7 +125,7 @@ async function submitTicket() {
   submitting.value = true
   errorMessage.value = ''
   try {
-    const response = await createPublicTicket({
+    const response = await createPublicIntake({
       lgpd_consent: true,
       visitor: {
         ...visitor.value,
@@ -142,12 +142,12 @@ async function submitTicket() {
         path: activeNode.value.runtime?.lineage || [],
       },
     })
-    const ticket = response.data
+    const intake = response.data
     if (selectedFile.value) {
-      await uploadPublicDocument(ticket.id, ticket.upload_token, selectedFile.value)
+      await uploadPublicIntakeDocument(intake.intake_id, intake.upload_token, selectedFile.value)
     }
-    await finalizePublicTicket(ticket.id, ticket.upload_token)
-    protocol.value = ticket.protocol || ''
+    const finalized = await finalizePublicIntake(intake.intake_id, intake.upload_token)
+    protocol.value = finalized.data?.protocol || ''
     step.value = 'done'
   } catch (error) {
     errorMessage.value =

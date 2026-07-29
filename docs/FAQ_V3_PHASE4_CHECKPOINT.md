@@ -18,6 +18,9 @@ mesmo protocolo por e-mail.
   `unavailable`.
 - Resposta pública genérica, sem indicar o campo divergente.
 - Fila `Univesp Link Validation` com responsável lógico e SLA de 24 horas.
+- Painel Admin para listar pendências mascaradas, justificar e confirmar ou
+  recusar vínculo.
+- Job horário escala pendências vencidas para `admin-central`, com data auditável.
 - Validação de vínculo não substitui a fila temática do protocolo.
 - Confirmação por e-mail enviada pelo Frappe.
 - `Reply-To` com token HMAC vinculado a protocolo e e-mail.
@@ -33,7 +36,8 @@ mesmo protocolo por e-mail.
 - Ruff: aprovado.
 - Testes puros de vínculo e assinatura de e-mail: 5 aprovados.
 - Typecheck e ESLint: aprovados.
-- Playwright público: 4 cenários aprovados.
+- Playwright da fila humana: 1 cenário aprovado.
+- Playwright público: 5 cenários aprovados.
 - Gateway: 17 testes aprovados.
 
 ## Riscos e pendências
@@ -53,4 +57,3 @@ mesmo protocolo por e-mail.
 4. Reenviar o mesmo `Message-ID` e confirmar ausência de duplicidade.
 5. Adulterar o protocolo no destinatário e confirmar rejeição.
 6. Responder com anexo e conferir antimalware e vínculo ao protocolo original.
-

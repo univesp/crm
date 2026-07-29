@@ -124,6 +124,14 @@ router.post('/admin/simulation-sessions/:id/actions', async (req, res) => {
 })
 
 router.get('/tickets', forward('tickets.list_tickets', { query: true }))
+router.get('/identity-validations', forward('identity_validation.list_link_validations', { query: true }))
+router.post('/identity-validations/:validationId/decision', forward(
+  'identity_validation.decide_link_validation',
+  {
+    routeParams: { validation_id: 'validationId' },
+    wrapPayload: true,
+  },
+))
 router.post('/tickets', attachFaqBindingToTicket, forward('tickets.create', { wrapPayload: true }))
 router.get('/tickets/:ticketId', forward('tickets.get', { routeParams: { ticket_id: 'ticketId' } }))
 router.post('/tickets/:ticketId/messages', forward('tickets.add_message', { routeParams: { ticket_id: 'ticketId' } }))

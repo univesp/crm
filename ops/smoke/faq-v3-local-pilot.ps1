@@ -61,6 +61,7 @@ Invoke-Checked "Piloto E2E acesso-ava e personas" (Join-Path $repoRoot "univesp-
   npx playwright test `
     e2e/admin-faq-library.spec.js `
     e2e/faq-sticky-version.spec.js `
+    e2e/identity-validation.spec.js `
     e2e/knowledge-collaboration.spec.js `
     e2e/published-faq-personas.spec.js `
     e2e/student-published-faq.spec.js `

@@ -85,6 +85,78 @@ router.post('/tickets', async (req, res) => {
   }
 })
 
+router.post('/intakes', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('public.create_public_intake', {
+      user: {},
+      requestId,
+      body: { payload: JSON.stringify(req.body || {}) },
+      httpMethod: 'POST',
+    })
+    res.setHeader('X-Request-ID', requestId)
+    return res.status(201).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.post('/intakes/:intakeId/documents', async (req, res) => {
+  const requestId = requestIdFor(req)
+  const maximum = Number(process.env.MAX_PUBLIC_DOCUMENT_BYTES || 10485760)
+  if (Number(req.get('content-length') || 0) > maximum + 65536) {
+    return sendError(res, 413, 'PAYLOAD_TOO_LARGE', 'Documento maior que 10 MiB.', requestId)
+  }
+  try {
+    const result = await callFrappe('public.attach_public_intake_document', {
+      user: {},
+      requestId,
+      query: { intake_id: req.params.intakeId },
+      rawBody: req,
+      contentType: req.headers['content-type'],
+      headers: { 'X-Public-Upload-Token': String(req.get('x-public-upload-token') || '') },
+      httpMethod: 'POST',
+    })
+    res.setHeader('X-Request-ID', requestId)
+    return res.status(201).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.get('/intakes/:intakeId', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('public.public_intake_status', {
+      user: {},
+      requestId,
+      query: { intake_id: req.params.intakeId },
+      headers: { 'X-Public-Upload-Token': String(req.get('x-public-upload-token') || '') },
+    })
+    res.setHeader('X-Request-ID', requestId)
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
+router.post('/intakes/:intakeId/finalize', async (req, res) => {
+  const requestId = requestIdFor(req)
+  try {
+    const result = await callFrappe('public.finalize_public_intake', {
+      user: {},
+      requestId,
+      body: { intake_id: req.params.intakeId },
+      headers: { 'X-Public-Upload-Token': String(req.get('x-public-upload-token') || '') },
+      httpMethod: 'POST',
+    })
+    res.setHeader('X-Request-ID', requestId)
+    return res.status(200).json(normalizeEnvelope(result, requestId))
+  } catch (error) {
+    return handleError(res, error, requestId)
+  }
+})
+
 router.post('/tickets/:ticketId/documents', async (req, res) => {
   const requestId = requestIdFor(req)
   const maximum = Number(process.env.MAX_PUBLIC_DOCUMENT_BYTES || 10485760)

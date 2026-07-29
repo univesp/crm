@@ -215,6 +215,8 @@ export const mockAccessProfiles = Object.freeze([
       'manage_user_availability',
       'manage_assignment_policies',
       'view_audit',
+      'view_contact_details',
+      'view_sensitive_identity',
     ],
     helper: 'Governanca transversal do atendimento, com publicacao e parametros.',
   }),

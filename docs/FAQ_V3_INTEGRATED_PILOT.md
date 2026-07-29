@@ -17,8 +17,8 @@ homologação, não uma evidência inventada.
 | Contratos puros backend do piloto | 25/25 |
 | SSO Gateway | 17/17 |
 | Contratos canônicos do CRM | 68/68 |
-| E2E FAQ v3 e personas | 17/17 |
-| E2E global do frontend | 28/28 |
+| E2E FAQ v3 e personas | 18/18 |
+| E2E global do frontend | 29/29 |
 | Contratos do deploy Cloud Run | 27/27 |
 | Typecheck e ESLint | aprovados |
 | Build de produção | aprovado |
@@ -45,7 +45,7 @@ Runner reproduzível:
 | 1e | importação/migração com diff e órfãos | importador XLSX/JSON/procedure e testes | implementado |
 | 2 | sugestões, grants e segregação de funções | APIs, DocTypes e E2E de quatro papéis | implementado |
 | 3 | público sem SSO e documentos seguros | jornada pública, GCS privado, scanner e E2E | implementado; ativação depende de configuração |
-| 4 | diretório, validação e e-mail correlacionado | import incremental, estados, ingress assinado | implementado; ensaio SMTP/Frappe pendente |
+| 4 | diretório, validação e e-mail correlacionado | import incremental, painel de fila humana, SLA, estados e ingress assinado | implementado; ensaio SMTP/Frappe pendente |
 | 5 | mídia acessível e hardening | assets, conversor, validações e containers | implementado |
 
 ## Integração de homologação
@@ -60,6 +60,8 @@ Runner reproduzível:
   GCS já montado.
 - A credencial pública de upload é armazenada somente como hash e expira em 24
   horas por padrão (`PUBLIC_UPLOAD_TTL_HOURS`).
+- O upload usa `Univesp Public Intake`: o protocolo só é criado depois da
+  quarentena e a finalização é idempotente sob lock transacional.
 - Preflight, release manifest e rollback incluem os dois serviços.
 - O workflow permanece manual e protegido pelo ambiente `homolog`.
 

@@ -175,6 +175,15 @@ export function buildNavigationSections(mockContext) {
     })
   }
 
+  if (hasAction(mockContext, 'view_sensitive_identity')) {
+    adminItems.push({
+      id: 'admin-identity-validation',
+      label: 'Validação de vínculo',
+      route: '/admin/validacao-vinculo',
+      icon: ICON_PERMISSIONS,
+    })
+  }
+
   if (hasAction(mockContext, 'edit_faq')) {
     adminItems.push({
       id: 'admin-faq',

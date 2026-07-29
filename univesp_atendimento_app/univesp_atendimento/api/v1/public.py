@@ -97,6 +97,199 @@ def validate_public_link(payload: dict | str | None = None):
 
 
 @frappe.whitelist(methods=["POST"])
+def create_public_intake(payload: dict | str | None = None):
+	"""Validate a public request without creating a ticket.
+
+	The opaque intake and its credential are short lived. A protocol only exists
+	after every required document is clean and ``finalize_public_intake`` succeeds.
+	"""
+	verify_gateway_only()
+	submission = _prepare_public_submission(_payload(payload))
+	upload_token = secrets.token_urlsafe(32)
+	expires_at = add_to_date(now_datetime(), hours=_public_upload_ttl_hours())
+	intake = frappe.get_doc(
+		{
+			"doctype": "Univesp Public Intake",
+			"state": "pending",
+			"token_hash": _token_hash(upload_token),
+			"expires_at": expires_at,
+			"faq_session_id": submission["faq_session_id"],
+			"visitor_type": submission["visitor_type"],
+			"visitor_name": submission["nome"],
+			"visitor_email": submission["email"],
+			"visitor_phone": submission["phone"],
+			"visitor_cpf": submission["cpf"],
+			"student_ra": submission["ra"],
+			"student_course": submission["curso"],
+			"student_polo": submission["polo"],
+			"subject": submission["subject"],
+			"description": submission["description"],
+			"knowledge_json": json.dumps(submission["knowledge_reference"], ensure_ascii=False),
+			"context_json": json.dumps(submission["context_payload"], ensure_ascii=False),
+			"resolved_queue": submission["queue"],
+			"link_outcome": submission["link_outcome"],
+		}
+	).insert(ignore_permissions=True)
+	if submission["document_policy"].get("mode") != "required":
+		intake.state = "ready"
+		intake.save(ignore_permissions=True)
+	return response(
+		{
+			"intake_id": intake.name,
+			"state": intake.state,
+			"expires_at": str(expires_at),
+			"document_policy": submission["document_policy"],
+			"upload_token": upload_token,
+		},
+		request_id=frappe.get_request_header("X-Request-ID") or "",
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def attach_public_intake_document(intake_id: str):
+	verify_gateway_only()
+	intake = _public_intake_with_token(intake_id)
+	settings = frappe.get_single("Univesp Runtime Settings")
+	if not bool(getattr(settings, "faq_public_documents", False)):
+		raise frappe.PermissionError(_("Envio público de documentos desabilitado."))
+	context = json.loads(intake.context_json or "{}")
+	policy = context.get("document_policy") or {}
+	if policy.get("mode") == "disabled":
+		raise PublicVisitorValidationError(_("Este fluxo não permite documentos."))
+	if intake.state == "finalized":
+		raise PublicVisitorValidationError(_("Esta solicitação já foi finalizada."))
+	from univesp_atendimento.gcs_config import inspect_gcs_site_config
+
+	if not inspect_gcs_site_config()["ok"]:
+		raise frappe.ValidationError(_("Armazenamento privado de documentos não configurado."))
+	max_files = max(1, int(policy.get("max_files") or 1))
+	current_count = frappe.db.count("Univesp Public Document", {"intake_session": intake.name})
+	if current_count >= max_files:
+		raise PublicVisitorValidationError(_("O limite de documentos deste fluxo foi atingido."))
+	files = getattr(frappe.request, "files", None)
+	uploads = files.getlist("files") if files and hasattr(files, "getlist") else list((files or {}).values())
+	if len(uploads) != 1:
+		raise PublicVisitorValidationError(_("Envie exatamente um documento por vez."))
+	uploaded = uploads[0]
+	content = uploaded.stream.read(MAX_PUBLIC_DOCUMENT_BYTES + 1)
+	content_type = str(uploaded.content_type or mimetypes.guess_type(uploaded.filename)[0] or "").lower()
+	_validate_document(uploaded.filename, content_type, content)
+	file_doc = save_file(
+		uploaded.filename,
+		content,
+		"Univesp Public Intake",
+		intake.name,
+		is_private=1,
+	)
+	document = frappe.get_doc(
+		{
+			"doctype": "Univesp Public Document",
+			"intake_session": intake.name,
+			"file": file_doc.name,
+			"original_name": uploaded.filename,
+			"content_type": content_type,
+			"size_bytes": len(content),
+			"sha256": hashlib.sha256(content).hexdigest(),
+			"scan_status": "quarantined",
+			"scan_detail": "Aguardando verificação institucional.",
+			"uploaded_at": now_datetime(),
+			"retention_until": add_days(now_datetime(), _public_document_retention_days()),
+		}
+	).insert(ignore_permissions=True)
+	# Quarantine must survive a scanner error so the retention job can account
+	# for and discard the object. No ticket exists at this point.
+	frappe.db.commit()
+	try:
+		scan_result = _scan_document(uploaded.filename, content_type, content)
+		document.scan_status = scan_result
+		document.scan_detail = (
+			"Verificado pelo serviço antimalware institucional."
+			if scan_result == "clean"
+			else "O arquivo foi rejeitado pelo serviço antimalware institucional."
+		)
+	except Exception:
+		document.scan_status = "failed"
+		document.scan_detail = "Não foi possível concluir a verificação institucional."
+		document.scanned_at = now_datetime()
+		document.save(ignore_permissions=True)
+		intake.state = "failed"
+		intake.save(ignore_permissions=True)
+		frappe.db.commit()
+		raise
+	document.scanned_at = now_datetime()
+	document.save(ignore_permissions=True)
+	if document.scan_status != "clean":
+		intake.state = "failed"
+		intake.save(ignore_permissions=True)
+		frappe.db.commit()
+		raise PublicVisitorValidationError(_("O documento não passou pela verificação de segurança."))
+	intake.state = "ready"
+	intake.save(ignore_permissions=True)
+	return response({"id": document.name, "file_name": uploaded.filename, "status": "clean"})
+
+
+@frappe.whitelist(methods=["GET"])
+def public_intake_status(intake_id: str):
+	verify_gateway_only()
+	intake = _public_intake_with_token(intake_id)
+	documents = frappe.get_all(
+		"Univesp Public Document",
+		filters={"intake_session": intake.name},
+		fields=["name", "original_name", "scan_status"],
+		order_by="creation asc",
+	)
+	return response(
+		{
+			"intake_id": intake.name,
+			"state": intake.state,
+			"ready": intake.state == "ready",
+			"documents": documents,
+		}
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def finalize_public_intake(intake_id: str):
+	verify_gateway_only()
+	intake = _public_intake_with_token(intake_id, allow_finalized=True)
+	_lock_public_intake(intake.name)
+	intake = _public_intake_with_token(intake.name, allow_finalized=True)
+	if intake.finalized_ticket:
+		ticket = frappe.get_doc("HD Ticket", intake.finalized_ticket)
+		return response(_public_ticket_response(ticket))
+	context = json.loads(intake.context_json or "{}")
+	policy = context.get("document_policy") or {}
+	documents = frappe.get_all(
+		"Univesp Public Document",
+		filters={"intake_session": intake.name},
+		fields=["name", "file", "scan_status"],
+		order_by="creation asc",
+	)
+	if any(row.scan_status != "clean" for row in documents):
+		raise PublicVisitorValidationError(_("A verificação dos documentos ainda não foi concluída."))
+	if policy.get("mode") == "required" and not documents:
+		raise PublicVisitorValidationError(_("Este fluxo exige um documento válido."))
+	if intake.state != "ready":
+		raise PublicVisitorValidationError(_("Esta solicitação ainda não está pronta para envio."))
+	knowledge_reference = json.loads(intake.knowledge_json or "{}")
+	ticket = _insert_public_ticket_from_intake(intake, knowledge_reference, context)
+	for row in documents:
+		document = frappe.get_doc("Univesp Public Document", row.name)
+		document.ticket = ticket.name
+		document.save(ignore_permissions=True)
+		if row.file and frappe.db.exists("File", row.file):
+			file_doc = frappe.get_doc("File", row.file)
+			file_doc.attached_to_doctype = "HD Ticket"
+			file_doc.attached_to_name = ticket.name
+			file_doc.save(ignore_permissions=True)
+	intake.finalized_ticket = ticket.name
+	intake.state = "finalized"
+	intake.save(ignore_permissions=True)
+	_after_public_ticket_created(ticket, intake.link_outcome)
+	return response(_public_ticket_response(ticket))
+
+
+@frappe.whitelist(methods=["POST"])
 def create_public_ticket(payload: dict | str | None = None):
 	verify_gateway_only()
 	data = _payload(payload)
@@ -307,6 +500,195 @@ def finalize_public_ticket(ticket_id: str):
 	return response({"id": doc.name, "protocol": doc.custom_univesp_protocol, "status": doc.custom_univesp_status_code})
 
 
+def _prepare_public_submission(data):
+	visitor = data.get("visitor") if isinstance(data.get("visitor"), dict) else {}
+	if not bool(data.get("lgpd_consent")):
+		raise PublicVisitorValidationError(_("Consentimento LGPD e obrigatorio."))
+	email = str(visitor.get("email") or "").strip().lower()
+	cpf = normalize_cpf(visitor.get("cpf") or "")
+	nome = str(visitor.get("nome") or "").strip()
+	phone = _normalize_phone(visitor.get("celular"))
+	visitor_type = str(visitor.get("tipo") or "visitante").strip().lower()
+	if visitor_type not in VISITOR_TYPES:
+		raise PublicVisitorValidationError(_("Tipo de visitante invalido."))
+	if not email or "@" not in email or not nome or not phone:
+		raise PublicVisitorValidationError(_("Nome, e-mail e celular são obrigatórios."))
+	subject = str(data.get("subject") or "").strip()
+	description = str(data.get("description") or "").strip()
+	if not subject or not description:
+		raise PublicVisitorValidationError(_("Assunto e descricao sao obrigatorios."))
+	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
+	settings = frappe.get_single("Univesp Runtime Settings")
+	if bool(getattr(settings, "knowledge_v3_read", False)):
+		from univesp_atendimento.api.v1.knowledge_runtime import _published_v3_entries
+
+		published_entries = _published_v3_entries("public")
+	else:
+		published_entries = _build_published_faq_entries("publico")[0]
+	knowledge_reference = _resolve_public_knowledge_reference(knowledge, published_entries)
+	intake_policy = knowledge_reference.pop("intake_policy", {})
+	document_policy = knowledge_reference.pop("document_policy", {"mode": "disabled"})
+	_validate_public_identity(visitor, cpf, intake_policy)
+	link_outcome = (
+		_resolve_link_validation(visitor)
+		if bool(getattr(settings, "faq_link_validation", False)) and visitor_type == "aluno"
+		else ""
+	)
+	if document_policy.get("mode") != "disabled" and not bool(
+		getattr(settings, "faq_public_documents", False)
+	):
+		raise PublicVisitorValidationError(_("O envio de documentos está temporariamente indisponível."))
+	if bool(getattr(settings, "routing_server_authority", False)):
+		from univesp_atendimento.api.v1.routing import resolve_ticket_route
+
+		routing_decision = resolve_ticket_route(
+			session_record=None,
+			knowledge=knowledge_reference,
+			student={"ra": visitor.get("ra")},
+			context=None,
+		)
+		queue = routing_decision["resolved_queue"]
+	else:
+		routing_decision = {}
+		queue = _resolve_public_queue(data)
+	context_payload = {
+		"visitor_type": visitor_type,
+		"cpf_masked": _mask_cpf(cpf),
+		"phone_masked": _mask_phone(phone),
+		"triage": data.get("triage") or {},
+		"routing": routing_decision,
+		"document_policy": document_policy,
+		"link_validation": link_outcome,
+	}
+	return {
+		"visitor_type": visitor_type,
+		"email": email,
+		"cpf": cpf,
+		"nome": nome,
+		"phone": phone,
+		"ra": str(visitor.get("ra") or ""),
+		"curso": str(visitor.get("curso") or ""),
+		"polo": str(visitor.get("polo") or ""),
+		"subject": subject,
+		"description": description,
+		"faq_session_id": str(data.get("faq_session_id") or "").strip(),
+		"knowledge_reference": knowledge_reference,
+		"document_policy": document_policy,
+		"link_outcome": link_outcome,
+		"queue": queue,
+		"context_payload": context_payload,
+	}
+
+
+def _insert_public_ticket_from_intake(intake, knowledge_reference, context):
+	queue = str(intake.resolved_queue or DEFAULT_PUBLIC_QUEUE)
+	cpf = intake.get_password("visitor_cpf") if intake.visitor_cpf else ""
+	doc = frappe.get_doc(
+		{
+			"doctype": "HD Ticket",
+			"subject": intake.subject,
+			"description": intake.description,
+			"raised_by": intake.visitor_email,
+			"priority": "Medium",
+			"status": _status_name("open"),
+			"custom_univesp_status_code": "open",
+			"custom_univesp_source": "publico",
+			"custom_student_email": intake.visitor_email,
+			"custom_student_name": intake.visitor_name,
+			"custom_visitor_phone": intake.visitor_phone,
+			"custom_visitor_cpf": cpf or "",
+			"custom_student_ra": intake.student_ra or "",
+			"custom_student_polo": intake.student_polo or "",
+			"custom_student_course": intake.student_course or "",
+			"custom_univesp_queue": queue,
+			"agent_group": queue if queue and frappe.db.exists("HD Team", queue) else None,
+			"custom_univesp_context_json": json.dumps(context, ensure_ascii=False),
+			"custom_source_bundle_id": knowledge_reference["bundle_id"],
+			"custom_source_bundle_version_id": knowledge_reference["bundle_version_id"],
+			"custom_source_node_id": knowledge_reference["node_id"],
+			"custom_channel_metadata_json": json.dumps(
+				{
+					"visitor_type": intake.visitor_type,
+					"cpf_masked": context.get("cpf_masked") or "",
+					"public_intake_id": intake.name,
+				},
+				ensure_ascii=False,
+			),
+			"custom_ai_suggestion_json": "",
+		}
+	).insert(ignore_permissions=True)
+	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
+	doc.save(ignore_permissions=True)
+	return doc
+
+
+def _after_public_ticket_created(doc, link_outcome):
+	settings = frappe.get_single("Univesp Runtime Settings")
+	if bool(getattr(settings, "faq_public_email_thread", False)):
+		frappe.enqueue(
+			"univesp_atendimento.public_email.send_protocol_confirmation",
+			ticket_name=doc.name,
+			enqueue_after_commit=True,
+		)
+	if link_outcome in {"inconclusive", "not_found", "conflicting", "unavailable"}:
+		frappe.get_doc(
+			{
+				"doctype": "Univesp Link Validation",
+				"ticket": doc.name,
+				"outcome": link_outcome,
+				"state": "pending",
+				"assigned_group": "validacao-vinculo",
+				"sla_due_at": add_to_date(now_datetime(), hours=24),
+			}
+		).insert(ignore_permissions=True)
+
+
+def _public_ticket_response(ticket):
+	return {
+		"id": ticket.name,
+		"protocol": ticket.custom_univesp_protocol,
+		"status": ticket.custom_univesp_status_code,
+	}
+
+
+def _public_intake_with_token(intake_id, allow_finalized=False):
+	name = str(intake_id or "").strip()
+	if not name or not frappe.db.exists("Univesp Public Intake", name):
+		raise frappe.PermissionError(_("Solicitação ou credencial inválidos."))
+	intake = frappe.get_doc("Univesp Public Intake", name)
+	supplied = str(frappe.get_request_header("X-Public-Upload-Token") or "")
+	if (
+		not intake.token_hash
+		or not intake.expires_at
+		or get_datetime(intake.expires_at) <= now_datetime()
+		or not secrets.compare_digest(str(intake.token_hash), _token_hash(supplied))
+		or (intake.state in {"expired", "finalized"} and not (allow_finalized and intake.state == "finalized"))
+	):
+		raise frappe.PermissionError(_("Solicitação ou credencial inválidos."))
+	return intake
+
+
+def _lock_public_intake(intake_id):
+	frappe.db.sql(
+		"select name from `tabUnivesp Public Intake` where name = %s for update",
+		(str(intake_id),),
+	)
+
+
+def _public_upload_ttl_hours():
+	return int(
+		os.getenv("PUBLIC_UPLOAD_TTL_HOURS")
+		or frappe.conf.get("public_upload_ttl_hours", DEFAULT_PUBLIC_UPLOAD_TTL_HOURS)
+	)
+
+
+def _public_document_retention_days():
+	return int(
+		os.getenv("PUBLIC_DOCUMENT_RETENTION_DAYS")
+		or frappe.conf.get("public_document_retention_days", 180)
+	)
+
+
 def purge_expired_public_documents():
 	expired = frappe.get_all(
 		"Univesp Public Document",
@@ -318,6 +700,41 @@ def purge_expired_public_documents():
 		if row.file and frappe.db.exists("File", row.file):
 			frappe.delete_doc("File", row.file, ignore_permissions=True)
 		frappe.delete_doc("Univesp Public Document", row.name, ignore_permissions=True)
+	return len(expired)
+
+
+def purge_expired_public_intakes():
+	expired = frappe.get_all(
+		"Univesp Public Intake",
+		filters={
+			"expires_at": ["<", now_datetime()],
+			"state": ["in", ["pending", "ready", "failed", "finalized"]],
+		},
+		fields=["name", "state"],
+		limit_page_length=500,
+	)
+	for row in expired:
+		documents = frappe.get_all(
+			"Univesp Public Document",
+			filters={"intake_session": row.name},
+			fields=["name", "file", "ticket"],
+			limit_page_length=100,
+		)
+		for document in documents:
+			if document.ticket:
+				frappe.db.set_value(
+					"Univesp Public Document",
+					document.name,
+					"intake_session",
+					None,
+					update_modified=False,
+				)
+			else:
+				if document.file and frappe.db.exists("File", document.file):
+					frappe.delete_doc("File", document.file, ignore_permissions=True)
+				if frappe.db.exists("Univesp Public Document", document.name):
+					frappe.delete_doc("Univesp Public Document", document.name, ignore_permissions=True)
+		frappe.delete_doc("Univesp Public Intake", row.name, ignore_permissions=True)
 	return len(expired)
 
 

@@ -130,15 +130,14 @@ test('público consome API real e envia lineage sem escolher fila', async ({ pag
       json: { data: { faq_public_anonymous: true, faq_public_documents: false }, error: null },
     })
   })
-  await page.route('**/api/public/v1/tickets', async (route) => {
+  await page.route('**/api/public/v1/intakes', async (route) => {
     ticketPayload = route.request().postDataJSON()
     await route.fulfill({
-      status: 200,
+      status: 201,
       json: {
         data: {
-          id: 'HD-TICKET-1',
-          protocol: 'PRT-2026-000001',
-          status: 'open',
+          intake_id: 'INTAKE-1',
+          state: 'ready',
           upload_token: 'public-token',
         },
         error: null,
@@ -146,7 +145,7 @@ test('público consome API real e envia lineage sem escolher fila', async ({ pag
       },
     })
   })
-  await page.route('**/api/public/v1/tickets/HD-TICKET-1/finalize', async (route) => {
+  await page.route('**/api/public/v1/intakes/INTAKE-1/finalize', async (route) => {
     await route.fulfill({
       status: 200,
       json: { data: { id: 'HD-TICKET-1', protocol: 'PRT-2026-000001' }, error: null },
@@ -241,6 +240,7 @@ test('fluxo público pede CPF por finalidade e envia documento opcional', async 
     requires_polo: false,
   }
   let uploadToken = ''
+  const submissionOrder = []
   await page.route('**/api/public/v1/knowledge/faq-published?**', (route) =>
     route.fulfill({
       status: 200,
@@ -256,28 +256,31 @@ test('fluxo público pede CPF por finalidade e envia documento opcional', async 
       json: { data: { faq_public_anonymous: true, faq_public_documents: true }, error: null },
     }),
   )
-  await page.route('**/api/public/v1/tickets', (route) =>
-    route.fulfill({
+  await page.route('**/api/public/v1/intakes', (route) => {
+    submissionOrder.push('intake')
+    return route.fulfill({
       status: 201,
       json: {
-        data: { id: 'HD-DOC-1', protocol: 'PRT-2026-000002', upload_token: 'token-doc' },
+        data: { intake_id: 'INTAKE-DOC-1', state: 'ready', upload_token: 'token-doc' },
         error: null,
       },
-    }),
-  )
-  await page.route('**/api/public/v1/tickets/HD-DOC-1/documents', (route) => {
+    })
+  })
+  await page.route('**/api/public/v1/intakes/INTAKE-DOC-1/documents', (route) => {
+    submissionOrder.push('document-clean')
     uploadToken = route.request().headers()['x-public-upload-token']
     return route.fulfill({
       status: 201,
       json: { data: { id: 'DOC-1', file_name: 'evidencia.pdf', status: 'clean' }, error: null },
     })
   })
-  await page.route('**/api/public/v1/tickets/HD-DOC-1/finalize', (route) =>
-    route.fulfill({
+  await page.route('**/api/public/v1/intakes/INTAKE-DOC-1/finalize', (route) => {
+    submissionOrder.push('ticket-created')
+    return route.fulfill({
       status: 200,
       json: { data: { id: 'HD-DOC-1', protocol: 'PRT-2026-000002' }, error: null },
-    }),
-  )
+    })
+  })
 
   await page.goto('/crm/publico')
   await page.getByRole('button', { name: 'Problemas de acesso' }).click()
@@ -301,6 +304,7 @@ test('fluxo público pede CPF por finalidade e envia documento opcional', async 
 
   await expect(page.getByRole('heading', { name: 'Protocolo registrado' })).toBeVisible()
   expect(uploadToken).toBe('token-doc')
+  expect(submissionOrder).toEqual(['intake', 'document-clean', 'ticket-created'])
 })
 
 test('documento obrigatório bloqueia envio antes de criar protocolo', async ({ page }) => {
@@ -327,7 +331,7 @@ test('documento obrigatório bloqueia envio antes de criar protocolo', async ({ 
       json: { data: { faq_public_anonymous: true, faq_public_documents: true }, error: null },
     }),
   )
-  await page.route('**/api/public/v1/tickets', (route) => {
+  await page.route('**/api/public/v1/intakes', (route) => {
     ticketCreated = true
     return route.abort()
   })

@@ -429,6 +429,19 @@ const routes = [
     },
   },
   {
+    path: '/admin/validacao-vinculo',
+    name: 'admin-identity-validation',
+    component: () => import('@/pages/admin/AdminIdentityValidationPage.vue'),
+    meta: {
+      title: 'Validação de vínculo',
+      stage: 'admin-identity-validation',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['view_sensitive_identity'],
+    },
+  },
+  {
     path: '/admin/auditoria',
     redirect: (to) => {
       const protocol = String(to.query.protocol || to.query.q || '').trim()

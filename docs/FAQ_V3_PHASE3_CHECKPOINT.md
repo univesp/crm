@@ -16,12 +16,14 @@ fila.
 - RA, curso e polo condicionais por resposta final.
 - Editor configura política de identificação e bloqueia CPF sem justificativa.
 - Documentos apenas em resposta final: desabilitado, opcional ou obrigatório.
-- Protocolo público em duas etapas: criação, upload e finalização server-side.
-- Token opaco, curto e vinculado ao protocolo para upload.
+- Sessão temporária de entrada antes do protocolo, com expiração padrão de 24 horas.
+- Token opaco, curto e vinculado à sessão temporária para upload.
+- Protocolo criado atomicamente somente após os documentos exigidos ficarem `clean`.
+- Finalização idempotente: repetição válida devolve o mesmo protocolo.
 - Extensão, MIME, assinatura binária e limite de 10 MiB validados no backend.
 - Bucket privado obrigatório; falha fechada sem configuração GCS.
 - Scanner ClamAV empacotado para Cloud Run.
-- Arquivo só é persistido após resultado `clean`.
+- Arquivo é persistido privadamente na quarentena; somente `clean` pode ser ligado ao protocolo.
 - Registro documental com hash, estado, datas e retenção.
 - Descarte diário após o prazo configurado.
 - Links de download autenticados, de uso único e com expiração de 5 minutos.
@@ -36,11 +38,12 @@ fila.
 - Typecheck Vue e ESLint focado: aprovados.
 - Gateway: 17 testes aprovados.
 - Build Vite de produção: aprovado, 453 módulos.
-- Playwright público: 4 cenários aprovados:
+- Playwright público: 5 cenários aprovados:
   - FAQ pública sem CPF;
   - lineage sem fila escolhida pelo cliente;
   - CPF/RA condicionais com documento opcional;
   - documento obrigatório bloqueando antes da criação.
+  - ordem intake → documento limpo → criação do protocolo.
 - Regressão Editor/Biblioteca: 4 cenários aprovados.
 
 ## Riscos e pendências
@@ -66,3 +69,10 @@ fila.
 5. Como operador autorizado, revelar contato informando motivo e baixar o documento
    por link temporário.
 
+## Correção de auditoria
+
+O checkpoint anterior descrevia criação do protocolo antes do upload. Essa ordem
+deixava protocolo órfão se o antimalware rejeitasse o arquivo. O contrato foi
+corrigido para `Univesp Public Intake`: dados e arquivo permanecem temporários,
+sessões abandonadas são descartadas por job e o `HD Ticket` só nasce na
+finalização bem-sucedida.

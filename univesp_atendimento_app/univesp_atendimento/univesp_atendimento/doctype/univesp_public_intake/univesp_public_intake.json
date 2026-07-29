@@ -1,0 +1,52 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Public Intake",
+  "module": "Univesp Atendimento",
+  "autoname": "hash",
+  "track_changes": 1,
+  "field_order": [
+    "state",
+    "token_hash",
+    "expires_at",
+    "faq_session_id",
+    "visitor_type",
+    "visitor_name",
+    "visitor_email",
+    "visitor_phone",
+    "visitor_cpf",
+    "student_ra",
+    "student_course",
+    "student_polo",
+    "subject",
+    "description",
+    "knowledge_json",
+    "context_json",
+    "resolved_queue",
+    "link_outcome",
+    "finalized_ticket"
+  ],
+  "fields": [
+    {"fieldname": "state", "fieldtype": "Select", "options": "pending\nready\nfinalized\nexpired\nfailed", "default": "pending", "reqd": 1, "in_standard_filter": 1},
+    {"fieldname": "token_hash", "fieldtype": "Data", "reqd": 1, "hidden": 1},
+    {"fieldname": "expires_at", "fieldtype": "Datetime", "reqd": 1, "in_standard_filter": 1},
+    {"fieldname": "faq_session_id", "fieldtype": "Data"},
+    {"fieldname": "visitor_type", "fieldtype": "Select", "options": "aluno\ncandidato\nex_aluno\nvisitante\noutro", "reqd": 1},
+    {"fieldname": "visitor_name", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "visitor_email", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "visitor_phone", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "visitor_cpf", "fieldtype": "Password"},
+    {"fieldname": "student_ra", "fieldtype": "Data"},
+    {"fieldname": "student_course", "fieldtype": "Data"},
+    {"fieldname": "student_polo", "fieldtype": "Data"},
+    {"fieldname": "subject", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "description", "fieldtype": "Long Text", "reqd": 1},
+    {"fieldname": "knowledge_json", "fieldtype": "Long Text", "reqd": 1},
+    {"fieldname": "context_json", "fieldtype": "Long Text", "reqd": 1},
+    {"fieldname": "resolved_queue", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "link_outcome", "fieldtype": "Select", "options": "\nverified\ninconclusive\nnot_found\nconflicting\nunavailable"},
+    {"fieldname": "finalized_ticket", "fieldtype": "Link", "options": "HD Ticket", "read_only": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "delete": 1}
+  ]
+}
