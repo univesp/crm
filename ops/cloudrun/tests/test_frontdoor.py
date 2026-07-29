@@ -80,7 +80,7 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 
 	def test_workflow_fails_before_mutation_when_configuration_is_missing(self):
 		preflight = self.workflow.index("Validate required deploy configuration")
-		authenticate = self.workflow.index("Authenticate to Google Cloud")
+		authenticate = self.workflow.index("Authenticate deployment identity to Google Cloud")
 		sync = self.workflow.index("Sync runtime secrets to Secret Manager")
 		self.assertLess(preflight, authenticate)
 		self.assertLess(preflight, sync)
@@ -125,6 +125,16 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		self.assertIn("name: homolog", self.workflow)
 		trigger_block = self.workflow.split("permissions:", 1)[0]
 		self.assertNotRegex(trigger_block, r"(?m)^  push:")
+
+	def test_provisioning_uses_scoped_credential_then_restores_workload_identity(self):
+		self.assertIn("Authenticate infrastructure provisioner", self.workflow)
+		self.assertIn("credentials_json: ${{ secrets.GCP_SA_KEY }}", self.workflow)
+		self.assertIn("Restore deployment identity", self.workflow)
+		provision = self.workflow.index("Optionally provision base infrastructure")
+		restore = self.workflow.index("Restore deployment identity")
+		preflight = self.workflow.index("Run read-only GCP preflight")
+		self.assertLess(provision, restore)
+		self.assertLess(restore, preflight)
 
 	def test_rollback_requires_confirmation_and_immutable_images(self):
 		self.assertIn('CONFIRM_ROLLBACK" != homolog', self.rollback)
