@@ -277,7 +277,16 @@ onMounted(async () => {
             <option value="outro">Outro</option>
           </select>
         </label>
-        <label v-if="intakePolicy.requires_cpf">CPF<input v-model="visitor.cpf" inputmode="numeric" autocomplete="off" /></label>
+        <label v-if="intakePolicy.requires_cpf">
+          CPF
+          <input
+            v-model="visitor.cpf"
+            inputmode="numeric"
+            autocomplete="off"
+            aria-describedby="public-cpf-purpose"
+          />
+          <small id="public-cpf-purpose">{{ intakePolicy.cpf_purpose }}</small>
+        </label>
         <label v-if="intakePolicy.requires_ra">RA<input v-model="visitor.ra" autocomplete="off" /></label>
         <label v-if="intakePolicy.requires_course">
           Curso

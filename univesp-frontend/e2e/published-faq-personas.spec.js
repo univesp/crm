@@ -355,6 +355,7 @@ test('fluxo público pede CPF por finalidade e envia documento opcional', async 
   await page.getByRole('button', { name: 'Não consigo entrar' }).click()
   await page.getByRole('button', { name: 'Não, abrir atendimento' }).click()
   await expect(page.getByLabel('CPF')).toBeVisible()
+  await expect(page.getByText('Confirmar identidade para corrigir o cadastro.')).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'RA', exact: true })).toBeVisible()
   await page.getByLabel('Nome completo').fill('Aluno sem acesso')
   await page.getByLabel('E-mail').fill('aluno@example.com')
