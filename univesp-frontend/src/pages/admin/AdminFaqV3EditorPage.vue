@@ -959,6 +959,28 @@ function navigateToIssue(issue) {
     settingsOpen.value = true
   }
   issuesPanelOpen.value = false
+  if (issue?.fieldKey) {
+    nextTick(() => focusIssueField(issue.fieldKey))
+  }
+}
+
+function focusIssueField(fieldKey) {
+  const idMap = {
+    title: 'faq-field-title',
+    final_answer: 'faq-field-final-answer',
+    op_objective: 'faq-field-op-objective',
+    cpf_purpose: 'faq-field-cpf-purpose',
+    document_mode: 'faq-field-document-mode',
+    channels: 'faq-field-channel-student',
+  }
+  const element = document.getElementById(idMap[fieldKey])
+  element?.focus()
+}
+
+function stageIssueCount(nodeId) {
+  return draftIssues.value.filter(
+    (issue) => issue.nodeId === nodeId && issue.severity === 'error',
+  ).length
 }
 
 function layerHasContent(node, layer) {
@@ -1347,6 +1369,13 @@ function handleMapSelectNode(nodeId) {
               >
                 <span>{{ node.display?.title || 'Etapa sem título' }}</span>
                 <small>{{ node.node_kind === 'final' ? 'Resposta final' : 'Etapa' }}</small>
+                <small
+                  v-if="stageIssueCount(node.node_id)"
+                  class="faq-tree__issue-count"
+                  aria-hidden="true"
+                >
+                  {{ stageIssueCount(node.node_id) }} alerta(s)
+                </small>
               </button>
             </li>
           </ol>
@@ -1376,6 +1405,7 @@ function handleMapSelectNode(nodeId) {
               <label class="crm-field-label">
                 Nome da etapa
                 <input
+                  id="faq-field-title"
                   v-model="selectedNode.display.title"
                   class="crm-field"
                   :disabled="!canEdit"
@@ -1432,7 +1462,7 @@ function handleMapSelectNode(nodeId) {
                 v-if="advancedTabSummary.filled || advancedTabSummary.issues"
                 class="faq-advanced-toggle__meta"
               >
-                ({{ advancedTabSummary.filled }} preenchida(s) ·
+                ({{ advancedTabSummary.filled }} abas avançadas ·
                 {{ advancedTabSummary.issues }} com pendência)
               </span>
             </button>
@@ -1492,7 +1522,12 @@ function handleMapSelectNode(nodeId) {
                   </div>
                   <label v-if="['text', 'notice'].includes(block.type)" class="crm-field-label">
                     Conteúdo
-                    <textarea v-model="block.body" class="crm-field faq-textarea" :disabled="!canEdit" />
+                    <textarea
+                      :id="index === 0 && selectedNode.node_kind === 'final' ? 'faq-field-final-answer' : undefined"
+                      v-model="block.body"
+                      class="crm-field faq-textarea"
+                      :disabled="!canEdit"
+                    />
                   </label>
                   <template v-else>
                     <label class="crm-field-label">
@@ -1647,6 +1682,7 @@ function handleMapSelectNode(nodeId) {
               <label class="crm-field-label">
                 Objetivo
                 <textarea
+                  id="faq-field-op-objective"
                   class="crm-field"
                   :value="effectivePlaybook(activeTab).objective"
                   :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
@@ -1768,6 +1804,7 @@ function handleMapSelectNode(nodeId) {
               <label class="crm-field-label">
                 Envio de documento pelo aluno
                 <select
+                  id="faq-field-document-mode"
                   v-model="selectedNode.document_policy.mode"
                   class="crm-field"
                   :disabled="!canEdit"
@@ -1787,6 +1824,7 @@ function handleMapSelectNode(nodeId) {
                 <label v-if="selectedNode.intake_policy.requires_cpf" class="crm-field-label">
                   Finalidade objetiva do CPF
                   <textarea
+                    id="faq-field-cpf-purpose"
                     v-model="selectedNode.intake_policy.cpf_purpose"
                     class="crm-field faq-textarea"
                     :disabled="!canEdit"
@@ -2286,6 +2324,11 @@ function handleMapSelectNode(nodeId) {
 
 .faq-tree__node small {
   color: var(--color-text-muted);
+}
+
+.faq-tree__issue-count {
+  color: var(--color-danger);
+  font-weight: 700;
 }
 
 .faq-tabs__button {

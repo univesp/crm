@@ -159,6 +159,23 @@ test('diálogo de envio respeita mínimo de caracteres, Esc e preserva o resumo'
   await expect(dialog).toBeHidden()
 })
 
+test('pendência em camada avançada navega até o campo Objetivo', async ({ page }) => {
+  const payload = flowPayload('acesso-ava')
+  const finalNode = payload.nodes.find((node) => node.node_id === 'final')
+  finalNode.playbooks.op.objective = ''
+  await mockKnowledgeV3(page, { payload })
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+
+  await page.getByRole('button', { name: 'Ver pendências' }).click()
+  await page
+    .getByRole('button', { name: /Defina o objetivo do playbook OP em “Resposta final”/ })
+    .click()
+
+  await expect(page.getByRole('button', { name: 'Ocultar opções avançadas' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'OP', exact: true })).toHaveClass(/is-active/)
+  await expect(page.locator('#faq-field-op-objective')).toBeFocused()
+})
+
 test('mapa do fluxo seleciona a etapa e a simulação percorre a jornada', async ({ page }) => {
   const payload = flowPayload('acesso-ava')
   await mockKnowledgeV3(page, { payload })

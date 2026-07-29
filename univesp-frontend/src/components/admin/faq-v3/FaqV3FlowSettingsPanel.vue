@@ -62,6 +62,7 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
           <legend>Canais de disponibilidade</legend>
           <label>
             <input
+              id="faq-field-channel-student"
               :checked="availableStudent"
               type="checkbox"
               :disabled="!canEdit"
