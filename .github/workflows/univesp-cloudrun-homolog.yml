@@ -158,7 +158,7 @@ jobs:
           [[ ${#GATEWAY_SESSION_SECRET_VALUE} -ge 32 && ${#GATEWAY_JWT_SECRET_VALUE} -ge 32 ]] ||
             { printf 'Gateway session/JWT secrets must contain at least 32 characters.\n' >&2; exit 1; }
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate deployment identity to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -170,9 +170,22 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
+      - name: Authenticate infrastructure provisioner
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
       - name: Optionally provision base infrastructure
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
         run: ./ops/cloudrun/provision.sh
+
+      - name: Restore deployment identity
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.provision_infra == 'true' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
 
       - name: Resolve existing gateway secret references
         env:
