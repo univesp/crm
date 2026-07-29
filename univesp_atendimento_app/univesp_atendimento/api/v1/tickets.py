@@ -1,10 +1,12 @@
 import json
+import secrets
 from datetime import datetime
 
 import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime
 from frappe.utils.file_manager import save_file
+from frappe.utils.file_manager import get_file
 
 from univesp_atendimento.api.v1.common import (
 	ensure_ticket_access,
@@ -70,6 +72,11 @@ TICKET_FIELDS = [
 	"custom_source_bundle_id",
 	"custom_source_bundle_version_id",
 	"custom_source_node_id",
+	"custom_source_path_json",
+	"custom_source_audience",
+	"custom_faq_session_id",
+	"custom_channel_metadata_json",
+	"custom_ai_suggestion_json",
 ]
 
 
@@ -77,14 +84,54 @@ TICKET_FIELDS = [
 def create(payload: dict | str | None = None):
 	context = get_request_context("create_ticket")
 	data = _payload(payload)
+	if "channel" in data:
+		from univesp_atendimento.channel_adapter import normalize_channel_payload
+
+		data = normalize_channel_payload(data)
 	student = data.get("student") if isinstance(data.get("student"), dict) else {}
 	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
-	queue = str(data.get("queue") or "").strip()
-	area = str(data.get("area") or "").strip()
+	from univesp_atendimento.api.v1.knowledge_runtime import validate_session_lineage
+
+	session_record = validate_session_lineage(knowledge, context)
+	if (
+		not session_record
+		and knowledge.get("bundle_id")
+		and frappe.db.exists("Univesp Knowledge Bundle", str(knowledge.get("bundle_id")))
+		and bool(frappe.get_single("Univesp Runtime Settings").knowledge_v3_read)
+	):
+		raise frappe.PermissionError(_("Lineage v3 exige sessão FAQ válida."))
+	if session_record:
+		knowledge = {
+			**knowledge,
+			"bundle_id": session_record["bundle_key"],
+			"bundle_version_id": session_record["bundle_version_id"],
+			"node_id": session_record["path"][-1],
+			"path": session_record["path"],
+			"audience": session_record["persona"],
+			"faq_session_id": session_record["faq_session_id"],
+		}
+	settings = frappe.get_single("Univesp Runtime Settings")
+	server_routing = bool(getattr(settings, "routing_server_authority", False)) or bool(session_record)
+	if server_routing:
+		from univesp_atendimento.api.v1.routing import resolve_ticket_route
+
+		routing_decision = resolve_ticket_route(
+			session_record=session_record,
+			knowledge=knowledge,
+			student=student,
+			context=context,
+			manual_routing_key=data.get("routing_key"),
+		)
+		queue = routing_decision["resolved_queue"]
+		area = routing_decision["resolved_area"]
+	else:
+		routing_decision = {}
+		queue = str(data.get("queue") or "").strip()
+		area = str(data.get("area") or "").strip()
 
 	if context.profile_key == "aluno":
 		student = {**student, "email": context.email, "name": context.name, "ra": context.ra}
-	elif context.profile_key not in {"op", "gestor_polos", "admin_central"}:
+	elif context.profile_key not in {"op", "op_externo", "gestor_polos", "admin_central"}:
 		raise frappe.PermissionError(_("Seu perfil nao pode abrir atendimento em nome do aluno."))
 
 	_subject = str(data.get("subject") or "").strip()
@@ -110,15 +157,35 @@ def create(payload: dict | str | None = None):
 			"custom_univesp_queue": queue,
 			"agent_group": queue if queue and frappe.db.exists("HD Team", queue) else None,
 			"custom_univesp_area": area,
-			"custom_univesp_context_json": json.dumps(data.get("triage") or {}, ensure_ascii=False),
+			"custom_univesp_context_json": json.dumps(
+				{
+					**(data.get("triage") if isinstance(data.get("triage"), dict) else {}),
+					"routing": routing_decision,
+				},
+				ensure_ascii=False,
+			),
 			"custom_source_bundle_id": str(knowledge.get("bundle_id") or ""),
 			"custom_source_bundle_version_id": str(knowledge.get("bundle_version_id") or ""),
 			"custom_source_node_id": str(knowledge.get("node_id") or knowledge.get("flow_id") or ""),
+			"custom_source_path_json": json.dumps(knowledge.get("path") or [], ensure_ascii=False),
+			"custom_source_audience": str(knowledge.get("audience") or ""),
+			"custom_faq_session_id": str(knowledge.get("faq_session_id") or ""),
 			"custom_request_id": context.request_id,
+			"custom_channel_metadata_json": json.dumps(
+				data.get("channel_metadata") if isinstance(data.get("channel_metadata"), dict) else {},
+				ensure_ascii=False,
+			),
+			"custom_ai_suggestion_json": "",
 		}
 	).insert(ignore_permissions=True)
 	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
 	doc.save(ignore_permissions=True)
+	from univesp_atendimento.api.v1.knowledge_runtime import record_protocol_created
+
+	record_protocol_created(context, session_record, doc.name)
+	from univesp_atendimento.ticket_hooks import enqueue_ai_suggestion
+
+	enqueue_ai_suggestion(doc.name)
 	return response(_serialize_ticket(doc), request_id=context.request_id)
 
 
@@ -232,6 +299,117 @@ def attach(ticket_id: str):
 
 
 @frappe.whitelist(methods=["POST"])
+def reveal_public_contact(ticket_id: str, reason: str | None = None, include_cpf: int | str = 0):
+	context = get_request_context("view_contact_details")
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	justification = str(reason or "").strip()
+	if len(justification) < 10:
+		frappe.throw(_("Informe um motivo com ao menos 10 caracteres."), frappe.ValidationError)
+	doc = frappe.get_doc("HD Ticket", name)
+	result = {
+		"email": doc.custom_student_email,
+		"phone": getattr(doc, "custom_visitor_phone", "") or "",
+	}
+	if cint(include_cpf):
+		if "view_sensitive_identity" not in context.actions:
+			raise frappe.PermissionError(_("Seu perfil não permite visualizar CPF."))
+		result["cpf"] = doc.get_password("custom_visitor_cpf") if doc.custom_visitor_cpf else ""
+	frappe.get_doc(
+		{
+			"doctype": "Univesp Access Audit",
+			"actor_email": context.actor_email or context.email,
+			"target_email": doc.custom_student_email or "publico@univesp.br",
+			"operation": "public_contact_revealed",
+			"reason": justification,
+			"before_json": "",
+			"after_json": json.dumps(
+				{"ticket": doc.name, "fields": sorted(result), "cpf_included": bool(cint(include_cpf))},
+				ensure_ascii=False,
+			),
+			"request_id": context.request_id,
+			"event_at": now_datetime(),
+		}
+	).insert(ignore_permissions=True)
+	return response(result, request_id=context.request_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def issue_document_download(ticket_id: str, document_id: str, reason: str | None = None):
+	context = get_request_context("view_ticket")
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	justification = str(reason or "").strip()
+	if len(justification) < 10:
+		frappe.throw(_("Informe um motivo com ao menos 10 caracteres."), frappe.ValidationError)
+	document = frappe.get_doc("Univesp Public Document", document_id)
+	if document.ticket != name or document.scan_status != "clean":
+		raise frappe.PermissionError(_("Documento indisponível."))
+	token = secrets.token_urlsafe(32)
+	frappe.cache().set_value(
+		f"univesp:public-document-download:{token}",
+		json.dumps(
+			{
+				"document_id": document.name,
+				"ticket": name,
+				"actor_email": context.actor_email or context.email,
+				"reason": justification,
+			}
+		),
+		expires_in_sec=300,
+	)
+	return response(
+		{
+			"url": f"/api/app/v1/tickets/{name}/documents/{document.name}/content?token={token}",
+			"expires_in_seconds": 300,
+		},
+		request_id=context.request_id,
+	)
+
+
+@frappe.whitelist(methods=["GET"])
+def download_document(ticket_id: str, document_id: str, token: str):
+	context = get_request_context("view_ticket")
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	cache_key = f"univesp:public-document-download:{str(token or '').strip()}"
+	raw = frappe.cache().get_value(cache_key)
+	if not raw:
+		raise frappe.PermissionError(_("Link expirado ou inválido."))
+	grant = json.loads(raw)
+	if (
+		grant.get("document_id") != document_id
+		or grant.get("ticket") != name
+		or grant.get("actor_email") != (context.actor_email or context.email)
+	):
+		raise frappe.PermissionError(_("Link expirado ou inválido."))
+	frappe.cache().delete_value(cache_key)
+	document = frappe.get_doc("Univesp Public Document", document_id)
+	if document.ticket != name or document.scan_status != "clean":
+		raise frappe.PermissionError(_("Documento indisponível."))
+	file_doc = frappe.get_doc("File", document.file)
+	filename, content = get_file(file_doc.file_url)
+	frappe.get_doc(
+		{
+			"doctype": "Univesp Access Audit",
+			"actor_email": context.actor_email or context.email,
+			"target_email": frappe.db.get_value("HD Ticket", name, "custom_student_email")
+			or "publico@univesp.br",
+			"operation": "public_document_downloaded",
+			"reason": grant.get("reason"),
+			"before_json": "",
+			"after_json": json.dumps({"ticket": name, "document": document.name}),
+			"request_id": context.request_id,
+			"event_at": now_datetime(),
+		}
+	).insert(ignore_permissions=True)
+	frappe.local.response.filename = filename
+	frappe.local.response.filecontent = content
+	frappe.local.response.type = "download"
+	frappe.local.response.display_content_as = "attachment"
+
+
+@frappe.whitelist(methods=["POST"])
 def assign(
 	ticket_id: str,
 	assignee: str | None = None,
@@ -339,6 +517,37 @@ def transition(ticket_id: str, status: str | None = None, message: str | None = 
 	return response(_serialize_ticket(doc), request_id=context.request_id)
 
 
+@frappe.whitelist(methods=["POST"])
+def escalate_to_internal(
+	ticket_id: str,
+	message: str | None = None,
+	destination_area: str | None = None,
+):
+	"""BPO regional encaminha caso para atendimento interno (Fase B stub)."""
+	context = get_request_context("escalate_to_internal")
+	if context.profile_key not in {"op_externo", "admin_central"}:
+		raise frappe.PermissionError(_("Seu perfil nao pode escalar para atendimento interno."))
+	name = resolve_ticket_name(ticket_id)
+	ensure_ticket_access(name, context)
+	doc = frappe.get_doc("HD Ticket", name)
+	body = _payload()
+	note = str(message or body.get("message") or "").strip()
+	if len(note) < 3:
+		frappe.throw(_("Registre o motivo da escalacao."), frappe.ValidationError)
+	next_area = str(destination_area or body.get("destination_area") or "Triagem Central").strip()
+	if not next_area:
+		frappe.throw(_("Area de destino obrigatoria."), frappe.ValidationError)
+	_move_to_status(doc, "waiting_internal")
+	doc.custom_univesp_area = next_area
+	doc.custom_request_id = context.request_id
+	doc.save(ignore_permissions=True)
+	doc.add_comment("Comment", text=note)
+	result = _serialize_ticket(doc)
+	result["timeline"] = _ticket_timeline(name)
+	result["attachments"] = _ticket_attachments(name)
+	return response(result, request_id=context.request_id)
+
+
 def _payload(value=None):
 	if isinstance(value, dict):
 		return value
@@ -365,6 +574,30 @@ def _public_protocol(name, creation):
 	return f"UVSP-{date_value:%Y%m%d}-{str(name).zfill(6)}"
 
 
+def _parse_json_field(raw):
+	if not raw:
+		return {}
+	if isinstance(raw, dict):
+		return raw
+	try:
+		parsed = json.loads(raw)
+		return parsed if isinstance(parsed, dict) else {}
+	except (TypeError, json.JSONDecodeError):
+		return {}
+
+
+def _parse_json_list(raw):
+	if not raw:
+		return []
+	if isinstance(raw, list):
+		return raw
+	try:
+		parsed = json.loads(raw)
+		return parsed if isinstance(parsed, list) else []
+	except (TypeError, json.JSONDecodeError):
+		return []
+
+
 def _serialize_ticket(ticket):
 	value = ticket.as_dict() if hasattr(ticket, "as_dict") else ticket
 	return {
@@ -376,6 +609,17 @@ def _serialize_ticket(ticket):
 		"status_label": STATUS_LABELS.get(value.get("custom_univesp_status_code") or "open", "Aberto"),
 		"priority": value.get("priority"),
 		"source": value.get("custom_univesp_source"),
+		"channel_metadata": _parse_json_field(value.get("custom_channel_metadata_json")),
+		"ai_suggestion": _parse_json_field(value.get("custom_ai_suggestion_json")),
+		"context": _parse_json_field(value.get("custom_univesp_context_json")),
+		"knowledge": {
+			"bundle_id": value.get("custom_source_bundle_id") or "",
+			"bundle_version_id": value.get("custom_source_bundle_version_id") or "",
+			"node_id": value.get("custom_source_node_id") or "",
+			"path": _parse_json_list(value.get("custom_source_path_json")),
+			"audience": value.get("custom_source_audience") or "",
+			"faq_session_id": value.get("custom_faq_session_id") or "",
+		},
 		"queue": value.get("custom_univesp_queue"),
 		"area": value.get("custom_univesp_area"),
 		"assignee": value.get("custom_univesp_assignee_name") or "",
@@ -494,9 +738,23 @@ def _ticket_timeline(ticket_name):
 
 
 def _ticket_attachments(ticket_name):
-	return frappe.get_all(
+	rows = frappe.get_all(
 		"File",
 		filters={"attached_to_doctype": "HD Ticket", "attached_to_name": ticket_name, "is_private": 1},
 		fields=["name as id", "file_name", "file_size", "creation as created_at"],
 		order_by="creation asc",
 	)
+	public_documents = {
+		row.file: row
+		for row in frappe.get_all(
+			"Univesp Public Document",
+			filters={"ticket": ticket_name},
+			fields=["name", "file", "scan_status"],
+			limit_page_length=0,
+		)
+	}
+	for row in rows:
+		document = public_documents.get(row.id)
+		row["public_document_id"] = document.name if document else ""
+		row["security_status"] = document.scan_status if document else "private"
+	return rows

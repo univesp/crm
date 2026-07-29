@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "ops" / "cloudrun" / "nginx" / "frappe.conf.template"
 DEPLOY = ROOT / "ops" / "cloudrun" / "deploy.sh"
 DEPLOY_GATEWAY = ROOT / "ops" / "cloudrun" / "deploy-sso-gateway.sh"
+DEPLOY_FAQ_SERVICES = ROOT / "ops" / "cloudrun" / "deploy-faq-services.sh"
 COMMON = ROOT / "ops" / "cloudrun" / "scripts" / "common.sh"
 CONTAINERFILE = ROOT / "ops" / "cloudrun" / "Containerfile"
 ROLLBACK = ROOT / "ops" / "cloudrun" / "rollback.sh"
@@ -19,6 +20,7 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		cls.config = CONFIG.read_text(encoding="utf-8")
 		cls.deploy = DEPLOY.read_text(encoding="utf-8")
 		cls.deploy_gateway = DEPLOY_GATEWAY.read_text(encoding="utf-8")
+		cls.deploy_faq_services = DEPLOY_FAQ_SERVICES.read_text(encoding="utf-8")
 		cls.common = COMMON.read_text(encoding="utf-8")
 		cls.containerfile = CONTAINERFILE.read_text(encoding="utf-8")
 		cls.rollback = ROLLBACK.read_text(encoding="utf-8")
@@ -87,10 +89,34 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		self.assertIn('-z "${SECRET_VALUE}"', self.sync_secret)
 
 	def test_deploy_requires_https_gateway_origin(self):
-		self.assertIn("SSO_GATEWAY_ORIGIN and FRAPPE_SERVICE_USER_EMAIL are required.", self.deploy)
+		for required in (
+			"SSO_GATEWAY_ORIGIN",
+			"ANTIMALWARE_ENDPOINT",
+			"MEDIA_PROCESSOR_ENDPOINT",
+			"FRAPPE_SERVICE_USER_EMAIL",
+			"INITIAL_ADMIN_EMAIL",
+		):
+			self.assertIn(required, self.deploy)
 		self.assertIn("https://*)", self.deploy)
 		self.assertIn("UNIVESP_BFF_SHARED_SECRET", self.deploy)
 		self.assertIn("UNIVESP_EDGE_SHARED_SECRET", self.deploy)
+
+	def test_private_faq_services_are_built_deployed_and_authenticated(self):
+		self.assertIn("Build and push FAQ antimalware image", self.workflow)
+		self.assertIn("Build and push FAQ media processor image", self.workflow)
+		self.assertIn("./ops/cloudrun/deploy-faq-services.sh", self.workflow)
+		self.assertIn("--no-allow-unauthenticated", self.deploy_faq_services)
+		self.assertIn("roles/run.invoker", self.deploy_faq_services)
+		self.assertIn("ANTIMALWARE_TOKEN_SECRET_NAME", self.deploy_faq_services)
+		self.assertIn("MEDIA_PROCESSOR_TOKEN_SECRET_NAME", self.deploy_faq_services)
+
+	def test_frappe_uses_mounted_gcs_and_private_faq_service_secrets(self):
+		self.assertIn("GCS_MOUNTED_STORAGE=true", self.deploy)
+		self.assertIn("GCS_BUCKET=${SITES_BUCKET}", self.deploy)
+		self.assertIn("FAQ_CLOUD_RUN_IAM_AUTH=true", self.deploy)
+		self.assertIn("ANTIMALWARE_TOKEN=", self.deploy)
+		self.assertIn("MEDIA_PROCESSOR_TOKEN=", self.deploy)
+		self.assertIn("PUBLIC_UPLOAD_TTL_HOURS=", self.deploy)
 
 	def test_workflow_requires_manual_confirmation_on_academic_branch(self):
 		self.assertIn("workflow_dispatch:", self.workflow)

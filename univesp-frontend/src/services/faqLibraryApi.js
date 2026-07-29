@@ -10,6 +10,7 @@ import {
 } from '@/services/faqBuilderHybridRuntime'
 
 let institutionalVersion = ''
+let persistQueue = Promise.resolve()
 
 function replaceReactiveObject(target, source) {
   Object.keys(target || {}).forEach((key) => delete target[key])
@@ -33,29 +34,35 @@ export async function hydrateFaqLibrary(target, editorName = 'Admin local') {
   )
   const library = initialized ? remote : createFaqBuilderBundleLibrary(editorName)
   replaceReactiveObject(target, library)
-  saveFaqBuilderBundleLibraryLocal(library, { skipNormalize: true })
   return { source: 'institutional', version: institutionalVersion, initialized }
 }
 
-export async function persistFaqLibrary(target, reason = 'Atualizacao da biblioteca FAQ') {
-  saveFaqBuilderBundleLibraryLocal(target, { skipNormalize: true })
+export function persistFaqLibrary(target, reason = 'Atualizacao da biblioteca FAQ') {
+  const snapshot = JSON.parse(JSON.stringify(target || {}))
   if (isMockRuntimeEnabled()) {
-    return { source: 'mock', version: '', library: target }
+    saveFaqBuilderBundleLibraryLocal(snapshot, { skipNormalize: true })
+    return Promise.resolve({ source: 'mock', version: '', library: snapshot })
   }
 
-  const response = await updateKnowledgeLibrary({
-    library: JSON.parse(JSON.stringify(target || {})),
-    version: institutionalVersion,
-    reason,
-  })
-  institutionalVersion = String(response.data?.version || institutionalVersion)
-  return {
-    source: 'institutional',
-    version: institutionalVersion,
-    library: response.data?.library || target,
-  }
+  persistQueue = persistQueue
+    .catch(() => null)
+    .then(async () => {
+      const response = await updateKnowledgeLibrary({
+        library: snapshot,
+        version: institutionalVersion,
+        reason,
+      })
+      institutionalVersion = String(response.data?.version || institutionalVersion)
+      return {
+        source: 'institutional',
+        version: institutionalVersion,
+        library: response.data?.library || snapshot,
+      }
+    })
+  return persistQueue
 }
 
 export function resetFaqLibraryVersion() {
   institutionalVersion = ''
+  persistQueue = Promise.resolve()
 }

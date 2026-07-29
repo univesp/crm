@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 
@@ -21,7 +21,7 @@ const hasWarning = computed(() => props.data?.issueSeverity === 'warning')
 const cardStatusLabel = computed(() => {
   if (hasError.value) return 'Erro estrutural'
   if (hasWarning.value) return 'Revisar alerta'
-  return props.data?.nodeMode === 'final' ? 'No final' : 'No de caminho'
+  return props.data?.nodeMode === 'final' ? 'Resposta final' : 'Etapa da orientacao'
 })
 const cardToneClass = computed(() => {
   if (hasError.value) {
@@ -57,7 +57,7 @@ function addFinalChild() {
 
 <template>
   <div
-    class="group relative w-[278px] rounded-[16px] border px-3.5 py-3 shadow-sm transition"
+    class="group relative w-[278px] rounded-[8px] border px-3.5 py-3 shadow-sm transition"
     :class="[
       cardToneClass,
       selected ? 'ring-2 ring-[rgba(8,115,145,0.26)]' : '',
@@ -68,7 +68,7 @@ function addFinalChild() {
     <Handle id="target-top" :position="Position.Top" type="target" />
 
     <div class="flex items-center justify-between gap-2">
-      <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <p class="text-[10px] font-semibold uppercase tracking-normal text-slate-500">
         {{ modeLabel }}
       </p>
       <span

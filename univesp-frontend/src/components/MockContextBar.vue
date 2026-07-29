@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 
 import { summarizeScopeForBar } from '@/services/mockContextRuntime'
@@ -11,6 +11,9 @@ const mockContext = computed(() => auth.mockContext)
 const isStudentShell = computed(() => mockContext.value.isStudentShell)
 const scopeSummary = computed(() => summarizeScopeForBar(mockContext.value))
 const showLocalBadge = computed(() => Boolean(mockContext.value.mockMode))
+const previewBadgeLabel = computed(() =>
+  mockContext.value.entryOrigin?.includes('Preview homolog') ? 'Preview homolog' : 'Ambiente local',
+)
 
 const primaryIdentity = computed(() => {
   if (isStudentShell.value) {
@@ -59,7 +62,7 @@ const secondarySummaryItems = computed(() => {
 <template>
   <section
     :class="[
-      'mb-3 rounded-[16px] border border-slate-200 bg-white/84 shadow-[0_6px_16px_rgba(16,18,20,0.035)]',
+      'mb-3 rounded-[8px] border border-slate-200 bg-white/84 shadow-sm',
       isStudentShell ? 'px-3 py-2' : 'px-3.5 py-2.5',
     ]"
     aria-label="Contexto local do ambiente"
@@ -70,7 +73,7 @@ const secondarySummaryItems = computed(() => {
           v-if="showLocalBadge"
           class="rounded-full border border-[var(--color-primary-soft)] bg-[var(--color-primary-soft)]/55 px-2.5 py-0.5 font-medium text-[var(--color-primary-dark)]"
         >
-          Ambiente local
+          {{ previewBadgeLabel }}
         </span>
         <span
           class="max-w-full truncate rounded-full bg-slate-100 px-2.5 py-0.5"
@@ -105,9 +108,9 @@ const secondarySummaryItems = computed(() => {
         <article
           v-for="item in barItems"
           :key="item.id"
-          class="rounded-[12px] bg-slate-50/90 px-3 py-2.5"
+          class="rounded-[8px] bg-slate-50/90 px-3 py-2.5"
         >
-          <p class="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
+          <p class="text-[11px] font-semibold tracking-normal text-slate-500">
             {{ item.label }}
           </p>
           <p class="mt-1 text-sm font-semibold text-slate-900">

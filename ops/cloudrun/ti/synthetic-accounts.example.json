@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "environment": "homolog",
+  "accounts": [
+    {
+      "profile": "student",
+      "frappe_profile_key": "aluno",
+      "frappe_scopes": {},
+      "idp": "azure_academico",
+      "subject_email": "REPLACE_student@univesp.br",
+      "owner": "REPLACE_TI_OWNER",
+      "expires_on": "REPLACE_YYYY-MM-DD",
+      "claims": {"academic_id": "REPLACE_ACADEMIC_ID"},
+      "expected_scopes": ["own_tickets", "published_faq"]
+    },
+    {
+      "profile": "operator",
+      "frappe_profile_key": "op",
+      "frappe_scopes": {"queues": ["REPLACE_QUEUE"]},
+      "idp": "azure_admin",
+      "subject_email": "REPLACE_operator@univesp.br",
+      "owner": "REPLACE_TI_OWNER",
+      "expires_on": "REPLACE_YYYY-MM-DD",
+      "claims": {"groups": ["REPLACE_OPERATOR_GROUP"]},
+      "expected_scopes": ["assigned_queues", "claim", "reply"]
+    },
+    {
+      "profile": "area",
+      "frappe_profile_key": "analista_area",
+      "frappe_scopes": {"areas": ["REPLACE_AREA_CODE"]},
+      "idp": "azure_admin",
+      "subject_email": "REPLACE_area@univesp.br",
+      "owner": "REPLACE_TI_OWNER",
+      "expires_on": "REPLACE_YYYY-MM-DD",
+      "claims": {"area": "REPLACE_AREA_CODE"},
+      "expected_scopes": ["own_area_tickets"]
+    },
+    {
+      "profile": "admin",
+      "frappe_profile_key": "admin_central",
+      "frappe_scopes": {},
+      "idp": "azure_admin",
+      "subject_email": "REPLACE_admin@univesp.br",
+      "owner": "REPLACE_TI_OWNER",
+      "expires_on": "REPLACE_YYYY-MM-DD",
+      "claims": {"groups": ["REPLACE_ADMIN_GROUP"]},
+      "expected_scopes": ["catalogs", "runtime_settings", "faq_publish"]
+    }
+  ]
+}

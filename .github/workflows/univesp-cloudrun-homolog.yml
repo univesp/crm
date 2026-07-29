@@ -25,15 +25,35 @@ jobs:
       name: homolog
       url: https://${{ vars.PUBLIC_DOMAIN }}
     env:
+      DEPLOYMENT_ENV: homolog
+      FAQ_V3_HOMOLOG_PILOT_ENABLED: "true"
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
       ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY }}
       IMAGE_NAME: ${{ vars.IMAGE_NAME }}
       GATEWAY_IMAGE_NAME: ${{ vars.GATEWAY_IMAGE_NAME }}
       GATEWAY_SERVICE: ${{ vars.GATEWAY_SERVICE }}
+      ANTIMALWARE_IMAGE_NAME: ${{ vars.ANTIMALWARE_IMAGE_NAME }}
+      MEDIA_PROCESSOR_IMAGE_NAME: ${{ vars.MEDIA_PROCESSOR_IMAGE_NAME }}
+      ANTIMALWARE_SERVICE: ${{ vars.ANTIMALWARE_SERVICE }}
+      MEDIA_PROCESSOR_SERVICE: ${{ vars.MEDIA_PROCESSOR_SERVICE }}
+      ANTIMALWARE_TOKEN_SECRET_NAME: ${{ vars.ANTIMALWARE_TOKEN_SECRET_NAME }}
+      MEDIA_PROCESSOR_TOKEN_SECRET_NAME: ${{ vars.MEDIA_PROCESSOR_TOKEN_SECRET_NAME }}
+      INGRESS_SHARED_SECRET_NAME: ${{ vars.INGRESS_SHARED_SECRET_NAME }}
+      PUBLIC_EMAIL_REPLY_SECRET_NAME: ${{ vars.PUBLIC_EMAIL_REPLY_SECRET_NAME }}
+      SMTP_PASSWORD_SECRET_NAME: ${{ vars.SMTP_PASSWORD_SECRET_NAME }}
       FRAPPE_SITE_NAME: ${{ vars.FRAPPE_SITE_NAME }}
       FRAPPE_SERVICE_USER_EMAIL: ${{ vars.FRAPPE_SERVICE_USER_EMAIL }}
+      INITIAL_ADMIN_EMAIL: ${{ vars.INITIAL_ADMIN_EMAIL }}
       PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
+      PUBLIC_REPLY_DOMAIN: ${{ vars.PUBLIC_REPLY_DOMAIN || vars.PUBLIC_DOMAIN }}
+      SMTP_HOST: ${{ vars.SMTP_HOST }}
+      SMTP_PORT: ${{ vars.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
+      SMTP_FROM_EMAIL: ${{ vars.SMTP_FROM_EMAIL || vars.FRAPPE_SERVICE_USER_EMAIL }}
+      SMTP_FROM_NAME: ${{ vars.SMTP_FROM_NAME || 'Atendimento UNIVESP' }}
+      SMTP_USE_TLS: ${{ vars.SMTP_USE_TLS || 'true' }}
+      SMTP_USE_SSL: ${{ vars.SMTP_USE_SSL || 'false' }}
       DOMAIN_MAPPING_MODE: none
       DB_TYPE: ${{ vars.DB_TYPE }}
       DB_SETUP_MODE: ${{ vars.DB_SETUP_MODE }}
@@ -91,20 +111,23 @@ jobs:
           AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
           AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
           SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
+          SMTP_PASSWORD_VALUE: ${{ secrets.SMTP_PASSWORD }}
         run: |
           required_vars=(
             GCP_PROJECT_ID GCP_REGION ARTIFACT_REPOSITORY FRAPPE_SITE_NAME
-            FRAPPE_SERVICE_USER_EMAIL PUBLIC_DOMAIN DB_TYPE DB_SETUP_MODE DB_NAME DB_USER
+            FRAPPE_SERVICE_USER_EMAIL INITIAL_ADMIN_EMAIL PUBLIC_DOMAIN DB_TYPE DB_SETUP_MODE DB_NAME DB_USER
             CLOUDSQL_INSTANCE SITES_BUCKET VPC_CONNECTOR CLOUDRUN_RUNTIME_SERVICE_ACCOUNT
             AZURE_ADMIN_CLIENT_ID AZURE_ADMIN_TENANT_ID
             AZURE_ACADEMICO_CLIENT_ID AZURE_ACADEMICO_TENANT_ID
             SAML_IDP_SSO_URL SAML_ENTITY_ID
+            PUBLIC_REPLY_DOMAIN SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_FROM_EMAIL
           )
           required_secrets=(
             DB_PASSWORD_VALUE ADMIN_PASSWORD_VALUE REDIS_CACHE_VALUE REDIS_QUEUE_VALUE
             REDIS_SOCKETIO_VALUE BFF_SHARED_SECRET_VALUE EDGE_SHARED_SECRET_VALUE
             FRAPPE_API_KEY_VALUE FRAPPE_API_SECRET_VALUE GATEWAY_SESSION_SECRET_VALUE
             GATEWAY_JWT_SECRET_VALUE
+            SMTP_PASSWORD_VALUE
           )
           for name in "${required_vars[@]}" "${required_secrets[@]}"; do
             if [[ -z "${!name:-}" ]]; then
@@ -162,6 +185,7 @@ jobs:
           AZURE_ADMIN_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ADMIN_CLIENT_SECRET }}
           AZURE_ACADEMICO_CLIENT_SECRET_VALUE: ${{ secrets.AZURE_ACADEMICO_CLIENT_SECRET }}
           SAML_IDP_CERT_VALUE: ${{ secrets.SAML_IDP_CERT }}
+          SMTP_PASSWORD_VALUE: ${{ secrets.SMTP_PASSWORD }}
         run: |
           sync_secret() {
             SECRET_NAME="$1" SECRET_VALUE="$2" ./ops/cloudrun/sync_secret.sh
@@ -188,6 +212,18 @@ jobs:
           reuse_or_sync_secret "${AZURE_ADMIN_CLIENT_SECRET_NAME:-crm-homolog-azure-admin-client-secret}" "${AZURE_ADMIN_CLIENT_SECRET_VALUE}"
           reuse_or_sync_secret "${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}" "${AZURE_ACADEMICO_CLIENT_SECRET_VALUE}"
           reuse_or_sync_secret "${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}" "${SAML_IDP_CERT_VALUE}"
+          sync_secret "${SMTP_PASSWORD_SECRET_NAME:-crm-homolog-smtp-password}" "${SMTP_PASSWORD_VALUE}"
+
+      - name: Ensure private FAQ service tokens
+        run: |
+          SECRET_NAME="${ANTIMALWARE_TOKEN_SECRET_NAME:-crm-homolog-antimalware-token}" \
+            ./ops/cloudrun/ensure-random-secret.sh
+          SECRET_NAME="${MEDIA_PROCESSOR_TOKEN_SECRET_NAME:-crm-homolog-media-processor-token}" \
+            ./ops/cloudrun/ensure-random-secret.sh
+          SECRET_NAME="${INGRESS_SHARED_SECRET_NAME:-crm-homolog-ingress-shared-secret}" \
+            ./ops/cloudrun/ensure-random-secret.sh
+          SECRET_NAME="${PUBLIC_EMAIL_REPLY_SECRET_NAME:-crm-homolog-public-email-reply-secret}" \
+            ./ops/cloudrun/ensure-random-secret.sh
 
       - name: Run read-only GCP preflight
         env:
@@ -199,10 +235,16 @@ jobs:
         run: |
           image_name="${IMAGE_NAME:-frappe-crm}"
           gateway_image_name="${GATEWAY_IMAGE_NAME:-crm-sso-gateway}"
+          antimalware_image_name="${ANTIMALWARE_IMAGE_NAME:-crm-faq-antimalware}"
+          media_processor_image_name="${MEDIA_PROCESSOR_IMAGE_NAME:-crm-faq-media-processor}"
           IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${image_name}:${GITHUB_SHA}"
           GATEWAY_IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${gateway_image_name}:${GITHUB_SHA}"
+          ANTIMALWARE_IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${antimalware_image_name}:${GITHUB_SHA}"
+          MEDIA_PROCESSOR_IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${media_processor_image_name}:${GITHUB_SHA}"
           echo "image_uri=${IMAGE_URI}" >> "${GITHUB_OUTPUT}"
           echo "gateway_image_uri=${GATEWAY_IMAGE_URI}" >> "${GITHUB_OUTPUT}"
+          echo "antimalware_image_uri=${ANTIMALWARE_IMAGE_URI}" >> "${GITHUB_OUTPUT}"
+          echo "media_processor_image_uri=${MEDIA_PROCESSOR_IMAGE_URI}" >> "${GITHUB_OUTPUT}"
           APPS_JSON=$(jq -cn \
             --arg crm_url "https://github.com/${GITHUB_REPOSITORY}" \
             --arg crm_branch "${GITHUB_REF_NAME}" \
@@ -220,6 +262,8 @@ jobs:
             FRAPPE_BRANCH=version-16
             HELPDESK_REF=6b423f8fba6d4c7f8ff5db56f197243f6549d450
             APPS_JSON_BASE64=${{ steps.meta.outputs.apps_json_base64 }}
+            VITE_ENABLE_PRODUCTION_SIMULATOR=${{ vars.VITE_ENABLE_PRODUCTION_SIMULATOR || 'false' }}
+            VITE_ENABLE_CUSTOM_PERMISSION_PROFILES=${{ vars.VITE_ENABLE_CUSTOM_PERMISSION_PROFILES || 'false' }}
 
       - name: Build and push SSO Gateway image
         uses: docker/build-push-action@v6
@@ -229,11 +273,29 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.gateway_image_uri }}
 
+      - name: Build and push FAQ antimalware image
+        uses: docker/build-push-action@v6
+        with:
+          context: ops/antimalware
+          file: ops/antimalware/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.antimalware_image_uri }}
+
+      - name: Build and push FAQ media processor image
+        uses: docker/build-push-action@v6
+        with:
+          context: ops/media-processor
+          file: ops/media-processor/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.media_processor_image_uri }}
+
       - name: Deploy SSO Gateway
         env:
           GATEWAY_IMAGE_URI: ${{ steps.meta.outputs.gateway_image_uri }}
           APP_BASE_URL: https://${{ vars.PUBLIC_DOMAIN }}
           FRAPPE_ORIGIN: https://${{ vars.PUBLIC_DOMAIN }}
+          ENABLE_PRODUCTION_SIMULATOR: ${{ vars.ENABLE_PRODUCTION_SIMULATOR || 'false' }}
+          ENABLE_CUSTOM_PERMISSION_PROFILES: ${{ vars.ENABLE_CUSTOM_PERMISSION_PROFILES || 'false' }}
         run: |
           ./ops/cloudrun/deploy-sso-gateway.sh
           gateway_service="${GATEWAY_SERVICE:-crm-homolog-sso-gateway}"
@@ -244,11 +306,27 @@ jobs:
           test -n "${gateway_origin}"
           echo "SSO_GATEWAY_ORIGIN=${gateway_origin}" >> "${GITHUB_ENV}"
 
+      - name: Deploy private FAQ processing services
+        env:
+          ANTIMALWARE_IMAGE_URI: ${{ steps.meta.outputs.antimalware_image_uri }}
+          MEDIA_PROCESSOR_IMAGE_URI: ${{ steps.meta.outputs.media_processor_image_uri }}
+        run: |
+          output=$(./ops/cloudrun/deploy-faq-services.sh)
+          printf '%s\n' "${output}"
+          antimalware_endpoint=$(printf '%s\n' "${output}" | sed -n 's/^ANTIMALWARE_ENDPOINT=//p' | tail -1)
+          media_processor_endpoint=$(printf '%s\n' "${output}" | sed -n 's/^MEDIA_PROCESSOR_ENDPOINT=//p' | tail -1)
+          test -n "${antimalware_endpoint}" && test -n "${media_processor_endpoint}"
+          echo "ANTIMALWARE_ENDPOINT=${antimalware_endpoint}" >> "${GITHUB_ENV}"
+          echo "MEDIA_PROCESSOR_ENDPOINT=${media_processor_endpoint}" >> "${GITHUB_ENV}"
+
       - name: Deploy Frappe services and bootstrap academic apps
         env:
           IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: ./ops/cloudrun/deploy.sh
+
+      - name: Verify FAQ v3 homolog pilot state
+        run: ./ops/cloudrun/verify-faq-v3-pilot.sh
 
       - name: Collect post-deploy homolog evidence
         env:

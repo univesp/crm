@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed } from 'vue'
 
 const props = defineProps({
@@ -35,13 +35,13 @@ const props = defineProps({
 const emit = defineEmits(['select'])
 
 const cardClasses = computed(() => [
-  'group w-full rounded-[24px] border p-4 text-left transition duration-200 focus-visible:outline-none',
+  'group w-full rounded-[8px] border p-4 text-left transition duration-200 focus-visible:outline-none',
   props.highlighted
-    ? 'border-[rgba(209,50,57,0.2)] bg-[linear-gradient(180deg,rgba(252,233,235,0.75),rgba(255,255,255,0.98))] shadow-[0_12px_32px_rgba(209,50,57,0.08)]'
-    : 'border-[rgba(16,18,20,0.08)] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.04)]',
+    ? 'border-[rgba(209,50,57,0.2)] bg-[var(--color-primary-soft)] shadow-sm'
+    : 'border-[rgba(16,18,20,0.08)] bg-white shadow-sm',
   props.active
-    ? 'ring-2 ring-[rgba(209,50,57,0.18)] shadow-[0_14px_30px_rgba(209,50,57,0.12)]'
-    : 'hover:-translate-y-0.5 hover:border-[rgba(209,50,57,0.18)] hover:bg-white',
+    ? 'ring-2 ring-[rgba(209,50,57,0.18)] shadow-sm'
+    : 'hover:bg-slate-50 hover:border-[rgba(209,50,57,0.18)] hover:bg-white',
 ])
 
 function handleSelect() {
@@ -55,7 +55,7 @@ function handleSelect() {
       <div>
         <p
           v-if="eyebrow"
-          class="text-xs font-semibold tracking-[0.12em] text-slate-500"
+          class="text-xs font-semibold tracking-normal text-slate-500"
         >
           {{ eyebrow }}
         </p>
@@ -65,7 +65,7 @@ function handleSelect() {
 
       <span
         v-if="badgeLabel"
-        class="inline-flex shrink-0 rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold tracking-[0.08em] text-[var(--color-primary-dark)]"
+        class="inline-flex shrink-0 rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold tracking-normal text-[var(--color-primary-dark)]"
       >
         {{ badgeLabel }}
       </span>
@@ -82,7 +82,7 @@ function handleSelect() {
     </div>
 
     <div
-      class="mt-4 flex items-center justify-between text-xs font-semibold tracking-[0.12em]"
+      class="mt-4 flex items-center justify-between text-xs font-semibold tracking-normal"
       :class="highlighted ? 'text-[var(--color-primary-dark)]' : 'text-slate-500'"
     >
       <span>{{ highlighted ? 'Tema em destaque' : 'Fluxo guiado' }}</span>

@@ -30,6 +30,23 @@ export function buildSignedContext(user, requestId = randomUUID(), now = Math.fl
     'X-Request-ID': requestId,
   }
 }
+export function buildSignedSimulationContext(simulation, now = Math.floor(Date.now() / 1000)) {
+  if (!simulation) return {}
+  const secret = required('UNIVESP_BFF_SHARED_SECRET')
+  const encoded = Buffer.from(JSON.stringify(simulation)).toString('base64url')
+  const timestamp = String(now)
+  const signature = createHmac('sha256', secret)
+    .update(`${timestamp}.simulation.${encoded}`)
+    .digest('hex')
+
+  return {
+    'X-Univesp-Simulation-Context': encoded,
+    'X-Univesp-Simulation-Timestamp': timestamp,
+    'X-Univesp-Simulation-Signature': signature,
+  }
+}
+
+
 
 export async function callFrappe(method, options = {}) {
   const requestId = options.requestId || randomUUID()
@@ -46,6 +63,8 @@ export async function callFrappe(method, options = {}) {
     'X-Frappe-Site-Name': process.env.FRAPPE_SITE_NAME || 'crm.localhost',
     ...buildSignedContext(options.user || {}, requestId),
   }
+  Object.assign(headers, buildSignedSimulationContext(options.simulation))
+  Object.assign(headers, options.headers || {})
   let body
   if (options.rawBody) {
     body = options.rawBody
@@ -76,6 +95,7 @@ export async function callFrappe(method, options = {}) {
     clearTimeout(timeout)
   }
 
+  if (options.rawResponse && response.ok) return response
   const payload = await parsePayload(response)
   if (!response.ok) {
     throw new FrappeApiError(extractMessage(payload), {
@@ -112,13 +132,14 @@ function extractMessage(payload) {
 }
 
 function publicStatus(status) {
-  return [400, 401, 403, 404, 409, 413, 417, 422, 429].includes(status) ? status : 502
+  return [400, 401, 403, 404, 409, 410, 413, 417, 422, 429].includes(status) ? status : 502
 }
 
 function frappeErrorCode(status, payload) {
 	const serialized = JSON.stringify(payload || {})
-	if (/UnivespConflictError/i.test(serialized)) return 'CONFLICT'
-	if (/UnivespValidationError/i.test(serialized)) return 'VALIDATION_ERROR'
+	if (/UnivespConflictError|KnowledgeV3ConflictError/i.test(serialized)) return 'CONFLICT'
+	if (/UnivespValidationError|KnowledgeV3ValidationError/i.test(serialized)) return 'VALIDATION_ERROR'
+	if (/KnowledgeSessionExpiredError/i.test(serialized)) return 'FAQ_SESSION_EXPIRED'
 	if (/desativado no Atendimento/i.test(serialized)) return 'ACCESS_DISABLED'
 	if (/sem perfil ativo/i.test(serialized)) return 'PROFILE_NOT_ASSIGNED'
   if (status === 401) return 'AUTHENTICATION_REQUIRED'

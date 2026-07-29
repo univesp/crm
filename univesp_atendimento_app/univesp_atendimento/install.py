@@ -75,11 +75,26 @@ def setup_schema():
 					"insert_after": "custom_student_email",
 				},
 				{
+					"fieldname": "custom_visitor_phone",
+					"label": "Celular para contato",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_student_name",
+				},
+				{
+					"fieldname": "custom_visitor_cpf",
+					"label": "CPF protegido",
+					"fieldtype": "Password",
+					"read_only": 1,
+					"hidden": 1,
+					"insert_after": "custom_visitor_phone",
+				},
+				{
 					"fieldname": "custom_student_ra",
 					"label": "RA",
 					"fieldtype": "Data",
 					"in_standard_filter": 1,
-					"insert_after": "custom_student_name",
+					"insert_after": "custom_visitor_cpf",
 				},
 				{
 					"fieldname": "custom_student_polo",
@@ -152,11 +167,46 @@ def setup_schema():
 					"insert_after": "custom_source_bundle_version_id",
 				},
 				{
+					"fieldname": "custom_source_path_json",
+					"label": "Caminho da FAQ",
+					"fieldtype": "Long Text",
+					"read_only": 1,
+					"insert_after": "custom_source_node_id",
+				},
+				{
+					"fieldname": "custom_source_audience",
+					"label": "Camada da FAQ",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_source_path_json",
+				},
+				{
+					"fieldname": "custom_faq_session_id",
+					"label": "Sessão da FAQ",
+					"fieldtype": "Data",
+					"read_only": 1,
+					"insert_after": "custom_source_audience",
+				},
+				{
 					"fieldname": "custom_request_id",
 					"label": "Request ID",
 					"fieldtype": "Data",
 					"read_only": 1,
-					"insert_after": "custom_source_node_id",
+					"insert_after": "custom_faq_session_id",
+				},
+				{
+					"fieldname": "custom_channel_metadata_json",
+					"label": "Metadados do canal",
+					"fieldtype": "Long Text",
+					"read_only": 1,
+					"insert_after": "custom_request_id",
+				},
+				{
+					"fieldname": "custom_ai_suggestion_json",
+					"label": "Sugestao IA",
+					"fieldtype": "Long Text",
+					"read_only": 1,
+					"insert_after": "custom_channel_metadata_json",
 				},
 			],
 		},
@@ -187,3 +237,49 @@ def setup_schema():
 				frappe.as_json(actions_for_profile(profile.profile_key)),
 				update_modified=False,
 			)
+
+	seed_knowledge_v3_configuration()
+
+
+def seed_knowledge_v3_configuration():
+	if frappe.db.exists("DocType", "Univesp Runtime Settings"):
+		settings = frappe.get_single("Univesp Runtime Settings")
+		settings.institutional_timezone = settings.institutional_timezone or "America/Sao_Paulo"
+		settings.knowledge_session_ttl_seconds = settings.knowledge_session_ttl_seconds or 7200
+		settings.default_suggestion_sla_hours = settings.default_suggestion_sla_hours or 72
+		settings.save(ignore_permissions=True)
+
+	if not frappe.db.exists("DocType", "Univesp Knowledge Routing Pattern"):
+		return
+	active_queue_keys = set(
+		frappe.get_all("HD Team", filters={"disabled": 0}, pluck="name", limit_page_length=0)
+	)
+	allowed_routing_keys = sorted(active_queue_keys | {"atendimento-geral", "sra"})
+	patterns = (
+		("op_then_area", "OP → Área/Analista", 0, ["op", "area"]),
+		("op_bpo_area", "OP → BPO → Área", 1, ["op", "bpo", "area"]),
+		("bpo_op_area", "BPO → OP → Área", 1, ["bpo", "op", "area"]),
+		("direct_area", "Área direta", 0, ["area"]),
+		("institutional_triage", "Triagem Central → equipe", 0, ["triage", "area"]),
+	)
+	for pattern_key, label, bpo_enabled, steps in patterns:
+		if frappe.db.exists("Univesp Knowledge Routing Pattern", pattern_key):
+			doc = frappe.get_doc("Univesp Knowledge Routing Pattern", pattern_key)
+			existing_keys = set(frappe.parse_json(doc.allowed_routing_keys_json or "[]"))
+			next_keys = existing_keys | set(allowed_routing_keys)
+			if next_keys != existing_keys:
+				doc.allowed_routing_keys_json = frappe.as_json(sorted(next_keys))
+				doc.save(ignore_permissions=True)
+			continue
+		frappe.get_doc(
+			{
+				"doctype": "Univesp Knowledge Routing Pattern",
+				"pattern_key": pattern_key,
+				"label": label,
+				"bpo_enabled": bpo_enabled,
+				"steps_json": frappe.as_json(steps),
+				"allowed_routing_keys_json": frappe.as_json(allowed_routing_keys),
+				"institutional_exceptions_json": frappe.as_json(["provas", "critica"]),
+				"active": 1,
+			}
+		).insert(ignore_permissions=True)

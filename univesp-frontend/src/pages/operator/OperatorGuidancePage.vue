@@ -1,8 +1,8 @@
-<script setup>
+﻿<script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { buildStudentFaqHomeEntries, buildStudentFaqRuntime } from '@/services/faqRuntime'
+import { buildOperatorFaqHomeEntries, buildOperatorFaqRuntime } from '@/services/faqRuntime'
 import { buildOperatorPlaybookGuide } from '@/services/operatorQueueRuntime'
 
 const route = useRoute()
@@ -19,7 +19,7 @@ function normalizeText(value = '') {
     .replace(/[\u0300-\u036f]/g, '')
 }
 
-const faqRuntime = computed(() => buildStudentFaqRuntime())
+const faqRuntime = computed(() => buildOperatorFaqRuntime())
 const faqNodeIndex = computed(() => {
   const index = new Map()
 
@@ -35,7 +35,7 @@ const faqNodeIndex = computed(() => {
 })
 
 const faqLeafNodes = computed(() => [...faqNodeIndex.value.values()].filter((node) => !node.children?.length))
-const rootEntries = computed(() => buildStudentFaqHomeEntries())
+const rootEntries = computed(() => buildOperatorFaqHomeEntries())
 const activeNode = computed(() =>
   selectedNodeId.value ? faqNodeIndex.value.get(selectedNodeId.value) || null : null,
 )
@@ -261,7 +261,7 @@ watch(
 
 <template>
   <div class="grid gap-4">
-    <section class="rounded-[16px] border border-slate-200 bg-white px-4 py-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-4 py-4">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[760px]">
           <p class="text-sm font-semibold text-slate-900">
@@ -292,13 +292,13 @@ watch(
             <input
               v-model="searchQuery"
               type="search"
-              class="w-full rounded-[14px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+              class="w-full rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
               placeholder="Tema, subtema ou orientacao"
             />
             <button
               v-if="searchQuery.trim()"
               type="button"
-              class="rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               @click="clearSearch"
             >
               Limpar
@@ -323,7 +323,7 @@ watch(
       </div>
     </section>
 
-    <section class="overflow-hidden rounded-[16px] border border-slate-200 bg-white">
+    <section class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white">
       <div v-if="searchQuery.trim()" class="px-5 py-5">
         <div class="flex items-center justify-between gap-3">
           <div>
@@ -343,7 +343,7 @@ watch(
             :key="result.id"
             type="button"
             :class="[
-              'rounded-[14px] border px-4 py-4 text-left transition hover:bg-slate-50',
+              'rounded-[8px] border px-4 py-4 text-left transition hover:bg-slate-50',
               result.highlighted
                 ? 'border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.04)]'
                 : 'border-slate-200 bg-white',
@@ -374,7 +374,7 @@ watch(
           </button>
         </div>
 
-        <div v-else class="mt-4 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+        <div v-else class="mt-4 rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
           <p class="text-sm font-semibold text-slate-900">Nenhuma orientacao encontrada</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
             Tente buscar por tema, subtema ou parte do nome do assunto.
@@ -389,7 +389,7 @@ watch(
             :key="option.id"
             type="button"
             :class="[
-              'rounded-[14px] border px-4 py-4 text-left transition hover:bg-slate-50',
+              'rounded-[8px] border px-4 py-4 text-left transition hover:bg-slate-50',
               option.highlighted
                 ? 'border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.04)]'
                 : 'border-slate-200 bg-white',
@@ -433,7 +433,7 @@ watch(
 
       <template v-else>
         <div class="px-5 py-5">
-          <div class="rounded-[16px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
             <p class="text-sm font-semibold text-slate-900">{{ activeNode.titulo_exibido }}</p>
             <div class="mt-3 flex flex-wrap gap-2">
               <span
@@ -446,13 +446,13 @@ watch(
             </div>
           </div>
 
-          <div class="rounded-[16px] border border-slate-200 bg-slate-50/70 px-4 py-4">
-            <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">FAQ do aluno</p>
+          <div class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <p class="text-xs font-semibold tracking-normal text-slate-500">FAQ do aluno</p>
             <p class="mt-3 text-sm leading-7 text-slate-700">{{ activeNode.resposta }}</p>
           </div>
 
-          <div class="mt-4 rounded-[16px] border border-slate-200 bg-white px-4 py-4">
-            <p class="text-xs font-semibold tracking-[0.12em] text-slate-500">Como o OP deve conduzir</p>
+          <div class="mt-4 rounded-[8px] border border-slate-200 bg-white px-4 py-4">
+            <p class="text-xs font-semibold tracking-normal text-slate-500">Como o OP deve conduzir</p>
 
             <div class="mt-4 grid gap-4">
               <div
@@ -468,7 +468,7 @@ watch(
                 </ul>
               </div>
 
-              <div class="grid gap-2 rounded-[14px] bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
+              <div class="grid gap-2 rounded-[8px] bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
                 <p><span class="font-semibold text-slate-900">Resolver no contato atual:</span> quando a orientacao e a checagem sustentarem uma devolutiva segura.</p>
                 <p><span class="font-semibold text-slate-900">Abrir atendimento:</span> quando a tratativa precisar continuar no portal com registro formal.</p>
               </div>
@@ -478,7 +478,7 @@ watch(
           <div class="mt-5 flex flex-wrap gap-3">
             <RouterLink
               :to="assistedIntakeRoute"
-              class="inline-flex items-center justify-center rounded-[14px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(209,50,57,0.16)]"
+              class="inline-flex items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm"
             >
               Abrir atendimento em nome do aluno
             </RouterLink>

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -10,27 +10,31 @@ const auth = useAuthStore()
 
 const mockContext = computed(() => auth.mockContext)
 const navigationSections = computed(() => buildNavigationSections(mockContext.value))
+const brandLogoUrl = computed(() => {
+  const base = String(import.meta.env.BASE_URL || '/')
+  return `${base}brand/univesp-logo-header.svg`
+})
 
 const shellCopy = computed(() => {
   if (mockContext.value.isStudentShell) {
     return {
       chip: '',
-      title: 'UNIVESP',
-      description: 'Orientacao oficial primeiro. Solicitacao e acompanhamento quando necessario.',
+      title: 'Univesp',
+      description: 'Orientação oficial primeiro. Solicitação e acompanhamento quando necessário.',
     }
   }
 
   if (mockContext.value.isOperationalShell) {
     return {
       chip: '',
-      title: 'UNIVESP',
+      title: 'Univesp',
       description: '',
     }
   }
 
   return {
     chip: '',
-    title: 'CRM Univesp',
+    title: 'Central de Atendimento UNIVESP',
     description: '',
   }
 })
@@ -68,16 +72,16 @@ function isGroupActive(item) {
 function navLinkClass(item) {
   if (mockContext.value.isStudentShell) {
     return [
-      'rounded-[18px] border px-4 py-3 transition',
+      'rounded-[8px] border px-4 py-3 transition',
       isRouteActive(item)
-        ? 'border-[rgba(109,76,255,0.18)] bg-[rgba(109,76,255,0.08)] text-slate-950'
+        ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.08)] text-slate-950'
         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
     ]
   }
 
   if (mockContext.value.isOperationalShell) {
     return [
-      'rounded-[14px] border px-3 py-2.5 transition',
+      'rounded-[8px] border px-3 py-2.5 transition',
       isRouteActive(item)
         ? 'border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.06)] text-slate-950'
         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
@@ -91,18 +95,18 @@ function navLinkClass(item) {
 <template>
   <aside
     :class="[
-      'w-full',
+      'w-full shrink-0',
       mockContext.isStudentShell
-        ? 'lg:sticky lg:top-4 lg:h-fit lg:w-[208px] xl:w-[220px]'
+        ? 'lg:sticky lg:top-4 lg:z-20 lg:h-fit lg:w-[208px] xl:w-[220px]'
         : mockContext.isOperationalShell
-          ? 'lg:sticky lg:top-4 lg:h-fit lg:w-[176px] xl:w-[188px]'
-          : 'lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:w-[300px] xl:w-[320px]',
+          ? 'lg:sticky lg:top-4 lg:z-20 lg:h-fit lg:w-[176px] xl:w-[188px]'
+          : 'lg:sticky lg:top-4 lg:z-20 lg:h-[calc(100vh-2rem)] lg:w-[248px] xl:w-[320px]',
     ]"
   >
     <div
       :class="[
         mockContext.isOperationalShell
-          ? 'flex h-full flex-col gap-3 rounded-[18px] border border-slate-200 bg-white p-3'
+          ? 'flex h-full flex-col gap-3 rounded-[8px] border border-slate-200 bg-white p-3'
           : 'surface-panel rise-in flex h-full flex-col',
         mockContext.isStudentShell ? 'gap-5 p-4' : mockContext.isOperationalShell ? '' : 'gap-5 p-4 md:p-5',
       ]"
@@ -114,14 +118,17 @@ function navLinkClass(item) {
         >
           {{ shellCopy.chip }}
         </span>
+        <img
+          v-if="mockContext.isStudentShell || mockContext.isOperationalShell"
+          :src="brandLogoUrl"
+          :alt="shellCopy.title"
+          :class="mockContext.isStudentShell ? 'h-auto w-[132px]' : 'h-auto w-[112px]'"
+        />
         <h2
+          v-else
           :class="[
             'font-semibold text-slate-950',
-            mockContext.isStudentShell
-              ? 'text-[1.35rem]'
-              : mockContext.isOperationalShell
-                ? 'text-[1rem]'
-                : 'mt-3 text-[1.8rem]',
+            mockContext.isOperationalShell ? 'text-[1rem]' : 'mt-3 text-[1.8rem]',
           ]"
         >
           {{ shellCopy.title }}
@@ -140,12 +147,6 @@ function navLinkClass(item) {
           :key="section.id"
           class="grid gap-2"
         >
-          <p
-            v-if="!mockContext.isStudentShell && !mockContext.isOperationalShell"
-            class="px-2 text-xs font-semibold tracking-[0.12em] text-slate-500"
-          >
-            {{ section.label }}
-          </p>
           <template
             v-for="item in section.items"
             :key="item.id"

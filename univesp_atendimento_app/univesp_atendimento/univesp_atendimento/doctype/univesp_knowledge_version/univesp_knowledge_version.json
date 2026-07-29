@@ -1,0 +1,168 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Knowledge Version",
+  "module": "Univesp Atendimento",
+  "autoname": "field:version_id",
+  "title_field": "version_label",
+  "track_changes": 1,
+  "field_order": [
+    "version_id",
+    "bundle",
+    "version_label",
+    "revision",
+    "lifecycle_state",
+    "payload_json",
+    "change_summary",
+    "author_email",
+    "approver_email",
+    "publisher_email",
+    "approved_at",
+    "published_at",
+    "valid_from",
+    "valid_until",
+    "timezone",
+    "superseded_at",
+    "rejection_reason",
+    "import_source",
+    "migration_idempotency_key"
+  ],
+  "fields": [
+    {
+      "fieldname": "version_id",
+      "fieldtype": "Data",
+      "label": "Identificador da versão",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "bundle",
+      "fieldtype": "Link",
+      "label": "Fluxo",
+      "options": "Univesp Knowledge Bundle",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "version_label",
+      "fieldtype": "Data",
+      "label": "Nome da versão",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "revision",
+      "fieldtype": "Int",
+      "label": "Revisão",
+      "default": "1",
+      "reqd": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "lifecycle_state",
+      "fieldtype": "Select",
+      "label": "Estado",
+      "options": "draft\npending_approval\napproved\npublished\nsuperseded\nrejected",
+      "default": "draft",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "payload_json",
+      "fieldtype": "Long Text",
+      "label": "Conteúdo JSON",
+      "reqd": 1
+    },
+    {
+      "fieldname": "change_summary",
+      "fieldtype": "Text",
+      "label": "Resumo das mudanças"
+    },
+    {
+      "fieldname": "author_email",
+      "fieldtype": "Data",
+      "label": "Autor",
+      "options": "Email",
+      "reqd": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "approver_email",
+      "fieldtype": "Data",
+      "label": "Aprovador",
+      "options": "Email",
+      "read_only": 1
+    },
+    {
+      "fieldname": "publisher_email",
+      "fieldtype": "Data",
+      "label": "Publicador",
+      "options": "Email",
+      "read_only": 1
+    },
+    {
+      "fieldname": "approved_at",
+      "fieldtype": "Datetime",
+      "label": "Aprovado em",
+      "read_only": 1
+    },
+    {
+      "fieldname": "published_at",
+      "fieldtype": "Datetime",
+      "label": "Publicado em",
+      "read_only": 1
+    },
+    {
+      "fieldname": "valid_from",
+      "fieldtype": "Datetime",
+      "label": "Vigência inicial"
+    },
+    {
+      "fieldname": "valid_until",
+      "fieldtype": "Datetime",
+      "label": "Vigência final"
+    },
+    {
+      "fieldname": "timezone",
+      "fieldtype": "Data",
+      "label": "Fuso horário",
+      "default": "America/Sao_Paulo",
+      "reqd": 1
+    },
+    {
+      "fieldname": "superseded_at",
+      "fieldtype": "Datetime",
+      "label": "Substituída em",
+      "read_only": 1
+    },
+    {
+      "fieldname": "rejection_reason",
+      "fieldtype": "Text",
+      "label": "Motivo da recusa",
+      "read_only": 1
+    },
+    {
+      "fieldname": "import_source",
+      "fieldtype": "Select",
+      "label": "Origem",
+      "options": "\nbuilder\nxlsx\njson\nmigration_v2"
+    },
+    {
+      "fieldname": "migration_idempotency_key",
+      "fieldtype": "Data",
+      "label": "Chave idempotente de migração",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "report": 1
+    }
+  ]
+}

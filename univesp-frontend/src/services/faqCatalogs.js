@@ -81,6 +81,10 @@ export const FAQ_TYPE_CATALOG = Object.freeze({
     label: 'FAQ operacional do OP',
     profile: 'op',
   }),
+  publico: Object.freeze({
+    label: 'FAQ publica (nao-aluno)',
+    profile: 'publico',
+  }),
 })
 
 export const NODE_TYPE_CATALOG = Object.freeze({
@@ -107,6 +111,10 @@ export const QUEUE_DESTINATION_CATALOG = Object.freeze({
     label: 'Fila do OP',
     owner: 'operacao',
   }),
+  'atendimento-geral': Object.freeze({
+    label: 'Atendimento geral',
+    owner: 'operacao',
+  }),
   sra: Object.freeze({
     label: 'Secretaria e registro academico',
     owner: 'area_interna',
@@ -117,13 +125,74 @@ export const QUEUE_DESTINATION_CATALOG = Object.freeze({
   }),
 })
 
+export const RESPONSE_MODE_CATALOG = Object.freeze({
+  informational: Object.freeze({
+    label: 'Orientacao fixa',
+    requiresAcademicData: false,
+  }),
+  data_assisted: Object.freeze({
+    label: 'Resposta baseada em dados',
+    requiresAcademicData: true,
+  }),
+  protocol_required: Object.freeze({
+    label: 'Exige protocolo',
+    requiresAcademicData: false,
+  }),
+})
+
+export const ACADEMIC_INTENT_CATALOG = Object.freeze({
+  none: Object.freeze({
+    label: 'Nao se aplica',
+    domain: 'general',
+  }),
+  pending_courses: Object.freeze({
+    label: 'Disciplinas pendentes',
+    domain: 'curriculum',
+  }),
+  enrollment_status: Object.freeze({
+    label: 'Situacao de matricula',
+    domain: 'enrollment',
+  }),
+  document_pending: Object.freeze({
+    label: 'Pendencia documental',
+    domain: 'documents',
+  }),
+  course_equivalence_status: Object.freeze({
+    label: 'Aproveitamento/equivalencia',
+    domain: 'curriculum',
+  }),
+  internship_eligibility: Object.freeze({
+    label: 'Elegibilidade de estagio',
+    domain: 'academic_rule',
+  }),
+  graduation_eligibility: Object.freeze({
+    label: 'Elegibilidade de diploma',
+    domain: 'academic_rule',
+  }),
+})
+
+export const CONFIDENCE_POLICY_CATALOG = Object.freeze({
+  answer_when_deterministic: Object.freeze({
+    label: 'Responder apenas com regra deterministica',
+  }),
+  show_with_caveat: Object.freeze({
+    label: 'Mostrar com ressalva operacional',
+  }),
+  always_open_protocol: Object.freeze({
+    label: 'Sempre abrir protocolo',
+  }),
+})
+
 export const FAQ_OFFICIAL_CATALOGS = Object.freeze({
   action: ACTION_CATALOG,
+  academic_intent: ACADEMIC_INTENT_CATALOG,
+  confidence_policy: CONFIDENCE_POLICY_CATALOG,
   criticality: CRITICALITY_CATALOG,
   sla: SLA_CATALOG,
   faq_type: FAQ_TYPE_CATALOG,
   node_type: NODE_TYPE_CATALOG,
   queue_destination: QUEUE_DESTINATION_CATALOG,
+  response_mode: RESPONSE_MODE_CATALOG,
 })
 
 export function getCatalogKeys(catalog) {

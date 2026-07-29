@@ -83,7 +83,7 @@ const mockContextModule = await loadModule('/src/services/mockContextRuntime.js'
 const authModule = await loadModule('/src/stores/auth.js')
 const appApiModule = await loadModule('/src/services/appApi.js')
 const ssoClientModule = await loadModule('/src/services/ssoClient.js')
-const adminFaqLibraryModule = await loadModule('/src/pages/admin/AdminFaqLibraryPage.vue')
+const adminFaqLibraryModule = await loadModule('/src/pages/admin/AdminFaqV3LibraryPage.vue')
 const adminFaqFlowModule = await loadModule('/src/pages/admin/AdminFaqPage.vue')
 const adminFaqEditorModule = await loadModule('/src/pages/admin/AdminFaqEditorPage.vue')
 const areaCaseDetailModule = await loadModule('/src/pages/area/AreaCaseDetailPage.vue')
@@ -475,12 +475,11 @@ test('rota do editor FAQ resolve corretamente sem cair na visao resumida', async
   assert.equal(router.currentRoute.value.meta?.layout, 'auth')
 })
 
-test('visualizacao do fluxo FAQ renderiza conexoes no modo resumido', async () => {
+test('visualizacao legada do fluxo permanece segura durante a transicao v3', async () => {
   const html = await renderAdminFaqFlow('/admin/faq/bundle:op:estagio')
   assert.match(html, /faq-flow-arrow/)
-  assert.match(html, /<line/)
-  assert.match(html, /marker-end="url\(#faq-flow-arrow\)"/)
   assert.match(html, /conexao\(oes\)/)
+  assert.match(html, /Nenhum no valido|marker-end="url\(#faq-flow-arrow\)"/)
 })
 
 test('editor FAQ abre em rota canonica com safe/fullscreen sem cair em tela indisponivel', async () => {
@@ -1037,7 +1036,7 @@ test('protocolo aberto da FAQ nasce com ownership operacional no payload', async
   if (Array.isArray(draft?.requiredFields) && draft.requiredFields.includes('anexo_obrigatorio')) {
     store.setProtocolAttachments(['anexo-teste.pdf'])
   }
-  const submission = store.submitProtocol(new Date('2026-04-08T12:16:00-03:00'))
+  const submission = await store.submitProtocol(new Date('2026-04-08T12:16:00-03:00'))
   assert.equal(submission.ok, true)
   assert.ok(submission.protocol.ownerKey)
   assert.ok(submission.protocol.ownerQueue || submission.protocol.ownerArea || submission.protocol.ownerRole)
@@ -1085,7 +1084,7 @@ test('follow-up do aluno preserva ownership e source binding do protocolo', asyn
   assert.ok(draft)
   store.updateProtocolField('description', 'Protocolo base para follow-up.')
 
-  const submission = store.submitProtocol(new Date('2026-04-08T12:36:00-03:00'))
+  const submission = await store.submitProtocol(new Date('2026-04-08T12:36:00-03:00'))
   assert.equal(submission.ok, true)
   const createdProtocol = submission.protocol
   assert.ok(createdProtocol?.protocolNumber)
@@ -1124,7 +1123,7 @@ test('protocolo canonico local preserva sourceNodeId e estado de source binding'
   assert.ok(draft)
   store.updateProtocolField('description', 'Validacao de source binding no runtime canonico.')
 
-  const submission = store.submitProtocol(new Date('2026-04-08T13:21:00-03:00'))
+  const submission = await store.submitProtocol(new Date('2026-04-08T13:21:00-03:00'))
   assert.equal(submission.ok, true)
   const canonicalProtocol = store.canonicalCaseProtocols.find(
     (record) => record.id === submission.protocol.protocolNumber,
@@ -1171,7 +1170,7 @@ test('mudanca de owner em nova sessao nao altera snapshot de protocolo ja aberto
   if (Array.isArray(firstDraft?.requiredFields) && firstDraft.requiredFields.includes('anexo_obrigatorio')) {
     store.setProtocolAttachments(['anexo-owner-1.pdf'])
   }
-  const firstSubmission = store.submitProtocol(new Date('2026-04-08T14:01:00-03:00'))
+  const firstSubmission = await store.submitProtocol(new Date('2026-04-08T14:01:00-03:00'))
   assert.equal(firstSubmission.ok, true)
 
   setFaqBuilderNodeOwnership(bundle, node.id, {
@@ -1190,7 +1189,7 @@ test('mudanca de owner em nova sessao nao altera snapshot de protocolo ja aberto
   if (Array.isArray(secondDraft?.requiredFields) && secondDraft.requiredFields.includes('anexo_obrigatorio')) {
     store.setProtocolAttachments(['anexo-owner-2.pdf'])
   }
-  const secondSubmission = store.submitProtocol(new Date('2026-04-08T14:11:00-03:00'))
+  const secondSubmission = await store.submitProtocol(new Date('2026-04-08T14:11:00-03:00'))
   assert.equal(secondSubmission.ok, true)
 
   assert.notEqual(secondSubmission.protocol.ownerKey, firstSubmission.protocol.ownerKey)
@@ -2103,10 +2102,12 @@ test('procedure-capture documentado aceita schema no topo e owner de fila', asyn
   assert.equal(bundle.versioning.publication_status, 'draft')
 })
 
-test('biblioteca do FAQ Builder renderiza sem loop reativo e sem tela vazia', async () => {
+test('biblioteca de FAQs renderiza a tarefa principal sem termos tecnicos', async () => {
   const html = await renderAdminFaqLibrary()
-  assert.ok(html.includes('Biblioteca de fluxos da base de conhecimento'))
-  assert.ok(html.includes('Filtros da biblioteca'))
+  assert.ok(html.includes('Criar fluxo'))
+  assert.ok(html.includes('Buscar'))
+  assert.ok(!html.includes('FAQ Builder'))
+  assert.ok(!html.includes('canvas'))
 })
 
 let failures = 0

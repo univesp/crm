@@ -35,6 +35,8 @@ def update_settings(payload: dict | str | None = None):
 		raise RuntimeSettingsValidationError(_("Informe um motivo com pelo menos 5 caracteres."))
 	parameters = data.get("parameters")
 	_validate_parameters(parameters)
+	knowledge = data.get("knowledge") if isinstance(data.get("knowledge"), dict) else {}
+	_validate_knowledge_settings(knowledge)
 
 	doc = frappe.get_single("Univesp Runtime Settings")
 	current_version = str(doc.modified or "")
@@ -44,13 +46,76 @@ def update_settings(payload: dict | str | None = None):
 			_("Os parametros foram alterados por outra pessoa. Atualize a tela antes de salvar.")
 		)
 
-	before = _parameters(doc)
+	before = {"parameters": _parameters(doc), "knowledge": _knowledge_settings(doc)}
 	doc.parameters_json = json.dumps(parameters, ensure_ascii=False, separators=(",", ":"))
+	if knowledge:
+		doc.institutional_timezone = knowledge.get("institutional_timezone") or doc.institutional_timezone
+		doc.knowledge_session_ttl_seconds = (
+			knowledge.get("knowledge_session_ttl_seconds") or doc.knowledge_session_ttl_seconds
+		)
+		doc.default_suggestion_sla_hours = (
+			knowledge.get("default_suggestion_sla_hours") or doc.default_suggestion_sla_hours
+		)
+		for fieldname in (
+			"knowledge_v3_read",
+			"knowledge_v3_write",
+			"routing_server_authority",
+			"knowledge_collaboration",
+			"faq_public_anonymous",
+			"faq_public_documents",
+			"faq_link_validation",
+			"faq_public_email_thread",
+			"knowledge_media_upload",
+		):
+			if fieldname in knowledge:
+				doc.set(fieldname, int(bool(knowledge[fieldname])))
 	doc.updated_by_email = context.email
 	doc.updated_at = now_datetime()
 	doc.save(ignore_permissions=True)
-	_write_audit(context, reason, before, parameters)
+	_write_audit(
+		context,
+		reason,
+		before,
+		{"parameters": parameters, "knowledge": _knowledge_settings(doc)},
+	)
 	return response(_serialize(doc), request_id=context.request_id)
+
+
+@frappe.whitelist(methods=["GET"])
+def health():
+	context = get_request_context()
+	states = {"frappe": "saudavel", "database": "indisponivel", "redis": "indisponivel"}
+	try:
+		frappe.db.sql("select 1")
+		states["database"] = "saudavel"
+	except Exception:
+		pass
+	try:
+		frappe.cache.ping()
+		states["redis"] = "saudavel"
+	except Exception:
+		pass
+	return response(states, request_id=context.request_id)
+
+
+@frappe.whitelist(methods=["GET"])
+def runtime_flags():
+	context = get_request_context()
+	doc = frappe.get_single("Univesp Runtime Settings")
+	flags = _knowledge_settings(doc)
+	return response(
+		{
+			key: value
+			for key, value in flags.items()
+			if key
+			not in {
+				"institutional_timezone",
+				"knowledge_session_ttl_seconds",
+				"default_suggestion_sla_hours",
+			}
+		},
+		request_id=context.request_id,
+	)
 
 
 def _settings_context():
@@ -99,6 +164,18 @@ def _validate_parameters(parameters):
 			raise RuntimeSettingsValidationError(_("Identificadores duplicados em {0}.").format(collection))
 
 
+def _validate_knowledge_settings(knowledge):
+	if not knowledge:
+		return
+	if int(knowledge.get("knowledge_session_ttl_seconds") or 300) < 300:
+		raise RuntimeSettingsValidationError(_("Sessão FAQ deve durar ao menos 300 segundos."))
+	if int(knowledge.get("default_suggestion_sla_hours") or 1) < 1:
+		raise RuntimeSettingsValidationError(_("SLA de sugestões deve ser maior que zero."))
+	timezone = str(knowledge.get("institutional_timezone") or "America/Sao_Paulo").strip()
+	if timezone != "America/Sao_Paulo":
+		raise RuntimeSettingsValidationError(_("Fuso institucional suportado: America/Sao_Paulo."))
+
+
 def _parameters(doc):
 	if not doc.parameters_json:
 		return {}
@@ -109,9 +186,27 @@ def _parameters(doc):
 def _serialize(doc):
 	return {
 		"parameters": _parameters(doc),
+		"knowledge": _knowledge_settings(doc),
 		"version": str(doc.modified or ""),
 		"updated_by": doc.updated_by_email or "",
 		"updated_at": doc.updated_at,
+	}
+
+
+def _knowledge_settings(doc):
+	return {
+		"institutional_timezone": doc.institutional_timezone or "America/Sao_Paulo",
+		"knowledge_session_ttl_seconds": int(doc.knowledge_session_ttl_seconds or 7200),
+		"default_suggestion_sla_hours": int(doc.default_suggestion_sla_hours or 72),
+		"knowledge_v3_read": bool(doc.knowledge_v3_read),
+		"knowledge_v3_write": bool(doc.knowledge_v3_write),
+		"routing_server_authority": bool(doc.routing_server_authority),
+		"knowledge_collaboration": bool(doc.knowledge_collaboration),
+		"faq_public_anonymous": bool(doc.faq_public_anonymous),
+		"faq_public_documents": bool(doc.faq_public_documents),
+		"faq_link_validation": bool(doc.faq_link_validation),
+		"faq_public_email_thread": bool(doc.faq_public_email_thread),
+		"knowledge_media_upload": bool(doc.knowledge_media_upload),
 	}
 
 

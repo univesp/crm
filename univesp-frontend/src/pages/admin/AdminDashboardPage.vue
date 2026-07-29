@@ -1,18 +1,23 @@
-<script setup>
-import { computed, onMounted, reactive } from 'vue'
+﻿<script setup>
+import { computed, onMounted, reactive, ref } from 'vue'
 import ActionTile from '@/components/ActionTile.vue'
 import MetricCard from '@/components/MetricCard.vue'
+import OperationalCockpitPanel from '@/components/operational/OperationalCockpitPanel.vue'
 import PriorityBadge from '@/components/PriorityBadge.vue'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminDashboardView } from '@/services/adminDashboardRuntime'
-import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
+import { buildOperationalCockpitFromDashboard } from '@/services/operationalCockpitRuntime'
+import { getLegacyKnowledgeMetrics, isMockRuntimeEnabled, listTickets } from '@/services/appApi'
+import { useProtocolSearch } from '@/composables/useProtocolSearch'
 import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
+const knowledgeMetricOverrides = ref([])
+const protocolSearch = useProtocolSearch(ref('admin_central'))
 const liveState = reactive({
   loading: false,
   error: '',
@@ -22,12 +27,7 @@ const liveState = reactive({
 })
 
 async function loadInstitutionalDashboard() {
-  if (isMockRuntimeEnabled()) {
-    liveState.total = 0
-    liveState.loaded = 0
-    return
-  }
-
+  if (isMockRuntimeEnabled()) return
   liveState.loading = true
   liveState.error = ''
   try {
@@ -49,15 +49,10 @@ async function loadInstitutionalDashboard() {
   } catch (error) {
     studentSupportStore.replaceLiveTickets([])
     liveState.error = error?.message || 'Falha ao carregar os indicadores institucionais.'
-    liveState.total = 0
-    liveState.loaded = 0
-    liveState.truncated = false
   } finally {
     liveState.loading = false
   }
 }
-
-onMounted(loadInstitutionalDashboard)
 
 const filters = reactive({
   queue: 'todos',
@@ -78,13 +73,35 @@ const periodOptions = [
   { value: '30d', label: '30 dias', summary: 'ultimos 30 dias' },
   { value: 'base', label: 'Periodo', summary: 'base atual' },
 ]
-
 const dashboardBase = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const dashboardView = computed(() => buildAdminDashboardView(dashboardBase.value, filters))
+const operationalCockpit = computed(() =>
+  buildOperationalCockpitFromDashboard(dashboardBase.value, filters, 'admin_central'),
+)
 const filterOptions = computed(() => dashboardBase.value.filterOptions)
-const metrics = computed(() => dashboardView.value.kpis)
+const metrics = computed(() => {
+  const overrides = new Map(
+    knowledgeMetricOverrides.value.map((metric) => [metric.label, metric.value]),
+  )
+  return dashboardView.value.kpis.map((metric) =>
+    overrides.has(metric.label) ? { ...metric, value: overrides.get(metric.label) } : metric,
+  )
+})
 const criticalMetricLabels = ['SLA vencido', 'Criticidade alta', 'Escalados para area interna', 'Reincidencia de tema']
 const metricValue = (label) => metrics.value.find((metric) => metric.label === label)?.value || 0
+
+onMounted(async () => {
+  if (isMockRuntimeEnabled()) return
+  await loadInstitutionalDashboard()
+  try {
+    const response = await getLegacyKnowledgeMetrics()
+    knowledgeMetricOverrides.value = Array.isArray(response.data?.legacy_metrics)
+      ? response.data.legacy_metrics
+      : []
+  } catch {
+    knowledgeMetricOverrides.value = []
+  }
+})
 const criticalKpiCards = computed(() => [
   {
     label: 'SLA vencido',
@@ -707,23 +724,19 @@ function getRiskLabel(row) {
 <template>
   <div class="grid gap-4">
     <!-- 1. HEADER COMPACTO -->
-    <section class="rounded-[16px] border border-slate-200 bg-white p-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white p-4">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 class="text-xl font-semibold text-slate-950">Dashboard admin</h1>
           <p class="text-xs text-slate-500">Visao rapida da operacao</p>
           <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-            <span
-              class="rounded-full px-2 py-1 font-semibold"
-              :class="isMockRuntimeEnabled() ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'"
-            >
-              {{ isMockRuntimeEnabled() ? 'Base demonstrativa' : 'Fonte institucional' }}
+            <span class="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">
+              Fonte institucional
             </span>
-            <span v-if="!isMockRuntimeEnabled()" class="text-slate-500">
+            <span class="text-slate-500">
               {{ liveState.loading ? 'Atualizando...' : `${liveState.loaded} de ${liveState.total} tickets carregados` }}
             </span>
             <button
-              v-if="!isMockRuntimeEnabled()"
               type="button"
               class="font-semibold text-[var(--color-primary)] disabled:opacity-50"
               :disabled="liveState.loading"
@@ -734,9 +747,6 @@ function getRiskLabel(row) {
           </div>
           <p v-if="liveState.error" class="mt-2 text-xs font-semibold text-red-700" role="alert">
             {{ liveState.error }}
-          </p>
-          <p v-else-if="liveState.truncated" class="mt-2 text-xs text-amber-700">
-            Visao limitada aos {{ liveState.loaded }} tickets mais recentes para preservar desempenho.
           </p>
         </div>
 
@@ -757,7 +767,7 @@ function getRiskLabel(row) {
           </div>
 
           <div
-            class="min-w-[190px] rounded-[14px] border px-3 py-2"
+            class="min-w-[190px] rounded-[8px] border px-3 py-2"
             :class="operationHealth.tone === 'danger'
               ? 'border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.74)]'
               : operationHealth.tone === 'warning'
@@ -797,12 +807,33 @@ function getRiskLabel(row) {
         </div>
       </div>
 
+      <form class="mt-3 flex flex-wrap items-end gap-2" @submit.prevent="protocolSearch.submit">
+        <label class="grid min-w-[240px] flex-1 gap-1">
+          <span class="text-xs font-semibold text-slate-500">Buscar protocolo</span>
+          <input
+            v-model="protocolSearch.query.value"
+            type="search"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+          />
+        </label>
+        <button
+          type="submit"
+          class="rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          :disabled="protocolSearch.loading.value"
+        >
+          Buscar
+        </button>
+        <p v-if="protocolSearch.error.value" class="w-full text-xs font-semibold text-red-700" role="alert">
+          {{ protocolSearch.error.value }}
+        </p>
+      </form>
+
       <div class="mt-3 flex flex-wrap items-end gap-2">
         <label class="grid min-w-[130px] gap-1">
           <span class="text-xs font-semibold text-slate-500">Area interna</span>
           <select
             v-model="filters.queue"
-            class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
             <option v-for="o in filterOptions.queue" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
@@ -814,7 +845,7 @@ function getRiskLabel(row) {
             v-model="ui.poloSearch"
             type="search"
             placeholder="Buscar polo"
-            class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           />
         </label>
 
@@ -822,7 +853,7 @@ function getRiskLabel(row) {
           <span class="text-xs font-semibold text-slate-500">Tema</span>
           <select
             v-model="filters.theme"
-            class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
             <option v-for="o in filterOptions.theme" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
@@ -832,7 +863,7 @@ function getRiskLabel(row) {
           <span class="text-xs font-semibold text-slate-500">Status</span>
           <select
             v-model="filters.status"
-            class="rounded-[12px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
           >
             <option v-for="o in filterOptions.status" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
@@ -849,12 +880,12 @@ function getRiskLabel(row) {
     </section>
 
     <!-- 2. KPI ROW -->
-    <section class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+    <section class="crm-stat-grid">
       <button
         v-for="card in criticalKpiCards"
         :key="card.label"
         type="button"
-        class="rounded-[14px] border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"
+        class="rounded-[8px] border px-4 py-3 text-left transition hover:bg-slate-50 hover:shadow-sm"
         :class="card.tone === 'danger'
           ? 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.54)]'
           : card.tone === 'warning'
@@ -868,10 +899,12 @@ function getRiskLabel(row) {
       </button>
     </section>
 
+    <OperationalCockpitPanel :cockpit="operationalCockpit" compact />
+
     <!-- 3. DISTRIBUICAO + TENDENCIA -->
-    <div class="grid gap-4 lg:grid-cols-[0.38fr_0.62fr]">
+    <div class="crm-split-grid crm-split-grid--chart gap-4">
       <!-- Donut distribuicao -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Fluxo</p>
           <p class="text-sm font-semibold text-slate-950">Distribuicao da demanda</p>
@@ -931,7 +964,7 @@ function getRiskLabel(row) {
       </div>
 
       <!-- Grafico de evolucao -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-xs font-semibold text-slate-500">Tendencia</p>
@@ -987,7 +1020,7 @@ function getRiskLabel(row) {
           />
         </svg>
 
-        <div class="mt-1 grid grid-cols-5 gap-1 text-center text-[10px] font-semibold text-slate-400">
+        <div class="crm-stat-grid mt-1 gap-1 text-center text-[10px] font-semibold text-slate-400">
           <span v-for="entry in demandTrend" :key="entry.label" class="truncate">{{ entry.label }}</span>
         </div>
 
@@ -1006,13 +1039,13 @@ function getRiskLabel(row) {
     <!-- 4. AREAS INTERNAS + POLOS EM ATENCAO (tabelas compactas) -->
     <div class="grid gap-4 md:grid-cols-2">
       <!-- Areas internas em risco -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Risco</p>
           <p class="text-sm font-semibold text-slate-950">Areas internas em risco</p>
         </div>
 
-        <div v-if="areaRiskRows.length" class="mt-3 overflow-x-auto">
+        <div v-if="areaRiskRows.length" class="crm-table-scroll mt-3">
           <div class="min-w-[420px]">
             <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
               <span>Area interna</span>
@@ -1060,7 +1093,7 @@ function getRiskLabel(row) {
           </div>
         </div>
 
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
           Ajuste os filtros para retomar a leitura por area.
         </div>
 
@@ -1076,13 +1109,13 @@ function getRiskLabel(row) {
       </div>
 
       <!-- Polos em atencao -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Polos</p>
           <p class="text-sm font-semibold text-slate-950">Polos em atencao</p>
         </div>
 
-        <div v-if="poloRiskRows.length" class="mt-3 overflow-x-auto">
+        <div v-if="poloRiskRows.length" class="crm-table-scroll mt-3">
           <div class="min-w-[420px]">
             <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
               <span>Polo</span>
@@ -1130,7 +1163,7 @@ function getRiskLabel(row) {
           </div>
         </div>
 
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
           Nenhum polo encontrado nos filtros atuais.
         </div>
 
@@ -1149,13 +1182,13 @@ function getRiskLabel(row) {
     <!-- 5. TEMAS + ACOES + ESCAPE DA FAQ -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <!-- Temas em alta -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="crm-dashboard-card">
         <div>
           <p class="text-xs font-semibold text-slate-500">Temas</p>
           <p class="text-sm font-semibold text-slate-950">Temas em alta</p>
         </div>
 
-        <div v-if="themeRanking.length" class="mt-3 flex-1 grid gap-2">
+        <div v-if="themeRanking.length" class="crm-dashboard-card__body">
           <button
             v-for="theme in themeRanking"
             :key="theme.theme"
@@ -1177,11 +1210,11 @@ function getRiskLabel(row) {
           </button>
         </div>
 
-        <div v-else class="mt-3 flex-1 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="crm-dashboard-card__body rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
           Sem temas ativos nos filtros atuais.
         </div>
 
-        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+        <div class="crm-dashboard-card__footer">
           <button
             type="button"
             class="text-xs font-semibold text-[var(--color-primary)]"
@@ -1193,50 +1226,55 @@ function getRiskLabel(row) {
       </div>
 
       <!-- Acoes recomendadas -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="crm-dashboard-card">
         <div>
           <p class="text-xs font-semibold text-slate-500">Agora</p>
-          <p class="text-sm font-semibold text-slate-950">Acoes recomendadas</p>
+          <p class="text-sm font-semibold text-slate-950">Ações recomendadas</p>
         </div>
 
-        <div class="mt-3 flex-1 grid gap-2">
+        <div class="crm-dashboard-card__body">
           <button
             v-for="action in recommendedActions"
             :key="action.title"
             type="button"
-            class="flex items-center gap-3 rounded-[12px] border px-3 py-2.5 text-left transition hover:shadow-sm"
+            class="crm-action-item"
             :class="action.risk === 'alto'
-              ? 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.5)]'
+              ? 'is-risk-high'
               : action.risk === 'medio'
-                ? 'border-[rgba(202,138,4,0.18)] bg-[rgba(254,243,199,0.5)]'
-                : 'border-slate-200 bg-white'"
+                ? 'is-risk-medium'
+                : ''"
             @click="applyRecommendedAction(action)"
           >
             <span
-              class="shrink-0 text-sm leading-none"
-              :class="action.risk === 'alto' ? 'text-red-500' : action.risk === 'medio' ? 'text-amber-500' : 'text-slate-300'"
+              class="crm-action-item__signal"
+              :class="action.risk === 'alto'
+                ? 'is-high'
+                : action.risk === 'medio'
+                  ? 'is-medium'
+                  : 'is-low'"
+              aria-hidden="true"
             >
-              {{ action.risk === 'alto' ? '⚡' : action.risk === 'medio' ? '▲' : '●' }}
+              {{ action.risk === 'alto' ? '!' : action.risk === 'medio' ? '^' : '' }}
             </span>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-xs font-semibold text-slate-900">{{ action.title }}</p>
-              <p class="mt-0.5 truncate text-[11px] text-slate-500">{{ action.reason }}</p>
+            <div class="crm-action-item__body">
+              <p class="crm-action-item__title">{{ action.title }}</p>
+              <p class="crm-action-item__reason">{{ action.reason }}</p>
             </div>
             <span
-              class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              class="crm-action-item__badge"
               :class="action.risk === 'alto'
-                ? 'bg-red-100 text-red-700'
+                ? 'is-high'
                 : action.risk === 'medio'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-slate-100 text-slate-600'"
+                  ? 'is-medium'
+                  : 'is-low'"
             >
               {{ action.risk === 'alto' ? 'Alta' : action.risk === 'medio' ? 'Media' : 'Baixa' }}
             </span>
-            <span class="shrink-0 text-slate-400 text-sm">›</span>
+            <span class="crm-action-item__chevron" aria-hidden="true">›</span>
           </button>
         </div>
 
-        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+        <div class="crm-dashboard-card__footer">
           <button
             type="button"
             class="text-xs font-semibold text-[var(--color-primary)]"
@@ -1248,20 +1286,20 @@ function getRiskLabel(row) {
       </div>
 
       <!-- Escape da FAQ -->
-      <div class="flex flex-col rounded-[16px] border border-slate-200 bg-white p-4">
+      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
           <p class="text-xs font-semibold text-slate-500">Escape da FAQ</p>
-          <p class="text-sm font-semibold text-slate-950">Saida apos FAQ</p>
+          <p class="text-sm font-semibold text-slate-950">Saída após a FAQ</p>
         </div>
 
         <!-- Dois indicadores de escape lado a lado -->
         <div class="mt-3 grid grid-cols-2 gap-2">
-          <div class="rounded-[12px] bg-slate-50 px-3 py-2 text-center">
+          <div class="rounded-[8px] bg-slate-50 px-3 py-2 text-center">
             <p class="text-2xl font-semibold text-slate-950">{{ faqEscapeRate }}%</p>
             <p class="text-xs font-semibold text-slate-700">{{ selfServiceEscape.sentToOp }} casos</p>
             <p class="mt-0.5 text-[10px] text-slate-400">OP apos FAQ</p>
           </div>
-          <div class="rounded-[12px] bg-amber-50 px-3 py-2 text-center">
+          <div class="rounded-[8px] bg-amber-50 px-3 py-2 text-center">
             <p class="text-2xl font-semibold text-slate-950">{{ areaEscapeRate }}%</p>
             <p class="text-xs font-semibold text-slate-700">{{ areaEscapeCount }} casos</p>
             <p class="mt-0.5 text-[10px] text-slate-400">Area interna</p>
@@ -1312,7 +1350,7 @@ function getRiskLabel(row) {
     <!-- 6. RECORTE SELECIONADO (condicional) -->
     <div
       v-if="selectedClusterDetails"
-      class="rounded-[16px] border border-slate-200 bg-white p-4"
+      class="rounded-[8px] border border-slate-200 bg-white p-4"
     >
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -1330,16 +1368,16 @@ function getRiskLabel(row) {
       </div>
       <div class="mt-3 grid gap-4 xl:grid-cols-2">
         <div class="grid grid-cols-4 gap-2 text-center text-xs font-semibold text-slate-600">
-          <span class="rounded-[10px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.volume }} vol.</span>
-          <span class="rounded-[10px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.slaOverdueCount }} SLA</span>
-          <span class="rounded-[10px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.highCriticalityCount }} crit.</span>
-          <span class="rounded-[10px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.escalationsCount }} esc.</span>
+          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.volume }} vol.</span>
+          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.slaOverdueCount }} SLA</span>
+          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.highCriticalityCount }} crit.</span>
+          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.escalationsCount }} esc.</span>
         </div>
         <ul class="grid gap-1.5">
           <li
             v-for="step in selectedClusterDetails.nextSteps"
             :key="step"
-            class="rounded-[10px] bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
+            class="rounded-[8px] bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
           >
             {{ step }}
           </li>
@@ -1348,7 +1386,7 @@ function getRiskLabel(row) {
     </div>
 
     <!-- 7. ALERTAS RAPIDOS -->
-    <section class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
+    <section class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
       <p class="mb-2 text-xs font-semibold text-slate-500">Alertas rapidos</p>
 
       <div v-if="operationalAlerts.length" class="grid gap-3 md:grid-cols-3">
@@ -1356,7 +1394,7 @@ function getRiskLabel(row) {
           v-for="alert in operationalAlerts"
           :key="alert.title"
           type="button"
-          class="flex items-start gap-3 rounded-[12px] border border-slate-100 bg-slate-50 px-3 py-2.5 text-left transition hover:bg-slate-100"
+          class="flex items-start gap-3 rounded-[8px] border border-slate-100 bg-slate-50 px-3 py-2.5 text-left transition hover:bg-slate-100"
           @click="alert.theme ? applyThemeFilter(alert.theme) : selectCluster(alert.clusterKey)"
         >
           <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary)]"></span>
@@ -1368,15 +1406,15 @@ function getRiskLabel(row) {
         </button>
       </div>
 
-      <div v-else class="rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+      <div v-else class="rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
         Sem alertas operacionais nos filtros atuais.
       </div>
     </section>
 
     <!-- 8. ANALISE AVANCADA E AUDITORIA (recolhida) -->
-    <details class="rounded-[16px] border border-slate-200 bg-white p-4">
+    <details class="rounded-[8px] border border-slate-200 bg-white p-4">
       <summary class="cursor-pointer text-sm font-semibold text-slate-700">
-        Analise avancada e auditoria
+        Análise avançada e auditoria
       </summary>
 
       <section class="mt-5">
@@ -1389,49 +1427,6 @@ function getRiskLabel(row) {
             :value="metric.value"
             :hint="metric.hint"
           />
-        </div>
-      </section>
-
-      <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Movimentacoes auditaveis</h3>
-        <div v-if="auditEntries.length" class="mt-3 grid gap-3">
-          <article
-            v-for="entry in auditEntries"
-            :key="entry.id"
-            class="inner-panel p-4"
-          >
-            <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-xs font-semibold text-slate-500">{{ entry.caseId }}</p>
-                  <StatusBadge :label="entry.actionLabel" />
-                </div>
-                <h3 class="mt-2 text-base font-semibold text-slate-950">{{ entry.subject }}</h3>
-                <p class="mt-1 text-xs text-slate-600">{{ entry.actor }} - {{ entry.occurredAtLabel }}</p>
-                <p class="mt-0.5 text-xs text-slate-600">{{ entry.student }} - Polo {{ entry.polo }} - {{ entry.theme }}</p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <StatusBadge :label="entry.criticality" />
-                <StatusBadge :label="entry.queueAfter" />
-              </div>
-            </div>
-            <div class="mt-3 grid gap-2 md:grid-cols-2">
-              <div class="rounded-[14px] bg-slate-50 px-3 py-2">
-                <p class="text-xs font-semibold text-slate-400">Antes</p>
-                <p class="mt-1 text-xs font-semibold text-slate-900">{{ entry.statusBefore }}</p>
-                <p class="mt-0.5 text-xs text-slate-500">{{ entry.queueBefore }}</p>
-              </div>
-              <div class="rounded-[14px] bg-slate-50 px-3 py-2">
-                <p class="text-xs font-semibold text-slate-400">Depois</p>
-                <p class="mt-1 text-xs font-semibold text-slate-900">{{ entry.statusAfter }}</p>
-                <p class="mt-0.5 text-xs text-slate-500">{{ entry.queueAfter }}</p>
-              </div>
-            </div>
-          </article>
-        </div>
-
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
-          Nenhum evento auditavel nos filtros atuais.
         </div>
       </section>
 
@@ -1466,7 +1461,7 @@ function getRiskLabel(row) {
           </article>
         </div>
 
-        <div v-else class="mt-3 rounded-[12px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
           Nenhum caso ativo nos filtros atuais.
         </div>
       </section>

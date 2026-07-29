@@ -1,93 +1,39 @@
 #!/usr/bin/env bash
+# Instala/atualiza univesp_atendimento no bench Frappe (VM homolog).
 set -euo pipefail
 
-CRM_ROOT="${CRM_ROOT:-/var/crm}"
-BENCH_DIR="${BENCH_DIR:-$CRM_ROOT/frappe-bench}"
-SITE="${SITE:-crm.localhost}"
-SOURCE_APP="${SOURCE_APP:-$CRM_ROOT/repository/univesp_atendimento_app}"
-TARGET_APP="$BENCH_DIR/apps/univesp_atendimento"
-HELPDESK_REF="${HELPDESK_REF:-6b423f8fba6d4c7f8ff5db56f197243f6549d450}"
-TELEPHONY_REF="${TELEPHONY_REF:-58d32184e44b193e27498d3dd156085c793b7528}"
-MIN_FRAPPE_VERSION="15.109.0"
-SKIP_RESTART="${SKIP_RESTART:-0}"
+REPO_ROOT="${REPO_ROOT:-/var/crm/repository}"
+BENCH_PATH="${BENCH_PATH:-/var/crm/frappe-bench}"
+SITE="${FRAPPE_SITE:-crm.localhost}"
+APP_SRC="${REPO_ROOT}/univesp_atendimento_app/univesp_atendimento"
+APP_DEST="${BENCH_PATH}/apps/univesp_atendimento/univesp_atendimento"
 
-fetch_app_ref() {
-  local app_dir="$1"
-  local ref="$2"
-  local remote
+echo "==> Git safe.directory (evita dubious ownership no bench/telephony)"
+for dir in \
+	"$REPO_ROOT" \
+	"${BENCH_PATH}/apps/univesp_atendimento" \
+	"${BENCH_PATH}/apps/helpdesk" \
+	"${BENCH_PATH}/apps/telephony" \
+	"${BENCH_PATH}/apps/frappe"
+do
+	if [[ -d "$dir" ]]; then
+		sudo -u frappe git config --global --add safe.directory "$dir" 2>/dev/null || true
+	fi
+done
 
-  remote="$(git -C "$app_dir" remote | head -n1)"
-  if [[ -z "$remote" ]]; then
-    echo "App sem remoto Git: $app_dir" >&2
-    exit 1
-  fi
+echo "==> Rsync app univesp_atendimento"
+sudo rsync -a --delete \
+	--exclude='__pycache__' \
+	--exclude='*.pyc' \
+	--exclude='.ruff_cache' \
+	"${APP_SRC}/" "${APP_DEST}/"
 
-  git -C "$app_dir" fetch --depth 1 "$remote" "$ref"
-  git -C "$app_dir" checkout --detach "$ref"
-}
+echo "==> Migrate + seeds homolog"
+sudo -u frappe bash -lc "
+cd '${BENCH_PATH}' &&
+bench --site '${SITE}' migrate &&
+bench --site '${SITE}' execute univesp_atendimento.homolog_seed.upsert_homolog_access_profiles &&
+bench --site '${SITE}' execute univesp_atendimento.homolog_seed.upsert_homolog_student_directory
+"
 
-if [[ ! -d "$BENCH_DIR" || ! -f "$BENCH_DIR/sites/$SITE/site_config.json" ]]; then
-  echo "Bench/site nao encontrado: $BENCH_DIR/sites/$SITE" >&2
-  exit 1
-fi
-
-if [[ ! -f "$SOURCE_APP/pyproject.toml" ]]; then
-  echo "App fonte nao encontrado: $SOURCE_APP" >&2
-  exit 1
-fi
-
-cd "$BENCH_DIR"
-
-frappe_version="$(bench version | awk '$1 == "frappe" {print $2}')"
-if [[ -z "$frappe_version" || "$(printf '%s\n%s\n' "$MIN_FRAPPE_VERSION" "$frappe_version" | sort -V | head -n1)" != "$MIN_FRAPPE_VERSION" ]]; then
-  echo "Frappe $MIN_FRAPPE_VERSION ou superior e obrigatorio; encontrado: ${frappe_version:-desconhecido}." >&2
-  exit 1
-fi
-
-if ! bench --site "$SITE" show-config | grep -q 'univesp_bff_shared_secret'; then
-  echo "Configure univesp_bff_shared_secret no site antes de instalar." >&2
-  exit 1
-fi
-
-bench --site "$SITE" backup --with-files
-
-if [[ ! -d apps/telephony ]]; then
-  bench get-app telephony https://github.com/frappe/telephony
-fi
-
-fetch_app_ref apps/telephony "$TELEPHONY_REF"
-
-if [[ ! -d apps/helpdesk ]]; then
-  bench get-app --branch main helpdesk https://github.com/frappe/helpdesk
-fi
-
-fetch_app_ref apps/helpdesk "$HELPDESK_REF"
-
-mkdir -p "$TARGET_APP"
-rsync -a --delete --exclude '.git/' --exclude '__pycache__/' "$SOURCE_APP/" "$TARGET_APP/"
-
-bench setup requirements telephony
-bench setup requirements helpdesk
-if ! grep -qx univesp_atendimento sites/apps.txt; then
-  printf '%s\n' univesp_atendimento >> sites/apps.txt
-fi
-"$BENCH_DIR/env/bin/python" -m pip install --quiet --editable "$TARGET_APP"
-
-if ! bench --site "$SITE" list-apps | grep -qx telephony; then
-  bench --site "$SITE" install-app telephony
-fi
-
-if ! bench --site "$SITE" list-apps | grep -qx helpdesk; then
-  bench --site "$SITE" install-app helpdesk
-fi
-
-if ! bench --site "$SITE" list-apps | grep -qx univesp_atendimento; then
-  bench --site "$SITE" install-app univesp_atendimento
-fi
-
-bench --site "$SITE" migrate
-bench build --app telephony --app helpdesk --app univesp_atendimento
-if [[ "$SKIP_RESTART" != "1" ]]; then
-  bench restart
-fi
-bench --site "$SITE" list-apps
+echo "Backend atualizado em ${SITE}"

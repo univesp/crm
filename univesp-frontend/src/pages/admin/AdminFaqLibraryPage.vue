@@ -1,17 +1,16 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import SectionPanel from '@/components/SectionPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import {
-  clearFaqBuilderBundleLibraryLocal,
   createFaqBuilderBundleLibrary,
   createFaqBuilderBundleEntry,
   getFaqBuilderCatalogOptions,
   listFaqBuilderBundles,
-  loadFaqBuilderBundleLibraryLocal,
 } from '@/services/faqBuilderHybridRuntime'
+import { FAQ_TYPE_CATALOG, getCatalogEntry } from '@/services/faqCatalogs'
 import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
@@ -24,6 +23,8 @@ const currentEditorName = computed(
 )
 
 const runtimeError = ref('')
+const libraryReady = ref(false)
+const isSaving = ref(false)
 
 function safeRuntimeCall(executor, fallbackFactory = () => null) {
   try {
@@ -42,27 +43,7 @@ function safeRuntimeCall(executor, fallbackFactory = () => null) {
   }
 }
 
-const library = reactive(
-  safeRuntimeCall(
-    () => loadFaqBuilderBundleLibraryLocal(currentEditorName.value),
-    () => createFaqBuilderBundleLibrary(currentEditorName.value),
-  ) || createFaqBuilderBundleLibrary(currentEditorName.value),
-)
-
-const institutionalState = reactive({ loading: false, ready: false })
-
-onMounted(async () => {
-  institutionalState.loading = true
-  runtimeError.value = ''
-  try {
-    await hydrateFaqLibrary(library, currentEditorName.value)
-    institutionalState.ready = true
-  } catch (error) {
-    runtimeError.value = error?.message || 'Falha ao carregar a biblioteca FAQ institucional.'
-  } finally {
-    institutionalState.loading = false
-  }
-})
+const library = reactive(createFaqBuilderBundleLibrary(currentEditorName.value))
 
 const filters = reactive({
   search: '',
@@ -134,16 +115,16 @@ function setFeedback(type = '', message = '') {
 }
 
 async function resetLibraryState() {
-  clearFaqBuilderBundleLibraryLocal()
-  const restored = createFaqBuilderBundleLibrary(currentEditorName.value)
-  Object.assign(library, restored)
+  libraryReady.value = false
   runtimeError.value = ''
   try {
-    await persistFaqLibrary(library, 'Reinicializacao administrativa da biblioteca FAQ')
-    setFeedback('success', 'Biblioteca reinicializada e persistida com sucesso.')
+    await hydrateFaqLibrary(library, currentEditorName.value)
+    libraryReady.value = true
+    setFeedback('success', 'Biblioteca institucional recarregada com sucesso.')
   } catch (error) {
-    runtimeError.value = error?.message || 'Falha ao reinicializar a biblioteca institucional.'
-    setFeedback('error', runtimeError.value)
+    runtimeError.value = String(
+      error?.message || 'Não foi possível recarregar a biblioteca institucional.',
+    )
   }
 }
 
@@ -165,6 +146,7 @@ function openBundle(bundleId = '', query = {}) {
 }
 
 async function createFlow() {
+  if (!libraryReady.value || isSaving.value) return
   const result = createFaqBuilderBundleEntry(library, {
     faqType: createForm.faqType,
     title: createForm.title,
@@ -175,27 +157,40 @@ async function createFlow() {
     setFeedback('error', result.message)
     return
   }
+  isSaving.value = true
   try {
     await persistFaqLibrary(library, 'Criacao de novo fluxo na biblioteca FAQ')
     createForm.title = ''
     createForm.subjectKey = ''
-    setFeedback('success', 'Novo fluxo criado e persistido com sucesso.')
+    setFeedback('success', 'Novo fluxo criado com sucesso.')
     openBundle(result.entry.bundleId)
   } catch (error) {
-    setFeedback('error', error?.message || 'Falha ao persistir o novo fluxo FAQ.')
+    setFeedback(
+      'error',
+      error?.message || 'Não foi possível salvar o novo fluxo na biblioteca institucional.',
+    )
+  } finally {
+    isSaving.value = false
   }
 }
+
+onMounted(resetLibraryState)
 
 function statusLabel(status = '') {
   const normalized = String(status || '').toLowerCase()
   const labels = {
     draft: 'Rascunho',
     published: 'Publicado',
-    'in review': 'Em revisao',
-    review: 'Em revisao',
+    'in review': 'Em revisão',
+    review: 'Em revisão',
     archived: 'Arquivado',
   }
   return labels[normalized] || status || 'Nao informado'
+}
+
+function faqTypeLabel(type = '') {
+  const entry = getCatalogEntry(FAQ_TYPE_CATALOG, String(type || '').toLowerCase())
+  return entry?.label || type || 'Nao informado'
 }
 
 function formatDate(dateValue = '') {
@@ -256,19 +251,19 @@ function situationTone(row = {}) {
 </script>
 
 <template>
-  <div class="grid gap-5">
+  <div class="crm-content-stack">
     <section
       v-if="runtimeError"
-      class="rounded-[14px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
+      class="rounded-[8px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
     >
-      <p class="font-semibold">Nao foi possivel carregar a biblioteca local.</p>
+      <p class="font-semibold">Não foi possível carregar a biblioteca institucional.</p>
       <p class="mt-1">{{ runtimeError }}</p>
       <button
         type="button"
-        class="mt-3 rounded-[10px] border border-[rgba(166,31,40,0.28)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
+        class="mt-3 rounded-[8px] border border-[rgba(166,31,40,0.28)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
         @click="resetLibraryState"
       >
-        Reinicializar dados locais do FAQ Builder
+        Recarregar biblioteca
       </button>
     </section>
 
@@ -277,75 +272,59 @@ function situationTone(row = {}) {
       title="Biblioteca de fluxos da base de conhecimento"
       description="Escolha um fluxo para editar. O canvas abre apenas um bundle por vez em tela dedicada."
     >
-      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Fluxos</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+      <div class="crm-stat-grid">
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label">Fluxos</p>
+          <p class="crm-stat-tile__value">{{ summary.total }}</p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Rascunhos</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.draft }}</p>
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label">Rascunhos</p>
+          <p class="crm-stat-tile__value">{{ summary.draft }}</p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Em revisao</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.review }}</p>
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label">Em revisão</p>
+          <p class="crm-stat-tile__value">{{ summary.review }}</p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Publicados</p>
-          <p class="mt-1 text-xl font-semibold text-slate-900">{{ summary.published }}</p>
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label">Publicados</p>
+          <p class="crm-stat-tile__value">{{ summary.published }}</p>
         </div>
-        <div class="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-          <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">Com erro estrutural</p>
-          <p class="mt-1 text-xl font-semibold text-[var(--color-danger)]">{{ summary.withErrors }}</p>
+        <div class="crm-stat-tile">
+          <p class="crm-stat-tile__label" title="Com erro estrutural">Com erro</p>
+          <p class="crm-stat-tile__value is-danger">{{ summary.withErrors }}</p>
         </div>
       </div>
     </SectionPanel>
 
-    <details open class="rounded-[14px] border border-indigo-200 bg-indigo-50/70 px-4 py-3">
-      <summary class="cursor-pointer text-sm font-semibold text-slate-900">
-        Carga rapida por planilha
-      </summary>
-      <ol class="mt-3 grid gap-2 text-xs text-slate-700 md:grid-cols-5">
-        <li><strong>1.</strong> Crie um fluxo por assunto.</li>
-        <li><strong>2.</strong> Abra o fluxo e baixe o template XLSX.</li>
-        <li><strong>3.</strong> Preencha perguntas, respostas e ownership.</li>
-        <li><strong>4.</strong> Rode o dry-run no modo Importacao.</li>
-        <li><strong>5.</strong> Aplique, salve, revise e publique.</li>
-      </ol>
-      <p class="mt-3 text-xs text-slate-600">
-        A importacao e tudo-ou-nada, substitui apenas o rascunho do fluxo aberto e nunca publica automaticamente.
-      </p>
-    </details>
-
     <section
       v-if="feedback.message"
-      class="rounded-[14px] border px-4 py-3 text-sm"
+      class="rounded-[8px] border px-4 py-3 text-sm"
       :class="feedback.type === 'error' ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]' : 'border-[rgba(26,111,67,0.22)] bg-[rgba(220,252,231,0.75)] text-[var(--color-success)]'"
     >
       {{ feedback.message }}
     </section>
 
     <section class="grid gap-3">
-      <article class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
+      <article class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
         <p class="text-sm font-semibold text-slate-900">Filtros da biblioteca</p>
-        <div class="mt-2 grid gap-2 md:grid-cols-[minmax(220px,1fr)_minmax(150px,180px)_minmax(150px,180px)]">
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Buscar</span>
-            <input v-model="filters.search" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Nome do fluxo, assunto ou tipo" />
+        <div class="crm-filter-grid mt-2">
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Buscar</span>
+            <input v-model="filters.search" type="text" class="crm-field w-full min-w-0" placeholder="Nome do fluxo, assunto ou tipo" />
           </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Status</span>
-            <select v-model="filters.status" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Status</span>
+            <select v-model="filters.status" class="crm-field w-full min-w-0">
               <option value="all">Todos</option>
               <option value="draft">Rascunho</option>
-              <option value="in review">Em revisao</option>
+              <option value="in review">Em revisão</option>
               <option value="published">Publicado</option>
               <option value="archived">Arquivado</option>
             </select>
           </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo de FAQ</span>
-            <select v-model="filters.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Tipo de FAQ</span>
+            <select v-model="filters.faqType" class="crm-field w-full min-w-0">
               <option value="all">Todos</option>
               <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
@@ -353,51 +332,60 @@ function situationTone(row = {}) {
         </div>
       </article>
 
-      <details class="rounded-[14px] border border-slate-200 bg-white px-4 py-3">
+      <details class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
         <summary class="cursor-pointer text-sm font-semibold text-slate-900">
           Criar novo fluxo
           <span class="ml-2 text-xs font-normal text-slate-500">Cadastre um novo fluxo quando nao houver fluxo equivalente.</span>
         </summary>
-        <div class="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-[220px_minmax(220px,1fr)_minmax(220px,1fr)_140px] lg:items-end">
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tipo</span>
-            <select v-model="createForm.faqType" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm">
+        <div class="crm-form-grid mt-3">
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Tipo</span>
+            <select v-model="createForm.faqType" class="crm-field w-full min-w-0">
               <option v-for="option in catalogs.faqTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Nome do fluxo</span>
-            <input v-model="createForm.title" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: Provas e segunda chamada" />
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Nome do fluxo</span>
+            <input v-model="createForm.title" type="text" class="crm-field w-full min-w-0" placeholder="Ex.: Provas e segunda chamada" />
           </label>
-          <label class="grid min-w-0 gap-1">
-            <span class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Chave do assunto (opcional)</span>
-            <input v-model="createForm.subjectKey" type="text" class="w-full min-w-0 rounded-[10px] border border-slate-300 px-3 py-1.5 text-sm" placeholder="Ex.: provas_segunda_chamada" />
+          <label class="crm-filter-field">
+            <span class="crm-field-label">Chave do assunto (opcional)</span>
+            <input v-model="createForm.subjectKey" type="text" class="crm-field w-full min-w-0" placeholder="Ex.: provas_segunda_chamada" />
           </label>
-          <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white" @click="createFlow">
-            Criar fluxo
+          <button
+            type="button"
+            class="crm-button-primary w-full min-w-0 justify-center sm:w-auto"
+            :disabled="!libraryReady || isSaving"
+            @click="createFlow"
+          >
+            {{ isSaving ? 'Salvando...' : 'Criar fluxo' }}
           </button>
         </div>
       </details>
     </section>
 
-    <section class="rounded-[18px] border border-slate-200 bg-white p-4">
-      <p class="text-sm font-semibold text-slate-900">Fluxos disponiveis</p>
-      <div class="mt-3 overflow-auto rounded-[12px] border border-slate-200">
-        <table class="w-full min-w-[900px] text-left text-xs">
+    <section class="rounded-[8px] border border-slate-200 bg-white p-4">
+      <p class="text-sm font-semibold text-slate-900">Fluxos disponíveis</p>
+      <div class="crm-table-scroll mt-3">
+        <table class="text-left text-xs">
           <thead class="bg-slate-100 text-slate-600">
             <tr>
               <th class="px-3 py-2">Fluxo</th>
+              <th class="px-3 py-2">Tipo de FAQ</th>
               <th class="px-3 py-2">Status</th>
-              <th class="px-3 py-2">Area responsavel</th>
-              <th class="px-3 py-2">Situacao</th>
+              <th class="px-3 py-2">Área responsável</th>
+              <th class="px-3 py-2">Situação</th>
               <th class="px-3 py-2">Atualizado em</th>
-              <th class="px-3 py-2">Acao</th>
+              <th class="px-3 py-2">Ação</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.bundleId" class="border-t border-slate-200">
               <td class="px-3 py-2">
                 <p class="font-semibold text-slate-900">{{ row.title }}</p>
+              </td>
+              <td class="px-3 py-2 whitespace-nowrap">
+                <StatusBadge :label="faqTypeLabel(row.faqType)" />
               </td>
               <td class="px-3 py-2">
                 <StatusBadge :label="statusLabel(row.statusKey || row.workflowStatus)" />
@@ -424,14 +412,14 @@ function situationTone(row = {}) {
               </td>
               <td class="px-3 py-2">
                 <div class="flex flex-wrap gap-2">
-                  <button type="button" class="rounded-[10px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
+                  <button type="button" class="rounded-[8px] bg-slate-900 px-3 py-1.5 font-semibold text-white" @click="openBundle(row.bundleId)">
                     Ver fluxo
                   </button>
                 </div>
               </td>
             </tr>
             <tr v-if="!rows.length" class="border-t border-slate-200">
-              <td colspan="6" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
+              <td colspan="7" class="px-3 py-4 text-slate-600">Nenhum fluxo encontrado com os filtros atuais.</td>
             </tr>
           </tbody>
         </table>

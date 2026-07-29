@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import {
   computed,
   defineAsyncComponent,
@@ -26,21 +26,18 @@ import {
   buildFaqBuilderPortalExportFileName,
   buildFaqBuilderPortalExportPayload,
   buildFaqBuilderPreviewJourneySafe,
-  clearFaqBuilderBundleLibraryLocal,
   connectFaqBuilderNodes,
   createFaqBuilderBundleLibrary,
   downloadFaqBuilderTemplateXlsx,
   getFaqBuilderBundleById,
   getFaqBuilderCatalogOptions,
   getFaqBuilderNode,
-  loadFaqBuilderBundleLibraryLocal,
   moveFaqBuilderNode,
   publishFaqBuilderWorkspace,
   readFaqBuilderSpreadsheet,
   rebuildFaqBuilderCanvasSnapshot,
   runFaqBuilderBundleSanityCheck,
   saveFaqBuilderDraftWorkspace,
-  saveFaqBuilderBundleLibraryLocal,
   setFaqBuilderBundleOperationalOwner,
   setFaqBuilderNodeField,
   setFaqBuilderNodeListField,
@@ -53,13 +50,12 @@ import {
   validateFaqBuilderPortalExport,
   resolveFaqBuilderNodeEffectiveOwner,
 } from '@/services/faqBuilderHybridRuntime'
-import { readFaqBuilderJson } from '@/services/faqJsonImport'
 import { hydrateFaqLibrary, persistFaqLibrary } from '@/services/faqLibraryApi'
 import { useAuthStore } from '@/stores/auth'
 
 const EDITOR_MODES = Object.freeze([
   { key: 'visual', label: 'Editor' },
-  { key: 'import', label: 'Importacao' },
+  { key: 'import', label: 'Importação' },
   { key: 'governance', label: 'Governanca' },
 ])
 const BLOCK_ROUTE_PROMOTION_DURING_MOUNT = true
@@ -205,7 +201,6 @@ const sanitizedState = reactive({
 })
 const importState = reactive({
   fileName: '',
-  sourceType: '',
   isLoading: false,
   result: null,
 })
@@ -230,42 +225,17 @@ let hasMountedEditor = false
 let isUpdatingBundleOperationalOwner = false
 
 const backendReadiness = buildFaqBuilderBackendReadiness({
-  hasServerUpsert: true,
+  hasServerUpsert: false,
   hasServerDryRun: false,
   hasServerLock: false,
 })
 const runtimeLoadError = ref('')
-
-function loadLibraryWithFallback(editorName = 'Admin local') {
-  try {
-    return loadFaqBuilderBundleLibraryLocal(editorName)
-  } catch (error) {
-    runtimeLoadError.value = String(
-      error?.message || 'Falha ao carregar dados locais do builder.',
-    )
-    console.error('[faq-builder][editor-library-load-failed]', error)
-    try {
-      clearFaqBuilderBundleLibraryLocal()
-    } catch (clearError) {
-      console.error('[faq-builder][editor-library-clear-failed]', clearError)
-    }
-    const seeded = createFaqBuilderBundleLibrary(editorName)
-    try {
-      saveFaqBuilderBundleLibraryLocal(seeded)
-    } catch (saveError) {
-      console.error('[faq-builder][editor-library-seed-save-failed]', saveError)
-    }
-    return seeded
-  }
-}
+const libraryReady = ref(false)
 
 const currentEditorName = computed(
   () => auth.displayName || auth.mockContext?.userName || 'Admin local',
 )
-const library = reactive(
-  loadLibraryWithFallback(currentEditorName.value) ||
-    createFaqBuilderBundleLibrary(currentEditorName.value),
-)
+const library = reactive(createFaqBuilderBundleLibrary(currentEditorName.value))
 const bundleId = computed(() => decodeBundleParam(route.params.bundleId))
 const currentBundleEntry = computed(() =>
   getFaqBuilderBundleById(library, bundleId.value),
@@ -625,12 +595,20 @@ function rebuildRenderArtifacts({ safeMode = false } = {}) {
 }
 
 function scheduleLibraryPersist() {
+  if (!libraryReady.value) return
   if (persistLibraryTimer) {
     clearTimeout(persistLibraryTimer)
   }
-  persistLibraryTimer = setTimeout(() => {
-    saveFaqBuilderBundleLibraryLocal(library, { skipNormalize: true })
+  persistLibraryTimer = setTimeout(async () => {
     persistLibraryTimer = null
+    try {
+      await persistFaqLibrary(library, 'Atualizacao do rascunho no editor FAQ')
+    } catch (error) {
+      runtimeLoadError.value = String(
+        error?.message || 'Não foi possível salvar o rascunho institucional.',
+      )
+      console.error('[faq-builder][editor-library-save-failed]', error)
+    }
   }, 280)
 }
 
@@ -878,7 +856,7 @@ watch(
     ui.parentTargetId = selectedNodeParentLink.value?.parent_node_id || ''
     syncSelectedNodeOwnershipDraft(node)
     if (node && responseEditorRef.value) {
-      responseEditorRef.value.innerHTML = node.resposta || ''
+      responseEditorRef.value.innerHTML = sanitizeFaqResponseHtml(node.resposta || '')
     }
   },
   { immediate: true },
@@ -892,13 +870,18 @@ function handleGlobalPointerDown(event) {
 }
 
 onMounted(async () => {
-  try {
-    await hydrateFaqLibrary(library, currentEditorName.value)
-  } catch (error) {
-    runtimeLoadError.value = error?.message || 'Falha ao carregar a biblioteca FAQ institucional.'
-  }
   hasMountedEditor = true
   document.addEventListener('pointerdown', handleGlobalPointerDown)
+  try {
+    await hydrateFaqLibrary(library, currentEditorName.value)
+    libraryReady.value = true
+    prepareWorkspaceForRender({ safeMode: ui.safeMode })
+  } catch (error) {
+    runtimeLoadError.value = String(
+      error?.message || 'Não foi possível carregar a biblioteca institucional.',
+    )
+    console.error('[faq-builder][editor-library-load-failed]', error)
+  }
 })
 
 onBeforeUnmount(() => {
@@ -906,6 +889,13 @@ onBeforeUnmount(() => {
   if (persistLibraryTimer) {
     clearTimeout(persistLibraryTimer)
     persistLibraryTimer = null
+    if (libraryReady.value) {
+      void persistFaqLibrary(library, 'Persistencia final do rascunho no editor FAQ').catch(
+        (error) => {
+          console.error('[faq-builder][editor-library-final-save-failed]', error)
+        },
+      )
+    }
   }
   if (rebuildArtifactsTimer) {
     clearTimeout(rebuildArtifactsTimer)
@@ -916,6 +906,76 @@ onBeforeUnmount(() => {
 function setFeedback(type = '', message = '') {
   feedback.type = type
   feedback.message = message
+}
+
+function normalizeEditorLinkUrl(value = '') {
+  const rawValue = String(value || '').trim()
+  if (!rawValue) {
+    return ''
+  }
+
+  try {
+    const url = new URL(rawValue, window.location.origin)
+    if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) {
+      return ''
+    }
+    return url.toString()
+  } catch {
+    return ''
+  }
+}
+
+function sanitizeFaqResponseHtml(value = '') {
+  const rawValue = String(value || '')
+  if (typeof document === 'undefined') {
+    return stripHtml(rawValue)
+  }
+
+  const allowedTags = new Set(['A', 'B', 'BR', 'DIV', 'EM', 'I', 'LI', 'OL', 'P', 'STRONG', 'U', 'UL'])
+  const template = document.createElement('template')
+  template.innerHTML = rawValue
+
+  function unwrapElement(element) {
+    const fragment = document.createDocumentFragment()
+    while (element.firstChild) {
+      fragment.appendChild(element.firstChild)
+    }
+    element.replaceWith(fragment)
+  }
+
+  function sanitizeNode(node) {
+    for (const child of [...node.childNodes]) {
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        continue
+      }
+
+      const tagName = child.tagName.toUpperCase()
+      const rawHref = tagName === 'A' ? child.getAttribute('href') || '' : ''
+      if (!allowedTags.has(tagName)) {
+        unwrapElement(child)
+        sanitizeNode(node)
+        continue
+      }
+
+      for (const attribute of [...child.attributes]) {
+        child.removeAttribute(attribute.name)
+      }
+
+      if (tagName === 'A') {
+        const safeHref = normalizeEditorLinkUrl(rawHref)
+        if (safeHref) {
+          child.setAttribute('href', safeHref)
+          child.setAttribute('rel', 'noopener noreferrer')
+          child.setAttribute('target', '_blank')
+        }
+      }
+
+      sanitizeNode(child)
+    }
+  }
+
+  sanitizeNode(template.content)
+  return template.innerHTML
 }
 
 function stripHtml(value = '') {
@@ -1119,7 +1179,7 @@ function quickAddChild(parentNodeId = '', nodeMode = 'path') {
     nodeMode,
   })
   if (!node) {
-    setFeedback('error', 'Nao foi possivel criar o no filho.')
+    setFeedback('error', 'Não foi possível criar o nó filho.')
     return
   }
   const parentPosition = workspace.value.canvasSnapshot.nodePositions?.[parentNodeId] || {
@@ -1219,7 +1279,7 @@ function updateNodeMode(mode = 'path') {
         : 'theme',
   )
   updateNodeField(
-    'acao',
+    'ação',
     mode === 'final' ? 'mostrar_resposta' : 'ir_para_subniveis',
   )
 }
@@ -1360,13 +1420,25 @@ function applyEditorCommand(command = '') {
   if (command === 'link') {
     const url = window.prompt('Informe a URL do link:')
     if (!url) return
-    document.execCommand('createLink', false, url)
+    const safeUrl = normalizeEditorLinkUrl(url)
+    if (!safeUrl) {
+      setFeedback('error', 'Use um link http, https ou mailto valido.')
+      return
+    }
+    document.execCommand('createLink', false, safeUrl)
   } else {
     document.execCommand(command, false, null)
   }
   if (selectedNode.value) {
-    updateNodeField('resposta', responseEditorRef.value.innerHTML)
+    const sanitizedResponse = sanitizeFaqResponseHtml(responseEditorRef.value.innerHTML)
+    responseEditorRef.value.innerHTML = sanitizedResponse
+    updateNodeField('resposta', sanitizedResponse)
   }
+}
+
+function updateResponseFromEditor(event) {
+  const nextHtml = sanitizeFaqResponseHtml(event?.target?.innerHTML || '')
+  updateNodeField('resposta', nextHtml)
 }
 
 function selectRootNode() {
@@ -1374,27 +1446,21 @@ function selectRootNode() {
   if (rootId) ui.selectedNodeId = rootId
 }
 
-async function saveDraft() {
+function saveDraft() {
   if (!workspace.value) return
-  const reason = ui.governanceSummary || 'Rascunho salvo no editor completo.'
   saveFaqBuilderDraftWorkspace(workspace.value, {
     actorName: currentEditorName.value,
-    summary: reason,
+    summary: ui.governanceSummary || 'Rascunho salvo no editor completo.',
   })
   touchWorkspace({ rebuild: 'immediate' })
-  try {
-    await persistFaqLibrary(library, reason)
-    setFeedback('success', 'Rascunho salvo no Frappe sem publicar.')
-  } catch (error) {
-    setFeedback('error', error?.message || 'Falha ao persistir o rascunho FAQ.')
-  }
+  setFeedback('success', 'Rascunho salvo sem publicar.')
 }
 
-async function submitReview() {
-  await workflowTransition('In Review', 'Fluxo enviado para revisao.')
+function submitReview() {
+  workflowTransition('In Review', 'Fluxo enviado para revisao.')
 }
 
-async function workflowTransition(nextStatus = 'Draft', successMessage = '') {
+function workflowTransition(nextStatus = 'Draft', successMessage = '') {
   if (!workspace.value) return
   const result = transitionFaqBuilderWorkflow(workspace.value, {
     nextStatus,
@@ -1406,22 +1472,14 @@ async function workflowTransition(nextStatus = 'Draft', successMessage = '') {
     return
   }
   touchWorkspace()
-  try {
-    await persistFaqLibrary(
-      library,
-      ui.governanceSummary || `Transicao do fluxo FAQ para ${nextStatus}`,
-    )
-    if (successMessage) setFeedback('success', `${successMessage} Alteracao persistida no Frappe.`)
-  } catch (error) {
-    setFeedback('error', error?.message || 'Falha ao persistir a transicao do fluxo FAQ.')
-  }
+  if (successMessage) setFeedback('success', successMessage)
 }
 
-async function publishWorkspace() {
+function publishWorkspace() {
   if (!workspace.value) return
   const result = publishFaqBuilderWorkspace(workspace.value, {
     actorName: currentEditorName.value,
-    summary: ui.governanceSummary || 'Publicacao via FAQ Builder.',
+    summary: ui.governanceSummary || 'Publicação via FAQ Builder.',
     publishConfig: workspace.value.publishConfig,
   })
   if (!result.ok) {
@@ -1430,15 +1488,7 @@ async function publishWorkspace() {
     return
   }
   touchWorkspace()
-  try {
-    await persistFaqLibrary(
-      library,
-      ui.governanceSummary || 'Publicacao do fluxo FAQ via editor completo',
-    )
-    setFeedback('success', 'Fluxo publicado e persistido no Frappe.')
-  } catch (error) {
-    setFeedback('error', error?.message || 'Falha ao persistir a publicacao FAQ.')
-  }
+  setFeedback('success', 'Fluxo publicado com sucesso.')
 }
 
 function openPreview() {
@@ -1446,7 +1496,7 @@ function openPreview() {
     currentBundleEntry.value?.bundleId || bundleId.value || '',
   )
   if (!normalizedBundleId) {
-    setFeedback('error', 'Fluxo invalido para abrir visualizacao de teste.')
+    setFeedback('error', 'Fluxo invalido para abrir visualização de teste.')
     return
   }
   const query = { tester: 'draft' }
@@ -1500,7 +1550,7 @@ function parseSecondaryActionsText(rawValue = '') {
 
 function validatePortalExportForm() {
   if (!workspace.value) {
-    exportState.errors = [{ code: 'missing_workspace', message: 'Fluxo indisponivel para exportacao.' }]
+    exportState.errors = [{ code: 'missing_workspace', message: 'Fluxo indisponivel para exportação.' }]
     return false
   }
   const validation = validateFaqBuilderPortalExport(workspace.value.draftBundle, {
@@ -1533,7 +1583,7 @@ function downloadJsonFile(payload = {}, fileName = '') {
 
 async function exportPortalJson() {
   if (!workspace.value || !currentBundleEntry.value || !validatePortalExportForm()) {
-    setFeedback('error', 'Revise os campos da exportacao antes de gerar o JSON.')
+    setFeedback('error', 'Revise os campos da exportação antes de gerar o JSON.')
     return
   }
 
@@ -1554,7 +1604,7 @@ async function exportPortalJson() {
     })
     if (!result.ok || !result.payload) {
       exportState.errors = result.errors || []
-      setFeedback('error', 'Nao foi possivel gerar o JSON de exportacao.')
+      setFeedback('error', 'Não foi possível gerar o JSON de exportação.')
       return
     }
     const fileName = buildFaqBuilderPortalExportFileName(
@@ -1586,7 +1636,6 @@ async function onSpreadsheetSelected(event) {
   if (!file || !workspace.value || !currentBundleEntry.value) return
 
   importState.fileName = file.name
-  importState.sourceType = 'spreadsheet'
   importState.isLoading = true
 
   try {
@@ -1596,25 +1645,6 @@ async function onSpreadsheetSelected(event) {
     })
   } catch (error) {
     setFeedback('error', error?.message || 'Falha ao processar o dry-run.')
-  } finally {
-    importState.isLoading = false
-  }
-}
-async function onJsonSelected(event) {
-  const file = event.target.files?.[0] || null
-  if (!file || !workspace.value || !currentBundleEntry.value) return
-
-  importState.fileName = file.name
-  importState.sourceType = 'json'
-  importState.isLoading = true
-
-  try {
-    importState.result = await readFaqBuilderJson(file, {
-      faqType: currentBundleEntry.value.faqType,
-      baseBundle: workspace.value.draftBundle,
-    })
-  } catch (error) {
-    setFeedback('error', error?.message || 'Falha ao processar o JSON.')
   } finally {
     importState.isLoading = false
   }
@@ -1634,8 +1664,7 @@ function applySpreadsheetImport() {
   workspace.value.canvasSnapshot = importState.result.canvasSnapshot
   workspace.value.workflowStatus = 'Draft'
   touchWorkspace()
-  const sourceLabel = importState.sourceType === 'json' ? 'JSON' : 'Planilha'
-  setFeedback('success', `${sourceLabel} aplicado no fluxo atual como rascunho.`)
+  setFeedback('success', 'Planilha aplicada no fluxo atual.')
   switchMode('visual')
 }
 </script>
@@ -1649,7 +1678,7 @@ function applySpreadsheetImport() {
   >
     <header
       v-if="!isMissingBundle"
-      class="faq-editor-header rounded-[18px] border border-slate-200 bg-white px-4 py-3"
+      class="faq-editor-header rounded-[8px] border border-slate-200 bg-white px-4 py-3"
     >
       <div class="faq-editor-header__main">
         <button type="button" class="faq-back-btn" @click="goToFlowOverview">
@@ -1675,28 +1704,28 @@ function applySpreadsheetImport() {
       <div class="faq-editor-header__actions">
         <button
           type="button"
-          class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+          class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
           @click="setEditorFullscreen(!ui.isFullscreen, { source: 'user' })"
         >
           {{ ui.isFullscreen ? 'Sair da tela cheia' : 'Abrir em tela cheia' }}
         </button>
         <button
           type="button"
-          class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+          class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
           @click="saveDraft"
         >
           Salvar rascunho
         </button>
         <button
           type="button"
-          class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+          class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
           @click="openPreview"
         >
           Testar fluxo
         </button>
         <button
           type="button"
-          class="rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+          class="rounded-[8px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
           @click="publishWorkspace"
         >
           Publicar
@@ -1705,14 +1734,14 @@ function applySpreadsheetImport() {
         <div ref="overflowMenuRef" class="relative">
           <button
             type="button"
-            class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+            class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
             @click.stop="toggleOverflowMenu"
           >
             Mais
           </button>
           <div
             v-if="ui.showOverflowMenu"
-            class="absolute right-0 z-20 mt-2 grid w-[220px] gap-1 rounded-[12px] border border-slate-200 bg-white p-2 shadow-lg"
+            class="absolute right-0 z-20 mt-2 grid w-[220px] gap-1 rounded-[8px] border border-slate-200 bg-white p-2 shadow-lg"
           >
             <button
               type="button"
@@ -1735,7 +1764,7 @@ function applySpreadsheetImport() {
 
     <section
       v-if="runtimeLoadError"
-      class="mt-3 rounded-[14px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
+      class="mt-3 rounded-[8px] border border-[rgba(166,31,40,0.25)] bg-[rgba(253,236,237,0.8)] px-4 py-3 text-sm text-[var(--color-danger)]"
     >
       <p class="font-semibold">Dados locais antigos do builder foram reinicializados.</p>
       <p class="mt-1">{{ runtimeLoadError }}</p>
@@ -1743,24 +1772,24 @@ function applySpreadsheetImport() {
 
     <section
       v-if="openState.isLoading"
-      class="mt-3 rounded-[14px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+      class="mt-3 rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
     >
       Carregando fluxo em modo protegido...
     </section>
 
     <section
       v-if="ui.safeMode || openState.failed || sanitizedState.warnings.length"
-      class="mt-3 rounded-[14px] border border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.7)] px-4 py-3"
+      class="mt-3 rounded-[8px] border border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.7)] px-4 py-3"
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#0b6e8c]">
+          <p class="text-xs font-semibold uppercase tracking-normal text-[#0b6e8c]">
             Estabilidade do builder
           </p>
           <p class="mt-1 text-sm font-semibold text-slate-900">
             {{
               openState.failed
-                ? 'Nao foi possivel preparar o editor deste fluxo.'
+                ? 'Não foi possível preparar o editor deste fluxo.'
                 : ui.safeMode
                   ? 'Modo seguro ativo para continuar a edicao com menor risco.'
                   : 'Abertura concluida com ajustes automaticos de estabilidade.'
@@ -1776,13 +1805,13 @@ function applySpreadsheetImport() {
             {{ `${sanitizedState.warnings.length} ajuste(s) aplicados para manter o fluxo editavel.` }}
           </p>
           <p class="mt-1 text-xs text-slate-600">
-            O modo seguro preserva a edicao e reduz o uso do canvas interativo. Reconstruir a organizacao visual refaz apenas a posicao dos nos.
+            O modo seguro preserva a edicao e reduz o uso do canvas interativo. Reconstruir a organização visual refaz apenas a posicao dos nos.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button
             type="button"
-            class="rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+            class="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
             @click="retryOpenBundle"
           >
             Tentar novamente
@@ -1790,23 +1819,23 @@ function applySpreadsheetImport() {
           <button
             v-if="!ui.safeMode"
             type="button"
-            class="rounded-[10px] border border-[#0b6e8c] bg-white px-3 py-2 text-xs font-semibold text-[#0b6e8c]"
+            class="rounded-[8px] border border-[#0b6e8c] bg-white px-3 py-2 text-xs font-semibold text-[#0b6e8c]"
             @click="setSafeMode(true, { source: 'user' })"
           >
             Abrir em modo seguro
           </button>
           <button
             type="button"
-            class="rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+            class="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
             @click="recoverIgnoringSnapshot"
           >
-            Reconstruir organizacao visual
+            Reconstruir organização visual
           </button>
         </div>
       </div>
       <details
         v-if="openState.markers.length"
-        class="mt-3 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+        class="mt-3 rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
       >
         <summary class="cursor-pointer font-semibold text-slate-700">
           Ver detalhes tecnicos da abertura
@@ -1821,7 +1850,7 @@ function applySpreadsheetImport() {
 
     <section
       v-if="feedback.message"
-      class="mt-3 rounded-[14px] border px-4 py-3 text-sm"
+      class="mt-3 rounded-[8px] border px-4 py-3 text-sm"
       :class="
         feedback.type === 'error'
           ? 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] text-[var(--color-danger)]'
@@ -1833,7 +1862,7 @@ function applySpreadsheetImport() {
 
     <section
       v-if="isMissingBundle"
-      class="mt-4 rounded-[18px] border border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.85)] p-6"
+      class="mt-4 rounded-[8px] border border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.85)] p-6"
     >
       <h2 class="text-base font-semibold text-[var(--color-danger)]">
         Fluxo nao encontrado
@@ -1843,7 +1872,7 @@ function applySpreadsheetImport() {
       </p>
       <button
         type="button"
-        class="mt-4 rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+        class="mt-4 rounded-[8px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
         @click="goToLibrary"
       >
         Voltar para biblioteca
@@ -1853,27 +1882,27 @@ function applySpreadsheetImport() {
     <template v-else>
       <section
         v-if="openState.failed"
-        class="mt-3 rounded-[16px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.76)] p-4 text-sm text-[var(--color-danger)]"
+        class="mt-3 rounded-[8px] border border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.76)] p-4 text-sm text-[var(--color-danger)]"
       >
-        Nao foi possivel renderizar o editor completo deste fluxo sem risco de travamento.
+        Não foi possível renderizar o editor completo deste fluxo sem risco de travamento.
         <div class="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            class="rounded-[10px] border border-[rgba(166,31,40,0.35)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
+            class="rounded-[8px] border border-[rgba(166,31,40,0.35)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
             @click="retryOpenBundle"
           >
             Tentar novamente
           </button>
           <button
             type="button"
-            class="rounded-[10px] border border-[rgba(166,31,40,0.35)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
+            class="rounded-[8px] border border-[rgba(166,31,40,0.35)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
             @click="setSafeMode(true, { source: 'user' })"
           >
             Forcar modo seguro
           </button>
           <button
             type="button"
-            class="rounded-[10px] border border-[rgba(166,31,40,0.35)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
+            class="rounded-[8px] border border-[rgba(166,31,40,0.35)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-danger)]"
             @click="recoverIgnoringSnapshot"
           >
             Resetar workspace visual
@@ -1904,13 +1933,13 @@ function applySpreadsheetImport() {
             class="rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
             @click="ui.showValidationDetails = !ui.showValidationDetails"
           >
-            Validacao: {{ validationSummaryLabel }}
+            Validação: {{ validationSummaryLabel }}
           </button>
         </section>
 
         <template v-if="ui.mode === 'visual' && !openState.isLoading">
-          <section class="mt-3 grid gap-3 xl:grid-cols-[1fr_390px]">
-            <article class="faq-canvas-shell rounded-[18px] border border-slate-200 bg-white">
+          <section class="crm-split-grid crm-split-grid--sidebar mt-3 gap-3">
+            <article class="faq-canvas-shell rounded-[8px] border border-slate-200 bg-white">
               <div class="faq-canvas-shell__meta">
                 <p class="text-xs text-slate-600">
                   Edite a estrutura no canvas. Clique no no para abrir detalhes.
@@ -1918,7 +1947,7 @@ function applySpreadsheetImport() {
                 <div class="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    class="rounded-[10px] border border-slate-300 px-3 py-1.5 text-[11px] font-semibold text-slate-700"
+                    class="rounded-[8px] border border-slate-300 px-3 py-1.5 text-[11px] font-semibold text-slate-700"
                     @click="applyAutoLayout"
                   >
                     Auto-layout
@@ -1926,7 +1955,7 @@ function applySpreadsheetImport() {
                   <button
                     v-if="ui.safeMode"
                     type="button"
-                    class="rounded-[10px] border border-[#0b6e8c] px-3 py-1.5 text-[11px] font-semibold text-[#0b6e8c]"
+                    class="rounded-[8px] border border-[#0b6e8c] px-3 py-1.5 text-[11px] font-semibold text-[#0b6e8c]"
                     @click="setSafeMode(false, { source: 'user' })"
                   >
                     Tentar canvas interativo
@@ -1936,7 +1965,7 @@ function applySpreadsheetImport() {
               <div class="faq-canvas-shell__stage">
                 <div
                   v-if="ui.safeMode"
-                  class="flex h-full min-h-[420px] flex-col rounded-[14px] border border-slate-200 bg-slate-50 p-3"
+                  class="flex h-full min-h-[420px] flex-col rounded-[8px] border border-slate-200 bg-slate-50 p-3"
                 >
                   <p class="text-xs font-semibold text-slate-800">
                     Modo seguro ativo: canvas interativo desativado para evitar travamento.
@@ -1949,7 +1978,7 @@ function applySpreadsheetImport() {
                       v-for="node in flowNodes"
                       :key="`safe-node-${node.id}`"
                       type="button"
-                      class="rounded-[10px] border px-3 py-2 text-left text-xs transition"
+                      class="rounded-[8px] border px-3 py-2 text-left text-xs transition"
                       :class="
                         ui.selectedNodeId === node.id
                           ? 'border-[#0b6e8c] bg-[rgba(224,242,254,0.85)] text-[#0b6e8c]'
@@ -1979,14 +2008,14 @@ function applySpreadsheetImport() {
                 </VueFlowCanvas>
                 <div
                   v-else
-                  class="flex h-full min-h-[420px] items-center justify-center rounded-[14px] border border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm text-slate-600"
+                  class="flex h-full min-h-[420px] items-center justify-center rounded-[8px] border border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm text-slate-600"
                 >
                   Nenhum no valido para renderizar no canvas. Use o modo seguro ou reconstrua o snapshot.
                 </div>
               </div>
             </article>
 
-            <aside class="faq-node-drawer rounded-[18px] border border-slate-200 bg-white">
+            <aside class="faq-node-drawer rounded-[8px] border border-slate-200 bg-white">
               <header class="faq-node-drawer__header">
                 <h2 class="text-sm font-semibold text-slate-900">Edicao do no</h2>
                 <p class="text-xs text-slate-500">Ajuste apenas o no selecionado.</p>
@@ -2017,9 +2046,9 @@ function applySpreadsheetImport() {
                   <label class="faq-field">
                     <span>Acao final</span>
                     <select
-                      :value="selectedNode.acao"
+                      :value="selectedNode.ação"
                       class="faq-input"
-                      @change="updateNodeField('acao', $event.target.value)"
+                      @change="updateNodeField('ação', $event.target.value)"
                     >
                       <option
                         v-for="option in catalogs.actions"
@@ -2069,9 +2098,9 @@ function applySpreadsheetImport() {
 
                 <section
                   v-if="selectedNodeMode === 'final'"
-                  class="rounded-[14px] border border-slate-200 bg-slate-50 p-3"
+                  class="rounded-[8px] border border-slate-200 bg-slate-50 p-3"
                 >
-                  <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
                     Resposta final
                   </p>
                   <div class="mt-2 flex flex-wrap gap-1.5">
@@ -2092,25 +2121,96 @@ function applySpreadsheetImport() {
                   <div
                     ref="responseEditorRef"
                     contenteditable="true"
-                    class="mt-2 min-h-[140px] rounded-[12px] border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-700"
-                    @input="updateNodeField('resposta', $event.target.innerHTML)"
+                    class="mt-2 min-h-[140px] rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-700"
+                    @input="updateResponseFromEditor"
                   ></div>
+                </section>
+
+                <section
+                  v-if="selectedNodeMode === 'final'"
+                  class="rounded-[8px] border border-slate-200 bg-white p-3"
+                >
+                  <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
+                    Preparacao fase 2
+                  </p>
+                  <p class="mt-1 text-[11px] text-slate-600">
+                    Classifique respostas que futuramente dependerao de dados academicos oficiais.
+                  </p>
+                  <div class="mt-3 grid gap-2">
+                    <label class="faq-field">
+                      <span>Tipo de resposta</span>
+                      <select
+                        :value="selectedNode.response_mode || 'informational'"
+                        class="faq-input"
+                        @change="updateNodeField('response_mode', $event.target.value)"
+                      >
+                        <option
+                          v-for="option in catalogs.responseModes"
+                          :key="option.value"
+                          :value="option.value"
+                        >
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+                    <label class="faq-field">
+                      <span>Intencao academica</span>
+                      <select
+                        :value="selectedNode.academic_intent || 'none'"
+                        class="faq-input"
+                        @change="updateNodeField('academic_intent', $event.target.value)"
+                      >
+                        <option
+                          v-for="option in catalogs.academicIntents"
+                          :key="option.value"
+                          :value="option.value"
+                        >
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+                    <label class="faq-field">
+                      <span>Contrato de dados futuro</span>
+                      <input
+                        :value="selectedNode.data_contract_key || ''"
+                        class="faq-input"
+                        placeholder="Ex.: academic.pending_courses.v1"
+                        @input="updateNodeField('data_contract_key', $event.target.value)"
+                      />
+                    </label>
+                    <label class="faq-field">
+                      <span>Politica de confianca</span>
+                      <select
+                        :value="selectedNode.confidence_policy || 'answer_when_deterministic'"
+                        class="faq-input"
+                        @change="updateNodeField('confidence_policy', $event.target.value)"
+                      >
+                        <option
+                          v-for="option in catalogs.confidencePolicies"
+                          :key="option.value"
+                          :value="option.value"
+                        >
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+                  </div>
                 </section>
 
                 <details class="faq-advanced-panel">
                   <summary>Configuracoes avancadas</summary>
 
                   <div class="mt-3 grid gap-3">
-                    <section class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
-                      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <section class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+                      <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
                         Responsavel e roteamento
                       </p>
                       <p class="mt-1 text-[11px] text-slate-600">
                         Ajuste apenas quando este fluxo precisar sair do responsavel padrao.
                       </p>
 
-                      <div class="mt-3 rounded-[10px] border border-slate-200 bg-white p-3">
-                        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      <div class="mt-3 rounded-[8px] border border-slate-200 bg-white p-3">
+                        <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
                           Responsavel padrao do fluxo
                         </p>
                         <div class="mt-2 grid gap-2">
@@ -2174,13 +2274,13 @@ function applySpreadsheetImport() {
                             v-if="bundleOwnerDraft.ownerType !== 'queue'"
                             class="text-[11px] text-slate-600"
                           >
-                            Use apenas valores ja cadastrados. A publicacao valida estas referencias.
+                            Use apenas valores ja cadastrados. A publicação valida estas referencias.
                           </p>
                         </div>
                       </div>
 
-                      <div class="mt-3 rounded-[10px] border border-slate-200 bg-white p-3">
-                        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      <div class="mt-3 rounded-[8px] border border-slate-200 bg-white p-3">
+                        <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
                           Responsavel deste no
                         </p>
                         <label class="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
@@ -2254,7 +2354,7 @@ function applySpreadsheetImport() {
                             v-if="selectedNode.owner_type === 'area' || selectedNode.owner_type === 'role'"
                             class="text-[11px] text-slate-600"
                           >
-                            Use apenas valores ja cadastrados. A publicacao valida estas referencias.
+                            Use apenas valores ja cadastrados. A publicação valida estas referencias.
                           </p>
                           <label class="faq-field">
                             <span>Politica de roteamento (opcional)</span>
@@ -2277,8 +2377,8 @@ function applySpreadsheetImport() {
                       </div>
                     </section>
 
-                    <section class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
-                      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <section class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+                      <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
                         Estrutura do fluxo
                       </p>
                       <div class="mt-2 grid gap-2">
@@ -2297,7 +2397,7 @@ function applySpreadsheetImport() {
                         </label>
                         <button
                           type="button"
-                          class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                          class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                           @click="moveNodeParent"
                         >
                           Aplicar
@@ -2305,8 +2405,8 @@ function applySpreadsheetImport() {
                       </div>
                     </section>
 
-                    <section class="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
-                      <p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <section class="rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+                      <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
                         Metadados
                       </p>
                       <label class="faq-field mt-2">
@@ -2331,17 +2431,17 @@ function applySpreadsheetImport() {
                 <div class="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                    class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                     @click="selectRootNode"
                   >
                     Selecionar no raiz
                   </button>
                   <button
                     type="button"
-                    class="rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                    class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                     @click="ui.showValidationDetails = true"
                   >
-                    Ver validacao
+                    Ver validação
                   </button>
                 </div>
               </div>
@@ -2350,38 +2450,38 @@ function applySpreadsheetImport() {
 
           <section
             v-if="ui.showValidationDetails"
-            class="mt-3 rounded-[18px] border border-slate-200 bg-white p-4"
+            class="mt-3 rounded-[8px] border border-slate-200 bg-white p-4"
           >
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <p class="text-sm font-semibold text-slate-900">Validacao estrutural do fluxo</p>
+              <p class="text-sm font-semibold text-slate-900">Validação estrutural do fluxo</p>
               <button
                 type="button"
-                class="rounded-[10px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                class="rounded-[8px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
                 @click="ui.showValidationDetails = false"
               >
                 Ocultar detalhes
               </button>
             </div>
             <div class="mt-3 grid gap-2 md:grid-cols-4">
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs">
+              <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3 text-xs">
                 <p class="font-semibold text-slate-700">Erros</p>
                 <p class="mt-1 text-base font-semibold text-[var(--color-danger)]">
                   {{ validation.errors.length }}
                 </p>
               </div>
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs">
+              <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3 text-xs">
                 <p class="font-semibold text-slate-700">Alertas</p>
                 <p class="mt-1 text-base font-semibold text-[#8a5200]">
                   {{ validation.warnings.length }}
                 </p>
               </div>
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs">
-                <p class="font-semibold text-slate-700">Publicacao</p>
+              <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3 text-xs">
+                <p class="font-semibold text-slate-700">Publicação</p>
                 <p class="mt-1 text-base font-semibold" :class="publishBlocked ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'">
                   {{ publishBlocked ? 'Bloqueada' : 'Liberada' }}
                 </p>
               </div>
-              <div class="rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs">
+              <div class="rounded-[8px] border border-slate-200 bg-slate-50 p-3 text-xs">
                 <p class="font-semibold text-slate-700">Cobertura owner final</p>
                 <p
                   class="mt-1 text-base font-semibold"
@@ -2391,7 +2491,7 @@ function applySpreadsheetImport() {
                 </p>
               </div>
             </div>
-            <div class="mt-3 max-h-[260px] overflow-auto rounded-[12px] border border-slate-200">
+            <div class="crm-table-scroll crm-table-scroll--bounded mt-3">
               <table class="w-full text-left text-xs">
                 <thead class="bg-slate-100 text-slate-600">
                   <tr>
@@ -2424,59 +2524,44 @@ function applySpreadsheetImport() {
         </template>
 
         <template v-else-if="ui.mode === 'import'">
-          <section class="mt-3 grid gap-3 xl:grid-cols-[0.92fr_1.08fr]">
-            <article class="rounded-[18px] border border-slate-200 bg-white p-4">
+          <section class="crm-split-grid mt-3 gap-3">
+            <article class="rounded-[8px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">
-                Importacao por planilha ou JSON para este fluxo
+                Importação por planilha para este fluxo
               </p>
               <p class="mt-1 text-xs text-slate-600">
-                O dry-run aceita XLSX, bundle canonico JSON ou procedure-capture-v1. Nada e publicado automaticamente.
+                A importação e contextual ao bundle atual e funciona em modo tudo-ou-nada.
               </p>
               <button
                 type="button"
-                class="mt-3 rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                class="mt-3 rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                 @click="downloadTemplate"
               >
                 Baixar template oficial
               </button>
-              <label class="mt-4 block text-xs font-semibold text-slate-700" for="faq-xlsx-import">
-                Planilha oficial
-              </label>
               <input
-                id="faq-xlsx-import"
                 type="file"
                 accept=".xlsx,.xls"
-                class="mt-2 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
+                class="mt-4 w-full rounded-[8px] border border-slate-300 px-3 py-2 text-sm"
                 @change="onSpreadsheetSelected"
-              />
-              <label class="mt-4 block text-xs font-semibold text-slate-700" for="faq-json-import">
-                JSON canonico ou capturado
-              </label>
-              <input
-                id="faq-json-import"
-                type="file"
-                accept="application/json,.json"
-                class="mt-2 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
-                @change="onJsonSelected"
               />
               <p class="mt-2 text-xs text-slate-500">
                 {{ importState.fileName || 'Nenhum arquivo selecionado.' }}
               </p>
             </article>
 
-            <article class="rounded-[18px] border border-slate-200 bg-white p-4">
+            <article class="rounded-[8px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">Resultado do dry-run</p>
               <p v-if="importState.isLoading" class="mt-2 text-sm text-slate-600">
-                Processando arquivo e validando o rascunho...
+                Processando planilha...
               </p>
               <template v-else-if="importState.result">
                 <p class="mt-2 text-xs text-slate-600">
                   Linhas: {{ importState.result.summary?.totalRows || 0 }} | Nos:
                   {{ importState.result.summary?.totalNodes || 0 }} | Links:
-                  {{ importState.result.summary?.totalLinks || 0 }} | Midias:
-                  {{ importState.result.summary?.mediaItems || 0 }}
+                  {{ importState.result.summary?.totalLinks || 0 }}
                 </p>
-                <div class="mt-3 max-h-[280px] overflow-auto rounded-[12px] border border-slate-200">
+                <div class="crm-table-scroll crm-table-scroll--bounded-lg mt-3">
                   <table class="w-full text-left text-xs">
                     <thead class="bg-slate-100 text-slate-600">
                       <tr>
@@ -2510,7 +2595,7 @@ function applySpreadsheetImport() {
                 </div>
                 <button
                   type="button"
-                  class="mt-3 rounded-[12px] border px-3 py-2 text-xs font-semibold"
+                  class="mt-3 rounded-[8px] border px-3 py-2 text-xs font-semibold"
                   :class="
                     importState.result.ok
                       ? 'border-[rgba(26,111,67,0.25)] bg-[rgba(220,252,231,0.8)] text-[var(--color-success)]'
@@ -2519,7 +2604,7 @@ function applySpreadsheetImport() {
                   :disabled="!importState.result.ok"
                   @click="applySpreadsheetImport"
                 >
-                  Aplicar arquivo neste fluxo como rascunho
+                  Aplicar importação neste fluxo
                 </button>
               </template>
             </article>
@@ -2527,8 +2612,8 @@ function applySpreadsheetImport() {
         </template>
 
         <template v-else>
-          <section class="mt-3 grid gap-3 xl:grid-cols-[0.86fr_1.14fr]">
-            <article class="rounded-[18px] border border-slate-200 bg-white p-4">
+          <section class="crm-split-grid mt-3 gap-3">
+            <article class="rounded-[8px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">Governanca do fluxo</p>
               <p class="mt-1 text-xs text-slate-600">
                 Registre o contexto da mudanca antes de publicar.
@@ -2536,34 +2621,34 @@ function applySpreadsheetImport() {
               <textarea
                 v-model="ui.governanceSummary"
                 rows="4"
-                class="mt-3 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-sm"
+                class="mt-3 w-full rounded-[8px] border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Resumo objetivo da mudanca..."
               ></textarea>
               <div class="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                  class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                   @click="workflowTransition('Draft', 'Status alterado para Draft.')"
                 >
                   Marcar Draft
                 </button>
                 <button
                   type="button"
-                  class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                  class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                   @click="submitReview"
                 >
                   Enviar revisao
                 </button>
                 <button
                   type="button"
-                  class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                  class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                   @click="workflowTransition('Archived', 'Fluxo arquivado.')"
                 >
                   Arquivar
                 </button>
                 <button
                   type="button"
-                  class="rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                  class="rounded-[8px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
                   @click="publishWorkspace"
                 >
                   Publicar agora
@@ -2571,7 +2656,7 @@ function applySpreadsheetImport() {
               </div>
             </article>
 
-            <article class="rounded-[18px] border border-slate-200 bg-white p-4">
+            <article class="rounded-[8px] border border-slate-200 bg-white p-4">
               <p class="text-sm font-semibold text-slate-900">Diff do draft atual</p>
               <div class="mt-3 grid gap-1 text-xs text-slate-600 md:grid-cols-2">
                 <p>Nos criados: {{ bundleDiff.summary.createdNodes }}</p>
@@ -2580,7 +2665,7 @@ function applySpreadsheetImport() {
                 <p>Links criados: {{ bundleDiff.summary.createdLinks }}</p>
                 <p>Links removidos: {{ bundleDiff.summary.removedLinks }}</p>
               </div>
-              <details class="mt-3 rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+              <details class="mt-3 rounded-[8px] border border-slate-200 bg-slate-50 p-3">
                 <summary class="cursor-pointer text-xs font-semibold text-slate-700">
                   Preview do payload backend
                 </summary>
@@ -2597,12 +2682,12 @@ function applySpreadsheetImport() {
             </article>
           </section>
 
-          <details class="mt-3 rounded-[18px] border border-slate-200 bg-white p-4">
+          <details class="mt-3 rounded-[8px] border border-slate-200 bg-white p-4">
             <summary class="cursor-pointer text-sm font-semibold text-slate-900">
-              Exportacao avancada para portal externo
+              Exportação avancada para portal externo
             </summary>
             <p class="mt-2 text-xs text-slate-600">
-              Esta exportacao nao publica a FAQ no CRM. Ela gera um arquivo para revisao e publicacao externa no Portal de Matricula.
+              Esta exportação nao publica a FAQ no CRM. Ela gera um arquivo para revisao e publicação externa no Portal de Matricula.
             </p>
 
             <div class="mt-4 grid gap-3 md:grid-cols-2">
@@ -2631,19 +2716,19 @@ function applySpreadsheetImport() {
                 </select>
               </label>
               <label class="faq-field">
-                <span>Rotulo da acao principal (opcional)</span>
+                <span>Rotulo da ação principal (opcional)</span>
                 <input
                   v-model="exportState.primaryActionLabel"
                   class="faq-input"
-                  placeholder="Ex.: Verificar situacao"
+                  placeholder="Ex.: Verificar situação"
                 />
               </label>
               <label class="faq-field md:col-span-2">
-                <span>Rota da acao principal (opcional)</span>
+                <span>Rota da ação principal (opcional)</span>
                 <input
                   v-model="exportState.primaryActionRoute"
                   class="faq-input"
-                  placeholder="Ex.: /verificar-situacao"
+                  placeholder="Ex.: /verificar-situação"
                 />
               </label>
               <label class="faq-field md:col-span-2">
@@ -2659,7 +2744,7 @@ function applySpreadsheetImport() {
 
             <div
               v-if="exportState.errors.length"
-              class="mt-3 rounded-[12px] border border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] p-3 text-xs text-[var(--color-danger)]"
+              class="mt-3 rounded-[8px] border border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.8)] p-3 text-xs text-[var(--color-danger)]"
             >
               <p class="font-semibold">Corrija antes de exportar:</p>
               <ul class="mt-2 list-disc pl-5">
@@ -2672,14 +2757,14 @@ function applySpreadsheetImport() {
             <div class="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
-                class="rounded-[12px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                class="rounded-[8px] border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                 @click="validatePortalExportForm"
               >
-                Validar exportacao
+                Validar exportação
               </button>
               <button
                 type="button"
-                class="rounded-[12px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                class="rounded-[8px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="exportState.isDownloading"
                 @click="exportPortalJson"
               >
@@ -2695,12 +2780,12 @@ function applySpreadsheetImport() {
       v-if="ui.showPreviewModal"
       class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/55 p-4"
     >
-      <div class="w-full max-w-[760px] rounded-[18px] border border-slate-200 bg-white p-4 shadow-2xl">
+      <div class="w-full max-w-[760px] rounded-[8px] border border-slate-200 bg-white p-4 shadow-2xl">
         <div class="flex items-center justify-between gap-2">
           <h2 class="text-sm font-semibold text-slate-900">Teste rapido da jornada</h2>
           <button
             type="button"
-            class="rounded-[10px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
+            class="rounded-[8px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
             @click="closePreview"
           >
             Fechar
@@ -2716,7 +2801,7 @@ function applySpreadsheetImport() {
           </p>
           <p
             v-if="previewNode.resposta"
-            class="mt-2 rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+            class="mt-2 rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
           >
             {{ stripHtml(previewNode.resposta) }}
           </p>
@@ -2726,7 +2811,7 @@ function applySpreadsheetImport() {
               v-for="(choice, choiceIndex) in previewChoices"
               :key="choice?.id || `choice-${choiceIndex}`"
               type="button"
-              class="rounded-[12px] border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-700 hover:border-slate-400"
+              class="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-700 hover:border-slate-400"
               @click="stepPreview(choice?.id || '')"
             >
               {{ choice?.titulo_exibido || 'Opcao sem titulo' }}

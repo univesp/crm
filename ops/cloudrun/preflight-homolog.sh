@@ -14,6 +14,8 @@ WEB_SERVICE=${WEB_SERVICE:-crm-homolog-web}
 WORKER_SERVICE=${WORKER_SERVICE:-crm-homolog-worker}
 SCHEDULER_SERVICE=${SCHEDULER_SERVICE:-crm-homolog-scheduler}
 GATEWAY_SERVICE=${GATEWAY_SERVICE:-crm-homolog-sso-gateway}
+ANTIMALWARE_SERVICE=${ANTIMALWARE_SERVICE:-crm-homolog-antimalware}
+MEDIA_PROCESSOR_SERVICE=${MEDIA_PROCESSOR_SERVICE:-crm-homolog-media-processor}
 BOOTSTRAP_JOB=${BOOTSTRAP_JOB:-crm-homolog-bootstrap}
 required_values=(PROJECT_ID REGION ARTIFACT_REPOSITORY CLOUDSQL_INSTANCE SITES_BUCKET VPC_CONNECTOR CLOUDRUN_RUNTIME_SERVICE_ACCOUNT)
 secret_names=(
@@ -32,6 +34,11 @@ secret_names=(
  ${AZURE_ADMIN_CLIENT_SECRET_NAME:-crm-homolog-azure-admin-client-secret}
  ${AZURE_ACADEMICO_CLIENT_SECRET_NAME:-crm-homolog-azure-academico-client-secret}
  ${SAML_IDP_CERT_SECRET_NAME:-crm-homolog-saml-idp-cert}
+ ${ANTIMALWARE_TOKEN_SECRET_NAME:-crm-homolog-antimalware-token}
+ ${MEDIA_PROCESSOR_TOKEN_SECRET_NAME:-crm-homolog-media-processor-token}
+ ${INGRESS_SHARED_SECRET_NAME:-crm-homolog-ingress-shared-secret}
+ ${PUBLIC_EMAIL_REPLY_SECRET_NAME:-crm-homolog-public-email-reply-secret}
+ ${SMTP_PASSWORD_SECRET_NAME:-crm-homolog-smtp-password}
 )
 command -v jq >/dev/null || { printf 'jq is required.\n' >&2; exit 1; }
 checks='[]'; failures=0
@@ -50,7 +57,7 @@ if [[ "$PREFLIGHT_MODE" == gcp ]]; then
  if gcloud iam service-accounts describe "$CLOUDRUN_RUNTIME_SERVICE_ACCOUNT" --project "$PROJECT_ID" >/dev/null 2>&1; then record runtime_service_account pass found; else record runtime_service_account fail not-found; fi
  for secret_name in "${secret_names[@]}"; do if gcloud secrets versions describe latest --secret "$secret_name" --project "$PROJECT_ID" --format='value(state)' 2>/dev/null | grep -qx ENABLED; then record "secret:$secret_name" pass latest-enabled; else record "secret:$secret_name" fail missing-or-disabled; fi; done
  if [[ "$CHECK_DEPLOYED_SERVICES" == true ]]; then
-  for service in "$WEB_SERVICE" "$WORKER_SERVICE" "$SCHEDULER_SERVICE" "$GATEWAY_SERVICE"; do if gcloud run services describe "$service" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then record "service:$service" pass found; else record "service:$service" fail not-found; fi; done
+  for service in "$WEB_SERVICE" "$WORKER_SERVICE" "$SCHEDULER_SERVICE" "$GATEWAY_SERVICE" "$ANTIMALWARE_SERVICE" "$MEDIA_PROCESSOR_SERVICE"; do if gcloud run services describe "$service" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then record "service:$service" pass found; else record "service:$service" fail not-found; fi; done
   if gcloud run jobs describe "$BOOTSTRAP_JOB" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then record "job:$BOOTSTRAP_JOB" pass found; else record "job:$BOOTSTRAP_JOB" fail not-found; fi
  fi
 elif [[ "$PREFLIGHT_MODE" != static ]]; then printf 'PREFLIGHT_MODE must be static or gcp.\n' >&2; exit 1; fi

@@ -1,5 +1,4 @@
-import AdminFaqEditorPage from '@/pages/admin/AdminFaqEditorPage.vue'
-import { isMockRuntimeEnabled } from '@/services/appApi'
+import AdminFaqV3EditorPage from '@/pages/admin/AdminFaqV3EditorPage.vue'
 
 function normalizeFaqBuilderBundleId(rawValue = '') {
   let decoded = ''
@@ -25,6 +24,24 @@ function normalizeFaqBuilderBundleId(rawValue = '') {
 
 const routes = [
   {
+    path: '/studio/:pathMatch(.*)*',
+    name: 'knowledge-studio-external',
+    component: () => import('@/pages/OverviewPage.vue'),
+    beforeEnter() {
+      window.location.assign('/studio/')
+      return false
+    },
+  },
+  {
+    path: '/curadoria/:pathMatch(.*)*',
+    name: 'knowledge-curation-external',
+    component: () => import('@/pages/OverviewPage.vue'),
+    beforeEnter() {
+      window.location.assign('/curadoria/')
+      return false
+    },
+  },
+  {
     path: '/acesso-local/:profileKey?',
     name: 'local-access',
     component: () => import('@/pages/LocalAccessPage.vue'),
@@ -41,6 +58,15 @@ const routes = [
       title: 'Login UNIVESP',
       layout: 'auth',
       publicOnly: true,
+    },
+  },
+  {
+    path: '/publico',
+    name: 'public-visitor',
+    component: () => import('@/pages/public/PublicVisitorPage.vue'),
+    meta: {
+      title: 'Atendimento publico',
+      layout: 'auth',
     },
   },
   {
@@ -203,7 +229,20 @@ const routes = [
       stage: 'operator-queue',
       requiresAuth: true,
       shellKey: 'operational',
-      allowedProfiles: ['op', 'gestor_polos'],
+      allowedProfiles: ['op', 'op_externo', 'gestor_polos'],
+      requiredActions: ['view_ticket'],
+    },
+  },
+  {
+    path: '/bpo/dashboard',
+    name: 'bpo-dashboard',
+    component: () => import('@/pages/bpo/BpoDashboardPage.vue'),
+    meta: {
+      title: 'Dashboard BPO',
+      stage: 'bpo-dashboard',
+      requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['op_externo', 'admin_central'],
       requiredActions: ['view_ticket'],
     },
   },
@@ -212,11 +251,11 @@ const routes = [
     name: 'operator-case-detail',
     component: () => import('@/pages/operator/OperatorCaseDetailPage.vue'),
     meta: {
-      title: 'Analise do caso',
+      title: 'Análise do caso',
       stage: 'operator-case-detail',
       requiresAuth: true,
       shellKey: 'operational',
-      allowedProfiles: ['op', 'gestor_polos'],
+      allowedProfiles: ['op', 'op_externo', 'gestor_polos'],
       requiredActions: ['view_ticket'],
     },
   },
@@ -225,11 +264,11 @@ const routes = [
     name: 'operator-playbook',
     component: () => import('@/pages/operator/OperatorGuidancePage.vue'),
     meta: {
-      title: 'Consultar orientacao',
+      title: 'Consultar orientação',
       stage: 'operator-playbook',
       requiresAuth: true,
       shellKey: 'operational',
-      allowedProfiles: ['op', 'gestor_polos'],
+      allowedProfiles: ['op', 'op_externo', 'gestor_polos'],
       requiredActions: ['view_ticket'],
     },
   },
@@ -242,7 +281,20 @@ const routes = [
       stage: 'operator-assisted-intake',
       requiresAuth: true,
       shellKey: 'operational',
-      allowedProfiles: ['op', 'gestor_polos'],
+      allowedProfiles: ['op', 'op_externo', 'gestor_polos'],
+      requiredActions: ['view_ticket'],
+    },
+  },
+  {
+    path: '/area/cockpit',
+    name: 'area-operational-cockpit',
+    component: () => import('@/pages/operational/OperationalCockpitPage.vue'),
+    meta: {
+      title: 'Cockpit operacional',
+      stage: 'area-operational-cockpit',
+      requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['analista_area', 'gestor_area', 'admin_central'],
       requiredActions: ['view_ticket'],
     },
   },
@@ -251,7 +303,7 @@ const routes = [
     name: 'area-manager-home',
     component: () => import('@/pages/area/AreaManagerHomePage.vue'),
     meta: {
-      title: 'Operacao da area',
+      title: 'Operação da área',
       stage: 'area-manager-home',
       requiresAuth: true,
       shellKey: 'operational',
@@ -264,7 +316,7 @@ const routes = [
     name: 'area-queue',
     component: () => import('@/pages/area/AreaQueuePage.vue'),
     meta: {
-      title: 'Fila da area',
+      title: 'Fila da área',
       stage: 'area-queue',
       requiresAuth: true,
       shellKey: 'operational',
@@ -277,7 +329,7 @@ const routes = [
     name: 'area-case-detail',
     component: () => import('@/pages/area/AreaCaseDetailPage.vue'),
     meta: {
-      title: 'Analise da area',
+      title: 'Análise da área',
       stage: 'area-case-detail',
       requiresAuth: true,
       shellKey: 'operational',
@@ -290,7 +342,7 @@ const routes = [
     name: 'area-guidance',
     component: () => import('@/pages/area/AreaGuidancePage.vue'),
     meta: {
-      title: 'Conteudo vigente da area',
+      title: 'Conteúdo vigente da área',
       stage: 'area-guidance',
       requiresAuth: true,
       shellKey: 'operational',
@@ -301,14 +353,27 @@ const routes = [
   {
     path: '/area/mudancas',
     name: 'area-knowledge-review',
-    component: () => import('@/pages/area/AreaKnowledgeReviewPage.vue'),
+    component: () => import('@/pages/area/AreaKnowledgeSuggestionsPage.vue'),
     meta: {
-      title: 'Mudancas pendentes',
+      title: 'Sugestões de melhoria',
       stage: 'area-knowledge-review',
       requiresAuth: true,
       shellKey: 'operational',
-      allowedProfiles: ['gestor_area'],
-      requiredActions: ['approve_knowledge'],
+      allowedProfiles: ['analista_area', 'gestor_area'],
+      requiredActions: ['edit_knowledge_draft'],
+    },
+  },
+  {
+    path: '/area/faq/:bundleId',
+    name: 'area-faq-editor',
+    component: AdminFaqV3EditorPage,
+    meta: {
+      title: 'Editar FAQ',
+      stage: 'area-knowledge-review',
+      requiresAuth: true,
+      shellKey: 'operational',
+      allowedProfiles: ['analista_area', 'gestor_area'],
+      requiredActions: ['edit_knowledge_draft'],
     },
   },
   {
@@ -316,7 +381,7 @@ const routes = [
     name: 'area-governance',
     component: () => import('@/pages/area/AreaGovernancePage.vue'),
     meta: {
-      title: 'Regras operacionais da area',
+      title: 'Regras operacionais da área',
       stage: 'area-governance',
       requiresAuth: true,
       shellKey: 'operational',
@@ -329,7 +394,7 @@ const routes = [
     name: 'admin-dashboard',
     component: () => import('@/pages/admin/AdminDashboardPage.vue'),
     meta: {
-      title: 'Dashboard geral',
+      title: 'Visão geral',
       stage: 'admin-dashboard',
       requiresAuth: true,
       shellKey: 'governance',
@@ -338,11 +403,64 @@ const routes = [
     },
   },
   {
+    path: '/admin/protocolos',
+    name: 'admin-protocols',
+    component: () => import('@/pages/admin/AdminProtocolsPage.vue'),
+    meta: {
+      title: 'Protocolos',
+      stage: 'admin-protocols',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['view_ticket'],
+    },
+  },
+  {
+    path: '/admin/protocolos/:protocolId',
+    name: 'admin-protocol-detail',
+    component: () => import('@/pages/admin/AdminProtocolDetailPage.vue'),
+    meta: {
+      title: 'Consulta de protocolo',
+      stage: 'admin-protocol-detail',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['view_ticket'],
+    },
+  },
+  {
+    path: '/admin/validacao-vinculo',
+    name: 'admin-identity-validation',
+    component: () => import('@/pages/admin/AdminIdentityValidationPage.vue'),
+    meta: {
+      title: 'Validação de vínculo',
+      stage: 'admin-identity-validation',
+      requiresAuth: true,
+      shellKey: 'governance',
+      allowedProfiles: ['admin_central'],
+      requiredActions: ['view_sensitive_identity'],
+    },
+  },
+  {
+    path: '/admin/auditoria',
+    redirect: (to) => {
+      const protocol = String(to.query.protocol || to.query.q || '').trim()
+      if (protocol) {
+        return {
+          name: 'admin-protocol-detail',
+          params: { protocolId: protocol },
+        }
+      }
+
+      return { name: 'admin-protocols' }
+    },
+  },
+  {
     path: '/admin/faq',
     name: 'admin-faq',
-    component: () => import('@/pages/admin/AdminFaqLibraryPage.vue'),
+    component: () => import('@/pages/admin/AdminFaqV3LibraryPage.vue'),
     meta: {
-      title: 'Biblioteca de fluxos FAQ',
+      title: 'FAQs e orientações',
       stage: 'admin-faq',
       requiresAuth: true,
       shellKey: 'governance',
@@ -359,9 +477,9 @@ const routes = [
   {
     path: '/admin/faq-editor/:bundleId',
     name: 'admin-faq-builder',
-    component: AdminFaqEditorPage,
+    component: AdminFaqV3EditorPage,
     meta: {
-      title: 'Builder de fluxo FAQ',
+      title: 'Editar FAQ',
       stage: 'admin-faq',
       layout: 'auth',
       requiresAuth: true,
@@ -402,9 +520,9 @@ const routes = [
   {
     path: '/admin/faq/:bundleId',
     name: 'admin-faq-flow',
-    component: () => import('@/pages/admin/AdminFaqPage.vue'),
+    component: AdminFaqV3EditorPage,
     meta: {
-      title: 'Visao do fluxo FAQ',
+      title: 'FAQ e orientação',
       stage: 'admin-faq',
       requiresAuth: true,
       shellKey: 'governance',
@@ -417,7 +535,7 @@ const routes = [
     name: 'admin-parameters',
     component: () => import('@/pages/admin/AdminParametersPage.vue'),
     meta: {
-      title: 'Parametros de SLA e criticidade',
+      title: 'Regras e prazos',
       stage: 'admin-parameters',
       requiresAuth: true,
       shellKey: 'governance',
@@ -430,7 +548,7 @@ const routes = [
     name: 'admin-permissions',
     component: () => import('@/pages/admin/AdminPermissionsPage.vue'),
     meta: {
-      title: 'Permissoes e visibilidade',
+      title: 'Pessoas e acessos',
       stage: 'admin-permissions',
       requiresAuth: true,
       shellKey: 'governance',
@@ -440,17 +558,7 @@ const routes = [
   },
   {
     path: '/admin/publicacao',
-    name: 'admin-versioning',
-    component: () => import('@/pages/admin/AdminVersioningPage.vue'),
-    beforeEnter: () => (isMockRuntimeEnabled() ? true : { name: 'admin-faq' }),
-    meta: {
-      title: 'Publicacao e historico de versoes',
-      stage: 'admin-versioning',
-      requiresAuth: true,
-      shellKey: 'governance',
-      allowedProfiles: ['admin_central'],
-      requiredActions: ['publish_version'],
-    },
+    redirect: { name: 'admin-faq' },
   },
 ]
 

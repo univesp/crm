@@ -1,12 +1,10 @@
-<script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+﻿<script setup>
+import { computed, nextTick, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import StatusBadge from '@/components/StatusBadge.vue'
 import StudentStageLayout from '@/components/student/StudentStageLayout.vue'
-import { addTicketAttachments, addTicketMessage, getTicket, isMockRuntimeEnabled, transitionTicket } from '@/services/appApi'
 import { buildStudentRequestDetail, STUDENT_REQUEST_STATES } from '@/services/studentPortalRuntime'
-import { mapApiTicketToStudentProtocol } from '@/services/ticketMapper'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const route = useRoute()
@@ -21,17 +19,13 @@ const actionSuccess = ref('')
 const isSubmittingAction = ref(false)
 const actionMessageField = ref(null)
 const actionAttachmentField = ref(null)
-const actionAttachmentFiles = ref([])
-const remoteProtocol = ref(null)
-const isLoadingDetail = ref(false)
 
 const detail = computed(() =>
   buildStudentRequestDetail({
     requestId: route.params.protocolId,
     protocolDraft: studentSupportStore.protocolDraft,
     records: studentSupportStore.records,
-    protocols: remoteProtocol.value ? [remoteProtocol.value] : studentSupportStore.protocols,
-    seededProtocols: isMockRuntimeEnabled() ? undefined : [],
+    protocols: studentSupportStore.protocols,
   }),
 )
 
@@ -41,8 +35,8 @@ const trailItems = computed(() => {
   }
 
   return [
-    { id: 'home', label: 'Inicio', route: '/aluno' },
-    { id: 'requests', label: 'Minhas solicitacoes', route: '/aluno/solicitacoes' },
+    { id: 'home', label: 'Início', route: '/aluno' },
+    { id: 'requests', label: 'Minhas solicitações', route: '/aluno/solicitacoes' },
     { id: 'detail', label: detail.value.id, route: route.fullPath, current: true },
   ]
 })
@@ -75,8 +69,7 @@ function goBackToRequests() {
 }
 
 function handleActionAttachmentChange(event) {
-  actionAttachmentFiles.value = Array.from(event.target.files || [])
-  actionAttachments.value = actionAttachmentFiles.value.map((file) => file.name)
+  actionAttachments.value = Array.from(event.target.files || []).map((file) => file.name)
   actionAttachmentError.value = ''
   actionFormError.value = ''
 }
@@ -87,7 +80,7 @@ function handleActionMessageInput(event) {
   actionFormError.value = ''
 }
 
-async function submitPendingAction() {
+function submitPendingAction() {
   if (!detail.value || detail.value.studentState !== STUDENT_REQUEST_STATES.ACTION_REQUIRED || isSubmittingAction.value) {
     return
   }
@@ -110,25 +103,6 @@ async function submitPendingAction() {
   }
 
   isSubmittingAction.value = true
-  if (!isMockRuntimeEnabled()) {
-    try {
-      if (actionMessage.value.trim()) await addTicketMessage(detail.value.id, actionMessage.value.trim())
-      if (actionAttachmentFiles.value.length) await addTicketAttachments(detail.value.id, actionAttachmentFiles.value)
-      await transitionTicket(detail.value.id, { status: 'in_analysis' })
-      const refreshed = await getTicket(detail.value.id)
-      remoteProtocol.value = mapApiTicketToStudentProtocol(refreshed.data)
-      actionMessage.value = ''
-      actionAttachments.value = []
-      actionAttachmentFiles.value = []
-      actionSuccess.value = 'Resposta registrada. Agora a equipe retoma a analise.'
-    } catch (error) {
-      actionFormError.value = error.message || 'Nao foi possivel registrar sua resposta agora.'
-    } finally {
-      isSubmittingAction.value = false
-    }
-    return
-  }
-
   const updatedProtocol = studentSupportStore.submitRequestFollowUp({
     requestId: detail.value.id,
     note: actionMessage.value,
@@ -137,73 +111,57 @@ async function submitPendingAction() {
   isSubmittingAction.value = false
 
   if (!updatedProtocol) {
-    actionFormError.value = 'Nao foi possivel registrar sua resposta agora. Tente novamente.'
+    actionFormError.value = 'Não foi possível registrar sua resposta agora. Tente novamente.'
     return
   }
 
   actionMessage.value = ''
   actionAttachments.value = []
   actionSuccess.value = requiresAttachment.value
-    ? 'Documento enviado. Agora a equipe retoma a analise.'
-    : 'Resposta registrada. Agora a equipe retoma a analise.'
+    ? 'Documento enviado. Agora a equipe retoma a análise.'
+    : 'Resposta registrada. Agora a equipe retoma a análise.'
 }
-
-async function loadDetail() {
-  if (isMockRuntimeEnabled()) return
-  isLoadingDetail.value = true
-  try {
-    const result = await getTicket(route.params.protocolId)
-    remoteProtocol.value = mapApiTicketToStudentProtocol(result.data)
-  } catch (error) {
-    actionFormError.value = error.message || 'Nao foi possivel carregar este protocolo.'
-  } finally {
-    isLoadingDetail.value = false
-  }
-}
-
-onMounted(loadDetail)
 </script>
 
 <template>
   <StudentStageLayout
     eyebrow="Registro"
-    title="Detalhe da solicitacao"
-    description="Veja o status, o proximo passo e o historico deste atendimento."
-    :mobile-label="detail?.id || 'Detalhe da solicitacao'"
+    title="Detalhe da solicitação"
+    description="Veja o status, o próximo passo e o histórico deste atendimento."
+    :mobile-label="detail?.id || 'Detalhe da solicitação'"
     :show-back="true"
     aside-title="Seu caminho"
-    aside-description="No desktop, esta coluna resume o registro e ajuda a voltar para a lista."
     @back="goBackToRequests"
   >
     <div
       v-if="!detail"
-      class="max-w-2xl rounded-[24px] border border-slate-200 bg-slate-50/80 p-6"
+      class="max-w-2xl rounded-[8px] border border-slate-200 bg-slate-50/80 p-6"
       role="status"
       aria-live="polite"
     >
-      <p class="text-sm font-semibold text-slate-900">Detalhe indisponivel</p>
+      <p class="text-sm font-semibold text-slate-900">Detalhe indisponível</p>
       <p class="mt-3 text-sm leading-7 text-slate-600">
-        Nao encontramos esse registro no portal local. Volte para Minhas solicitacoes para seguir.
+        Não encontramos esse registro no portal local. Volte para Minhas solicitações para seguir.
       </p>
       <RouterLink
         to="/aluno/solicitacoes"
         class="student-focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
       >
-        Voltar para Minhas solicitacoes
+        Voltar para Minhas solicitações
       </RouterLink>
     </div>
 
     <div v-else class="grid max-w-2xl gap-4">
       <div
         v-if="actionSuccess"
-        class="rounded-[24px] border border-[rgba(26,111,67,0.18)] bg-[rgba(26,111,67,0.08)] px-5 py-4 text-sm leading-6 text-[var(--color-success)]"
+        class="rounded-[8px] border border-[rgba(26,111,67,0.18)] bg-[rgba(26,111,67,0.08)] px-5 py-4 text-sm leading-6 text-[var(--color-success)]"
         role="status"
         aria-live="polite"
       >
         {{ actionSuccess }}
       </div>
 
-      <div class="rounded-[24px] border border-slate-200 bg-white p-5">
+      <div class="rounded-[8px] border border-slate-200 bg-white p-5">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <p class="student-section-label">Registro</p>
@@ -223,7 +181,7 @@ onMounted(loadDetail)
 
       <div
         :class="[
-          'rounded-[24px] border p-5',
+          'rounded-[8px] border p-5',
           nextStepVariant === 'action'
             ? 'border-[rgba(209,50,57,0.16)] bg-[rgba(209,50,57,0.06)]'
             : nextStepVariant === 'info'
@@ -247,19 +205,19 @@ onMounted(loadDetail)
           {{
             detail.studentState === STUDENT_REQUEST_STATES.ACTION_REQUIRED
               ? detail.actionDescription
-              : 'Nenhuma acao sua e necessaria neste momento.'
+              : 'Nenhuma ação sua e necessaria neste momento.'
           }}
         </p>
 
         <div
           v-if="detail.studentState === STUDENT_REQUEST_STATES.ACTION_REQUIRED"
-          class="mt-5 rounded-[20px] border border-[rgba(209,50,57,0.18)] bg-white p-4"
+          class="mt-5 rounded-[8px] border border-[rgba(209,50,57,0.18)] bg-white p-4"
         >
           <p class="text-sm font-semibold text-slate-900">
-            {{ detail.actionLabel || 'Sua acao e necessaria' }}
+            {{ detail.actionLabel || 'Sua ação e necessaria' }}
           </p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            Envie a informacao pendente por aqui para o atendimento continuar.
+            Envie a informação pendente por aqui para o atendimento continuar.
           </p>
 
           <label class="mt-4 grid gap-2">
@@ -268,15 +226,15 @@ onMounted(loadDetail)
               ref="actionMessageField"
               :value="actionMessage"
               rows="4"
-              class="student-focus-ring rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
+              class="student-focus-ring rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
               :aria-invalid="actionMessageError ? 'true' : 'false'"
               :aria-describedby="actionMessageError ? 'student-detail-action-message-help student-detail-action-message-error' : 'student-detail-action-message-help'"
-              placeholder="Explique brevemente o que esta enviando para esta solicitacao."
+              placeholder="Explique brevemente o que está enviando para esta solicitação."
               @input="handleActionMessageInput"
             />
           </label>
           <p id="student-detail-action-message-help" class="mt-2 text-sm leading-6 text-slate-600">
-            Use este campo para complementar sua resposta quando necessario.
+            Use este campo para complementar sua resposta quando necessário.
           </p>
           <p
             v-if="actionMessageError"
@@ -299,13 +257,13 @@ onMounted(loadDetail)
               ref="actionAttachmentField"
               type="file"
               multiple
-              class="student-focus-ring rounded-[16px] border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600"
+              class="student-focus-ring rounded-[8px] border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600"
               :aria-invalid="actionAttachmentError ? 'true' : 'false'"
               :aria-describedby="actionAttachmentError ? 'student-detail-action-attachment-help student-detail-action-attachment-error' : 'student-detail-action-attachment-help'"
               @change="handleActionAttachmentChange"
             />
             <p id="student-detail-action-attachment-help" class="text-sm leading-6 text-slate-600">
-              {{ requiresAttachment ? 'Envie o documento solicitado para esta pendencia.' : 'Se quiser, voce pode anexar um documento para complementar a resposta.' }}
+              {{ requiresAttachment ? 'Envie o documento solicitado para esta pendencia.' : 'Se quiser, você pode anexar um documento para complementar a resposta.' }}
             </p>
           </div>
 
@@ -339,7 +297,7 @@ onMounted(loadDetail)
           <button
             type="button"
             :disabled="isSubmittingAction"
-            class="student-focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--color-danger)] px-5 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(209,50,57,0.16)] disabled:cursor-wait disabled:opacity-75"
+            class="student-focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--color-danger)] px-5 text-sm font-semibold text-white shadow-sm disabled:cursor-wait disabled:opacity-75"
             @click="submitPendingAction"
           >
             {{ isSubmittingAction ? 'Enviando...' : requiresAttachment ? 'Enviar documento' : 'Enviar resposta' }}
@@ -347,21 +305,21 @@ onMounted(loadDetail)
         </div>
       </div>
 
-      <div class="rounded-[24px] border border-slate-200 bg-white p-5">
+      <div class="rounded-[8px] border border-slate-200 bg-white p-5">
         <p class="text-sm font-semibold text-slate-900">Resumo</p>
         <p class="mt-3 text-sm leading-7 text-slate-700">
           {{ detail.summary }}
         </p>
       </div>
 
-      <div class="rounded-[24px] border border-slate-200 bg-white p-5">
+      <div class="rounded-[8px] border border-slate-200 bg-white p-5">
         <p class="text-sm font-semibold text-slate-900">Linha do tempo</p>
 
         <div class="mt-4 grid gap-3">
           <article
             v-for="item in detail.timeline"
             :key="item.id"
-            class="rounded-[18px] border border-slate-200 bg-slate-50/80 p-4"
+            class="rounded-[8px] border border-slate-200 bg-slate-50/80 p-4"
           >
             <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
@@ -385,7 +343,7 @@ onMounted(loadDetail)
             :class="[
               'student-focus-ring rounded-full border px-3 py-2 text-xs font-semibold',
               item.current
-                ? 'border-[rgba(109,76,255,0.18)] bg-[rgba(109,76,255,0.08)] text-slate-950'
+                ? 'border-[rgba(209,50,57,0.18)] bg-[rgba(209,50,57,0.08)] text-slate-950'
                 : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
             ]"
             :aria-current="item.current ? 'page' : null"
@@ -394,14 +352,14 @@ onMounted(loadDetail)
           </RouterLink>
         </div>
 
-        <div class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4">
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4">
           <p class="text-sm font-semibold text-slate-900">Status atual</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">{{ detail.statusLabel }}</p>
         </div>
 
         <div
           v-if="detail.contextTrail.length"
-          class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4"
+          class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4"
         >
           <p class="text-sm font-semibold text-slate-900">Caminho seguido</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
@@ -409,7 +367,7 @@ onMounted(loadDetail)
           </p>
         </div>
 
-        <div class="rounded-[18px] border border-slate-200 bg-slate-50/85 p-4">
+        <div class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4">
           <p class="text-sm font-semibold text-slate-900">Anexos</p>
           <p
             v-if="detail.attachments.length"

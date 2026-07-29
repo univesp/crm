@@ -98,6 +98,131 @@ export function getFrappeIntegrationProfile() {
   }
 }
 
+export function shouldSyncProtocolWithFrappe() {
+  const mode = String(import.meta.env.VITE_FRAPPE_PROTOCOL_SYNC || 'auto').trim().toLowerCase()
+
+  if (mode === 'disabled' || mode === 'false' || mode === '0') {
+    return false
+  }
+
+  if (mode === 'enabled' || mode === 'true' || mode === '1') {
+    return true
+  }
+
+  return String(import.meta.env.VITE_ENABLE_MOCKS || '').trim().toLowerCase() !== 'true'
+}
+
+export function buildStudentProtocolTicketDraft(protocol = {}) {
+  const doctype = import.meta.env.VITE_FRAPPE_TICKET_DOCTYPE || 'Issue'
+  const context = protocol.context || {}
+  const form = protocol.form || {}
+  const routing = context.routing || {}
+  const subject = protocol.subject || form.subject || context.subject || 'Solicitacao academica'
+  const description = [
+    `Protocolo: ${protocol.protocolNumber || protocol.id || ''}`,
+    `Origem: Portal de atendimento UNIVESP`,
+    `Status local: ${protocol.statusLabel || protocol.statusCode || ''}`,
+    `Fila sugerida: ${protocol.queueLabel || routing.currentQueueLabel || context.queueDestination || ''}`,
+    `Area sugerida: ${protocol.lastMileAreaLabel || routing.targetAreaLabel || ''}`,
+    `Prioridade: ${protocol.priorityLabel || context.criticality || ''}`,
+    `SLA: ${protocol.slaLabel || context.sla || ''}`,
+    '',
+    'Resumo do caminho:',
+    Array.isArray(context.breadcrumb) ? context.breadcrumb.join(' > ') : form.breadcrumb || '',
+    '',
+    'Orientacao apresentada:',
+    context.displayedAnswer || form.displayedAnswer || '',
+    '',
+    'Descricao enviada pelo aluno:',
+    protocol.interactions?.find((item) => item.actor === 'Aluno')?.text || form.description || '',
+    '',
+    'Snapshot operacional:',
+    JSON.stringify(
+      {
+        protocolNumber: protocol.protocolNumber || protocol.id || '',
+        sourceRecordId: protocol.sourceRecordId || '',
+        subjectCode: protocol.subjectCode || form.subjectCode || '',
+        subsubjectCode: protocol.subsubjectCode || form.subsubjectCode || '',
+        sourceBundleId: protocol.sourceBundleId || form.bundleId || '',
+        sourceBundleVersionId: protocol.sourceBundleVersionId || form.bundleVersionId || '',
+        sourceNodeId: protocol.sourceNodeId || form.sourceNodeId || context.finalNode?.id || '',
+        ownerType: protocol.ownerType || '',
+        ownerKey: protocol.ownerKey || '',
+        ownerQueue: protocol.ownerQueue || '',
+        ownerArea: protocol.ownerArea || '',
+      },
+      null,
+      2,
+    ),
+  ].join('\n')
+
+  return {
+    doctype,
+    payload: {
+      doctype,
+      subject,
+      status: 'Open',
+      priority: normalizeFrappePriority(protocol.priorityLabel || context.criticality),
+      description,
+    },
+  }
+}
+
+function normalizeFrappePriority(value = '') {
+  const normalized = String(value || '').trim().toLowerCase()
+
+  if (['high', 'alta', 'urgente', 'critica', 'critico'].includes(normalized)) {
+    return 'High'
+  }
+
+  if (['low', 'baixa'].includes(normalized)) {
+    return 'Low'
+  }
+
+  return 'Medium'
+}
+
+export async function submitStudentProtocolTicket(protocol) {
+  const draft = buildStudentProtocolTicketDraft(protocol)
+  const context = protocol.context || {}
+  const form = protocol.form || {}
+  const result = await createTicket({
+    subject: draft.payload.subject,
+    description: draft.payload.description,
+    priority: draft.payload.priority,
+    source: 'portal',
+    queue:
+      protocol.ownerQueue ||
+      protocol.queueLabel ||
+      context.routing?.currentQueueLabel ||
+      form.queueDestination ||
+      '',
+    area: protocol.ownerArea || protocol.lastMileAreaLabel || context.routing?.targetAreaLabel || '',
+    triage: {
+      theme: context.theme || '',
+      subtheme: context.subtheme || '',
+      breadcrumb: Array.isArray(context.breadcrumb) ? context.breadcrumb : [],
+    },
+    knowledge: {
+      bundle_id: protocol.sourceBundleId || form.bundleId || context.finalNode?.bundleId || '',
+      bundle_version_id:
+        protocol.sourceBundleVersionId ||
+        form.bundleVersionId ||
+        context.finalNode?.bundleVersionId ||
+        '',
+      node_id: protocol.sourceNodeId || form.sourceNodeId || context.finalNode?.id || '',
+      faq_session_id: form.faqSessionId || context.sessionId || '',
+      path: form.sourcePath || context.sourcePath || [],
+      audience: form.sourceAudience || context.sourceAudience || 'student',
+    },
+  })
+  const remoteTicket = result.data || {}
+  return {
+    ...remoteTicket,
+    name: remoteTicket.name || remoteTicket.id || '',
+  }
+}
+
 export async function submitTicketDraft(ticketDraft) {
   const result = await createTicket({
     subject: ticketDraft.payload.subject,

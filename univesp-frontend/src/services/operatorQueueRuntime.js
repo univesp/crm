@@ -1,7 +1,7 @@
 import loggedStudent from '../../mocks/usuario-logado.json'
 import studentFaq from '../../mocks/faq-aluno.json'
-import operatorFaq from '../../mocks/faq-op.json'
 import { buildCaseRoutingContext, filterCasesForMockContext } from '@/services/caseRoutingRuntime'
+import { getFaqPackageForRuntime } from '@/services/faqRuntime'
 import { CASE_PROTOCOL_STATUSES } from '@/services/canonicalFoundationRuntime'
 import {
   buildCanonicalSla,
@@ -205,7 +205,6 @@ function buildFaqIndex(payload) {
 }
 
 const studentFaqIndex = buildFaqIndex(studentFaq)
-const operatorFaqIndex = buildFaqIndex(operatorFaq)
 
 function findBestFaqLeaf(index, theme, subtheme) {
   const themeKey = normalizeText(theme)
@@ -1016,6 +1015,11 @@ function buildLocalQueueEntry(protocol, actionLogs = [], areaActionLogs = []) {
     {
       id: protocol.protocolNumber,
       runtimeSource: protocol.runtimeSource || '',
+      currentNodeId:
+        protocol.knowledge?.node_id ||
+        protocol.context?.finalNode?.id ||
+        null,
+      knowledge: protocol.knowledge || null,
       subject: protocol.subject,
       theme: titleCase(protocol.context?.theme),
       themeKey: normalizeText(protocol.context?.theme),
@@ -1078,7 +1082,12 @@ function compareQueueEntries(left, right) {
 }
 
 function buildPlaybookPayload(entry) {
-  const playbookNode = findBestFaqLeaf(operatorFaqIndex, entry.themeKey, entry.subsubjectKey)
+  const operatorFaqIndex = buildFaqIndex(getFaqPackageForRuntime('op'))
+  const directNode = entry.currentNodeId
+    ? operatorFaqIndex.nodeById[entry.currentNodeId] || null
+    : null
+  const playbookNode =
+    directNode || findBestFaqLeaf(operatorFaqIndex, entry.themeKey, entry.subsubjectKey)
 
   if (!playbookNode) {
     return {
@@ -1094,7 +1103,7 @@ function buildPlaybookPayload(entry) {
   }
 
   return {
-    title: playbookNode.titulo_exibido,
+    title: playbookNode.playbook_v3?.objective || playbookNode.titulo_exibido,
     checklist: playbookNode.checklist_op || [],
     systemsToCheck: playbookNode.sistemas_a_consultar || [],
     documentsRequested: playbookNode.documentos_a_solicitar || [],
@@ -1634,6 +1643,61 @@ export function buildOperatorActionLog({
       actor: 'Operador de Polo',
       channel: metadata.channel,
       text: normalizedNote,
+      at: timestamp.iso,
+      atLabel: timestamp.label,
+    },
+  }
+}
+
+export function buildOperatorAssumeActionLog({
+  caseEntry,
+  actorName = '',
+  reason = '',
+  currentDate = new Date(),
+}) {
+  const timestamp = buildTimestampParts(currentDate)
+  const normalizedReason =
+    reason.trim() ||
+    `Caso assumido por ${actorName || 'Operacao do polo'} para acelerar a tratativa via cockpit.`
+  const previousOperator = caseEntry.assignedOperator || 'Nao atribuido'
+
+  return {
+    id: `op-action-${caseEntry.id}-${timestamp.compact}-assume`,
+    caseId: caseEntry.id,
+    actor: actorName || 'Operador de Polo',
+    assigneeLabel: actorName || 'Operacao do polo',
+    actionType: 'assume_case',
+    actionLabel: 'Caso assumido para acelerar',
+    occurredAt: timestamp.iso,
+    occurredAtLabel: timestamp.label,
+    statusBefore: caseEntry.status,
+    statusLabel: caseEntry.status,
+    statusAfter: caseEntry.status,
+    canonicalStatusCode: caseEntry.statusCode || '',
+    pendingParty: caseEntry.pendingParty || '',
+    closedBy: caseEntry.closedBy || '',
+    queueBefore: caseEntry.queue,
+    queueLabel: caseEntry.queue,
+    queueAfter: caseEntry.queue,
+    destinationLabel: caseEntry.queue,
+    resolvedAreaLabel: caseEntry.lastMileAreaLabel || caseEntry.queue,
+    routingMode: 'intervention',
+    pendingLabel: caseEntry.pendingLabel,
+    escalationReason: null,
+    note: `${normalizedReason} Responsavel anterior: ${previousOperator}.`,
+    timelineItem: {
+      id: `op-timeline-${caseEntry.id}-${timestamp.compact}-assume`,
+      title: 'Caso assumido para acelerar',
+      description: `${normalizedReason} Responsavel anterior: ${previousOperator}.`,
+      at: timestamp.iso,
+      atLabel: timestamp.label,
+      tone: 'warning',
+    },
+    interactionItem: {
+      id: `op-interaction-${caseEntry.id}-${timestamp.compact}-assume`,
+      actor: actorName || 'Operador de Polo',
+      channel: 'Intervencao operacional',
+      text: normalizedReason,
       at: timestamp.iso,
       atLabel: timestamp.label,
     },

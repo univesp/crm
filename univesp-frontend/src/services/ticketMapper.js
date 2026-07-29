@@ -34,6 +34,8 @@ export function mapApiTicketToStudentProtocol(ticket = {}) {
 
 export function mapApiTicketToOperationalProtocol(ticket = {}) {
   const student = ticket.student || {}
+  const knowledge = ticket.knowledge || {}
+  const serverContext = ticket.context || {}
   const createdAt = ticket.created_at || ticket.updated_at || new Date().toISOString()
   const updatedAt = ticket.updated_at || createdAt
   const protocolNumber = ticket.protocol || ticket.id
@@ -72,16 +74,28 @@ export function mapApiTicketToOperationalProtocol(ticket = {}) {
       polo: student.polo || 'Nao informado',
     },
     routing: {
-      currentQueueLabel: queueLabel,
-      targetAreaLabel: areaLabel,
+      currentQueueLabel: serverContext.routing?.resolved_queue || queueLabel,
+      targetAreaLabel: serverContext.routing?.resolved_area || areaLabel,
+      ...serverContext.routing,
     },
     context: {
-      breadcrumb: [],
+      ...serverContext,
+      theme: knowledge.bundle_id || '',
+      breadcrumb: knowledge.path || [],
+      breadcrumbPath: knowledge.path || [],
+      finalNode: {
+        id: knowledge.node_id || '',
+        title: knowledge.node_id || '',
+      },
+      faqSessionId: knowledge.faq_session_id || '',
+      bundleVersionId: knowledge.bundle_version_id || '',
       routing: {
-        currentQueueLabel: queueLabel,
-        targetAreaLabel: areaLabel,
+        currentQueueLabel: serverContext.routing?.resolved_queue || queueLabel,
+        targetAreaLabel: serverContext.routing?.resolved_area || areaLabel,
+        ...serverContext.routing,
       },
     },
+    knowledge,
     interactions: ticket.description ? [{ actor: student.name || 'Aluno', text: ticket.description }] : [],
     timeline: normalizeTimeline(ticket.timeline),
     attachments: normalizeAttachments(ticket.attachments),
