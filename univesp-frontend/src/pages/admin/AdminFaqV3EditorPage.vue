@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 
 import FaqV3FlowMap from '@/components/admin/faq-v3/FaqV3FlowMap.vue'
 import FaqV3JourneySimulator from '@/components/admin/faq-v3/FaqV3JourneySimulator.vue'
+import FaqV3PlaybookPreviewDialog from '@/components/admin/faq-v3/FaqV3PlaybookPreviewDialog.vue'
+import FaqV3VersionHistoryDialog from '@/components/admin/faq-v3/FaqV3VersionHistoryDialog.vue'
 import {
   approveKnowledgeV3Bundle,
   forkKnowledgeV3Draft,
@@ -67,6 +69,8 @@ const importBusy = ref(false)
 const importDiff = ref(null)
 const assetBusy = ref(false)
 const mediaUploadEnabled = ref(false)
+const issuesPanelOpen = ref(false)
+const historyOpen = ref(false)
 const validity = reactive({ valid_from: '', valid_until: '' })
 const channelFlags = reactive({ availableStudent: true, availablePublic: false })
 const catalogs = reactive({ themes: [], routing_patterns: [] })
@@ -176,6 +180,17 @@ const nodeIssues = computed(() => {
     grouped[issue.nodeId].push(issue)
   }
   return grouped
+})
+const playbookPreviewLayers = computed(() => {
+  if (!selectedNode.value) return []
+  return ['op', 'bpo', 'analyst'].map((layer) => ({
+    key: layer,
+    label: tabs.find((tab) => tab.key === layer)?.label || layer,
+    inherited: layer === 'bpo' && !selectedNode.value.playbooks?.bpo,
+    objective: effectivePlaybook(layer).objective,
+    suggestedReply: effectivePlaybook(layer).suggested_reply,
+    checklist: (effectivePlaybook(layer).checklist || []).map(playbookItemLabel),
+  }))
 })
 
 onMounted(() => {
@@ -856,6 +871,11 @@ function toInputDate(value) {
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value))
 }
+
+function navigateToIssue(issue) {
+  if (issue?.nodeId) selectedNodeId.value = issue.nodeId
+  issuesPanelOpen.value = false
+}
 </script>
 
 <template>
@@ -894,7 +914,7 @@ function cloneJson(value) {
           type="button"
           class="crm-button-secondary"
           :disabled="!selectedNode"
-          @click="playbookPreviewOpen = !playbookPreviewOpen"
+          @click="playbookPreviewOpen = true"
         >
           Ver playbook
         </button>
@@ -1596,75 +1616,41 @@ function cloneJson(value) {
             </div>
           </template>
         </section>
-
-        <aside class="faq-side-stack">
-          <section
-            v-if="playbookPreviewOpen && selectedNode"
-            class="crm-panel faq-playbook-preview"
-            aria-labelledby="playbook-preview-title"
-          >
-            <div class="faq-playbook-preview__header">
-              <h2 id="playbook-preview-title">Playbook da etapa</h2>
-              <button type="button" class="crm-button-secondary" @click="playbookPreviewOpen = false">
-                Fechar
-              </button>
-            </div>
-            <p class="faq-playbook-preview__context">
-              {{ selectedNode.display?.title || 'Etapa sem título' }}
-            </p>
-            <article v-for="layer in ['op', 'bpo', 'analyst']" :key="layer" class="crm-card-muted">
-              <h3>{{ tabs.find((tab) => tab.key === layer)?.label || layer }}</h3>
-              <p v-if="layer === 'bpo' && !selectedNode.playbooks?.bpo" class="crm-chip">
-                Herdado do OP
-              </p>
-              <p>
-                <strong>Objetivo:</strong>
-                {{ effectivePlaybook(layer).objective || 'Não definido' }}
-              </p>
-              <p v-if="effectivePlaybook(layer).suggested_reply">
-                <strong>Resposta sugerida:</strong>
-                {{ effectivePlaybook(layer).suggested_reply }}
-              </p>
-              <ol v-if="(effectivePlaybook(layer).checklist || []).length">
-                <li v-for="item in effectivePlaybook(layer).checklist" :key="playbookItemLabel(item)">
-                  {{ playbookItemLabel(item) }}
-                </li>
-              </ol>
-            </article>
-          </section>
-
-          <section class="crm-panel faq-validation" aria-labelledby="validation-title">
-            <h2 id="validation-title">Pronto para aprovação?</h2>
-            <p v-if="!blockers.length" class="faq-ok" role="status">
-              Nenhum bloqueio encontrado.
-            </p>
-            <ul v-else>
-              <li v-for="issue in blockers" :key="issue">{{ issue }}</li>
-            </ul>
-          </section>
-
-          <section class="crm-panel faq-history" aria-labelledby="history-title">
-            <h2 id="history-title">Histórico</h2>
-            <ol>
-              <li v-for="version in versions.slice(0, 6)" :key="version.version_id">
-                <strong>{{ lifecycleLabels[version.lifecycle_state] || version.lifecycle_state }}</strong>
-                <span>{{ formatDate(version.published_at || version.approved_at) }}</span>
-              </li>
-            </ol>
-          </section>
-        </aside>
       </div>
 
-      <section class="crm-panel faq-action-bar" aria-labelledby="next-step-title">
-        <div>
-          <h2 id="next-step-title">Resumo das mudanças</h2>
-          <textarea
-            v-model="changeSummary"
-            class="crm-field"
-            :disabled="!canEdit"
-            placeholder="Explique o que mudou e por quê."
-          />
+      <section class="crm-panel faq-action-bar" aria-label="Ações do editor">
+        <div class="faq-action-bar__summary">
+          <label class="crm-field-label">
+            Resumo das mudanças
+            <textarea
+              v-model="changeSummary"
+              class="crm-field"
+              :disabled="!canEdit"
+              placeholder="Explique o que mudou e por quê."
+            />
+          </label>
           <small>Mínimo de 20 caracteres para enviar à aprovação.</small>
+        </div>
+        <div class="faq-action-bar__status">
+          <p v-if="dirty && canEdit" role="status">Alterações não salvas</p>
+          <p v-if="!blockers.length" class="faq-ok" role="status">Nenhum bloqueio encontrado.</p>
+          <p v-else role="status">
+            {{ draftIssues.filter((issue) => issue.severity === 'error').length }}
+            pendência(s) de validação
+          </p>
+          <div class="faq-action-bar__status-actions">
+            <button
+              v-if="draftIssues.length"
+              type="button"
+              class="crm-button-secondary"
+              @click="issuesPanelOpen = true"
+            >
+              Ver pendências
+            </button>
+            <button type="button" class="crm-button-secondary" @click="historyOpen = true">
+              Histórico de versões
+            </button>
+          </div>
         </div>
         <div class="faq-action-bar__buttons">
           <button
@@ -1720,6 +1706,51 @@ function cloneJson(value) {
         :payload="payload"
         @close="simulatorOpen = false"
       />
+
+      <FaqV3PlaybookPreviewDialog
+        :open="playbookPreviewOpen"
+        :stage-title="selectedNode?.display?.title || ''"
+        :layers="playbookPreviewLayers"
+        @close="playbookPreviewOpen = false"
+      />
+
+      <FaqV3VersionHistoryDialog
+        :open="historyOpen"
+        :versions="versions"
+        :lifecycle-labels="lifecycleLabels"
+        @close="historyOpen = false"
+      />
+
+      <div
+        v-if="issuesPanelOpen"
+        class="faq-confirm-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="issues-panel-title"
+        @click.self="issuesPanelOpen = false"
+      >
+        <section class="crm-panel faq-confirm-dialog faq-issues-dialog">
+          <div class="faq-playbook-preview__header">
+            <h2 id="issues-panel-title">Pendências de validação</h2>
+            <button type="button" class="crm-button-secondary" @click="issuesPanelOpen = false">
+              Fechar
+            </button>
+          </div>
+          <p v-if="!draftIssues.length" class="faq-ok" role="status">Nenhum bloqueio encontrado.</p>
+          <ul v-else class="faq-issues-dialog__list">
+            <li v-for="issue in draftIssues" :key="issue.id">
+              <button
+                type="button"
+                class="faq-issues-dialog__item"
+                :disabled="!issue.nodeId"
+                @click="navigateToIssue(issue)"
+              >
+                {{ issue.message }}
+              </button>
+            </li>
+          </ul>
+        </section>
+      </div>
     </template>
 
     <div
@@ -1763,6 +1794,7 @@ function cloneJson(value) {
 .faq-editor-v3 {
   display: grid;
   gap: var(--space-4);
+  padding-bottom: calc(var(--faq-action-bar-height, 5.5rem) + var(--space-4));
 }
 
 .faq-editor-v3__header,
@@ -1966,14 +1998,12 @@ function cloneJson(value) {
 .faq-editor-v3__workspace {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: minmax(14rem, 0.8fr) minmax(24rem, 1.6fr) minmax(16rem, 0.9fr);
+  grid-template-columns: minmax(14rem, 0.85fr) minmax(24rem, 1.75fr);
 }
 
 .faq-tree,
 .faq-node-editor,
-.faq-side-stack,
-.faq-settings,
-.faq-playbook-preview {
+.faq-settings {
   min-width: 0;
 }
 
@@ -2077,29 +2107,79 @@ function cloneJson(value) {
   font-size: var(--font-size-xs);
 }
 
+.faq-action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  margin-top: auto;
+  border-top: 1px solid var(--border-default);
+  background: var(--color-surface);
+  box-shadow: 0 -0.25rem 1rem color-mix(in srgb, var(--color-text) 8%, transparent);
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+}
+
+.faq-action-bar__summary {
+  flex: 1 1 100%;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.faq-action-bar__summary .crm-field {
+  min-height: 4rem;
+}
+
+.faq-action-bar__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  flex: 1 1 16rem;
+}
+
+.faq-action-bar__status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.faq-issues-dialog {
+  width: min(100%, 36rem);
+  max-height: min(100%, 80vh);
+  overflow: auto;
+}
+
+.faq-issues-dialog__list {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.faq-issues-dialog__item {
+  width: 100%;
+  text-align: start;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+}
+
+.faq-issues-dialog__item:not(:disabled):hover {
+  background: var(--color-surface-muted);
+}
+
+.faq-issues-dialog__item:disabled {
+  color: var(--color-text);
+  cursor: default;
+}
+
 .faq-action-bar > div:first-child {
   flex: 1 1 28rem;
 }
 
-@media (max-width: 78rem) {
-  .faq-editor-v3__workspace {
-    grid-template-columns: minmax(14rem, 0.8fr) minmax(24rem, 1.5fr);
-  }
-
-  .faq-side-stack {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 54rem) {
-  .faq-editor-v3__workspace,
-  .faq-side-stack {
+  .faq-editor-v3__workspace {
     grid-template-columns: 1fr;
-  }
-
-  .faq-side-stack {
-    grid-column: auto;
   }
 }
 </style>
