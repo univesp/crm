@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import frappe
 from frappe.tests import IntegrationTestCase
-from frappe.utils import now_datetime
+from frappe.utils import add_to_date, now_datetime
 
 from univesp_atendimento.api.v1 import knowledge_runtime, knowledge_v3, routing
 from univesp_atendimento.api.v1.common import RequestContext
@@ -296,3 +296,40 @@ class TestKnowledgeRuntime(IntegrationTestCase):
 				f"HD-PUBLIC-{uuid.uuid4().hex[:8]}",
 			)
 			self.assertEqual(event.audience_layer, "public")
+
+	def test_retention_job_removes_only_expired_events(self):
+		now = now_datetime()
+		base = {
+			"doctype": "Univesp Knowledge Event",
+			"event_name": "faq.node_viewed",
+			"bundle_key": self.bundle_key,
+			"bundle_version_id": self.version.version_id,
+			"node_id": "root",
+			"stable_key": "root",
+			"audience_layer": "student",
+			"faq_session_id": self.session_id,
+			"profile_key": "aluno",
+			"origin": "portal",
+			"metadata_json": "{}",
+		}
+		old_event = frappe.get_doc(
+			{
+				**base,
+				"event_id": str(uuid.uuid4()),
+				"occurred_at": add_to_date(now, days=-91),
+			}
+		).insert(ignore_permissions=True)
+		current_event = frappe.get_doc(
+			{
+				**base,
+				"event_id": str(uuid.uuid4()),
+				"occurred_at": now,
+			}
+		).insert(ignore_permissions=True)
+
+		with patch.dict("os.environ", {"KNOWLEDGE_EVENT_RETENTION_DAYS": "90"}):
+			deleted = knowledge_runtime.purge_expired_knowledge_events()
+
+		self.assertGreaterEqual(deleted, 1)
+		self.assertFalse(frappe.db.exists("Univesp Knowledge Event", old_event.name))
+		self.assertTrue(frappe.db.exists("Univesp Knowledge Event", current_event.name))

@@ -1,6 +1,7 @@
 # FAQ v3 — Especificação de execução (técnica)
 
-Status: **v5** — base técnica sólida; Fase 0 executável; Fases 1a–1c quase executáveis após completude deste documento.
+Status: **v6** — implementação das Fases 0–5 concluída localmente; ativação e
+evidência transacional aguardam deploy em homolog.
 Documentos relacionados:
 
 - [FAQ_V3_PRODUCT_UX_SPEC.md](./FAQ_V3_PRODUCT_UX_SPEC.md) — Biblioteca, editor, consumo operacional (Fase 1d)
@@ -15,13 +16,12 @@ Documentos relacionados:
 
 | Parte | Situação |
 |-------|----------|
-| Fase 0 | Pronta para execução |
-| Fase 1a | Executável após campos/invariantes DocTypes (seção 5) |
-| Fase 1b–1c | Quase pronta; depende grafo por público e routing patterns (seções 4, 9) |
-| Fase 1d | **Depende** de [FAQ_V3_PRODUCT_UX_SPEC.md](./FAQ_V3_PRODUCT_UX_SPEC.md) |
-| Fase 1e | Quase pronta; template planilha em seção 11 |
-| Fases 2–5 | Direcionadas; detalhe operacional e estimativa em backlog |
-| LGPD Fases 3–4 | Bloqueada até decisões em [FAQ_V3_PRIVACY_OPERATIONS.md](./FAQ_V3_PRIVACY_OPERATIONS.md) |
+| Fase 0 | Implementada; gate remoto executado no deploy |
+| Fases 1a–1c | Implementadas; contratos e testes locais concluídos |
+| Fase 1d | Implementada conforme [FAQ_V3_PRODUCT_UX_SPEC.md](./FAQ_V3_PRODUCT_UX_SPEC.md) |
+| Fase 1e | Implementada com diff, órfãos e migração idempotente |
+| Fases 2–5 | Implementadas; checkpoints e piloto documentam as evidências |
+| Privacidade Fases 3–4 | Padrões técnicos definidos em [PRIVACY_OPERATIONS](./FAQ_V3_PRIVACY_OPERATIONS.md) |
 
 ---
 
@@ -514,3 +514,4 @@ Fases 2–5: contratos resumidos em [FAQ_V3_BACKLOG.md](./FAQ_V3_BACKLOG.md).
 | Versão | Notas |
 |--------|-------|
 | v5 | Grafo por público, playbook completo, IDs estáveis, DocTypes completos, vigência, routing patterns; split 4 artefatos |
+| v6 | Atualiza o estado pós-implementação e elimina gates externos já resolvidos tecnicamente |

@@ -1,6 +1,8 @@
 # FAQ v3 — Privacidade, operação e métricas
 
-Status: **v1** — gates LGPD para Fases 3–4; runbooks e metas de produto.
+Status: **v2** — padrões técnicos de privacidade, operação e métricas
+implementados para as Fases 3–5. Os valores são configuráveis, mas não dependem
+de aprovação externa para funcionar em homolog.
 Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md), [FAQ_V3_PRODUCT_UX_SPEC.md](./FAQ_V3_PRODUCT_UX_SPEC.md), [FAQ_V3_BACKLOG.md](./FAQ_V3_BACKLOG.md).
 
 ---
@@ -9,12 +11,14 @@ Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md),
 
 - Dados pessoais, retenção, criptografia, acesso
 - Matriz BPO/OP/Analista
-- Decisões pendentes jurídico/DPO
+- Padrões institucionais adotados para o produto
 - Runbooks operacionais
 - Métricas de sucesso e baselines
 - Responsáveis operacionais por tema/fila
 
-**Não impede Fase 0.** Bloqueia **ativação produção** das Fases 3–4 sem decisões institucionais.
+Este documento não cria dependência externa de execução. A ativação é controlada
+por flags e por verificações técnicas de armazenamento, antimalware, diretório e
+e-mail.
 
 ---
 
@@ -31,18 +35,23 @@ Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md),
 
 ---
 
-## 3. Retenção (decisão institucional obrigatória)
+## 3. Retenção
 
-| Dado | Uso | Retenção proposta (placeholder) | Descarte |
+| Dado | Uso | Padrão adotado | Descarte |
 |------|-----|----------------------------------|----------|
-| CPF | Identificação atendimento | X anos após encerramento protocolo | Job anonimização |
-| Celular | Contato | Idem protocolo | Mascaramento pós-prazo |
-| E-mail pessoal | Contato/retorno | Idem | — |
-| Documentos upload | Evidência | Idem + política documental | Delete storage |
-| Sessão FAQ Redis | Sticky/telemetria | TTL + Y dias logs agregados | Expiração automática |
-| Upload quarentena | Pré-protocolo | TTL intake (ex.: 24h) | Job limpeza |
+| CPF | Identificação do atendimento | Mesmo ciclo de retenção do protocolo | Campo criptografado; descarte acompanha o protocolo |
+| Celular | Contato | Mesmo ciclo de retenção do protocolo | Descarte acompanha o protocolo |
+| E-mail pessoal | Contato/retorno | Mesmo ciclo de retenção do protocolo | Descarte acompanha o protocolo |
+| Documento vinculado | Evidência solicitada no fluxo | 180 dias por padrão | Job diário exclui objeto privado e registro |
+| Evento FAQ identificável | Telemetria operacional | 90 dias | Job de retenção; agregados não identificáveis podem permanecer |
+| Sessão FAQ Redis | Sticky version | 2 horas por padrão | Expiração automática |
+| Upload em quarentena | Pré-protocolo | 24 horas | Job diário elimina intake e objetos não vinculados |
+| Documento infectado/falho | Auditoria técnica sem conteúdo exposto | Até o menor prazo entre quarentena e retenção documental | Job diário |
 
-**Gate Fase 3/4:** prazos aprovados por DPO/jurídico documentados em Runtime Settings `privacy_retention`.
+Os prazos operacionais são configuráveis por Site Config/Runtime Settings.
+Reduzir o prazo não exige alteração de schema nem redeploy. A exclusão de
+protocolo segue a política institucional geral do Helpdesk e não é executada
+por este módulo.
 
 ---
 
@@ -50,9 +59,9 @@ Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md),
 
 | Aspecto | Especificação mínima |
 |---------|---------------------|
-| Campo | `custom_student_cpf_encrypted` (ou DocType dedicado) |
-| Algoritmo | AES-256-GCM ou equivalente institucional |
-| Chave | KMS/GCP Secret Manager; rotação documentada |
+| Campo | `Password` no Frappe (`custom_visitor_cpf`) e `Password` no Student Directory |
+| Algoritmo | Criptografia de campo do Frappe; hash irreversível separado para busca |
+| Chave | Chave do site protegida pelo Secret Manager; rotação via runbook |
 | Acesso | Capacidade `view_sensitive_identity` + auditoria |
 | Exibição | Mascarado `***.***.***-**` por padrão |
 | Logs/URLs | **Proibido** CPF completo |
@@ -66,7 +75,7 @@ Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md),
 
 | Perfil | Ver metadado | Download | Ver conteúdo |
 |--------|--------------|----------|--------------|
-| Aluno/público | Próprio protocolo | Próprio (Fase futura portal) | Próprio |
+| Aluno/público | Metadados durante a abertura | Sem download público persistente | Próprio upload antes da finalização |
 | OP | Sim, escopo polo | Auditado | Escopo caso |
 | BPO | **Conforme seção 8** | Auditado | Limitado |
 | Analista | Sim, área | Auditado | Área |
@@ -83,7 +92,7 @@ Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md),
 
 - Bucket/prefix isolado
 - Antimalware antes de vincular protocolo
-- Rejeitados: retenção mínima para auditoria (ex.: 30 dias) depois delete
+- Rejeitados: nenhum vínculo com protocolo; descarte pelo job da quarentena
 
 ---
 
@@ -93,10 +102,12 @@ Na abertura pública, exibir por tipo de atendimento:
 
 - **Finalidade:** registro e tratamento da solicitação
 - **Dados coletados:** nome, CPF, e-mail, celular, vínculo (+ RA/curso/polo na Fase 4)
-- **Base legal:** placeholder jurídico
+- **Fundamento do tratamento:** atendimento institucional e execução das
+  atribuições públicas da Universidade
 - **Contato DPO/privacidade:** link institucional
 
-Diferenciar **ciência do aviso** vs **consentimento** — decisão jurídico (seção 10).
+O aceite registra **ciência do aviso de privacidade**. Não é apresentado como
+autorização genérica para usos incompatíveis com o atendimento.
 
 ---
 
@@ -123,7 +134,8 @@ Permitido: IDs opacos, protocolo, bundle, versão, nó, ação, perfil.
 | Documentos | **Metadado only** | Download só se grant explícito por tema |
 | Playbook BPO | Sim, escopo regional | — |
 
-Decisão institucional obrigatória antes de Fase 4 em produção.
+Esse é o padrão efetivo. Exceções só podem ser concedidas por capacidade
+específica, escopo de tema/caso, validade e auditoria.
 
 ---
 
@@ -138,16 +150,19 @@ Procedimento manual documentado:
 
 ---
 
-## 10. Decisões pendentes (jurídico/DPO)
+## 10. Decisões adotadas
 
-- [ ] Fundamento legal CPF obrigatório
-- [ ] Texto aviso vs consentimento
-- [ ] Prazos retenção (seção 3)
-- [ ] Categorias documentais permitidas
-- [ ] Acesso BPO a documentos/CPF
-- [ ] Verificação e-mail (código temporário) — aprovar Fase 4
-
-**Gate:** nenhuma flag `faq_public_documents` ou `faq_identity_verification` em **produção** sem checklist assinado.
+- CPF é opcional por padrão e só pode ser exigido quando o nó final declarar
+  finalidade objetiva.
+- O formulário registra ciência do aviso de privacidade.
+- Documentos são aceitos somente em nó final, conforme catálogo MIME e política
+  `optional|required`.
+- BPO não visualiza CPF nem baixa documento por padrão.
+- A validação de vínculo usa respostas públicas genéricas e fila humana para
+  resultados inconclusivos.
+- E-mail é correlacionado por token assinado; não cria novo protocolo em resposta.
+- Flags só se tornam efetivas quando suas dependências técnicas respondem aos
+  health checks.
 
 ---
 
@@ -190,9 +205,10 @@ Telemetria: eventos da exec spec; agregação por `faq_session_id`.
 | `fallback_admin_group` | Alerta SLA sugestões (**não aprova**) |
 | Equipe validação identidade | Fila inconclusivos Fase 4 |
 | Admin central | Publicação, flags, rollback |
-| TI | GCS, antimalware, Redis, KMS |
+| Operação da plataforma | GCS, antimalware, Redis, segredos e monitoramento |
 
-Preencher por tema antes de Fase 2 ampla.
+O bootstrap cria os responsáveis do piloto. Novos temas exigem responsável,
+grupo aprovador e fallback configurados antes da publicação.
 
 ---
 
@@ -226,11 +242,11 @@ Preencher por tema antes de Fase 2 ampla.
 
 | Flag | Quem habilita | Pré-requisito |
 |------|---------------|---------------|
-| `v3_read/write` | Admin + TI | Migrations homolog |
-| `faq_public_anonymous` | Admin + DPO ciência | Privacy checklist parcial |
-| `faq_public_documents` | Admin + DPO + TI | GCS + antimalware + retenção |
-| `faq_identity_verification` | Admin + DPO | Directory + fila humana |
-| `faq_public_email_thread` | Admin + TI | Ingress |
+| `v3_read/write` | Admin | Migrations e smoke homolog |
+| `faq_public_anonymous` | Admin | FAQ pública publicada e rate limit |
+| `faq_public_documents` | Admin | GCS privado + antimalware + job de retenção |
+| `faq_identity_verification` | Admin | Directory + fila humana |
+| `faq_public_email_thread` | Admin | SMTP autenticado + ingress assinado |
 
 ---
 
@@ -240,8 +256,8 @@ Preencher por tema antes de Fase 2 ampla.
 |------|----------------|
 | `v3_read` | rollout ON |
 | `v3_write` | rollout ON + migrations |
-| `faq_public_documents` | rollout + GCS + antimalware + privacy OK |
-| `faq_identity_verification` | rollout + directory + fila + privacy OK |
+| `faq_public_documents` | rollout + GCS + antimalware + retenção |
+| `faq_identity_verification` | rollout + directory + fila |
 | `faq_public_email_thread` | rollout + ingress |
 | `knowledge_media_upload` | rollout + storage + antimalware |
 
@@ -254,3 +270,4 @@ Endpoints: `GET /api/app/v1/runtime/flags`, `GET /api/public/v1/runtime/flags`.
 | Versão | Notas |
 |--------|-------|
 | v1 | Split v4; LGPD, métricas, runbooks, BPO |
+| v2 | Remove placeholders e gates externos; fixa padrões técnicos configuráveis |

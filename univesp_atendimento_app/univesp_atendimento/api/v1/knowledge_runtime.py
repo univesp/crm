@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import os
 import uuid
 
 import frappe
@@ -41,6 +42,7 @@ PROFILE_PERSONAS = {
 	"gestor_area": {"analyst", "op", "bpo"},
 	"admin_central": SESSION_PERSONAS,
 }
+DEFAULT_KNOWLEDGE_EVENT_RETENTION_DAYS = 90
 
 
 class KnowledgeRuntimeValidationError(frappe.ValidationError):
@@ -49,6 +51,32 @@ class KnowledgeRuntimeValidationError(frappe.ValidationError):
 
 class KnowledgeSessionExpiredError(frappe.ValidationError):
 	http_status_code = 410
+
+
+def purge_expired_knowledge_events():
+	"""Remove raw journey events after the configured retention window."""
+	retention_days = int(
+		os.getenv("KNOWLEDGE_EVENT_RETENTION_DAYS")
+		or frappe.conf.get(
+			"knowledge_event_retention_days",
+			DEFAULT_KNOWLEDGE_EVENT_RETENTION_DAYS,
+		)
+	)
+	if retention_days < 1:
+		raise frappe.ValidationError(_("Retenção de telemetria deve ser de pelo menos 1 dia."))
+
+	cutoff = add_to_date(now_datetime(), days=-retention_days)
+	expired = frappe.get_all(
+		"Univesp Knowledge Event",
+		filters={"occurred_at": ["<", cutoff]},
+		pluck="name",
+		limit_page_length=1000,
+	)
+	for name in expired:
+		doc = frappe.get_doc("Univesp Knowledge Event", name)
+		doc.flags.knowledge_retention_delete = True
+		doc.delete(ignore_permissions=True)
+	return len(expired)
 
 
 @frappe.whitelist(methods=["GET"])

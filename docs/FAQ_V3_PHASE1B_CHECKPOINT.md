@@ -18,6 +18,8 @@ Branch: `codex/faq-v3-phase1b`
 - validação server-side do lineage informado ao abrir protocolo;
 - persistência de bundle, versão, nó, caminho, público e sessão no protocolo;
 - eventos canônicos idempotentes da jornada e DocType imutável de telemetria;
+- descarte diário da telemetria bruta após 90 dias por padrão, preservando
+  somente agregações não identificáveis;
 - adapter temporário para as métricas legadas do painel Admin;
 - flags autenticadas e subconjunto público sanitizado;
 - frontend institucional sem geração local de sessões ou lineage v3;

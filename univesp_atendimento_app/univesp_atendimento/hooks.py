@@ -30,5 +30,6 @@ scheduler_events = {
 	"daily": [
 		"univesp_atendimento.api.v1.public.purge_expired_public_documents",
 		"univesp_atendimento.api.v1.public.purge_expired_public_intakes",
+		"univesp_atendimento.api.v1.knowledge_runtime.purge_expired_knowledge_events",
 	],
 }

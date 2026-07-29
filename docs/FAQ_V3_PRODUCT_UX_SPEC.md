@@ -1,6 +1,6 @@
 # FAQ v3 — Especificação de produto e UX
 
-Status: **v1** — necessário para executar **Fase 1d** e validar consumo operacional.
+Status: **v2** — especificação implementada na Fase 1d e usada no piloto integrado.
 Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md), [FAQ_V3_PRIVACY_OPERATIONS.md](./FAQ_V3_PRIVACY_OPERATIONS.md), [FAQ_V3_BACKLOG.md](./FAQ_V3_BACKLOG.md).
 
 ---
@@ -12,7 +12,8 @@ Este documento fixa **interface, jornada e comportamento percebido**. Contratos 
 ### Fora de escopo
 
 - Implementação de código
-- Decisões jurídicas LGPD (ver PRIVACY_OPERATIONS)
+- Parecer jurídico; este documento aplica os controles técnicos definidos em
+  PRIVACY_OPERATIONS sem criar bloqueio externo
 
 ---
 
@@ -215,7 +216,9 @@ Abrir painel **não** dispara o evento.
 | Nome, e-mail pessoal, celular, tipo vínculo | Sempre na abertura |
 | CPF | **Condicional** — ver política abaixo e [PRIVACY §10](./FAQ_V3_PRIVACY_OPERATIONS.md) |
 
-CPF obrigatório quando: (a) fluxo declara `intake_policy.requires_cpf`; (b) validação aluno sem acesso; dispensado em dúvida geral. Produção exige gate jurídico ([PRIVACY §10](./FAQ_V3_PRIVACY_OPERATIONS.md)).
+CPF obrigatório somente quando o fluxo declara `intake_policy.requires_cpf` com
+finalidade objetiva. Problema de acesso pode solicitá-lo quando a validação de
+vínculo o exigir; dúvida geral permanece sem CPF.
 
 ### 7.4 Campos adicionais — Fase 4
 
