@@ -68,6 +68,10 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 	def test_cloudrun_image_contains_academic_apps(self):
 		self.assertIn("test -d apps/helpdesk", self.containerfile)
 		self.assertIn("HELPDESK_REF", self.containerfile)
+		self.assertIn("HELPDESK_REPOSITORY=https://github.com/frappe/helpdesk.git", self.containerfile)
+		self.assertIn('fetch --depth 1 "${HELPDESK_REPOSITORY}" "${HELPDESK_REF}"', self.containerfile)
+		self.assertNotIn('fetch --depth 1 origin "${HELPDESK_REF}"', self.containerfile)
+		self.assertIn('rev-parse HEAD)" = "${HELPDESK_REF}"', self.containerfile)
 		self.assertIn("COPY --chown=frappe:frappe univesp_atendimento_app", self.containerfile)
 		self.assertIn('install-app "${app}"', self.common)
 		self.assertIn("configure_bff_service_account", self.common)
