@@ -32,15 +32,18 @@
 | Typecheck Vue/TypeScript | aprovado |
 | ESLint | aprovado |
 | Build Vite de produção | aprovado |
-| E2E FAQ/editor/público/sticky/governança | 14/14 |
-| Testes do SSO Gateway | 17/17 |
-| Testes Playwright globais | 28/28 |
-| Contratos do deploy Cloud Run | 27/27 |
+| E2E FAQ/editor/público/sticky/governança | 18/18 |
+| Testes do SSO Gateway | 18/18 |
+| Testes Playwright globais | 29/29 |
+| Contratos do deploy Cloud Run | 34/34 |
+| Axe WCAG 2/2.1 A e AA | sem violações críticas ou sérias na jornada pública com mídia |
+| Navegação por teclado | seleção de tema e resposta validada com foco + Enter |
+| Movimento reduzido | animações e transições desativadas quando solicitado |
 | `git diff --check` | aprovado |
 
 A suíte Playwright global foi saneada sem ignorar testes. O wiring institucional
 que havia sido removido de Dashboard, Parâmetros, Pessoas/Acessos, Governança da
-Área e detalhes OP/Área foi restaurado. Os 28 cenários passam em conjunto.
+Área e detalhes OP/Área foi restaurado. Os 29 cenários passam em conjunto.
 
 ## Evidências funcionais
 

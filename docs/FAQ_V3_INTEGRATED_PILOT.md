@@ -26,6 +26,8 @@ homologação, não uma evidência inventada.
 | Imagem antimalware | construída e iniciada |
 | Health e bloqueio sem token dos containers | aprovados |
 | Sintaxe Bash e workflow YAML | aprovados |
+| Axe WCAG 2/2.1 A e AA | sem violações críticas ou sérias no fluxo público com mídia |
+| Teclado e movimento reduzido | aprovados no cenário público |
 
 Runner reproduzível:
 

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import AxeBuilder from '@axe-core/playwright'
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/public/v1/academic-catalogs', (route) =>
@@ -262,15 +263,33 @@ test('público renderiza blocos editoriais acessíveis na ordem publicada', asyn
     }),
   )
 
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/crm/publico')
-  await page.getByRole('button', { name: 'Orientações com mídia' }).click()
-  await page.getByRole('button', { name: 'Como recuperar o acesso' }).click()
+  await page.getByRole('button', { name: 'Orientações com mídia' }).focus()
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: 'Como recuperar o acesso' }).focus()
+  await page.keyboard.press('Enter')
 
   await expect(page.getByRole('note')).toHaveText('Nunca compartilhe sua senha.')
   await expect(page.getByRole('img', { name: 'Tela de recuperação de acesso' })).toBeVisible()
+  const motionStyle = await page
+    .getByRole('button', { name: 'Não, abrir atendimento' })
+    .evaluate((element) => {
+      const style = window.getComputedStyle(element)
+      return { animationName: style.animationName, transitionDuration: style.transitionDuration }
+    })
+  expect(motionStyle).toEqual({ animationName: 'none', transitionDuration: '0s' })
   await expect(page.getByText('Transcrição do vídeo')).toBeVisible()
   await page.getByText('Transcrição do vídeo').click()
   await expect(page.getByText('Abra o portal e selecione a opção de recuperação.')).toBeVisible()
+
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze()
+  const blockingViolations = accessibility.violations.filter((violation) =>
+    ['critical', 'serious'].includes(violation.impact),
+  )
+  expect(blockingViolations).toEqual([])
 })
 
 test('fluxo público pede CPF por finalidade e envia documento opcional', async ({ page }) => {
