@@ -407,15 +407,6 @@ function normalizeStringList(value) {
   return normalized ? [normalized] : []
 }
 
-function resolveDevBypassProfileFromEmail(email = '') {
-  const normalized = String(email || '').trim().toLowerCase()
-  return (
-    Object.values(DEV_BYPASS_PROFILE_CATALOG).find(
-      (profile) => profile.email === normalized,
-    ) || null
-  )
-}
-
 function readStoredDevBypassProfileKey() {
   if (typeof window === 'undefined') {
     return ''

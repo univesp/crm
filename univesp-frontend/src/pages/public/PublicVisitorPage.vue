@@ -57,6 +57,11 @@ const activeNode = computed(() =>
   selectedNodeId.value ? faqNodeIndex.value.get(selectedNodeId.value) || null : null,
 )
 const activeChildren = computed(() => activeNode.value?.children || [])
+const activeBlocks = computed(() =>
+  activeNode.value?.content_blocks?.length
+    ? activeNode.value.content_blocks
+    : [{ block_id: 'legacy-answer', type: 'text', body: activeNode.value?.resposta || activeNode.value?.pergunta_exibida || '' }],
+)
 const intakePolicy = computed(() => activeNode.value?.intake_policy || {})
 const documentPolicy = computed(() => activeNode.value?.document_policy || { mode: 'disabled' })
 const canOpenTicket = computed(() => Boolean(activeNode.value?.runtime?.isTerminal))
@@ -191,7 +196,28 @@ onMounted(async () => {
       <div v-else class="public-visitor__answer">
         <button type="button" class="public-visitor__back" @click="selectedNodeId = ''">Voltar aos temas</button>
         <h2>{{ activeNode.titulo_exibido }}</h2>
-        <p class="public-visitor__answer-text">{{ activeNode.resposta || activeNode.pergunta_exibida }}</p>
+        <div class="public-visitor__answer-blocks">
+          <template v-for="block in activeBlocks" :key="block.block_id">
+            <p v-if="block.type === 'text'" class="public-visitor__answer-text">{{ block.body }}</p>
+            <aside v-else-if="block.type === 'notice'" class="public-visitor__notice" role="note">{{ block.body }}</aside>
+            <img v-else-if="block.type === 'image'" :src="block.url" :alt="block.alt" loading="lazy" />
+            <div v-else-if="['video', 'animation'].includes(block.type)" class="public-visitor__media-block">
+              <video controls playsinline :aria-label="block.alt || 'Vídeo da orientação'">
+                <source :src="block.url" />
+                <track v-if="block.captions_url" kind="captions" :src="block.captions_url" srclang="pt-BR" label="Português" default />
+              </video>
+              <details v-if="block.transcript">
+                <summary>Transcrição do vídeo</summary>
+                <p>{{ block.transcript }}</p>
+              </details>
+            </div>
+            <button v-else-if="block.type === 'button' && block.action_key === 'open_ticket'" type="button" @click="beginTicket">{{ block.body || 'Abrir atendimento' }}</button>
+            <button v-else-if="block.type === 'button' && block.action_key === 'go_login'" type="button" @click="router.push('/login')">{{ block.body || 'Ir para o portal do aluno' }}</button>
+            <a v-else-if="['link', 'file'].includes(block.type)" :href="block.url" target="_blank" rel="noopener noreferrer" class="public-visitor__content-link">
+              {{ block.body || 'Abrir conteúdo institucional' }}
+            </a>
+          </template>
+        </div>
         <ul v-if="activeChildren.length" class="public-visitor__faq-list">
           <li v-for="child in activeChildren" :key="child.id">
             <button type="button" @click="selectNode(child)">{{ child.titulo_exibido }}</button>
@@ -281,6 +307,10 @@ onMounted(async () => {
 .public-visitor__secondary, .public-visitor__back { background: #eef2f8 !important; color: #263d6b !important; }
 .public-visitor__answer, .public-visitor__resolved, .public-visitor__actions { display: grid; gap: .75rem; }
 .public-visitor__answer-text { padding: 1rem; border-left: .25rem solid #3157a5; background: #f7f9fd; white-space: pre-line; }
+.public-visitor__answer-blocks { display: grid; gap: 1rem; }
+.public-visitor__answer-blocks img, .public-visitor__answer-blocks video { width: 100%; max-height: 28rem; border-radius: .75rem; object-fit: contain; background: #101828; }
+.public-visitor__notice { padding: 1rem; border-left: .25rem solid #b54708; background: #fffaeb; }
+.public-visitor__content-link { display: inline-flex; width: fit-content; min-height: 2.75rem; align-items: center; padding: .65rem 1rem; border: 2px solid #3157a5; border-radius: .6rem; color: #263d6b; font-weight: 700; }
 .public-visitor__resolved { margin-top: .5rem; padding-top: 1rem; border-top: 1px solid #d8deea; }
 .public-visitor__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .public-visitor label { display: grid; gap: .35rem; font-weight: 650; }
@@ -292,4 +322,7 @@ onMounted(async () => {
 .public-visitor__actions { grid-template-columns: auto 1fr; }
 .public-visitor__error { padding: .75rem 1rem; border-left: .25rem solid #b42318; background: #fff1f0; color: #8a1c13; }
 @media (max-width: 40rem) { .public-visitor__grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) {
+  .public-visitor *, .public-visitor *::before, .public-visitor *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}
 </style>

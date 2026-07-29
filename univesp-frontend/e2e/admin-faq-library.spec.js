@@ -68,7 +68,11 @@ test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', a
 
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
   await page.getByRole('button', { name: 'Aluno', exact: true }).click()
-  await page.getByLabel('Orientação').fill('Recupere sua senha pelo portal do aluno.')
+  await page.getByLabel('Conteúdo', { exact: true }).fill('Recupere sua senha pelo portal do aluno.')
+  await page.getByRole('button', { name: 'Adicionar bloco' }).click()
+  await page.getByLabel('Tipo do bloco').last().selectOption('notice')
+  await page.getByLabel('Conteúdo', { exact: true }).last().fill('Nunca compartilhe sua senha.')
+  await page.getByRole('button', { name: 'Mover bloco 2 para cima' }).click()
 
   await page.getByRole('button', { name: 'OP', exact: true }).click()
   await page.getByLabel('Objetivo').fill('Restabelecer o acesso sem expor credenciais.')
@@ -97,6 +101,10 @@ test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', a
   expect(savedPayload.valid_from).toBe('2026-08-01T08:00')
   expect(savedPayload.payload.nodes.find((node) => node.node_id === 'final').playbooks.op.objective)
     .toBe('Restabelecer o acesso sem expor credenciais.')
+  expect(
+    savedPayload.payload.nodes.find((node) => node.node_id === 'final').content.student.blocks
+      .map((block) => block.type),
+  ).toEqual(['notice', 'text'])
   expect(savedPayload.payload.nodes.find((node) => node.node_id === 'final').intake_policy)
     .toMatchObject({
       requires_cpf: true,
@@ -106,6 +114,62 @@ test('editor v3 reúne conteúdo, playbook, prévia, vigência e aprovação', a
   await page.getByRole('button', { name: 'Ver como a jornada funciona' }).click()
   await expect(page.getByRole('heading', { name: 'Prévia da jornada' })).toBeFocused()
   await expect(page.getByText('Nenhum bloqueio encontrado.')).toBeVisible()
+})
+
+test('editor envia mídia institucional e preserva o asset no rascunho', async ({ page }) => {
+  const payload = flowPayload('acesso-ava')
+  let savedPayload = null
+  let assetUploadReceived = false
+  await mockKnowledgeV3(page, {
+    payload,
+    onSave(value) {
+      savedPayload = value
+    },
+  })
+  await page.route('**/api/app/v1/runtime/flags', (route) =>
+    route.fulfill({
+      status: 200,
+      json: { data: { knowledge_media_upload: true }, error: null },
+    }),
+  )
+  await page.route('**/api/app/v1/knowledge/v3/assets', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    assetUploadReceived = route.request().headers()['content-type']?.includes('multipart/form-data')
+    return route.fulfill({
+      status: 201,
+      json: {
+        data: {
+          asset_id: 'asset-imagem-1',
+          type: 'image',
+          url: 'https://cdn.univesp.br/faq/acesso.png',
+          alt: 'Tela de recuperação de acesso',
+        },
+        error: null,
+      },
+    })
+  })
+
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+  await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
+  await page.getByRole('button', { name: 'Aluno', exact: true }).click()
+  await page.getByLabel('Tipo do bloco').selectOption('image')
+  await page.getByLabel('Texto alternativo').fill('Tela de recuperação de acesso')
+  await page.getByLabel('Enviar mídia institucional').setInputFiles({
+    name: 'acesso.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('\x89PNG\r\n\x1a\nimagem'),
+  })
+  await expect(page.getByText('Mídia institucional enviada e vinculada ao bloco.')).toBeVisible()
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click()
+
+  await expect.poll(() => savedPayload).not.toBeNull()
+  expect(assetUploadReceived).toBe(true)
+  expect(savedPayload.payload.nodes[1].content.student.blocks[0]).toMatchObject({
+    asset_id: 'asset-imagem-1',
+    type: 'image',
+    url: 'https://cdn.univesp.br/faq/acesso.png',
+    alt: 'Tela de recuperação de acesso',
+  })
 })
 
 test('importação v3 mostra diff e preserva etapa ausente após decisão explícita', async ({ page }) => {

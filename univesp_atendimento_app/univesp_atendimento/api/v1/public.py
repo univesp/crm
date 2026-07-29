@@ -199,9 +199,11 @@ def create_public_ticket(payload: dict | str | None = None):
 	doc.custom_univesp_protocol = _public_protocol(doc.name, doc.creation)
 	doc.save(ignore_permissions=True)
 	if bool(getattr(settings, "faq_public_email_thread", False)):
-		from univesp_atendimento.public_email import send_protocol_confirmation
-
-		send_protocol_confirmation(doc)
+		frappe.enqueue(
+			"univesp_atendimento.public_email.send_protocol_confirmation",
+			ticket_name=doc.name,
+			enqueue_after_commit=True,
+		)
 	if link_outcome in {"inconclusive", "not_found", "conflicting", "unavailable"}:
 		frappe.get_doc(
 			{

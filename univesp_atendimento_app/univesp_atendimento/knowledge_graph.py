@@ -1,3 +1,6 @@
+from univesp_atendimento.knowledge_blocks import validate_blocks
+
+
 ALLOWED_AUDIENCES = {"student", "public", "internal"}
 PROFILE_AUDIENCES = {
 	"student": {"student"},
@@ -53,6 +56,13 @@ def validate_knowledge_graph(payload):
 					f"Política de identificação só pode existir em nó final: {node_id}.",
 				)
 			)
+		for layer in ("student", "public"):
+			content = (node.get("content") or {}).get(layer)
+			if isinstance(content, dict):
+				for message in validate_blocks(content.get("blocks")):
+					errors.append(
+						KnowledgeGraphError("INVALID_CONTENT_BLOCK", f"{node_id}: {message}")
+					)
 
 	edge_ids = set()
 	for edge in edges:

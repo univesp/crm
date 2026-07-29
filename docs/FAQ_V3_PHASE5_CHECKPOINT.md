@@ -1,0 +1,77 @@
+# FAQ e Orientações v3 — checkpoint da Fase 5
+
+## Implementado
+
+- Editor com blocos ordenáveis de texto, imagem, link, vídeo, aviso, botão
+  controlado, arquivo institucional e animação.
+- Identificadores estáveis por bloco e validação no backend antes da publicação.
+- Renderização pública na ordem editorial, com texto alternativo, legenda e
+  transcrição acessível.
+- Upload editorial separado de documentos pessoais, protegido por permissão e
+  pela flag `knowledge_media_upload`.
+- Validação de MIME por assinatura real, limite de 25 MiB e antimalware antes do
+  armazenamento.
+- Conversão obrigatória de GIF para MP4 em serviço isolado, autenticado e com
+  limites de duração, dimensão e tamanho.
+- Novo DocType `Univesp Knowledge Asset`, com hash, metadados de acessibilidade,
+  estado e proteção contra exclusão enquanto houver referência em uma versão.
+- Links limitados a HTTPS ou `mailto`; scripts e ações arbitrárias são rejeitados.
+- Rotas de assets protegidas por sessão no gateway e submetidas ao rate limit
+  autenticado.
+- Correção adicional da Fase 4: falha no envio SMTP não desfaz nem duplica a
+  criação do protocolo; a confirmação é enfileirada após o commit.
+- Runbook de storage, scanner e conversor atualizado.
+
+## Testes e resultados
+
+| Verificação | Resultado |
+|---|---|
+| Ruff dos arquivos da fase | aprovado |
+| Testes Python de blocos, assinaturas, grafo e migração | 12/12 |
+| Testes canônicos do frontend | 68/68 |
+| Typecheck Vue/TypeScript | aprovado |
+| ESLint | aprovado |
+| Build Vite de produção | aprovado |
+| E2E FAQ/editor/público/sticky/governança | 14/14 |
+| Testes do SSO Gateway | 17/17 |
+| `git diff --check` | aprovado |
+
+A suíte Playwright global foi também executada. Os 19 cenários ligados ao núcleo
+atual e ao FAQ passaram; nove cenários antigos de dashboard, parâmetros,
+permissões e operação continuam dependendo de mocks de endpoints que não
+interceptam o runtime atual. Eles não exercitam o código desta fase e ficam
+registrados como dívida da suíte global, sem serem tratados como evidência verde.
+
+## Evidências funcionais
+
+- O editor envia um PNG institucional, recebe `asset_id` e preserva a referência
+  ao salvar o rascunho.
+- A jornada pública renderiza aviso, imagem com `alt`, vídeo com legenda e
+  transcrição.
+- Documento obrigatório continua bloqueando a criação antes do protocolo.
+- Sticky version, sugestão, aprovação e publicação permanecem sem regressão.
+- Requisições anônimas para listar ou enviar assets recebem `401`.
+- Arquivos com assinatura divergente do MIME são recusados.
+
+## Riscos e pendências
+
+- Cloud Run, GCS, ClamAV e Frappe real não existem dentro deste ambiente local.
+  A integração está pronta e falha fechada, mas precisa do ensaio no ambiente
+  integrado antes de ativar as flags em produção.
+- O bundle `exceljs` segue acima de 500 KiB. É aviso de performance da importação,
+  não falha funcional ou de segurança desta fase.
+- Os nove testes globais antigos citados acima precisam ser modernizados em um
+  trabalho de saneamento transversal; não devem bloquear o piloto específico do
+  FAQ v3.
+
+## Teste do usuário
+
+**Não precisa testar neste checkpoint.**
+
+A experiência final será incluída no roteiro único do piloto integrado, após a
+validação ponta a ponta do tema `acesso-ava`.
+
+## Próxima fase
+
+Validação integrada e piloto: executar a jornada completa, auditar os requisitos
+das Fases 0–5 e preparar o roteiro final por persona.

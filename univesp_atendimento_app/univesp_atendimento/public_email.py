@@ -9,7 +9,8 @@ from frappe.utils.file_manager import save_file
 from univesp_atendimento.public_email_security import parse_reply_recipient, sign_reply, verify_reply
 
 
-def send_protocol_confirmation(ticket):
+def send_protocol_confirmation(ticket_name):
+	ticket = frappe.get_doc("HD Ticket", ticket_name)
 	token = reply_token(ticket.name, ticket.custom_student_email)
 	domain = str(frappe.conf.get("public_reply_domain") or "").strip()
 	if not domain:

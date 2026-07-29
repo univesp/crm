@@ -508,6 +508,7 @@ def _legacy_package(runtime, version):
 				"tema": str(metadata.get("title") or ""),
 				"subtema": "" if node["node_id"] == root_id else str(display.get("title") or ""),
 				"resposta": answer,
+				"content_blocks": blocks or [],
 				"acao": _legacy_action(node_kind, outcome),
 				"criticidade_padrao": metadata.get("criticidade_default_key") or "media",
 				"sla_padrao": metadata.get("sla_policy_key") or "48h",

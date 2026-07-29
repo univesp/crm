@@ -175,6 +175,56 @@ test('público consome API real e envia lineage sem escolher fila', async ({ pag
   })
 })
 
+test('público renderiza blocos editoriais acessíveis na ordem publicada', async ({ page }) => {
+  const publicPackage = publishedPackage(
+    'publico',
+    'media-live',
+    'Orientações com mídia',
+    'Como recuperar o acesso',
+  )
+  publicPackage.nodes[1].content_blocks = [
+    { block_id: 'aviso-1', type: 'notice', body: 'Nunca compartilhe sua senha.' },
+    {
+      block_id: 'imagem-1',
+      type: 'image',
+      url: 'https://cdn.univesp.br/faq/acesso.png',
+      alt: 'Tela de recuperação de acesso',
+    },
+    {
+      block_id: 'video-1',
+      type: 'video',
+      url: 'https://cdn.univesp.br/faq/acesso.mp4',
+      captions_url: 'https://cdn.univesp.br/faq/acesso.vtt',
+      transcript: 'Abra o portal e selecione a opção de recuperação.',
+    },
+  ]
+  await page.route('**/api/public/v1/knowledge/faq-published?**', (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        data: [{ bundle_id: 'media-live', bundle_version_id: 'v3.2', package: publicPackage }],
+        error: null,
+      },
+    }),
+  )
+  await page.route('**/api/public/v1/runtime/flags', (route) =>
+    route.fulfill({
+      status: 200,
+      json: { data: { faq_public_anonymous: true, faq_public_documents: false }, error: null },
+    }),
+  )
+
+  await page.goto('/crm/publico')
+  await page.getByRole('button', { name: 'Orientações com mídia' }).click()
+  await page.getByRole('button', { name: 'Como recuperar o acesso' }).click()
+
+  await expect(page.getByRole('note')).toHaveText('Nunca compartilhe sua senha.')
+  await expect(page.getByRole('img', { name: 'Tela de recuperação de acesso' })).toBeVisible()
+  await expect(page.getByText('Transcrição do vídeo')).toBeVisible()
+  await page.getByText('Transcrição do vídeo').click()
+  await expect(page.getByText('Abra o portal e selecione a opção de recuperação.')).toBeVisible()
+})
+
 test('fluxo público pede CPF por finalidade e envia documento opcional', async ({ page }) => {
   const publicPackage = publishedPackage(
     'publico',

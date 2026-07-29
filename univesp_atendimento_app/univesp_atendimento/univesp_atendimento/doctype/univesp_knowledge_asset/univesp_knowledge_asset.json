@@ -1,0 +1,21 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Knowledge Asset",
+  "module": "Univesp Atendimento",
+  "autoname": "hash",
+  "track_changes": 1,
+  "field_order": ["asset_key", "file", "asset_type", "mime_type", "sha256", "alt_text", "caption", "transcript", "status", "created_by"],
+  "fields": [
+    {"fieldname": "asset_key", "fieldtype": "Data", "reqd": 1, "unique": 1},
+    {"fieldname": "file", "fieldtype": "Link", "options": "File", "reqd": 1},
+    {"fieldname": "asset_type", "fieldtype": "Select", "options": "image\nvideo\nfile", "reqd": 1},
+    {"fieldname": "mime_type", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "sha256", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "alt_text", "fieldtype": "Small Text"},
+    {"fieldname": "caption", "fieldtype": "Small Text"},
+    {"fieldname": "transcript", "fieldtype": "Long Text"},
+    {"fieldname": "status", "fieldtype": "Select", "options": "active\narchived", "default": "active", "reqd": 1},
+    {"fieldname": "created_by", "fieldtype": "Link", "options": "User", "reqd": 1}
+  ],
+  "permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1}]
+}

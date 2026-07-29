@@ -256,6 +256,17 @@ export async function getKnowledgeV3Catalogs() {
   return appRequest('/knowledge/v3/catalogs')
 }
 
+export async function listKnowledgeV3Assets() {
+  return appRequest('/knowledge/v3/assets')
+}
+
+export async function uploadKnowledgeV3Asset(file, metadata = {}) {
+  const body = new FormData()
+  body.append('files', file)
+  Object.entries(metadata).forEach(([key, value]) => body.append(key, value || ''))
+  return appRequest('/knowledge/v3/assets', { method: 'POST', body })
+}
+
 export async function previewKnowledgeV2Migration(payload = {}) {
   return appRequest('/knowledge/v3/migration/preview', { method: 'POST', body: payload })
 }

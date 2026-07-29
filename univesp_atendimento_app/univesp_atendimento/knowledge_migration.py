@@ -307,18 +307,30 @@ def _add_layer(node, legacy, audience):
 		node["audiences"].append(audience)
 	body = str(legacy.get("resposta") or legacy.get("orientacao") or "").strip()
 	if audience in {"student", "public"}:
+		blocks = (
+			[
+				{
+					"block_id": f"{node['stable_key']}-{audience}-text",
+					"type": "text",
+					"body": body,
+				}
+			]
+			if body
+			else []
+		)
+		for media in node.get("media_refs") or []:
+			blocks.append(
+				{
+					"block_id": f"{node['stable_key']}-{audience}-{media['asset_id']}",
+					"type": "image" if media.get("type") == "image" else "link",
+					"asset_id": media["asset_id"],
+					"url": media["url"],
+					"alt": str(node.get("display", {}).get("title") or "Mídia da orientação"),
+					"body": "Abrir mídia institucional",
+				}
+			)
 		node["content"][audience] = {
-			"blocks": (
-				[
-					{
-						"block_id": f"{node['stable_key']}-{audience}-text",
-						"type": "text",
-						"body": body,
-					}
-				]
-				if body
-				else []
-			),
+			"blocks": blocks,
 			"outcome_key": str(legacy.get("acao") or "").strip(),
 		}
 		return

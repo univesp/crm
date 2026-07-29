@@ -7,10 +7,12 @@ import {
   forkKnowledgeV3Draft,
   getKnowledgeV3Bundle,
   getKnowledgeV3Catalogs,
+  getRuntimeFlags,
   listKnowledgeV3Versions,
   publishKnowledgeV3Version,
   saveKnowledgeV3Draft,
   submitKnowledgeV3Approval,
+  uploadKnowledgeV3Asset,
 } from '@/services/appApi'
 import {
   downloadKnowledgeV3Template,
@@ -43,6 +45,8 @@ const changeSummary = ref('')
 const importOpen = ref(false)
 const importBusy = ref(false)
 const importDiff = ref(null)
+const assetBusy = ref(false)
+const mediaUploadEnabled = ref(false)
 const validity = reactive({ valid_from: '', valid_until: '' })
 const catalogs = reactive({ themes: [], routing_patterns: [] })
 
@@ -54,7 +58,6 @@ const tabs = [
   { key: 'analyst', label: 'Analista' },
   { key: 'routing', label: 'Encaminhamento' },
   { key: 'document', label: 'Documento' },
-  { key: 'media', label: 'Mídia' },
 ]
 const personaLabels = {
   student: 'Aluno',
@@ -148,6 +151,11 @@ async function loadEditor() {
     bundle.value = bundleResponse.data
     versions.value = versionsResponse.data || []
     Object.assign(catalogs, catalogsResponse.data || {})
+    try {
+      mediaUploadEnabled.value = Boolean((await getRuntimeFlags()).data?.knowledge_media_upload)
+    } catch {
+      mediaUploadEnabled.value = false
+    }
     etag.value = bundleResponse.meta?.etag || bundle.value?.draft?.etag || ''
     const editablePayload = bundle.value?.draft?.payload
     payload.value = editablePayload ? cloneJson(editablePayload) : null
@@ -423,13 +431,59 @@ function removeSelectedNode() {
   selectedNodeId.value = parentEdge?.parent_node_id || payload.value.nodes[0]?.node_id || ''
 }
 
-function setContentText(layer, value) {
+function contentBlocks(layer) {
   if (!selectedNode.value.content) selectedNode.value.content = {}
   if (!selectedNode.value.content[layer]) selectedNode.value.content[layer] = emptyContent()
-  const blocks = selectedNode.value.content[layer].blocks
-  const textBlock = blocks.find((block) => block.type === 'text')
-  if (textBlock) textBlock.body = value
-  else blocks.push({ block_id: `${selectedNode.value.node_id}-${layer}-texto`, type: 'text', body: value })
+  return selectedNode.value.content[layer].blocks
+}
+
+function addContentBlock(layer, type = 'text') {
+  contentBlocks(layer).push({
+    block_id: `${selectedNode.value.node_id}-${layer}-${type}-${Date.now().toString(36)}`,
+    type,
+    body: '',
+    url: '',
+    alt: '',
+    captions_url: '',
+  })
+}
+
+function removeContentBlock(layer, index) {
+  contentBlocks(layer).splice(index, 1)
+}
+
+function moveContentBlock(layer, index, direction) {
+  const blocks = contentBlocks(layer)
+  const target = index + direction
+  if (target < 0 || target >= blocks.length) return
+  const [block] = blocks.splice(index, 1)
+  blocks.splice(target, 0, block)
+}
+
+async function uploadBlockAsset(layer, block, event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  assetBusy.value = true
+  errorMessage.value = ''
+  try {
+    const result = await uploadKnowledgeV3Asset(file, {
+      alt_text: block.alt,
+      caption: block.caption,
+      transcript: block.transcript,
+    })
+    Object.assign(block, {
+      asset_id: result.data.asset_id,
+      type: result.data.type,
+      url: result.data.url,
+      alt: result.data.alt || block.alt,
+    })
+    successMessage.value = 'Mídia institucional enviada e vinculada ao bloco.'
+  } catch (error) {
+    errorMessage.value = error?.message || 'Não foi possível enviar a mídia.'
+  } finally {
+    assetBusy.value = false
+    event.target.value = ''
+  }
 }
 
 function setOutcome(layer, value) {
@@ -508,28 +562,6 @@ function updatePlaybookList(layer, field, value) {
 
 function playbookList(layer, field) {
   return (effectivePlaybook(layer)[field] || []).map(playbookItemLabel).join('\n')
-}
-
-function setMediaUrls(value) {
-  const current = selectedNode.value.media_refs || []
-  selectedNode.value.media_refs = String(value || '')
-    .split('\n')
-    .map((url) => url.trim())
-    .filter(Boolean)
-    .map((url, index) => {
-      const existing = current.find((item) => item.url === url)
-      return {
-        asset_id:
-          existing?.asset_id ||
-          `${selectedNode.value.node_id}-media-${Date.now().toString(36)}-${index}`,
-        type: /\.(mp4|webm)(\?|$)/i.test(url) ? 'video' : 'image',
-        url,
-      }
-    })
-}
-
-function mediaUrls() {
-  return (selectedNode.value?.media_refs || []).map((item) => item.url).join('\n')
 }
 
 function playbookItemLabel(item) {
@@ -611,7 +643,7 @@ function validateDraft() {
       for (const audience of node.audiences || []) {
         if (
           ['student', 'public'].includes(audience) &&
-          !node.content?.[audience]?.blocks?.some((block) => block.body?.trim())
+          !node.content?.[audience]?.blocks?.some(blockHasContent)
         ) {
           issues.push(`A resposta final “${node.display?.title}” está vazia para ${personaLabels[audience]}.`)
         }
@@ -631,6 +663,11 @@ function validateDraft() {
     }
   })
   return [...new Set(issues)]
+}
+
+function blockHasContent(block) {
+  if (['text', 'notice'].includes(block?.type)) return Boolean(block.body?.trim())
+  return Boolean(block?.url?.trim())
 }
 
 function buildPreview(persona) {
@@ -992,15 +1029,78 @@ function cloneJson(value) {
                 Escreva a orientação que a pessoa verá nesta etapa. Use linguagem direta e indique
                 o próximo passo.
               </p>
-              <label class="crm-field-label">
-                Orientação
-                <textarea
-                  class="crm-field faq-textarea"
-                  :value="contentText(activeTab)"
-                  :disabled="!canEdit"
-                  @input="setContentText(activeTab, $event.target.value)"
-                />
-              </label>
+              <ol class="faq-blocks" aria-label="Blocos da orientação">
+                <li
+                  v-for="(block, index) in contentBlocks(activeTab)"
+                  :key="block.block_id"
+                  class="crm-card-muted faq-block"
+                >
+                  <div class="faq-block__header">
+                    <label v-if="block.type !== 'button'" class="crm-field-label">
+                      Tipo do bloco
+                      <select v-model="block.type" class="crm-field" :disabled="!canEdit">
+                        <option value="text">Texto</option>
+                        <option value="image">Imagem</option>
+                        <option value="link">Link</option>
+                        <option value="video">Vídeo</option>
+                        <option value="notice">Aviso</option>
+                        <option value="button">Botão controlado</option>
+                        <option value="file">Arquivo institucional</option>
+                        <option value="animation">Animação acessível</option>
+                      </select>
+                    </label>
+                    <div class="faq-block__actions">
+                      <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === 0" :aria-label="`Mover bloco ${index + 1} para cima`" @click="moveContentBlock(activeTab, index, -1)">Subir</button>
+                      <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === contentBlocks(activeTab).length - 1" :aria-label="`Mover bloco ${index + 1} para baixo`" @click="moveContentBlock(activeTab, index, 1)">Descer</button>
+                      <button type="button" class="crm-button-secondary" :disabled="!canEdit" :aria-label="`Excluir bloco ${index + 1}`" @click="removeContentBlock(activeTab, index)">Excluir</button>
+                    </div>
+                  </div>
+                  <label v-if="['text', 'notice'].includes(block.type)" class="crm-field-label">
+                    Conteúdo
+                    <textarea v-model="block.body" class="crm-field faq-textarea" :disabled="!canEdit" />
+                  </label>
+                  <template v-else>
+                    <label class="crm-field-label">
+                      Endereço HTTPS
+                      <input v-model="block.url" type="url" class="crm-field" :disabled="!canEdit" />
+                    </label>
+                    <label v-if="['link', 'file'].includes(block.type)" class="crm-field-label">
+                      Texto exibido
+                      <input v-model="block.body" class="crm-field" :disabled="!canEdit" />
+                    </label>
+                    <label v-if="block.type === 'button'" class="crm-field-label">
+                      Ação controlada
+                      <select v-model="block.action_key" class="crm-field" :disabled="!canEdit">
+                        <option value="open_ticket">Abrir atendimento</option>
+                        <option value="go_login">Ir para o portal do aluno</option>
+                      </select>
+                    </label>
+                    <label v-if="block.type === 'button'" class="crm-field-label">
+                      Texto do botão
+                      <input v-model="block.body" class="crm-field" :disabled="!canEdit" />
+                    </label>
+                    <label v-if="['image', 'animation'].includes(block.type)" class="crm-field-label">
+                      Texto alternativo
+                      <input v-model="block.alt" class="crm-field" :disabled="!canEdit" />
+                    </label>
+                    <label v-if="block.type === 'video'" class="crm-field-label">
+                      URL da legenda
+                      <input v-model="block.captions_url" type="url" class="crm-field" :disabled="!canEdit" />
+                    </label>
+                    <label v-if="block.type === 'video'" class="crm-field-label">
+                      Transcrição
+                      <textarea v-model="block.transcript" class="crm-field faq-textarea" :disabled="!canEdit" />
+                    </label>
+                    <label v-if="mediaUploadEnabled && ['image', 'video'].includes(block.type)" class="crm-field-label">
+                      Enviar mídia institucional
+                      <input type="file" :accept="block.type === 'image' ? 'image/png,image/jpeg,image/webp,image/gif' : 'video/mp4,video/webm'" :disabled="!canEdit || assetBusy" @change="uploadBlockAsset(activeTab, block, $event)" />
+                    </label>
+                  </template>
+                </li>
+              </ol>
+              <button type="button" class="crm-button-secondary" :disabled="!canEdit" @click="addContentBlock(activeTab)">
+                Adicionar bloco
+              </button>
               <label v-if="selectedNode.node_kind === 'final'" class="crm-field-label">
                 Resultado esperado
                 <input
@@ -1197,19 +1297,6 @@ function cloneJson(value) {
                   Solicitar polo
                 </label>
               </fieldset>
-            </div>
-
-            <div v-else-if="activeTab === 'media'" class="faq-form-stack">
-              <p>Nesta fase, use URLs institucionais de imagem ou vídeo. Upload entra na Fase 5.</p>
-              <label class="crm-field-label">
-                URLs, uma por linha
-                <textarea
-                  class="crm-field faq-textarea"
-                  :value="mediaUrls()"
-                  :disabled="!canEdit"
-                  @input="setMediaUrls($event.target.value)"
-                />
-              </label>
             </div>
           </template>
         </section>
@@ -1481,6 +1568,24 @@ function cloneJson(value) {
 .faq-side-stack {
   display: grid;
   gap: var(--space-3);
+}
+
+.faq-blocks,
+.faq-block {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.faq-block__header,
+.faq-block__actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .faq-textarea {

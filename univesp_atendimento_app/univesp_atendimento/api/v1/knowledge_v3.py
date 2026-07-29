@@ -805,6 +805,16 @@ def _validate_publishable_payload(payload, bundle):
 			raise KnowledgeV3ValidationError(_("IDs e chaves estáveis dos nós devem ser únicos."))
 		node_ids.add(node_id)
 		stable_keys.add(stable_key)
+		for layer in ("student", "public"):
+			for block in (((node.get("content") or {}).get(layer) or {}).get("blocks") or []):
+				asset_id = str(block.get("asset_id") or "").strip()
+				if asset_id and not frappe.db.exists(
+					"Univesp Knowledge Asset",
+					{"asset_key": asset_id, "status": "active"},
+				):
+					raise KnowledgeV3ValidationError(
+						_("Bloco referencia asset inexistente ou arquivado: {0}.").format(asset_id)
+					)
 	for edge in edges:
 		if not isinstance(edge, dict):
 			raise KnowledgeV3ValidationError(_("Conexão inválida."))
