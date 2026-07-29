@@ -20,6 +20,14 @@ for command_name in docker openssl curl sudo supervisorctl; do
 		exit 1
 	}
 done
+if docker compose version >/dev/null 2>&1; then
+	compose=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+	compose=(docker-compose)
+else
+	printf 'Docker Compose obrigatório ausente.\n' >&2
+	exit 1
+fi
 [[ -f "$COMPOSE_FILE" && -f "$GATEWAY_ENV" ]] || {
 	printf 'Compose FAQ ou ambiente do gateway ausente.\n' >&2
 	exit 1
@@ -50,7 +58,7 @@ for name in ANTIMALWARE_TOKEN MEDIA_PROCESSOR_TOKEN PUBLIC_EMAIL_REPLY_SECRET UN
 	}
 done
 
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
+"${compose[@]}" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
 for attempt in $(seq 1 24); do
 	if curl -fsS "http://127.0.0.1:${ANTIMALWARE_PORT}/health" >/dev/null &&
 		curl -fsS "http://127.0.0.1:${MEDIA_PROCESSOR_PORT}/health" >/dev/null; then
