@@ -1,23 +1,35 @@
 <script setup>
-defineProps({
+import { ref, toRef } from 'vue'
+
+import { useDialogA11y } from '@/composables/useDialogA11y'
+
+const props = defineProps({
   open: { type: Boolean, default: false },
   stageTitle: { type: String, default: '' },
   layers: { type: Array, default: () => [] },
 })
 
-defineEmits(['close'])
+const emit = defineEmits(['close'])
+
+const panelRef = ref(null)
+
+useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
 </script>
 
 <template>
   <div
     v-if="open"
     class="faq-v3-dialog-overlay"
-    role="dialog"
     aria-modal="true"
-    aria-labelledby="playbook-preview-title"
     @click.self="$emit('close')"
   >
-    <section class="crm-panel faq-v3-dialog faq-v3-dialog--wide">
+    <section
+      ref="panelRef"
+      class="crm-panel faq-v3-dialog faq-v3-dialog--wide"
+      role="dialog"
+      aria-labelledby="playbook-preview-title"
+      tabindex="-1"
+    >
       <div class="faq-v3-dialog__header">
         <div>
           <h2 id="playbook-preview-title">Playbook da etapa</h2>
@@ -60,6 +72,7 @@ defineEmits(['close'])
   max-height: min(100%, 80vh);
   overflow: auto;
   padding: var(--space-4);
+  outline: none;
 }
 
 .faq-v3-dialog--wide {

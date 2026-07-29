@@ -1,11 +1,19 @@
 <script setup>
-defineProps({
+import { ref, toRef } from 'vue'
+
+import { useDialogA11y } from '@/composables/useDialogA11y'
+
+const props = defineProps({
   open: { type: Boolean, default: false },
   versions: { type: Array, default: () => [] },
   lifecycleLabels: { type: Object, default: () => ({}) },
 })
 
-defineEmits(['close'])
+const emit = defineEmits(['close'])
+
+const panelRef = ref(null)
+
+useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
 
 function formatDate(value) {
   if (!value) return '—'
@@ -23,12 +31,16 @@ function formatDate(value) {
   <div
     v-if="open"
     class="faq-v3-dialog-overlay"
-    role="dialog"
     aria-modal="true"
-    aria-labelledby="history-dialog-title"
     @click.self="$emit('close')"
   >
-    <section class="crm-panel faq-v3-dialog">
+    <section
+      ref="panelRef"
+      class="crm-panel faq-v3-dialog"
+      role="dialog"
+      aria-labelledby="history-dialog-title"
+      tabindex="-1"
+    >
       <div class="faq-v3-dialog__header">
         <h2 id="history-dialog-title">Histórico de versões</h2>
         <button type="button" class="crm-button-secondary" @click="$emit('close')">Fechar</button>
@@ -59,6 +71,7 @@ function formatDate(value) {
   max-height: min(100%, 80vh);
   overflow: auto;
   padding: var(--space-4);
+  outline: none;
 }
 
 .faq-v3-dialog__header {

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import FaqV3FlowSettingsPanel from '@/components/admin/faq-v3/FaqV3FlowSettingsPanel.vue'
@@ -8,6 +8,7 @@ import FaqV3MapOverlay from '@/components/admin/faq-v3/FaqV3MapOverlay.vue'
 import FaqV3PlaybookPreviewDialog from '@/components/admin/faq-v3/FaqV3PlaybookPreviewDialog.vue'
 import FaqV3SubmitReviewDialog from '@/components/admin/faq-v3/FaqV3SubmitReviewDialog.vue'
 import FaqV3VersionHistoryDialog from '@/components/admin/faq-v3/FaqV3VersionHistoryDialog.vue'
+import { useDialogA11y } from '@/composables/useDialogA11y'
 import {
   approveKnowledgeV3Bundle,
   forkKnowledgeV3Draft,
@@ -78,6 +79,12 @@ const mapOpen = ref(false)
 const moreActionsOpen = ref(false)
 const stageActionsOpen = ref(false)
 const advancedOpen = ref(false)
+const moreActionsTrigger = ref(null)
+const moreActionsPanel = ref(null)
+const stageActionsTrigger = ref(null)
+const stageActionsPanel = ref(null)
+const issuesPanelRef = ref(null)
+const publishConfirmPanelRef = ref(null)
 
 const ADVANCED_TAB_KEYS = ['op', 'bpo', 'analyst', 'routing', 'document']
 const SIMPLE_BLOCK_TYPES = ['text', 'notice', 'link', 'image']
@@ -228,6 +235,21 @@ const playbookPreviewLayers = computed(() => {
 
 onMounted(() => {
   loadEditor()
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+  document.addEventListener('keydown', handleMenuKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+  document.removeEventListener('keydown', handleMenuKeydown)
+})
+
+useDialogA11y(issuesPanelOpen, issuesPanelRef, () => {
+  issuesPanelOpen.value = false
+})
+
+useDialogA11y(publishConfirmOpen, publishConfirmPanelRef, () => {
+  publishConfirmOpen.value = false
 })
 
 watch(
@@ -990,6 +1012,70 @@ function readBlockCount(node, layer) {
   return resolveNodeContent(node, layer)?.blocks?.length || 0
 }
 
+function focusFirstMenuItem(panelRef) {
+  nextTick(() => {
+    const first = panelRef.value?.querySelector('[role="menuitem"]:not([disabled])')
+    first?.focus()
+  })
+}
+
+function closeMoreActions(restoreFocus = true) {
+  if (!moreActionsOpen.value) return
+  moreActionsOpen.value = false
+  if (restoreFocus) nextTick(() => moreActionsTrigger.value?.focus())
+}
+
+function closeStageActions(restoreFocus = true) {
+  if (!stageActionsOpen.value) return
+  stageActionsOpen.value = false
+  if (restoreFocus) nextTick(() => stageActionsTrigger.value?.focus())
+}
+
+function toggleMoreActions() {
+  if (moreActionsOpen.value) {
+    closeMoreActions()
+    return
+  }
+  stageActionsOpen.value = false
+  moreActionsOpen.value = true
+  focusFirstMenuItem(moreActionsPanel)
+}
+
+function toggleStageActions() {
+  if (stageActionsOpen.value) {
+    closeStageActions()
+    return
+  }
+  moreActionsOpen.value = false
+  stageActionsOpen.value = true
+  focusFirstMenuItem(stageActionsPanel)
+}
+
+function handleDocumentPointerDown(event) {
+  const target = event.target
+  if (moreActionsOpen.value) {
+    const insideMenu =
+      moreActionsTrigger.value?.contains(target) || moreActionsPanel.value?.contains(target)
+    if (!insideMenu) closeMoreActions(false)
+  }
+  if (stageActionsOpen.value) {
+    const insideMenu =
+      stageActionsTrigger.value?.contains(target) || stageActionsPanel.value?.contains(target)
+    if (!insideMenu) closeStageActions(false)
+  }
+}
+
+function handleMenuKeydown(event) {
+  if (event.key !== 'Escape') return
+  if (moreActionsOpen.value) {
+    event.preventDefault()
+    closeMoreActions()
+  } else if (stageActionsOpen.value) {
+    event.preventDefault()
+    closeStageActions()
+  }
+}
+
 function openHistoryFromMenu() {
   historyOpen.value = true
   moreActionsOpen.value = false
@@ -1047,15 +1133,16 @@ function handleMapSelectNode(nodeId) {
         </button>
         <div class="faq-menu">
           <button
+            ref="moreActionsTrigger"
             type="button"
             class="crm-button-secondary"
             aria-haspopup="menu"
             :aria-expanded="moreActionsOpen"
-            @click="moreActionsOpen = !moreActionsOpen"
+            @click="toggleMoreActions"
           >
             Mais ações
           </button>
-          <div v-if="moreActionsOpen" class="faq-menu__panel" role="menu">
+          <div v-if="moreActionsOpen" ref="moreActionsPanel" class="faq-menu__panel" role="menu">
             <button
               type="button"
               role="menuitem"
@@ -1296,15 +1383,16 @@ function handleMapSelectNode(nodeId) {
               </label>
               <div class="faq-menu">
                 <button
+                  ref="stageActionsTrigger"
                   type="button"
                   class="crm-button-secondary"
                   aria-haspopup="menu"
                   :aria-expanded="stageActionsOpen"
-                  @click="stageActionsOpen = !stageActionsOpen"
+                  @click="toggleStageActions"
                 >
                   Ações da etapa
                 </button>
-                <div v-if="stageActionsOpen" class="faq-menu__panel" role="menu">
+                <div v-if="stageActionsOpen" ref="stageActionsPanel" class="faq-menu__panel" role="menu">
                   <button
                     type="button"
                     role="menuitem"
@@ -1858,7 +1946,7 @@ function handleMapSelectNode(nodeId) {
         aria-labelledby="issues-panel-title"
         @click.self="issuesPanelOpen = false"
       >
-        <section class="crm-panel faq-confirm-dialog faq-issues-dialog">
+        <section ref="issuesPanelRef" class="crm-panel faq-confirm-dialog faq-issues-dialog" tabindex="-1">
           <div class="faq-playbook-preview__header">
             <h2 id="issues-panel-title">Pendências de validação</h2>
             <button type="button" class="crm-button-secondary" @click="issuesPanelOpen = false">
@@ -1889,7 +1977,7 @@ function handleMapSelectNode(nodeId) {
       aria-modal="true"
       aria-labelledby="publish-confirm-title"
     >
-      <section class="crm-panel faq-confirm-dialog">
+      <section ref="publishConfirmPanelRef" class="crm-panel faq-confirm-dialog" tabindex="-1">
         <h2 id="publish-confirm-title">Confirmar publicação</h2>
         <ul class="faq-confirm-dialog__details">
           <li><strong>Canais:</strong> {{ channelLabelText }}</li>

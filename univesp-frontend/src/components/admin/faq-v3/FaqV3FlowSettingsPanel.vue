@@ -1,5 +1,9 @@
 <script setup>
-defineProps({
+import { ref, toRef } from 'vue'
+
+import { useDialogA11y } from '@/composables/useDialogA11y'
+
+const props = defineProps({
   open: { type: Boolean, default: false },
   canEdit: { type: Boolean, default: false },
   themeKey: { type: String, default: '' },
@@ -30,6 +34,10 @@ function onPublicChange(event) {
   emit('update:availablePublic', event.target.checked)
   emit('sync-channels')
 }
+
+const panelRef = ref(null)
+
+useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
 </script>
 
 <template>
@@ -41,7 +49,7 @@ function onPublicChange(event) {
     aria-labelledby="faq-settings-title"
     @click.self="$emit('close')"
   >
-    <section class="crm-panel faq-v3-dialog faq-v3-dialog--wide faq-settings">
+    <section ref="panelRef" class="crm-panel faq-v3-dialog faq-v3-dialog--wide faq-settings" tabindex="-1">
       <div class="faq-v3-dialog__header">
         <h2 id="faq-settings-title">Configurações do fluxo</h2>
         <button type="button" class="crm-button-secondary" @click="$emit('close')">Fechar</button>

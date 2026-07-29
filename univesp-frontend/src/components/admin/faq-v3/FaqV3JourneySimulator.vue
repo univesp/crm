@@ -1,5 +1,7 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
+
+import { useDialogA11y } from '@/composables/useDialogA11y'
 
 import {
   channelsFromPayload,
@@ -124,6 +126,10 @@ function goBack() {
 function close() {
   emit('close')
 }
+
+const panelRef = ref(null)
+
+useDialogA11y(toRef(props, 'open'), panelRef, close)
 </script>
 
 <template>
@@ -135,7 +141,7 @@ function close() {
     aria-labelledby="faq-v3-simulator-title"
   >
     <div class="faq-v3-simulator__backdrop" @click="close" />
-    <section class="faq-v3-simulator__panel crm-panel">
+    <section ref="panelRef" class="faq-v3-simulator__panel crm-panel" tabindex="-1">
       <header class="faq-v3-simulator__header">
         <div>
           <h2 id="faq-v3-simulator-title">Simular jornada</h2>

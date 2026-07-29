@@ -1,5 +1,7 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, toRef } from 'vue'
+
+import { useDialogA11y } from '@/composables/useDialogA11y'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -9,7 +11,7 @@ const props = defineProps({
   saving: { type: Boolean, default: false },
 })
 
-defineEmits(['close', 'confirm', 'update:changeSummary'])
+const emit = defineEmits(['close', 'confirm', 'update:changeSummary'])
 
 const title = computed(() => {
   if (props.intent === 'publish') return 'Resumo antes da publicação'
@@ -30,6 +32,10 @@ const canConfirm = computed(() => {
   if (props.intent === 'publish') return true
   return props.blockers.length === 0
 })
+
+const panelRef = ref(null)
+
+useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
 </script>
 
 <template>
@@ -41,7 +47,7 @@ const canConfirm = computed(() => {
     aria-labelledby="submit-review-title"
     @click.self="$emit('close')"
   >
-    <section class="crm-panel faq-v3-dialog faq-v3-dialog--wide">
+    <section ref="panelRef" class="crm-panel faq-v3-dialog faq-v3-dialog--wide" tabindex="-1">
       <div class="faq-v3-dialog__header">
         <h2 id="submit-review-title">{{ title }}</h2>
         <button type="button" class="crm-button-secondary" @click="$emit('close')">Cancelar</button>

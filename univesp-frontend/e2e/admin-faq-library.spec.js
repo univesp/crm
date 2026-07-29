@@ -126,6 +126,39 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
   await expect(page.getByRole('button', { name: 'Publicar', exact: true })).toBeVisible()
 })
 
+test('diálogo de envio respeita mínimo de caracteres, Esc e preserva o resumo', async ({ page }) => {
+  const payload = flowPayload('acesso-ava')
+  await mockKnowledgeV3(page, { payload })
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+
+  const submitTrigger = page.getByRole('button', { name: 'Enviar para revisão', exact: true })
+  await submitTrigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Enviar para revisão' })
+  await expect(dialog).toBeVisible()
+
+  const confirmButton = dialog.getByRole('button', { name: 'Enviar para revisão', exact: true })
+  await expect(confirmButton).toBeDisabled()
+
+  const summaryField = dialog.getByLabel('Resumo das mudanças')
+  await summaryField.fill('Resumo curto')
+  await expect(confirmButton).toBeDisabled()
+
+  const draftText = 'Resumo com mais de vinte caracteres para envio.'
+  await summaryField.fill(draftText)
+  await expect(confirmButton).toBeEnabled()
+
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(submitTrigger).toBeFocused()
+
+  await submitTrigger.click()
+  await expect(dialog).toBeVisible()
+  await expect(summaryField).toHaveValue(draftText)
+
+  await dialog.getByRole('button', { name: 'Cancelar' }).last().click()
+  await expect(dialog).toBeHidden()
+})
+
 test('mapa do fluxo seleciona a etapa e a simulação percorre a jornada', async ({ page }) => {
   const payload = flowPayload('acesso-ava')
   await mockKnowledgeV3(page, { payload })
