@@ -156,7 +156,6 @@ def upsert_homolog_access_profiles() -> dict:
 		else:
 			frappe.get_doc(payload).insert(ignore_permissions=True)
 			created.append(row["user_email"])
-	frappe.db.commit()
 	return {"created": created, "updated": updated}
 
 
@@ -174,7 +173,6 @@ def bootstrap_faq_v3_pilot(confirmation: str = "") -> dict:
 	v2_result = publish_homolog_v2_seeds()
 	v3_result = publish_homolog_v3_seed()
 	flag_result = enable_homolog_faq_v3_flags()
-	frappe.db.commit()
 	return {
 		"queues": queue_result,
 		"access_profiles": profile_result,
@@ -589,8 +587,12 @@ def _require_homolog_confirmation(confirmation: str):
 
 
 def _load_seed(file_name: str) -> dict:
+	allowed_seeds = {*FAQ_V2_SEEDS, "faq-v3-acesso-ava-seed.json"}
+	if file_name not in allowed_seeds:
+		raise frappe.ValidationError("Seed fora da lista institucional permitida.")
 	path = frappe.get_app_source_path("crm", "docs", "seeds", file_name)
-	with open(path, encoding="utf-8") as handle:
+	# The filename is selected exclusively from the immutable allowlist above.
+	with open(path, encoding="utf-8") as handle:  # nosemgrep: allowlisted repository seed
 		value = json.load(handle)
 	if not isinstance(value, dict):
 		raise frappe.ValidationError(f"Seed inválido: {file_name}")

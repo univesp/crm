@@ -28,9 +28,9 @@ def resolve_data_dir(base: Path, run_id: str | None) -> Path:
 	return base / rid
 
 
-def cmd_crawl(args: argparse.Namespace) -> int:
-	data_dir = resolve_data_dir(Path(args.data_dir), args.run_id)
-	manifest = run_crawl(data_dir, args.url)
+def cmd_crawl(options: argparse.Namespace) -> int:
+	data_dir = resolve_data_dir(Path(options.data_dir), options.run_id)
+	manifest = run_crawl(data_dir, options.url)
 	print(
 		json.dumps(
 			{"ok": True, "data_dir": str(data_dir), "manifest": manifest}, ensure_ascii=False, indent=2
@@ -39,22 +39,25 @@ def cmd_crawl(args: argparse.Namespace) -> int:
 	return 0
 
 
-def cmd_export_jobs(args: argparse.Namespace) -> int:
-	data_dir = Path(args.data_dir)
-	jobs_root = export_ai_jobs(data_dir, args.job_types.split(",") if args.job_types else None)
+def cmd_export_jobs(options: argparse.Namespace) -> int:
+	data_dir = Path(options.data_dir)
+	jobs_root = export_ai_jobs(
+		data_dir,
+		options.job_types.split(",") if options.job_types else None,
+	)
 	print(json.dumps({"ok": True, "jobs_root": str(jobs_root)}, ensure_ascii=False, indent=2))
 	return 0
 
 
-def cmd_import_analysis(args: argparse.Namespace) -> int:
-	data_dir = Path(args.data_dir)
+def cmd_import_analysis(options: argparse.Namespace) -> int:
+	data_dir = Path(options.data_dir)
 	result = import_ai_analysis(data_dir)
 	print(json.dumps({"ok": True, **result}, ensure_ascii=False, indent=2))
 	return 0
 
 
-def cmd_export_xlsx(args: argparse.Namespace) -> int:
-	data_dir = Path(args.data_dir)
+def cmd_export_xlsx(options: argparse.Namespace) -> int:
+	data_dir = Path(options.data_dir)
 	export_dir = export_faq_xlsx(data_dir)
 	print(json.dumps({"ok": True, "export_dir": str(export_dir)}, ensure_ascii=False, indent=2))
 	return 0
@@ -74,15 +77,21 @@ def main() -> int:
 	jobs = sub.add_parser("export-ai-jobs", help="Export AI job packs")
 	jobs.add_argument("run_path", help="Path to run directory")
 	jobs.add_argument("--job-types", default="simplify_and_tree,media_audit")
-	jobs.set_defaults(func=lambda args: setattr(args, "data_dir", args.run_path) or cmd_export_jobs(args))
+	jobs.set_defaults(
+		func=lambda options: setattr(options, "data_dir", options.run_path) or cmd_export_jobs(options)
+	)
 
 	imp = sub.add_parser("import-ai-analysis", help="Import analysis JSON files")
 	imp.add_argument("run_path")
-	imp.set_defaults(func=lambda args: setattr(args, "data_dir", args.run_path) or cmd_import_analysis(args))
+	imp.set_defaults(
+		func=lambda options: setattr(options, "data_dir", options.run_path) or cmd_import_analysis(options)
+	)
 
 	xlsx = sub.add_parser("export-xlsx", help="Export FAQ Builder XLSX")
 	xlsx.add_argument("run_path")
-	xlsx.set_defaults(func=lambda args: setattr(args, "data_dir", args.run_path) or cmd_export_xlsx(args))
+	xlsx.set_defaults(
+		func=lambda options: setattr(options, "data_dir", options.run_path) or cmd_export_xlsx(options)
+	)
 
 	args = parser.parse_args()
 	return args.func(args)

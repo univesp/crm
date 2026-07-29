@@ -70,5 +70,4 @@ def upsert_rows(rows=None):
 			frappe.get_doc({"doctype": "Univesp Student Directory", **values}).insert(ignore_permissions=True)
 			created += 1
 
-	frappe.db.commit()
 	return {"created": created, "updated": updated, "skipped": skipped, "total": len(payload)}

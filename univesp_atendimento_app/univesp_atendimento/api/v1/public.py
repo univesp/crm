@@ -196,7 +196,7 @@ def attach_public_intake_document(intake_id: str):
 	).insert(ignore_permissions=True)
 	# Quarantine must survive a scanner error so the retention job can account
 	# for and discard the object. No ticket exists at this point.
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: scanner runs after a durable quarantine boundary
 	try:
 		scan_result = _scan_document(uploaded.filename, content_type, content)
 		document.scan_status = scan_result
@@ -212,14 +212,14 @@ def attach_public_intake_document(intake_id: str):
 		document.save(ignore_permissions=True)
 		intake.state = "failed"
 		intake.save(ignore_permissions=True)
-		frappe.db.commit()
+		frappe.db.commit()  # nosemgrep: persist failed quarantine before propagating scanner error
 		raise
 	document.scanned_at = now_datetime()
 	document.save(ignore_permissions=True)
 	if document.scan_status != "clean":
 		intake.state = "failed"
 		intake.save(ignore_permissions=True)
-		frappe.db.commit()
+		frappe.db.commit()  # nosemgrep: retain rejected document for audited disposal
 		raise PublicVisitorValidationError(_("O documento não passou pela verificação de segurança."))
 	intake.state = "ready"
 	intake.save(ignore_permissions=True)

@@ -1,6 +1,7 @@
 import json
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 
 
@@ -16,7 +17,7 @@ class UnivespKnowledgeAsset(Document):
 			except (TypeError, ValueError):
 				continue
 			if _payload_references_asset(payload, self.asset_key):
-				frappe.throw("Asset referenciado por uma versão de conhecimento não pode ser excluído.")
+				frappe.throw(_("Asset referenciado por uma versão de conhecimento não pode ser excluído."))
 
 
 def _payload_references_asset(value, asset_key):
