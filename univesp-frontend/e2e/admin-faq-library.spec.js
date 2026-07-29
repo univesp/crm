@@ -83,6 +83,7 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
   await page.getByLabel('Conteúdo', { exact: true }).last().fill('Nunca compartilhe sua senha.')
   await page.getByRole('button', { name: 'Mover bloco 2 para cima' }).click()
 
+  await page.getByRole('button', { name: 'Mostrar opções avançadas' }).click()
   await page.getByRole('button', { name: 'OP', exact: true }).click()
   await page.getByLabel('Objetivo').fill('Restabelecer o acesso sem expor credenciais.')
   await page

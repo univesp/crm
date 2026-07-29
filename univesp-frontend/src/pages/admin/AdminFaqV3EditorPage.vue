@@ -78,6 +78,21 @@ const submitDialogIntent = ref('review')
 const mapOpen = ref(false)
 const moreActionsOpen = ref(false)
 const stageActionsOpen = ref(false)
+const advancedOpen = ref(false)
+
+const ADVANCED_TAB_KEYS = ['op', 'bpo', 'analyst', 'routing', 'document']
+const SIMPLE_BLOCK_TYPES = ['text', 'notice', 'link', 'image']
+const ADVANCED_BLOCK_TYPES = ['video', 'button', 'file', 'animation']
+const BLOCK_TYPE_LABELS = {
+  text: 'Texto',
+  notice: 'Aviso',
+  link: 'Link',
+  image: 'Imagem',
+  video: 'Vídeo',
+  button: 'Botão controlado',
+  file: 'Arquivo institucional',
+  animation: 'Animação acessível',
+}
 const validity = reactive({ valid_from: '', valid_until: '' })
 const channelFlags = reactive({ availableStudent: true, availablePublic: false })
 const catalogs = reactive({ themes: [], routing_patterns: [] })
@@ -165,6 +180,24 @@ const channelLabelText = computed(() => availableChannelLabels(channelFlags).joi
 const visibleTabs = computed(() =>
   tabs.filter((tab) => tab.key !== 'public' || channelFlags.availablePublic),
 )
+const editorTabs = computed(() => {
+  if (advancedOpen.value) return visibleTabs.value
+  return visibleTabs.value.filter((tab) => !ADVANCED_TAB_KEYS.includes(tab.key))
+})
+const advancedTabSummary = computed(() => {
+  const node = selectedNode.value
+  if (!node) return { filled: 0, issues: 0 }
+  let filled = 0
+  let issues = 0
+  for (const key of ADVANCED_TAB_KEYS) {
+    if (key === 'document' && node.node_kind !== 'final') continue
+    if (layerHasContent(node, key)) filled += 1
+    if (draftIssues.value.some((issue) => issue.nodeId === node.node_id && issue.layer === key)) {
+      issues += 1
+    }
+  }
+  return { filled, issues }
+})
 const publicContentIsCustom = computed(
   () => publicContentMode(selectedNode.value) === PUBLIC_CONTENT_CUSTOM,
 )
@@ -217,6 +250,12 @@ watch(
 
 watch(selectedNodeId, () => {
   if (activeTab.value === 'document' && selectedNode.value?.node_kind !== 'final') {
+    activeTab.value = 'student'
+  }
+})
+
+watch(advancedOpen, (open) => {
+  if (!open && ADVANCED_TAB_KEYS.includes(activeTab.value)) {
     activeTab.value = 'student'
   }
 })
@@ -899,7 +938,71 @@ function cloneJson(value) {
 
 function navigateToIssue(issue) {
   if (issue?.nodeId) selectedNodeId.value = issue.nodeId
+  if (issue?.layer && ADVANCED_TAB_KEYS.includes(issue.layer)) {
+    advancedOpen.value = true
+    activeTab.value = issue.layer
+  } else if (issue?.layer) {
+    activeTab.value = issue.layer
+  } else if (issue?.fieldKey === 'channels') {
+    settingsOpen.value = true
+  }
   issuesPanelOpen.value = false
+}
+
+function layerHasContent(node, layer) {
+  if (!node) return false
+  if (layer === 'op' || layer === 'bpo' || layer === 'analyst') {
+    const playbook =
+      layer === 'bpo' && !node.playbooks?.bpo ? node.playbooks?.op : node.playbooks?.[layer]
+    return Boolean(
+      playbook?.objective?.trim() ||
+        playbook?.suggested_reply?.trim() ||
+        (playbook?.checklist || []).length,
+    )
+  }
+  if (layer === 'routing') {
+    return Boolean(node.operational?.routing_override || payload.value?.routing_policy?.pattern_key)
+  }
+  if (layer === 'document') {
+    return Boolean(
+      (node.document_policy?.mode && node.document_policy.mode !== 'disabled') ||
+        node.intake_policy?.requires_cpf ||
+        node.intake_policy?.requires_ra ||
+        node.intake_policy?.requires_course ||
+        node.intake_policy?.requires_polo,
+    )
+  }
+  const content = resolveNodeContent(node, layer)
+  return Boolean(content?.blocks?.some(blockHasContent))
+}
+
+function tabStateLabel(tabKey) {
+  const node = selectedNode.value
+  if (!node) return ''
+  const issueCount = draftIssues.value.filter(
+    (issue) => issue.nodeId === node.node_id && issue.layer === tabKey,
+  ).length
+  if (issueCount) return `${issueCount} alerta`
+  if (layerHasContent(node, tabKey)) return 'Completo'
+  if (['op', 'bpo', 'analyst', 'routing', 'document'].includes(tabKey)) return 'Vazio'
+  return resolveNodeContent(node, tabKey)?.blocks?.length ? 'Completo' : 'Vazio'
+}
+
+function blockTypeOptions(currentType) {
+  const options = advancedOpen.value
+    ? [...SIMPLE_BLOCK_TYPES, ...ADVANCED_BLOCK_TYPES]
+    : [...SIMPLE_BLOCK_TYPES]
+  if (currentType && !options.includes(currentType)) options.push(currentType)
+  return options
+}
+
+function studentLayerEmpty(node) {
+  const content = resolveNodeContent(node, 'student')
+  return !(content?.blocks?.length && content.blocks.some(blockHasContent))
+}
+
+function readBlockCount(node, layer) {
+  return resolveNodeContent(node, layer)?.blocks?.length || 0
 }
 
 function openHistoryFromMenu() {
@@ -1256,24 +1359,64 @@ function deleteStageFromMenu() {
 
             <nav class="faq-tabs" aria-label="Camadas da etapa">
               <button
-                v-for="tab in visibleTabs"
+                v-for="tab in editorTabs"
                 :key="tab.key"
                 type="button"
                 class="faq-tabs__button"
-                :class="{ 'is-active': activeTab === tab.key }"
+                :class="{ 'is-active': activeTab === tab.key, 'has-issue': tabStateLabel(tab.key).includes('alerta') }"
                 :disabled="tab.key === 'document' && selectedNode.node_kind !== 'final'"
                 @click="activeTab = tab.key"
               >
-                {{ tab.label }}
+                <span>{{ tab.label }}</span>
+                <small class="faq-tabs__state" aria-hidden="true">{{ tabStateLabel(tab.key) }}</small>
               </button>
             </nav>
+
+            <button
+              v-if="!advancedOpen"
+              type="button"
+              class="crm-button-secondary faq-advanced-toggle"
+              @click="advancedOpen = true"
+            >
+              Mostrar opções avançadas
+              <span
+                v-if="advancedTabSummary.filled || advancedTabSummary.issues"
+                class="faq-advanced-toggle__meta"
+              >
+                ({{ advancedTabSummary.filled }} preenchida(s) ·
+                {{ advancedTabSummary.issues }} com pendência)
+              </span>
+            </button>
+            <button
+              v-else
+              type="button"
+              class="crm-button-secondary faq-advanced-toggle"
+              @click="advancedOpen = false"
+            >
+              Ocultar opções avançadas
+            </button>
 
             <div v-if="activeTab === 'student'" class="faq-form-stack">
               <p>
                 Escreva a orientação que a pessoa verá nesta etapa. Use linguagem direta e indique
                 o próximo passo.
               </p>
-              <ol class="faq-blocks" aria-label="Blocos da orientação">
+              <div
+                v-if="!readBlockCount(selectedNode, 'student')"
+                class="faq-empty-tab crm-card-muted"
+              >
+                <p>Esta etapa ainda não possui orientação para o aluno.</p>
+                <p>Adicione o primeiro bloco para explicar o que ele deve fazer.</p>
+                <button
+                  type="button"
+                  class="crm-button-secondary"
+                  :disabled="!canEdit"
+                  @click="addContentBlock('student')"
+                >
+                  Adicionar bloco
+                </button>
+              </div>
+              <ol v-else class="faq-blocks" aria-label="Blocos da orientação">
                 <li
                   v-for="(block, index) in contentBlocks('student')"
                   :key="block.block_id"
@@ -1283,14 +1426,13 @@ function deleteStageFromMenu() {
                     <label v-if="block.type !== 'button'" class="crm-field-label">
                       Tipo do bloco
                       <select v-model="block.type" class="crm-field" :disabled="!canEdit">
-                        <option value="text">Texto</option>
-                        <option value="image">Imagem</option>
-                        <option value="link">Link</option>
-                        <option value="video">Vídeo</option>
-                        <option value="notice">Aviso</option>
-                        <option value="button">Botão controlado</option>
-                        <option value="file">Arquivo institucional</option>
-                        <option value="animation">Animação acessível</option>
+                        <option
+                          v-for="type in blockTypeOptions(block.type)"
+                          :key="type"
+                          :value="type"
+                        >
+                          {{ BLOCK_TYPE_LABELS[type] || type }}
+                        </option>
                       </select>
                     </label>
                     <div class="faq-block__actions">
@@ -1384,14 +1526,13 @@ function deleteStageFromMenu() {
                       <label v-if="block.type !== 'button'" class="crm-field-label">
                         Tipo do bloco
                         <select v-model="block.type" class="crm-field" :disabled="!canEdit">
-                          <option value="text">Texto</option>
-                          <option value="image">Imagem</option>
-                          <option value="link">Link</option>
-                          <option value="video">Vídeo</option>
-                          <option value="notice">Aviso</option>
-                          <option value="button">Botão controlado</option>
-                          <option value="file">Arquivo institucional</option>
-                          <option value="animation">Animação acessível</option>
+                          <option
+                            v-for="type in blockTypeOptions(block.type)"
+                            :key="type"
+                            :value="type"
+                          >
+                            {{ BLOCK_TYPE_LABELS[type] || type }}
+                          </option>
                         </select>
                       </label>
                       <div class="faq-block__actions">
@@ -2102,6 +2243,37 @@ function deleteStageFromMenu() {
 
 .faq-tree__node small {
   color: var(--color-text-muted);
+}
+
+.faq-tabs__button {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.faq-tabs__state {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.faq-tabs__button.has-issue .faq-tabs__state {
+  color: var(--color-danger);
+}
+
+.faq-advanced-toggle {
+  margin-block: var(--space-2);
+}
+
+.faq-advanced-toggle__meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.faq-empty-tab {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
 }
 
 .faq-tabs {
