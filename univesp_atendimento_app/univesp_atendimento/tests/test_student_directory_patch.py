@@ -2,12 +2,7 @@ from pathlib import Path
 from unittest import TestCase
 
 
-PATCH_PATH = (
-	Path(__file__).resolve().parents[1]
-	/ "patches"
-	/ "v0_4"
-	/ "protect_student_directory_cpf.py"
-)
+PATCH_PATH = Path(__file__).resolve().parents[1] / "patches" / "v0_4" / "protect_student_directory_cpf.py"
 
 
 class TestProtectStudentDirectoryCpfPatch(TestCase):
