@@ -1,0 +1,31 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+COPY . .
+
+ARG VITE_ENABLE_MOCKS=false
+ARG VITE_SSO_DEV_BYPASS=false
+ARG VITE_APP_API_BASE=/api/app/v1
+ARG VITE_PUBLIC_API_BASE=/api/public/v1
+ARG VITE_APP_BASE=/
+ARG VITE_ROUTER_BASE=/
+
+ENV VITE_ENABLE_MOCKS=${VITE_ENABLE_MOCKS}
+ENV VITE_SSO_DEV_BYPASS=${VITE_SSO_DEV_BYPASS}
+ENV VITE_APP_API_BASE=${VITE_APP_API_BASE}
+ENV VITE_PUBLIC_API_BASE=${VITE_PUBLIC_API_BASE}
+ENV VITE_APP_BASE=${VITE_APP_BASE}
+ENV VITE_ROUTER_BASE=${VITE_ROUTER_BASE}
+
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 8080

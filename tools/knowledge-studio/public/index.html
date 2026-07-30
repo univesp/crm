@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Knowledge Studio — UNIVESP CRM</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">UNIVESP CRM</p>
+        <h1>Knowledge Studio</h1>
+      </div>
+      <div class="topbar-actions">
+        <label class="pin-field">
+          PIN
+          <input id="pinInput" type="password" placeholder="opcional" />
+        </label>
+        <button id="refreshBtn" class="btn secondary">Atualizar</button>
+        <button id="crawlBtn" class="btn primary">1. Rodar crawler</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <h2>Execuções</h2>
+        <div id="runsList" class="runs-list"></div>
+        <section class="steps-panel">
+          <h3>Fluxo</h3>
+          <ol id="stepsList" class="steps-list"></ol>
+        </section>
+      </aside>
+
+      <section class="content">
+        <div id="emptyState" class="empty-state">
+          <h2>Comece pelo crawler</h2>
+          <p>O manual vira pacotes por tema. Depois o time valida, roda IA externa e curadoria.</p>
+        </div>
+
+        <div id="runPanel" class="hidden">
+          <div class="run-header">
+            <div>
+              <h2 id="runTitle"></h2>
+              <p id="runMeta"></p>
+            </div>
+            <div class="run-actions">
+              <button id="approveStructureBtn" class="btn">2. Validar estrutura</button>
+              <button id="exportJobsBtn" class="btn">3. Exportar jobs IA</button>
+              <label class="btn file-btn">
+                4. Importar análises
+                <input id="importAnalysisInput" type="file" accept=".json" multiple hidden />
+              </label>
+              <button id="exportXlsxBtn" class="btn primary">6. Exportar XLSX FAQ</button>
+            </div>
+          </div>
+
+          <div id="packagesGrid" class="packages-grid"></div>
+
+          <article id="reviewPanel" class="review-panel hidden">
+            <header class="review-header">
+              <button id="closeReviewBtn" class="btn secondary">← Voltar</button>
+              <div>
+                <h3 id="reviewTitle"></h3>
+                <p id="reviewProgress"></p>
+              </div>
+            </header>
+            <div class="review-body">
+              <section>
+                <h4>Original (manual)</h4>
+                <pre id="originalContent"></pre>
+              </section>
+              <section>
+                <h4>Rascunho / IA</h4>
+                <label>Título sugerido<input id="suggestedTitleInput" /></label>
+                <label>Resposta sugerida<textarea id="suggestedAnswerInput" rows="8"></textarea></label>
+                <div id="aiInsights" class="ai-insights"></div>
+                <label>Notas da curadoria<textarea id="reviewNotesInput" rows="3"></textarea></label>
+                <div class="review-actions">
+                  <button id="approveItemBtn" class="btn primary">Aprovar item</button>
+                  <button id="rejectItemBtn" class="btn secondary">Rejeitar</button>
+                </div>
+              </section>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

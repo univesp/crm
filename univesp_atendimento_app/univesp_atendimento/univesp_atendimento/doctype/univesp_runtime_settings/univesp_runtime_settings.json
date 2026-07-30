@@ -1,0 +1,107 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Runtime Settings",
+  "module": "Univesp Atendimento",
+  "issingle": 1,
+  "track_changes": 1,
+  "field_order": [
+    "institutional_timezone",
+    "knowledge_session_ttl_seconds",
+    "default_suggestion_sla_hours",
+    "knowledge_v3_read",
+    "knowledge_v3_write",
+    "routing_server_authority",
+    "knowledge_collaboration",
+    "faq_public_anonymous",
+    "faq_public_documents",
+    "faq_link_validation",
+    "faq_public_email_thread",
+    "knowledge_media_upload",
+    "parameters_json",
+    "updated_by_email",
+    "updated_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "institutional_timezone",
+      "fieldtype": "Data",
+      "label": "Fuso horário institucional",
+      "default": "America/Sao_Paulo",
+      "reqd": 1
+    },
+    {
+      "fieldname": "knowledge_session_ttl_seconds",
+      "fieldtype": "Int",
+      "label": "Duração da sessão FAQ (segundos)",
+      "default": "7200",
+      "reqd": 1
+    },
+    {
+      "fieldname": "default_suggestion_sla_hours",
+      "fieldtype": "Int",
+      "label": "SLA padrão de sugestões (horas)",
+      "default": "72",
+      "reqd": 1
+    },
+    {
+      "fieldname": "knowledge_v3_read",
+      "fieldtype": "Check",
+      "label": "Leitura FAQ v3",
+      "default": "0"
+    },
+    {
+      "fieldname": "knowledge_v3_write",
+      "fieldtype": "Check",
+      "label": "Escrita FAQ v3",
+      "default": "0"
+    },
+    {
+      "fieldname": "routing_server_authority",
+      "fieldtype": "Check",
+      "label": "Roteamento decidido pelo servidor",
+      "default": "0"
+    },
+    {
+      "fieldname": "knowledge_collaboration",
+      "fieldtype": "Check",
+      "label": "Colaboração em conhecimento",
+      "default": "0"
+    },
+    {
+      "fieldname": "faq_public_anonymous",
+      "fieldtype": "Check",
+      "label": "FAQ pública anônima",
+      "default": "0"
+    },
+    {
+      "fieldname": "faq_public_documents",
+      "fieldtype": "Check",
+      "label": "Documentos na FAQ pública",
+      "default": "0"
+    },
+    {
+      "fieldname": "faq_link_validation",
+      "fieldtype": "Check",
+      "label": "Validação de vínculo público",
+      "default": "0"
+    },
+    {
+      "fieldname": "faq_public_email_thread",
+      "fieldtype": "Check",
+      "label": "Resposta pública por e-mail",
+      "default": "0"
+    },
+    {
+      "fieldname": "knowledge_media_upload",
+      "fieldtype": "Check",
+      "label": "Upload de mídia editorial",
+      "default": "0"
+    },
+    {"fieldname": "parameters_json", "fieldtype": "Long Text", "label": "Parametros JSON", "read_only": 1},
+    {"fieldname": "updated_by_email", "fieldtype": "Data", "label": "Atualizado por", "options": "Email", "read_only": 1},
+    {"fieldname": "updated_at", "fieldtype": "Datetime", "label": "Atualizado em", "read_only": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1}
+  ]
+}

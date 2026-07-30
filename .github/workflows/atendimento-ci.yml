@@ -1,0 +1,67 @@
+name: Atendimento CI
+
+on:
+  pull_request:
+    paths:
+      - "univesp-frontend/**"
+      - "univesp_atendimento_app/**"
+      - "sso-gateway/**"
+      - "ops/vm/**"
+      - "ops/cloudrun/**"
+      - ".github/workflows/atendimento-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "univesp-frontend/**"
+      - "univesp_atendimento_app/**"
+      - "sso-gateway/**"
+      - "ops/vm/**"
+      - "ops/cloudrun/**"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: univesp-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: univesp-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run test:foundation
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  backend-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m compileall -q univesp_atendimento_app
+      - run: python -m unittest discover -s ops/cloudrun/tests -p "test_*.py"
+
+  gateway:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sso-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sso-gateway/package-lock.json
+      - run: npm ci
+      - run: npm test
