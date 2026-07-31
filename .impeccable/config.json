@@ -1,14 +1,14 @@
-{
-  "detector": {
-    "designSystem": {
-      "enabled": true
-    },
-    "ignoreFiles": [
-      "frontend/node_modules/**",
-      "node_modules/**"
-    ]
-  },
-  "hook": {
-    "enabled": false
-  }
+﻿{
+    "detector":  {
+                     "designSystem":  {
+                                          "enabled":  true
+                                      },
+                     "ignoreFiles":  [
+                                         "frontend/node_modules/**",
+                                         "node_modules/**"
+                                     ]
+                 },
+    "hook":  {
+                 "enabled":  true
+             }
 }

@@ -4,9 +4,13 @@
     class="flex items-center justify-around gap-2 px-3 pt-2 sm:px-10"
   >
     <div
-      class="mb-1 ml-13 flex-1 cursor-pointer rounded border-0 border-l-4 border-green-500 bg-surface-gray-2 p-2 text-base text-ink-gray-5"
-      :class="reply.type == 'Incoming' ? 'border-green-500' : 'border-blue-400'"
+      class="mb-1 ml-13 flex flex-1 cursor-pointer gap-2 rounded bg-surface-gray-2 p-2 text-base text-ink-gray-5"
     >
+      <div
+        class="w-1 shrink-0 rounded-full"
+        :class="reply.type == 'Incoming' ? 'bg-green-500' : 'bg-blue-400'"
+      />
+      <div class="min-w-0 flex-1">
       <div
         class="mb-1 text-sm font-bold"
         :class="
@@ -16,6 +20,7 @@
         {{ reply.from_name || __('You') }}
       </div>
       <div class="max-h-12 overflow-hidden" v-html="reply.message" />
+      </div>
     </div>
 
     <Button variant="ghost" icon="x" @click="reply = {}" />
