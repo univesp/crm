@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env.local
+.env.*.local
+
+# Local browser profiles and review artifacts must never be versioned.
+.chrome-*/
+.tmp-chrome-*/
+.codex-temp/
+preview*.log
+tmp-*
+
+# Playwright runtime artifacts.
+test-results/
+playwright-report/
+playwright-*.log

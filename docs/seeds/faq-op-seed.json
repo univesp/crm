@@ -1,0 +1,36 @@
+{
+  "schema_version": "2.0.0",
+  "faq_id": "op-playbook-matricula-seed",
+  "tipo_faq": "op",
+  "metadata": {
+    "title": "Playbook — matricula e rematricula",
+    "defaultOwnerType": "queue",
+    "defaultOwnerId": "sra"
+  },
+  "versioning": { "publication_status": "draft" },
+  "nodes": [
+    {
+      "id": "op-matricula-root",
+      "node_kind": "path",
+      "titulo_exibido": "Matricula e rematricula"
+    },
+    {
+      "id": "op-matricula-prazo",
+      "node_kind": "final",
+      "titulo_exibido": "Aluno fora do prazo",
+      "resposta": "Confirme periodo letivo vigente no calendario. Se o prazo encerrou, oriente requerimento formal e registre o protocolo.",
+      "acao": "encaminhar_para_op",
+      "fila_destino": "sra"
+    }
+  ],
+  "links": [
+    {
+      "link_id": "op-matricula-link-1",
+      "parent_node_id": "op-matricula-root",
+      "child_node_id": "op-matricula-prazo",
+      "ordem": 1,
+      "ativo": true
+    }
+  ],
+  "calendar_highlights": []
+}

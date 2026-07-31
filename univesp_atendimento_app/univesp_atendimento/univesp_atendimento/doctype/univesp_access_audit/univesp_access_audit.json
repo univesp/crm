@@ -1,0 +1,21 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Access Audit",
+  "module": "Univesp Atendimento",
+  "autoname": "hash",
+  "title_field": "operation",
+  "field_order": ["actor_email", "target_email", "operation", "reason", "before_json", "after_json", "request_id", "event_at"],
+  "fields": [
+    {"fieldname": "actor_email", "fieldtype": "Data", "label": "Ator", "options": "Email", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "target_email", "fieldtype": "Data", "label": "Usuario afetado", "options": "Email", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "operation", "fieldtype": "Data", "label": "Operacao", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "reason", "fieldtype": "Small Text", "label": "Motivo", "reqd": 1},
+    {"fieldname": "before_json", "fieldtype": "Long Text", "label": "Antes", "read_only": 1},
+    {"fieldname": "after_json", "fieldtype": "Long Text", "label": "Depois", "read_only": 1},
+    {"fieldname": "request_id", "fieldtype": "Data", "label": "Request ID", "read_only": 1},
+    {"fieldname": "event_at", "fieldtype": "Datetime", "label": "Data", "reqd": 1, "in_list_view": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "report": 1, "export": 1}
+  ]
+}

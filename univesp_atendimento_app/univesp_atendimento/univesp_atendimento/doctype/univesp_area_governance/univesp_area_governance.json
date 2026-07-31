@@ -1,0 +1,19 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Area Governance",
+  "module": "Univesp Atendimento",
+  "autoname": "field:area_label",
+  "title_field": "area_label",
+  "track_changes": 1,
+  "field_order": ["area_label", "rules_json", "availability_json", "updated_by_email", "updated_at"],
+  "fields": [
+    {"fieldname": "area_label", "fieldtype": "Data", "label": "Area", "reqd": 1, "unique": 1, "in_list_view": 1},
+    {"fieldname": "rules_json", "fieldtype": "Long Text", "label": "Regras JSON", "read_only": 1},
+    {"fieldname": "availability_json", "fieldtype": "Long Text", "label": "Disponibilidade JSON", "read_only": 1},
+    {"fieldname": "updated_by_email", "fieldtype": "Data", "label": "Atualizado por", "options": "Email", "read_only": 1},
+    {"fieldname": "updated_at", "fieldtype": "Datetime", "label": "Atualizado em", "read_only": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1}
+  ]
+}

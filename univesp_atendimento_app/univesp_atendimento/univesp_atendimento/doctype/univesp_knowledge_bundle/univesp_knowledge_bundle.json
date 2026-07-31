@@ -1,0 +1,125 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Knowledge Bundle",
+  "module": "Univesp Atendimento",
+  "autoname": "field:bundle_key",
+  "title_field": "title",
+  "track_changes": 1,
+  "field_order": [
+    "bundle_key",
+    "title",
+    "theme_key",
+    "audience_profile",
+    "status",
+    "published_version",
+    "draft_version",
+    "legacy_v2_bundle_id",
+    "created_by_email",
+    "created_at",
+    "archived_at",
+    "archived_by_email"
+  ],
+  "fields": [
+    {
+      "fieldname": "bundle_key",
+      "fieldtype": "Data",
+      "label": "Chave do fluxo",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "label": "Título",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "theme_key",
+      "fieldtype": "Link",
+      "label": "Tema",
+      "options": "Univesp Knowledge Theme Governance",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "audience_profile",
+      "fieldtype": "Select",
+      "label": "Público",
+      "options": "student\npublic\nmixed\ninternal",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Estado",
+      "options": "active\narchived",
+      "default": "active",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "published_version",
+      "fieldtype": "Link",
+      "label": "Versão publicada",
+      "options": "Univesp Knowledge Version",
+      "read_only": 1
+    },
+    {
+      "fieldname": "draft_version",
+      "fieldtype": "Link",
+      "label": "Rascunho ativo",
+      "options": "Univesp Knowledge Version",
+      "read_only": 1
+    },
+    {
+      "fieldname": "legacy_v2_bundle_id",
+      "fieldtype": "Data",
+      "label": "Bundle legado v2"
+    },
+    {
+      "fieldname": "created_by_email",
+      "fieldtype": "Data",
+      "label": "Criado por",
+      "options": "Email",
+      "reqd": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "created_at",
+      "fieldtype": "Datetime",
+      "label": "Criado em",
+      "reqd": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "archived_at",
+      "fieldtype": "Datetime",
+      "label": "Arquivado em",
+      "read_only": 1
+    },
+    {
+      "fieldname": "archived_by_email",
+      "fieldtype": "Data",
+      "label": "Arquivado por",
+      "options": "Email",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "report": 1
+    }
+  ]
+}

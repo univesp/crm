@@ -1,0 +1,83 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Knowledge Theme Governance",
+  "module": "Univesp Atendimento",
+  "autoname": "field:theme_key",
+  "title_field": "theme_label",
+  "track_changes": 1,
+  "field_order": [
+    "theme_key",
+    "theme_label",
+    "owner_email",
+    "approver_group",
+    "editor_areas",
+    "suggestion_sla_hours",
+    "fallback_admin_group",
+    "active"
+  ],
+  "fields": [
+    {
+      "fieldname": "theme_key",
+      "fieldtype": "Data",
+      "label": "Chave do tema",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "theme_label",
+      "fieldtype": "Data",
+      "label": "Tema",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "owner_email",
+      "fieldtype": "Data",
+      "label": "Responsável operacional",
+      "options": "Email",
+      "reqd": 1
+    },
+    {
+      "fieldname": "approver_group",
+      "fieldtype": "Link",
+      "label": "Grupo aprovador",
+      "options": "Univesp Access Group",
+      "reqd": 0
+    },
+    {
+      "fieldname": "editor_areas",
+      "fieldtype": "Table",
+      "label": "Áreas editoras",
+      "options": "Univesp Knowledge Theme Editor Area",
+      "reqd": 1
+    },
+    {
+      "fieldname": "suggestion_sla_hours",
+      "fieldtype": "Int",
+      "label": "SLA de sugestões (horas)"
+    },
+    {
+      "fieldname": "fallback_admin_group",
+      "fieldtype": "Link",
+      "label": "Grupo de alerta por atraso",
+      "options": "Univesp Access Group"
+    },
+    {
+      "fieldname": "active",
+      "fieldtype": "Check",
+      "label": "Ativo",
+      "default": "1",
+      "in_list_view": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "report": 1
+    }
+  ]
+}
