@@ -1,0 +1,34 @@
+---
+description: Em mudanças de UI no frontend, aplicar skills UNIVESP, DESIGN.md e detector Impeccable antes de concluir.
+globs: frontend/**/*.{vue,css,scss,js,ts,jsx,tsx}
+alwaysApply: false
+---
+
+# Auto UX/Design Review — Frontend CRM
+
+Ao editar arquivos em `frontend/`, **antes de encerrar a tarefa**:
+
+## 1. Contexto obrigatório
+Ler (ou recapitular se já lidos na sessão):
+- `DESIGN.md` e `PRODUCT.md` (aparência e produto)
+- `docs/UX_PRINCIPLES_CRM.md` (operação/fluxo)
+
+## 2. Skills (carregar e seguir)
+- **`safe-vue-patch`** — patch mínimo; sem ampliar escopo
+- **`crm-ux-review`** — próximo passo, autosserviço, linguagem, ação primária
+- **`admin-ux-simplification`** — se a tela for Admin, fila, triagem ou FAQ Builder
+
+## 3. Verificação visual
+Rodar no escopo alterado:
+```bash
+npx impeccable detect frontend/src --json
+```
+Corrigir findings de severidade warning+ no diff. Se o hook já bloqueou anti-pattern, ajustar antes de concluir.
+
+## 4. Entrega
+Incluir na resposta (3–5 bullets, só se houve mudança de UI):
+- riscos UX operacionais remanescentes
+- impacto em aluno / OP / gestor / admin
+- confirmação do detector (limpo ou o que foi corrigido)
+
+Não propor redesign amplo. Preservar contratos Frappe e regras de `AGENTS.md`.
