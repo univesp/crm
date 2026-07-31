@@ -67,6 +67,9 @@ TICKET_FIELDS = [
 	"custom_student_course",
 	"custom_univesp_queue",
 	"custom_univesp_area",
+	"custom_univesp_criticidade",
+	"custom_univesp_sla_key",
+	"custom_univesp_due_at",
 	"custom_univesp_assignee_email",
 	"custom_univesp_assignee_name",
 	"custom_univesp_context_json",
@@ -125,10 +128,16 @@ def create(payload: dict | str | None = None):
 		)
 		queue = routing_decision["resolved_queue"]
 		area = routing_decision["resolved_area"]
+		criticidade = str(routing_decision.get("criticidade") or "").strip()
+		sla_key = str(routing_decision.get("sla_policy_key") or "").strip()
+		assignee_email = str(routing_decision.get("assignee_email") or "").strip().lower()
 	else:
 		routing_decision = {}
 		queue = str(data.get("queue") or "").strip()
 		area = str(data.get("area") or "").strip()
+		criticidade = str(data.get("criticidade") or "").strip()
+		sla_key = str(data.get("sla_key") or data.get("sla_policy_key") or "").strip()
+		assignee_email = str(data.get("assignee_email") or "").strip().lower()
 
 	if context.profile_key == "aluno":
 		student = {**student, "email": context.email, "name": context.name, "ra": context.ra}
@@ -140,13 +149,18 @@ def create(payload: dict | str | None = None):
 	if not _subject or not _description:
 		frappe.throw(_("Assunto e descricao sao obrigatorios."), frappe.ValidationError)
 
+	from univesp_atendimento.business_due import resolve_ticket_due_at
+
+	due_at = resolve_ticket_due_at(sla_key=sla_key) if sla_key else None
+	priority = _priority_name(criticidade or data.get("priority"))
+
 	doc = frappe.get_doc(
 		{
 			"doctype": "HD Ticket",
 			"subject": _subject,
 			"description": _description,
 			"raised_by": student.get("email") or context.email,
-			"priority": _priority_name(data.get("priority")),
+			"priority": priority,
 			"status": _status_name("open"),
 			"custom_univesp_status_code": "open",
 			"custom_univesp_source": str(data.get("source") or "portal"),
@@ -158,6 +172,10 @@ def create(payload: dict | str | None = None):
 			"custom_univesp_queue": queue,
 			"agent_group": queue if queue and frappe.db.exists("HD Team", queue) else None,
 			"custom_univesp_area": area,
+			"custom_univesp_criticidade": criticidade,
+			"custom_univesp_sla_key": sla_key,
+			"custom_univesp_due_at": due_at,
+			"custom_univesp_assignee_email": assignee_email,
 			"custom_univesp_context_json": json.dumps(
 				{
 					**(data.get("triage") if isinstance(data.get("triage"), dict) else {}),
@@ -622,6 +640,9 @@ def _serialize_ticket(ticket):
 		},
 		"queue": value.get("custom_univesp_queue"),
 		"area": value.get("custom_univesp_area"),
+		"criticidade": value.get("custom_univesp_criticidade") or "",
+		"sla_key": value.get("custom_univesp_sla_key") or "",
+		"due_at": value.get("custom_univesp_due_at"),
 		"assignee": value.get("custom_univesp_assignee_name") or "",
 		"assignee_email": value.get("custom_univesp_assignee_email") or "",
 		"student": {

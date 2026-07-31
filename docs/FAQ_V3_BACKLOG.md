@@ -7,6 +7,21 @@ Especificações: [EXEC](./FAQ_V3_EXECUTION_SPEC.md) | [UX](./FAQ_V3_PRODUCT_UX_
 
 ---
 
+## Pacote corretivo 2026-07 — mapa, árvore única, tema e publicação Admin
+
+| ID | História | Dep |
+|----|----------|-----|
+| C-1 | Adaptador árvore única + canais + `public_content_mode` | — |
+| C-2 | Backend: herança pública, raiz compartilhada, `publish` draft Admin | C-1 |
+| C-3 | Vue Flow mapa + lista no editor v3 | C-1 |
+| C-4 | Simulador de jornada (estado próprio) | C-3 |
+| C-5 | Biblioteca modal + criar tema + cabeçalho editor | C-2 |
+| C-6 | Ações por persona + confirmação de publicação | C-2 |
+| C-7 | Docs SDD/DESIGN/UX/FAQ_V3_* | C-1 |
+| C-8 | Testes Python/E2E + banner PWA | C-3,C-4,C-6 |
+
+---
+
 ## Fase 0 — funcionamento real atual
 
 **Branch:** `codex/faq-v3-phase0`

@@ -21,7 +21,8 @@ Levar o usuário à ação correta na primeira tentativa, com clareza de estado,
 - Deve ser progressivo: básico claro, avançado sob demanda.
 - Deve prevenir erro de publicação com contexto e confirmação.
 - Deve favorecer padronização de conteúdo para reduzir chamados repetidos.
-- Na biblioteca (`/admin/faq`), a tabela **Fluxos disponíveis** deve exibir **Tipo de FAQ** (aluno, OP, público) em coluna dedicada — o filtro por tipo não substitui essa coluna.
+- Na biblioteca (`/admin/faq`), a tabela **Fluxos disponíveis** deve exibir **Disponível em** (Portal do Aluno / Atendimento público) em coluna dedicada — o filtro por canal não substitui essa coluna.
+  - Nota histórica: a coluna chamava-se **Tipo de FAQ**; substituída pela regra de árvore única com canais de apresentação (2026-07).
 
 ## Microcopy Operacional
 - Usar verbos de ação e resultado esperado.

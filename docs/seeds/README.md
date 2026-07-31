@@ -1,19 +1,22 @@
 # Seeds FAQ — carga inicial MVP
 
-Bundles JSON canônicos para importação no **Admin > FAQ Builder > Importação**.
+> **Atualização 2026-07:** o modelo canônico é **um fluxo por tema** com canais (Portal do Aluno / Atendimento público). Seeds v2 por `tipo_faq` permanecem para migração; preferir seeds v3 unificados quando disponíveis.
 
-| Arquivo | `tipo_faq` | Uso |
+Bundles JSON para importação no **Admin > FAQ Builder > Importação**.
+
+| Arquivo | Legado `tipo_faq` | Uso |
 |---------|------------|-----|
-| `faq-aluno-seed.json` | `aluno` | Portal do aluno |
-| `faq-op-seed.json` | `op` | Playbook OP |
-| `faq-publico-seed.json` | `publico` | Rota `/publico` |
+| `faq-aluno-seed.json` | `aluno` | Conteúdo do canal Portal do Aluno |
+| `faq-op-seed.json` | `op` | Playbooks OP (mesmos nós do fluxo) |
+| `faq-publico-seed.json` | `publico` | Conteúdo do canal Atendimento público |
 
 ## Fluxo
 
-1. Abra o fluxo correspondente no FAQ Builder (crie bundle com o mesmo `tipo_faq`).
-2. Modo **Importação** → JSON → dry-run.
-3. Revise, publique após aprovação.
-4. Valide no portal (`/aluno`, `/op/playbook`, `/publico`).
+1. Abra (ou crie) o fluxo único do tema no Editor v3.
+2. Marque **Disponível em** conforme os canais desejados.
+3. Modo **Importar ou atualizar** → JSON/XLSX → revise o diff.
+4. Admin pode publicar diretamente; Analista envia à revisão.
+5. Valide no portal (`/aluno`, playbook OP, `/publico`).
 
 ## Caminhos absolutos (referencia)
 

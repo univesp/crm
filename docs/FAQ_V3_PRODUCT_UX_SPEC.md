@@ -1,7 +1,9 @@
 # FAQ v3 — Especificação de produto e UX
 
-Status: **v2** — especificação implementada na Fase 1d e usada no piloto integrado.
+Status: **v3** — pacote corretivo 2026-07 (árvore única, mapa Vue Flow, simulador, publicação Admin direta).
 Documentos relacionados: [FAQ_V3_EXECUTION_SPEC.md](./FAQ_V3_EXECUTION_SPEC.md), [FAQ_V3_PRIVACY_OPERATIONS.md](./FAQ_V3_PRIVACY_OPERATIONS.md), [FAQ_V3_BACKLOG.md](./FAQ_V3_BACKLOG.md).
+
+> **Nota histórica:** versões anteriores descreviam “Tipo de FAQ” e prévia baseada no nó selecionado. Substituídas pela regra de canais + mapa/simulador.
 
 ---
 
@@ -32,31 +34,50 @@ Este documento fixa **interface, jornada e comportamento percebido**. Contratos 
 ### 3.1 Layout
 
 Duas telas principais: **Biblioteca** e **Editor** (sem tela separada de “publicação avançada”).
+Criação de fluxo via botão **Criar fluxo** → modal (não formulário sempre aberto).
 
 ### 3.2 Colunas da tabela “Fluxos disponíveis”
 
 | Coluna | Conteúdo |
 |--------|----------|
-| Tema | `title` |
-| **Tipo de FAQ** | Aluno \| Público externo \| Misto \| Interno |
-| Públicos | Chips: Aluno, Público, OP, BPO, Analista (conforme bundle) |
+| Tema | Nome do tema (Theme Governance) |
+| **Disponível em** | Chips: Portal do Aluno · Atendimento público |
 | Playbooks | Indicador: OP ✓/—, BPO ✓/—, Analista ✓/— |
 | Responsável | `owner_email` do Theme Governance |
 | Situação | Rascunho \| Aguardando aprovação \| Ajustes solicitados \| Publicado \| Arquivado |
 | Vigência | `valid_from` – `valid_until` ou “Vigente desde …” |
-| Sugestões pendentes | Contagem (Fase 2+) |
+| Sugestões pendentes | Contagem |
 | Alertas | Conteúdo incompleto, órfãos, conflitos |
 | Última atualização | Data/hora |
 
 ### 3.3 Filtros
 
 - Situação
-- Tipo de FAQ
+- Disponível em
 - Tema / área
 - Com sugestões pendentes
 - Com alertas de validação
 
-### 3.4 Ações por linha
+### 3.3b Criar tema
+
+Admin pode **Criar novo tema** (nome, chave automática, área, responsável). Grupo aprovador opcional na criação; obrigatório ao enviar para revisão.
+
+### 3.4 Editor — visualização
+
+- **Mapa do fluxo** (Vue Flow + Dagre): overview; clique seleciona nó; sem drag-connect.
+- **Lista de etapas**: alternativa acessível / mobile.
+- **Simular jornada**: modal com estado próprio (canal, nó atual, caminho); distinto do mapa.
+- **Ver playbook**: OP/BPO/Analista do nó atual.
+
+### 3.5 Publicação
+
+| Perfil | Ações |
+|--------|-------|
+| Admin | Publicar (rascunho próprio ou aprovado); Enviar para revisão (opcional) |
+| Analista | Salvar rascunho; Enviar para aprovação |
+| Gestor | Aprovar; Solicitar ajustes |
+
+---
 
 | Ação | Condição | Comportamento |
 |------|----------|---------------|
@@ -82,45 +103,39 @@ Duas telas principais: **Biblioteca** e **Editor** (sem tela separada de “publ
 
 ## 4. Editor do fluxo
 
+> **Atualização 2026-07:** árvore única; modos **Mapa do fluxo** e **Lista de etapas**; **Simular jornada** (modal) substitui “Ver como a jornada funciona”; sem seletor “Árvore para público”.
+
 ### 4.1 Layout
 
 ```
 ┌─────────────────┬──────────────────────────┬─────────────────┐
-│ Árvore (esq.)   │ Edição do nó (centro)    │ Painel (dir.)   │
-│ por público     │ abas de camada           │ validação       │
-│                 │                          │ histórico       │
+│ Mapa ou Lista   │ Edição do nó (centro)    │ Validação       │
+│ (árvore única)  │ orientação + playbooks   │ histórico       │
 └─────────────────┴──────────────────────────┴─────────────────┘
-│ Barra: prévia por persona │ Salvar │ Enviar aprovação        │
+│ Simular jornada │ Ver playbook │ Salvar │ Publicar / Enviar │
 └───────────────────────────────────────────────────────────────┘
 ```
 
-### 4.2 Árvore à esquerda
+### 4.2 Visualização
 
-- Seletor de público para árvore: Aluno \| Público \| Interno
-- Mostra só nós/arestas visíveis ao público selecionado
-- Indicadores: final, alerta validação, sugestões pendentes no nó
-- Ações: duplicar ramificação, reordenar filhos (ordem `edge.order`)
+- Mapa (Vue Flow): nós/arestas de `payload`; Dagre; clique seleciona; sem conexão livre
+- Lista: navegação acessível; fallback mobile
+- Sem seletor de árvore por público operacional
 
 ### 4.3 Abas do nó (centro)
 
 | Aba | Conteúdo |
 |-----|----------|
-| Aluno | Blocos conteúdo + desfecho |
-| Público externo | Idem |
-| OP | Playbook completo (seção 4.4 exec spec) |
-| BPO | Playbook + botão **“Usar orientação do OP”** |
-| Analista | Playbook |
-| Encaminhamento | Pattern + override routing_key |
-| Documento | Política (somente nó final) |
-| Mídia | Referências URL (Fase 1) |
+| Orientação (aluno) | Blocos + desfecho |
+| Público externo | Herdar ou personalizar (`public_content_mode`) |
+| OP / BPO / Analista | Playbooks no mesmo nó; BPO herda OP |
+| Encaminhamento | Pattern + override |
+| Documento | Política (somente final) |
 
-### 4.4 Prévia por persona
+### 4.4 Simular jornada
 
-Alternar: Aluno \| Público externo \| OP \| BPO \| Analista.
-
-- Simula navegação no subgrafo do público
-- Playbooks internos: somente se usuário teria capacidade de visualização
-- Label do botão: **“Ver como a jornada funciona”** (não “Testar jornada”)
+Estado próprio: `simulationChannel`, `simulationCurrentNodeId`, `simulationPath`.
+Começa na raiz; avança/volta/reinicia; mostra desfecho.
 
 ### 4.5 Governança na mesma tela
 

@@ -318,6 +318,10 @@ export async function createKnowledgeV3Bundle(payload) {
   return appRequest('/knowledge/v3/bundles', { method: 'POST', body: payload })
 }
 
+export async function createKnowledgeV3Theme(payload) {
+  return appRequest('/knowledge/v3/themes', { method: 'POST', body: payload })
+}
+
 export async function getKnowledgeV3Bundle(bundleKey) {
   return appRequest(`/knowledge/v3/bundles/${encodeURIComponent(bundleKey)}`)
 }

@@ -216,8 +216,10 @@ A migracao deve usar classes/tokens em vez de hardcoded:
 ### Admin e FAQ Builder
 
 - Poderoso, mas progressivo.
-- Publicacao com validacao, revisao e previsao de impacto.
-- Nao remover governanca para simplificar visual.
+- Publicação com validação, previsão de impacto, versionamento e auditoria.
+- Revisão por Gestor é opção de governança para conteúdo de Analista; **não é condição obrigatória quando Admin publica rascunho próprio** (`admin_direct`).
+- Não remover validação, confirmação nem auditoria para simplificar o visual.
+- Editor v3: mapa gráfico + lista acessível + simulador de jornada (nomes distintos).
 
 ## Validacao antes de publicar
 

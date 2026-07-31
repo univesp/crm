@@ -9,6 +9,7 @@ from univesp_atendimento.routing_engine import (
 	RoutingDecision,
 	RoutingResolutionError,
 	resolve_route,
+	validate_final_node_operational,
 )
 
 
@@ -90,6 +91,11 @@ def validate_payload_routing(payload: dict, pattern) -> None:
 		for key in frappe.parse_json(pattern.allowed_routing_keys_json or "[]")
 		if str(key or "").strip()
 	}
+	pattern_steps = [
+		str(step or "").strip()
+		for step in frappe.parse_json(pattern.steps_json or "[]")
+		if str(step or "").strip()
+	]
 	keys = set()
 	metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
 	owner = metadata.get("operational_owner") if isinstance(metadata.get("operational_owner"), dict) else {}
@@ -103,6 +109,10 @@ def validate_payload_routing(payload: dict, pattern) -> None:
 		for fieldname in ("routing_override", "routing_key"):
 			if str(operational.get(fieldname) or "").strip():
 				keys.add(str(operational[fieldname]).strip())
+		try:
+			validate_final_node_operational(node, payload, pattern_steps=pattern_steps)
+		except RoutingResolutionError as exc:
+			raise RoutingValidationError(str(exc)) from exc
 
 	invalid = sorted(key for key in keys if key not in allowed)
 	if invalid:

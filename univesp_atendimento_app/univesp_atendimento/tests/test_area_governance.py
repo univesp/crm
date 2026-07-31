@@ -21,6 +21,7 @@ class TestAreaGovernance(TestCase):
 			scopes={"areas": areas or ["Suporte Academico Digital"]},
 			actions=frozenset({"view_area_guidance", "manage_area_scope"}),
 			request_id="governance-test",
+			actor_email="manager@univesp.br",
 		)
 
 	def test_manager_cannot_write_outside_area_scope(self):

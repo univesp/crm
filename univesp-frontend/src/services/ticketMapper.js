@@ -15,6 +15,29 @@ const PRIORITY_LABELS = {
   urgent: 'Critica',
 }
 
+const CRITICALITY_LABELS = {
+  baixa: 'Baixa',
+  media: 'Media',
+  alta: 'Alta',
+  critica: 'Critica',
+}
+
+function buildSlaLabel(ticket) {
+  if (ticket.due_at) {
+    const due = new Date(ticket.due_at)
+    if (!Number.isNaN(due.getTime())) {
+      const diffMs = due.getTime() - Date.now()
+      if (diffMs < 0) return 'Vencido'
+      const diffHours = Math.ceil(diffMs / (60 * 60 * 1000))
+      if (diffHours <= 4) return `${diffHours}h restantes`
+      const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000))
+      return `${diffDays}d restantes`
+    }
+  }
+  if (ticket.sla_key) return ticket.sla_key
+  return 'SLA nao calculado'
+}
+
 export function mapApiTicketToStudentProtocol(ticket = {}) {
   const updatedAt = ticket.updated_at || ticket.created_at || new Date().toISOString()
   return {
@@ -41,7 +64,7 @@ export function mapApiTicketToOperationalProtocol(ticket = {}) {
   const protocolNumber = ticket.protocol || ticket.id
   const queueLabel = ticket.queue || ''
   const areaLabel = ticket.area || ''
-  const priorityKey = String(ticket.priority || 'medium').trim().toLowerCase()
+  const priorityKey = String(ticket.criticidade || ticket.priority || 'medium').trim().toLowerCase()
   const statusCode = ticket.status || 'open'
 
   return {
@@ -53,8 +76,12 @@ export function mapApiTicketToOperationalProtocol(ticket = {}) {
     statusCode,
     statusLabel: ticket.status_label || 'Aberto',
     pendingLabel: STATUS_PENDING[statusCode] || 'Aguardando atendimento.',
-    priorityLabel: PRIORITY_LABELS[priorityKey] || ticket.priority || 'Media',
-    slaLabel: 'SLA nao calculado',
+    priorityLabel:
+      CRITICALITY_LABELS[priorityKey] || PRIORITY_LABELS[priorityKey] || ticket.priority || 'Media',
+    criticidade: ticket.criticidade || '',
+    slaKey: ticket.sla_key || '',
+    dueAt: ticket.due_at || null,
+    slaLabel: buildSlaLabel(ticket),
     queueLabel,
     currentAreaLabel: areaLabel,
     lastMileAreaLabel: areaLabel,

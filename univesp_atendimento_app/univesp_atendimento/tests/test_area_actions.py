@@ -22,6 +22,7 @@ class TestAreaActions(TestCase):
 			scopes={"areas": areas or ["Suporte Academico Digital"]},
 			actions=frozenset(actions or {"transition_ticket"}),
 			request_id="request-area-tests",
+			actor_email="area.tests@univesp.br",
 		)
 
 	def test_operator_list_is_scoped_to_unassigned_or_owned_tickets(self):

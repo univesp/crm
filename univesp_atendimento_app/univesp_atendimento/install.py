@@ -124,12 +124,32 @@ def setup_schema():
 					"insert_after": "custom_univesp_queue",
 				},
 				{
+					"fieldname": "custom_univesp_criticidade",
+					"label": "Criticidade institucional",
+					"fieldtype": "Data",
+					"in_standard_filter": 1,
+					"insert_after": "custom_univesp_area",
+				},
+				{
+					"fieldname": "custom_univesp_sla_key",
+					"label": "Chave de SLA",
+					"fieldtype": "Data",
+					"insert_after": "custom_univesp_criticidade",
+				},
+				{
+					"fieldname": "custom_univesp_due_at",
+					"label": "Vencimento operacional",
+					"fieldtype": "Datetime",
+					"in_standard_filter": 1,
+					"insert_after": "custom_univesp_sla_key",
+				},
+				{
 					"fieldname": "custom_univesp_assignee_email",
 					"label": "Responsavel institucional",
 					"fieldtype": "Data",
 					"options": "Email",
 					"in_standard_filter": 1,
-					"insert_after": "custom_univesp_area",
+					"insert_after": "custom_univesp_due_at",
 				},
 				{
 					"fieldname": "custom_univesp_assignee_name",

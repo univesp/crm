@@ -97,21 +97,29 @@ def response(data=None, *, meta=None, request_id: str = ""):
 
 def ticket_scope_filters(context: RequestContext):
 	if context.profile_key == "admin_central":
-		return []
+		areas = _scope_values(context.scopes, "areas")
+		return _required_scope_filter("custom_univesp_area", areas) if areas else []
 	if context.profile_key == "aluno":
 		return [["HD Ticket", "custom_student_email", "=", context.email]]
 	if context.profile_key == "op":
 		queues = _scope_values(context.scopes, "queues", "filas")
 		return _required_scope_filter("custom_univesp_queue", queues)
 	if context.profile_key == "op_externo":
-		polos = _scope_values(context.scopes, "regional_pools", "polos")
-		return _required_scope_filter("custom_student_polo", polos)
+		return _combined_scope_filters(
+			context.scopes,
+			("regional_pools", "custom_student_polo"),
+			("polos", "custom_student_polo"),
+			("areas", "custom_univesp_area"),
+		)
 	if context.profile_key == "gestor_polos":
 		polos = _scope_values(context.scopes, "polos")
 		return _required_scope_filter("custom_student_polo", polos)
 	if context.profile_key in {"analista_area", "gestor_area"}:
-		areas = _scope_values(context.scopes, "areas")
-		return _required_scope_filter("custom_univesp_area", areas)
+		return _combined_scope_filters(
+			context.scopes,
+			("areas", "custom_univesp_area"),
+			("polos", "custom_student_polo"),
+		)
 	raise frappe.PermissionError(_("Perfil operacional invalido."))
 
 
@@ -360,3 +368,14 @@ def _required_scope_filter(fieldname, values):
 	if not values:
 		raise frappe.PermissionError(_("Usuario sem escopo operacional para esta consulta."))
 	return [["HD Ticket", fieldname, "in", values]]
+
+
+def _combined_scope_filters(scopes, *dimensions):
+	filters = []
+	for scope_key, fieldname in dimensions:
+		values = _scope_values(scopes, scope_key)
+		if values:
+			filters.extend(_required_scope_filter(fieldname, values))
+	if not filters:
+		raise frappe.PermissionError(_("Usuario sem escopo operacional para esta consulta."))
+	return filters

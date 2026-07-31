@@ -5,6 +5,7 @@ import SectionPanel from '@/components/SectionPanel.vue'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminParametersRuntime, cloneAdminParametersDraft, findApplicationRule, findParameterLevel } from '@/services/adminParametersRuntime'
+import { resolveDueAt } from '@/services/businessCalendar'
 import { getRuntimeSettings, isMockRuntimeEnabled, updateRuntimeSettings } from '@/services/appApi'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
@@ -23,7 +24,58 @@ const ui = reactive({
   selectedCriticalityKey: null,
   selectedSlaKey: null,
   selectedRuleId: null,
+  selectedCalendarEntryId: null,
 })
+
+function ensureBusinessCalendarDraft() {
+  if (!parameterDraft.businessCalendar || typeof parameterDraft.businessCalendar !== 'object') {
+    parameterDraft.businessCalendar = { weeklyOff: [0, 6], entries: [] }
+  }
+  if (!Array.isArray(parameterDraft.businessCalendar.entries)) {
+    parameterDraft.businessCalendar.entries = []
+  }
+}
+
+const calendarEntries = computed(() => {
+  ensureBusinessCalendarDraft()
+  return parameterDraft.businessCalendar.entries
+})
+
+const selectedCalendarEntry = computed(() =>
+  calendarEntries.value.find((entry) => entry.id === ui.selectedCalendarEntryId) || null,
+)
+
+const calendarPreviewDueAt = computed(() => {
+  if (!selectedSlaLevel.value) return null
+  ensureBusinessCalendarDraft()
+  return resolveDueAt(selectedSlaLevel.value, new Date(), parameterDraft.businessCalendar)
+})
+
+function selectCalendarEntry(entryId) {
+  ui.selectedCalendarEntryId = entryId
+}
+
+function addCalendarEntry() {
+  ensureBusinessCalendarDraft()
+  const entry = {
+    id: `calendar-${Date.now().toString(36)}`,
+    date: new Date().toISOString().slice(0, 10),
+    type: 'holiday',
+    label: '',
+  }
+  parameterDraft.businessCalendar.entries.push(entry)
+  ui.selectedCalendarEntryId = entry.id
+}
+
+function removeCalendarEntry(entryId) {
+  ensureBusinessCalendarDraft()
+  parameterDraft.businessCalendar.entries = parameterDraft.businessCalendar.entries.filter(
+    (entry) => entry.id !== entryId,
+  )
+  if (ui.selectedCalendarEntryId === entryId) {
+    ui.selectedCalendarEntryId = parameterDraft.businessCalendar.entries[0]?.id || null
+  }
+}
 
 const dashboardData = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const runtime = computed(() =>
@@ -85,6 +137,7 @@ const currentRuleTargetOptions = computed(() => {
 })
 
 watchEffect(() => {
+  ensureBusinessCalendarDraft()
   if (!selectedCriticalityLevel.value && parameterDraft.criticalityLevels[0]) {
     ui.selectedCriticalityKey = parameterDraft.criticalityLevels[0].key
   }
@@ -95,6 +148,10 @@ watchEffect(() => {
 
   if (!selectedRule.value && parameterDraft.applicationRules[0]) {
     ui.selectedRuleId = parameterDraft.applicationRules[0].id
+  }
+
+  if (!selectedCalendarEntry.value && calendarEntries.value[0]) {
+    ui.selectedCalendarEntryId = calendarEntries.value[0].id
   }
 })
 
@@ -125,6 +182,7 @@ async function loadRuntimeSettings() {
     ) {
       Object.assign(parameterDraft, JSON.parse(JSON.stringify(parameters)))
     }
+    ensureBusinessCalendarDraft()
   } catch (error) {
     saveState.error = error?.message || 'Nao foi possivel carregar os parametros institucionais.'
   } finally {
@@ -418,7 +476,16 @@ onMounted(() => {
                 <input
                   v-model.number="selectedSlaLevel.hours"
                   type="number"
-                  min="1"
+                  min="0"
+                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-sm font-semibold text-slate-600">Dias uteis</span>
+                <input
+                  v-model.number="selectedSlaLevel.businessDays"
+                  type="number"
+                  min="0"
                   class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
                 />
               </label>
@@ -436,6 +503,93 @@ onMounted(() => {
         </div>
       </SectionPanel>
     </div>
+
+    <SectionPanel
+      eyebrow="Calendario"
+      title="Calendario e prazos"
+      description="Cadastre feriados, pontes e recessos que nao contam como dia util nos prazos institucionais."
+    >
+      <div class="grid gap-4">
+        <div class="inner-panel p-5">
+          <p class="text-sm font-semibold text-slate-500">Regra base</p>
+          <p class="mt-2 text-sm leading-6 text-slate-600">
+            Sabado e domingo nao contam por padrao. Use as entradas abaixo para feriados, pontes e recessos.
+          </p>
+          <p v-if="calendarPreviewDueAt" class="mt-3 text-sm text-slate-700">
+            Exemplo com o SLA selecionado:
+            {{ new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(calendarPreviewDueAt) }}
+          </p>
+        </div>
+
+        <div class="grid gap-2">
+          <button
+            v-for="entry in calendarEntries"
+            :key="entry.id"
+            type="button"
+            class="option-button"
+            :class="{ 'is-active': ui.selectedCalendarEntryId === entry.id }"
+            @click="selectCalendarEntry(entry.id)"
+          >
+            <div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p class="text-xs font-semibold text-slate-500">{{ entry.type }}</p>
+                <p class="mt-1 text-base font-semibold text-slate-950">{{ entry.date }}</p>
+                <p class="mt-1 text-sm text-slate-600">{{ entry.label || 'Sem descricao' }}</p>
+              </div>
+              <StatusBadge :label="entry.type" />
+            </div>
+          </button>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="rounded-[8px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+            @click="addCalendarEntry"
+          >
+            Adicionar entrada
+          </button>
+          <button
+            v-if="selectedCalendarEntry"
+            type="button"
+            class="rounded-[8px] border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700"
+            @click="removeCalendarEntry(selectedCalendarEntry.id)"
+          >
+            Remover selecionada
+          </button>
+        </div>
+
+        <div v-if="selectedCalendarEntry" class="grid gap-4 rounded-[8px] border border-slate-200 bg-slate-50/75 p-4 md:grid-cols-2">
+          <label class="grid gap-2">
+            <span class="text-sm font-semibold text-slate-600">Data</span>
+            <input
+              v-model="selectedCalendarEntry.date"
+              type="date"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+            />
+          </label>
+          <label class="grid gap-2">
+            <span class="text-sm font-semibold text-slate-600">Tipo</span>
+            <select
+              v-model="selectedCalendarEntry.type"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+            >
+              <option value="holiday">Feriado</option>
+              <option value="bridge">Ponte</option>
+              <option value="recess">Recesso</option>
+            </select>
+          </label>
+          <label class="grid gap-2 md:col-span-2">
+            <span class="text-sm font-semibold text-slate-600">Descricao</span>
+            <input
+              v-model="selectedCalendarEntry.label"
+              type="text"
+              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+            />
+          </label>
+        </div>
+      </div>
+    </SectionPanel>
 
     <div class="crm-split-grid gap-6">
       <SectionPanel

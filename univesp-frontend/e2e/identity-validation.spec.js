@@ -40,7 +40,7 @@ test('Admin trata vínculo inconclusivo com justificativa auditável', async ({ 
   })
 
   await page.goto('/crm/admin/validacao-vinculo')
-  await expect(page.getByRole('heading', { name: 'Validação de vínculo' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('heading', { name: 'Validação de vínculo', level: 2 })).toBeVisible()
   await expect(page.getByText('SLA vencido')).toBeVisible()
   await page
     .getByLabel('Justificativa da decisão')

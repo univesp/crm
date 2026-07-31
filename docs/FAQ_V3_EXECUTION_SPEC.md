@@ -71,10 +71,12 @@ Não iniciar 1a até verde.
 ## 3. Princípios arquiteturais
 
 - Persistência por bundle/versão; biblioteca v2 read-only após cutover
-- Grafo **árvore** (não DAG): um pai por nó; sem ciclos
+- Grafo **árvore única** por fluxo (não DAG): um pai por nó; sem ciclos
+- Aluno/público são **canais de apresentação** da mesma árvore (não grafos por público)
+  - Nota histórica: MVP técnico aceitava árvores por público; regra atual unifica (2026-07)
 - Identificadores estáveis em todo conteúdo editável
 - Roteamento no servidor; cliente nunca envia fila final com lineage FAQ
-- Governança: identidades distintas (seção 8)
+- Governança: Analista → aprovação; Admin pode publicar rascunho próprio (`admin_direct`)
 - ETag: `"<version_id>-<revision>"`
 
 ---
@@ -325,7 +327,8 @@ Limites **≤ máximos institucionais** (Runtime Settings). Editor não permite 
 
 | Regra | Comportamento |
 |-------|---------------|
-| Publicação | Admin publica versão `approved` |
+| Publicação | Admin publica `draft` (`admin_direct`) ou `approved`; Analista/Gestor não publicam |
+| Identidades | Autor pode ser publicador quando Admin; break-glass não é exigido na publicação direta |
 | `valid_from` omitido | Vigência começa em `published_at` |
 | `valid_from` futuro | Job ativa na data (timezone institucional) |
 | `valid_until` | Job expira; novas sessões usam próxima versão publicada |

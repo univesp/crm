@@ -43,7 +43,7 @@
       "fieldtype": "Link",
       "label": "Grupo aprovador",
       "options": "Univesp Access Group",
-      "reqd": 1
+      "reqd": 0
     },
     {
       "fieldname": "editor_areas",

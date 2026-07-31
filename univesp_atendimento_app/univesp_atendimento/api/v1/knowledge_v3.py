@@ -419,6 +419,11 @@ def submit_for_approval(bundle_key: str, payload: dict | str | None = None):
 	if len(summary) < 20:
 		raise KnowledgeV3ValidationError(_("Resumo das mudanças deve ter ao menos 20 caracteres."))
 	_validate_publishable_payload(json.loads(version.payload_json), bundle)
+	governance = frappe.get_doc("Univesp Knowledge Theme Governance", bundle.theme_key)
+	if not str(governance.approver_group or "").strip():
+		raise KnowledgeV3ValidationError(
+			_("Configure o grupo aprovador do tema antes de enviar para revisão.")
+		)
 	version.change_summary = summary
 	version.lifecycle_state = "pending_approval"
 	version.revision = int(version.revision or 1) + 1
@@ -496,27 +501,108 @@ def publish(version_id: str, payload: dict | str | None = None):
 	_ensure_theme_scope(context, bundle.theme_key)
 	if context.profile_key != "admin_central":
 		raise frappe.PermissionError(_("Somente Admin central pode publicar."))
-	if version.lifecycle_state != "approved":
-		raise KnowledgeV3ValidationError(_("Somente versão aprovada pode ser publicada."))
-	if context.email == version.author_email:
-		raise frappe.PermissionError(_("Autor não pode publicar a própria versão."))
-	if context.email == version.approver_email:
-		_validate_break_glass_confirmation(context, version, _payload(payload))
+	data = _payload(payload)
+	state = str(version.lifecycle_state or "").strip()
+	if state not in {"draft", "approved"}:
+		raise KnowledgeV3ValidationError(_("Somente rascunho ou versão aprovada podem ser publicados."))
+
+	approval_mode = "approved_path"
+	if state == "draft":
+		if bundle.draft_version != version.name:
+			raise KnowledgeV3ValidationError(_("Somente o rascunho ativo pode ser publicado diretamente."))
+		_expect_etag(version, data.get("if_match"))
+		summary = str(data.get("change_summary") or version.change_summary or "").strip()
+		if len(summary) < 20:
+			raise KnowledgeV3ValidationError(_("Resumo das mudanças deve ter ao menos 20 caracteres."))
+		version.change_summary = summary
+		approval_mode = "admin_direct"
+
 	_validate_publishable_payload(json.loads(version.payload_json), bundle)
 	version.publisher_email = context.email
 	version.published_at = now_datetime()
+	if approval_mode == "admin_direct" and not version.approver_email:
+		version.approver_email = context.email
+		version.approved_at = now_datetime()
 	if version.valid_from and get_datetime(version.valid_from) > now_datetime():
 		version.flags.knowledge_schedule_publication = True
 		version.save(ignore_permissions=True)
 		_audit(
-			context, "knowledge_publication_scheduled", version.name, {"valid_from": str(version.valid_from)}
+			context,
+			"knowledge_publication_scheduled",
+			version.name,
+			{"valid_from": str(version.valid_from), "approval_mode": approval_mode},
 		)
 		return response(
-			{**_serialize_version(version), "scheduled": True},
+			{**_serialize_version(version), "scheduled": True, "approval_mode": approval_mode},
 			request_id=context.request_id,
 		)
-	_activate_version(bundle, version, context)
-	return response(_serialize_version(version), request_id=context.request_id)
+	_activate_version(bundle, version, context, approval_mode=approval_mode)
+	if state == "draft":
+		_set_bundle_pointer(bundle.name, "draft_version", "")
+	return response(
+		{**_serialize_version(version), "approval_mode": approval_mode},
+		request_id=context.request_id,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def create_theme(payload: dict | str | None = None):
+	context = _write_context("publish_knowledge_version")
+	if context.profile_key != "admin_central":
+		raise frappe.PermissionError(_("Somente Admin central pode criar temas."))
+	data = _payload(payload)
+	theme_label = str(data.get("theme_label") or data.get("name") or "").strip()
+	if not theme_label:
+		raise KnowledgeV3ValidationError(_("Nome do tema é obrigatório."))
+	raw_key = str(data.get("theme_key") or theme_label).strip().lower()
+	theme_key = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in raw_key)
+	theme_key = "-".join(part for part in theme_key.split("-") if part)
+	if not theme_key:
+		raise KnowledgeV3ValidationError(_("Chave do tema é obrigatória."))
+	theme_key = _key(theme_key, "theme_key")
+	if frappe.db.exists("Univesp Knowledge Theme Governance", theme_key):
+		raise KnowledgeV3ConflictError(_("Já existe um tema com essa chave."))
+	owner_email = str(data.get("owner_email") or context.email).strip()
+	if not owner_email:
+		raise KnowledgeV3ValidationError(_("Responsável principal é obrigatório."))
+	area_key = _key(data.get("area_key") or "geral", "area_key")
+	area_label = str(data.get("area_label") or area_key).strip()
+	approver_group = str(data.get("approver_group") or "").strip()
+	doc = frappe.get_doc(
+		{
+			"doctype": "Univesp Knowledge Theme Governance",
+			"theme_key": theme_key,
+			"theme_label": theme_label,
+			"owner_email": owner_email,
+			"approver_group": approver_group or None,
+			"editor_areas": [
+				{
+					"area_key": area_key,
+					"area_label": area_label,
+					"can_edit_draft": 1,
+				}
+			],
+			"suggestion_sla_hours": int(data.get("suggestion_sla_hours") or 72),
+			"active": 1,
+		}
+	)
+	doc.insert(ignore_permissions=True, ignore_links=True)
+	_audit(
+		context,
+		"knowledge_theme_created",
+		doc.name,
+		{"theme_key": theme_key, "theme_label": theme_label},
+	)
+	return response(
+		{
+			"theme_key": doc.theme_key,
+			"theme_label": doc.theme_label,
+			"owner_email": doc.owner_email,
+			"approver_group": doc.approver_group or "",
+			"suggestion_sla_hours": doc.suggestion_sla_hours,
+		},
+		request_id=context.request_id,
+	)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -771,7 +857,7 @@ def _v2_migration_plans(data):
 	)
 
 
-def _activate_version(bundle, version, context):
+def _activate_version(bundle, version, context, approval_mode="approved_path"):
 	current_name = str(bundle.published_version or "")
 	if current_name and current_name != version.name:
 		current = frappe.get_doc("Univesp Knowledge Version", current_name)
@@ -783,7 +869,12 @@ def _activate_version(bundle, version, context):
 	_save_transition(version)
 	_set_bundle_pointer(bundle.name, "published_version", version.name)
 	if context:
-		_audit(context, "knowledge_version_published", version.name, {})
+		_audit(
+			context,
+			"knowledge_version_published",
+			version.name,
+			{"approval_mode": approval_mode},
+		)
 
 
 def _validate_publishable_payload(payload, bundle):

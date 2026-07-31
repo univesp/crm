@@ -1,13 +1,24 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import FaqV3FlowSettingsPanel from '@/components/admin/faq-v3/FaqV3FlowSettingsPanel.vue'
+import FaqV3JourneySimulator from '@/components/admin/faq-v3/FaqV3JourneySimulator.vue'
+import FaqV3MapWorkspace from '@/components/admin/faq-v3/FaqV3MapWorkspace.vue'
+import FaqV3NodeEditorPanel from '@/components/admin/faq-v3/FaqV3NodeEditorPanel.vue'
+import { FAQ_V3_NODE_EDITOR_KEY } from '@/components/admin/faq-v3/faqV3NodeEditorContext'
+import FaqV3PlaybookPreviewDialog from '@/components/admin/faq-v3/FaqV3PlaybookPreviewDialog.vue'
+import FaqV3SubmitReviewDialog from '@/components/admin/faq-v3/FaqV3SubmitReviewDialog.vue'
+import FaqV3VersionHistoryDialog from '@/components/admin/faq-v3/FaqV3VersionHistoryDialog.vue'
+import { useDialogA11y } from '@/composables/useDialogA11y'
 import {
   approveKnowledgeV3Bundle,
   forkKnowledgeV3Draft,
   getKnowledgeV3Bundle,
   getKnowledgeV3Catalogs,
   getRuntimeFlags,
+  getRuntimeSettings,
+  getAdminCatalogs,
   listKnowledgeV3Versions,
   publishKnowledgeV3Version,
   saveKnowledgeV3Draft,
@@ -20,6 +31,24 @@ import {
   resolveImportConflict,
   resolveImportOrphan,
 } from '@/services/faqV3Import'
+import {
+  applyChannelsToPayload,
+  availableChannelLabels,
+  audienceProfileFromChannels,
+  canonicalRootId,
+  channelAudiences,
+  channelsFromPayload,
+  flattenCanonicalTree,
+  inheritsPublicFromStudent,
+  isLegacyDualTree,
+  normalizePayloadForEditor,
+  PUBLIC_CONTENT_CUSTOM,
+  PUBLIC_CONTENT_INHERIT,
+  publicContentMode,
+  resolveNodeContent,
+  setPublicContentMode,
+} from '@/services/faqV3PayloadAdapter'
+import { buildKnowledgeEditorPermissions } from '@/services/knowledgePermissionsRuntime'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -36,36 +65,66 @@ const payload = ref(null)
 const versions = ref([])
 const etag = ref('')
 const selectedNodeId = ref('')
-const treeAudience = ref('student')
 const activeTab = ref('student')
-const previewPersona = ref('student')
-const previewVisible = ref(true)
-const previewHeading = ref(null)
+const simulatorOpen = ref(false)
+const playbookPreviewOpen = ref(false)
+const settingsOpen = ref(false)
+const publishConfirmOpen = ref(false)
 const changeSummary = ref('')
 const importOpen = ref(false)
 const importBusy = ref(false)
 const importDiff = ref(null)
 const assetBusy = ref(false)
 const mediaUploadEnabled = ref(false)
+const issuesPanelOpen = ref(false)
+const historyOpen = ref(false)
+const submitDialogOpen = ref(false)
+const submitDialogIntent = ref('review')
+const editorViewMode = ref('steps')
+const mapDrawerOpen = ref(false)
+const mapWorkspaceRef = ref(null)
+const moreActionsOpen = ref(false)
+const advancedOpen = ref(false)
+const moreActionsTrigger = ref(null)
+const moreActionsPanel = ref(null)
+const issuesPanelRef = ref(null)
+const publishConfirmPanelRef = ref(null)
+
+const ADVANCED_TAB_KEYS = ['op', 'bpo', 'analyst', 'routing', 'document']
+const BLOCK_TYPE_LABELS = {
+  text: 'Texto',
+  notice: 'Aviso',
+  link: 'Link',
+  image: 'Imagem',
+  video: 'Vídeo',
+  button: 'Botão controlado',
+  file: 'Arquivo institucional',
+  animation: 'Animação acessível',
+}
 const validity = reactive({ valid_from: '', valid_until: '' })
+const channelFlags = reactive({ availableStudent: true, availablePublic: false })
 const catalogs = reactive({ themes: [], routing_patterns: [] })
+const runtimeParameters = reactive({ criticalityLevels: [], slaLevels: [] })
+const adminAreas = ref([])
+
+const ROUTING_CHAIN_PRESETS = [
+  { value: '', label: 'Usar caminho do fluxo', chain: null },
+  { value: 'op_bpo_area', label: 'OP → BPO → Área', chain: ['op', 'bpo', 'area'] },
+  { value: 'op_area', label: 'OP → Área', chain: ['op', 'area'] },
+  { value: 'op_bpo', label: 'OP → BPO', chain: ['op', 'bpo'] },
+  { value: 'area', label: 'Direto para a área', chain: ['area'] },
+  { value: 'triage', label: 'Direto para triagem/gestor', chain: ['triage'] },
+]
 
 const tabs = [
-  { key: 'student', label: 'Aluno' },
+  { key: 'student', label: 'Orientação' },
   { key: 'public', label: 'Público externo' },
   { key: 'op', label: 'OP' },
   { key: 'bpo', label: 'BPO' },
   { key: 'analyst', label: 'Analista' },
-  { key: 'routing', label: 'Encaminhamento' },
+  { key: 'routing', label: 'Encaminhamento e prazo' },
   { key: 'document', label: 'Documento' },
 ]
-const personaLabels = {
-  student: 'Aluno',
-  public: 'Público externo',
-  op: 'OP',
-  bpo: 'BPO',
-  analyst: 'Analista',
-}
 const lifecycleLabels = {
   draft: 'Rascunho',
   pending_approval: 'Aguardando aprovação',
@@ -94,35 +153,115 @@ const selectedPattern = computed(() =>
   ),
 )
 const allowedRoutingKeys = computed(() => selectedPattern.value?.allowed_routing_keys || [])
+const bundleOperationalDefaults = computed(() => ({
+  criticidade:
+    payload.value?.metadata?.criticidade_default_key ||
+    payload.value?.metadata?.default_criticidade ||
+    null,
+  sla_policy_key:
+    payload.value?.metadata?.sla_policy_key ||
+    payload.value?.routing_policy?.sla_policy_key ||
+    null,
+}))
 const approvedVersion = computed(() =>
   versions.value.find((version) => version.lifecycle_state === 'approved'),
 )
-const allowedActions = computed(() => new Set(auth.mockContext.allowedActions || []))
-const canEdit = computed(
-  () =>
-    currentState.value === 'draft' &&
-    Boolean(draft.value) &&
-    allowedActions.value.has('edit_knowledge_draft'),
+const knowledgePermissions = computed(() =>
+  buildKnowledgeEditorPermissions({
+    allowedActions: auth.mockContext.allowedActions || [],
+    lifecycleState: currentState.value,
+    hasDraft: Boolean(draft.value),
+    hasApprovedVersion: Boolean(approvedVersion.value),
+    isAdminCentral: auth.mockContext.profileKey === 'admin_central',
+    blockersCount: blockers.value.length,
+  }),
 )
-const canApprove = computed(
-  () =>
-    currentState.value === 'pending_approval' &&
-    allowedActions.value.has('approve_knowledge'),
-)
-const canPublish = computed(
-  () =>
-    Boolean(approvedVersion.value) &&
-    allowedActions.value.has('publish_knowledge_version'),
+const isAdmin = computed(() => auth.mockContext.profileKey === 'admin_central')
+const canEdit = computed(() => knowledgePermissions.value.canEditDraft)
+const canApprove = computed(() => knowledgePermissions.value.canApprove)
+const canPublishDraft = computed(() => knowledgePermissions.value.canPublish)
+const canPublishApproved = computed(() => knowledgePermissions.value.canPublishApproved)
+const canSubmitReview = computed(
+  () => canEdit.value && knowledgePermissions.value.canSubmitReview,
 )
 const isAreaEditor = computed(() =>
   ['analista_area', 'gestor_area'].includes(auth.mockContext.profileKey),
 )
+const channelLabelText = computed(() => availableChannelLabels(channelFlags).join(' · ') || '—')
+const visibleTabs = computed(() =>
+  tabs.filter((tab) => tab.key !== 'public' || channelFlags.availablePublic),
+)
+const editorTabs = computed(() => {
+  if (advancedOpen.value) return visibleTabs.value
+  return visibleTabs.value.filter((tab) => !ADVANCED_TAB_KEYS.includes(tab.key))
+})
+const advancedTabSummary = computed(() => {
+  const node = selectedNode.value
+  if (!node) return { filled: 0, issues: 0 }
+  let filled = 0
+  let issues = 0
+  for (const key of ADVANCED_TAB_KEYS) {
+    if (key === 'document' && node.node_kind !== 'final') continue
+    if (layerHasContent(node, key)) filled += 1
+    if (draftIssues.value.some((issue) => issue.nodeId === node.node_id && issue.layer === key)) {
+      issues += 1
+    }
+  }
+  return { filled, issues }
+})
+const publicContentIsCustom = computed(
+  () => publicContentMode(selectedNode.value) === PUBLIC_CONTENT_CUSTOM,
+)
+const finalNodeCount = computed(
+  () => (payload.value?.nodes || []).filter((node) => node.node_kind === 'final').length,
+)
 
-const treeNodes = computed(() => flattenTree(treeAudience.value))
-const blockers = computed(() => validateDraft())
-const previewContent = computed(() => buildPreview(previewPersona.value))
+const treeNodes = computed(() => flattenCanonicalTree(payload.value))
+const draftIssues = computed(() => collectIssues())
+const blockers = computed(() => [
+  ...new Set(
+    draftIssues.value.filter((issue) => issue.severity === 'error').map((issue) => issue.message),
+  ),
+])
+const nodeIssues = computed(() => {
+  const grouped = {}
+  for (const issue of draftIssues.value) {
+    if (!issue.nodeId) continue
+    if (!grouped[issue.nodeId]) grouped[issue.nodeId] = []
+    grouped[issue.nodeId].push(issue)
+  }
+  return grouped
+})
+const playbookPreviewLayers = computed(() => {
+  if (!selectedNode.value) return []
+  return ['op', 'bpo', 'analyst'].map((layer) => ({
+    key: layer,
+    label: tabs.find((tab) => tab.key === layer)?.label || layer,
+    inherited: layer === 'bpo' && !selectedNode.value.playbooks?.bpo,
+    objective: effectivePlaybook(layer).objective,
+    suggestedReply: effectivePlaybook(layer).suggested_reply,
+    checklist: (effectivePlaybook(layer).checklist || []).map(playbookItemLabel),
+  }))
+})
 
-onMounted(loadEditor)
+onMounted(() => {
+  loadEditor()
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+  document.addEventListener('keydown', handleMenuKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+  document.removeEventListener('keydown', handleMenuKeydown)
+})
+
+useDialogA11y(issuesPanelOpen, issuesPanelRef, () => {
+  issuesPanelOpen.value = false
+})
+
+useDialogA11y(publishConfirmOpen, publishConfirmPanelRef, () => {
+  publishConfirmOpen.value = false
+})
 
 watch(
   payload,
@@ -138,19 +277,34 @@ watch(selectedNodeId, () => {
   }
 })
 
+watch(advancedOpen, (open) => {
+  if (!open && ADVANCED_TAB_KEYS.includes(activeTab.value)) {
+    activeTab.value = 'student'
+  }
+})
+
 async function loadEditor() {
   loading.value = true
   errorMessage.value = ''
   dirty.value = false
   try {
-    const [bundleResponse, versionsResponse, catalogsResponse] = await Promise.all([
+    const [bundleResponse, versionsResponse, catalogsResponse, runtimeResponse, adminCatalogsResponse] =
+      await Promise.all([
       getKnowledgeV3Bundle(bundleKey.value),
       listKnowledgeV3Versions(bundleKey.value, { page_size: 100 }),
       getKnowledgeV3Catalogs(),
+      getRuntimeSettings().catch(() => ({ data: {} })),
+      getAdminCatalogs().catch(() => ({ data: {} })),
     ])
     bundle.value = bundleResponse.data
     versions.value = versionsResponse.data || []
     Object.assign(catalogs, catalogsResponse.data || {})
+    const parameters = runtimeResponse.data?.parameters || {}
+    runtimeParameters.criticalityLevels = Array.isArray(parameters.criticalityLevels)
+      ? parameters.criticalityLevels
+      : []
+    runtimeParameters.slaLevels = Array.isArray(parameters.slaLevels) ? parameters.slaLevels : []
+    adminAreas.value = adminCatalogsResponse.data?.areas || []
     try {
       mediaUploadEnabled.value = Boolean((await getRuntimeFlags()).data?.knowledge_media_upload)
     } catch {
@@ -159,6 +313,15 @@ async function loadEditor() {
     etag.value = bundleResponse.meta?.etag || bundle.value?.draft?.etag || ''
     const editablePayload = bundle.value?.draft?.payload
     payload.value = editablePayload ? cloneJson(editablePayload) : null
+    if (payload.value) {
+      Object.assign(
+        channelFlags,
+        channelsFromPayload(payload.value, bundle.value?.audience_profile),
+      )
+      if (!isLegacyDualTree(payload.value)) {
+        payload.value = normalizePayloadForEditor(payload.value, channelFlags)
+      }
+    }
     ensureNodePolicies()
     changeSummary.value = bundle.value?.draft?.change_summary || ''
     validity.valid_from = toInputDate(bundle.value?.draft?.valid_from)
@@ -177,6 +340,13 @@ async function saveDraft({ silent = false } = {}) {
   saving.value = true
   errorMessage.value = ''
   try {
+    payload.value = applyChannelsToPayload(payload.value, channelFlags)
+    if (payload.value.metadata) {
+      payload.value.metadata.audience_profile = audienceProfileFromChannels(channelFlags)
+    }
+    if (payload.value.theme_key && bundle.value) {
+      bundle.value.theme_key = payload.value.theme_key
+    }
     const response = await saveKnowledgeV3Draft(
       bundleKey.value,
       {
@@ -247,12 +417,55 @@ async function approveDraft() {
 }
 
 async function publishApproved() {
-  if (!approvedVersion.value || saving.value) return
-  if (!window.confirm('Publicar esta versão para os públicos configurados?')) return
+  if (!canPublishApproved.value || saving.value) return
+  publishConfirmOpen.value = true
+}
+
+async function publishDraftDirect() {
+  if (!canPublishDraft.value) return
+  if (changeSummary.value.trim().length < 20) {
+    submitDialogIntent.value = 'publish'
+    submitDialogOpen.value = true
+    return
+  }
+  publishConfirmOpen.value = true
+}
+
+function openSubmitDialog(intent) {
+  submitDialogIntent.value = intent
+  submitDialogOpen.value = true
+}
+
+async function confirmSubmitDialog() {
+  if (changeSummary.value.trim().length < 20) return
+  if (submitDialogIntent.value === 'publish') {
+    submitDialogOpen.value = false
+    publishConfirmOpen.value = true
+    return
+  }
+  if (blockers.value.length) return
+  await submitApproval()
+  if (!errorMessage.value) submitDialogOpen.value = false
+}
+
+async function confirmPublish() {
+  publishConfirmOpen.value = false
+  const isDraftPublish = canPublishDraft.value && Boolean(draft.value?.version_id)
+  const versionId = isDraftPublish ? draft.value.version_id : approvedVersion.value?.version_id
+  if (!versionId || saving.value) return
+
+  if (isDraftPublish) {
+    if (dirty.value && !(await saveDraft({ silent: true }))) return
+    payload.value = applyChannelsToPayload(payload.value, channelFlags)
+  }
+
   saving.value = true
   errorMessage.value = ''
   try {
-    await publishKnowledgeV3Version(approvedVersion.value.version_id)
+    const publishPayload = isDraftPublish
+      ? { change_summary: changeSummary.value, if_match: etag.value }
+      : undefined
+    await publishKnowledgeV3Version(versionId, publishPayload)
     successMessage.value = 'Versão publicada.'
     await loadEditor()
   } catch (error) {
@@ -260,6 +473,22 @@ async function publishApproved() {
   } finally {
     saving.value = false
   }
+}
+
+function syncChannelSettings() {
+  if (!payload.value || isLegacyDualTree(payload.value)) return
+  payload.value = normalizePayloadForEditor(payload.value, channelFlags)
+  if (!channelFlags.availablePublic && activeTab.value === 'public') {
+    activeTab.value = 'student'
+  }
+}
+
+function togglePublicCustomization(enabled) {
+  if (!selectedNode.value) return
+  setPublicContentMode(
+    selectedNode.value,
+    enabled ? PUBLIC_CONTENT_CUSTOM : PUBLIC_CONTENT_INHERIT,
+  )
 }
 
 async function createDraftFromPublished() {
@@ -334,6 +563,10 @@ function applyImport() {
     return
   }
   payload.value = cloneJson(importDiff.value.payload)
+  Object.assign(channelFlags, channelsFromPayload(payload.value, bundle.value?.audience_profile))
+  if (!isLegacyDualTree(payload.value)) {
+    payload.value = normalizePayloadForEditor(payload.value, channelFlags)
+  }
   ensureNodePolicies()
   selectedNodeId.value = payload.value.nodes?.[0]?.node_id || ''
   changeSummary.value = `Importação ${importDiff.value.meta?.source_schema || 'FAQ'} revisada com diff.`
@@ -357,25 +590,26 @@ async function downloadTemplate() {
 function addNode(kind) {
   if (!canEdit.value || !selectedNode.value) return
   const id = `${bundleKey.value}-${kind}-${Date.now().toString(36)}`
-  const audiences =
-    treeAudience.value === 'internal'
-      ? ['internal']
-      : [...new Set(selectedNode.value.audiences || [treeAudience.value])]
+  const audiences = channelAudiences(channelFlags)
   payload.value.nodes.push({
     node_id: id,
     stable_key: id,
     node_kind: kind,
     audiences,
     display: { title: kind === 'final' ? 'Nova resposta final' : 'Nova etapa' },
+    presentation: { public_content_mode: PUBLIC_CONTENT_INHERIT },
     content: {
-      student: audiences.includes('student') ? emptyContent() : null,
-      public: audiences.includes('public') ? emptyContent() : null,
+      student: channelFlags.availableStudent ? emptyContent() : null,
+      public: null,
     },
     playbooks: { op: null, bpo: null, analyst: null },
     operational: {
       routing_override: null,
       criticidade: null,
       sla_policy_key: null,
+      area_key: null,
+      routing_chain: null,
+      assignee_email: null,
     },
     document_policy: kind === 'final' ? { mode: 'disabled' } : null,
     intake_policy:
@@ -403,6 +637,14 @@ function addNode(kind) {
 
 function ensureNodePolicies() {
   for (const node of payload.value?.nodes || []) {
+    node.operational ||= {
+      routing_override: null,
+      criticidade: null,
+      sla_policy_key: null,
+      area_key: null,
+      routing_chain: null,
+      assignee_email: null,
+    }
     if (node.node_kind !== 'final') continue
     node.document_policy ||= { mode: 'disabled' }
     node.intake_policy ||= {
@@ -438,14 +680,16 @@ function contentBlocks(layer) {
 }
 
 function addContentBlock(layer, type = 'text') {
-  contentBlocks(layer).push({
+  const block = {
     block_id: `${selectedNode.value.node_id}-${layer}-${type}-${Date.now().toString(36)}`,
     type,
     body: '',
     url: '',
     alt: '',
     captions_url: '',
-  })
+  }
+  if (type === 'button') block.action_key = 'open_ticket'
+  contentBlocks(layer).push(block)
 }
 
 function removeContentBlock(layer, index) {
@@ -490,13 +734,6 @@ function setOutcome(layer, value) {
   if (!selectedNode.value.content) selectedNode.value.content = {}
   if (!selectedNode.value.content[layer]) selectedNode.value.content[layer] = emptyContent()
   selectedNode.value.content[layer].outcome_key = value
-}
-
-function contentText(layer) {
-  return (
-    selectedNode.value?.content?.[layer]?.blocks?.find((block) => block.type === 'text')
-      ?.body || ''
-  )
 }
 
 function ensurePlaybook(layer) {
@@ -577,117 +814,145 @@ function playbookItemLabel(item) {
   )
 }
 
-function showPreview() {
-  previewVisible.value = true
-  nextTick(() => previewHeading.value?.focus())
+function isRoot(nodeId) {
+  return nodeId === canonicalRootId(payload.value)
 }
 
-function flattenTree(audience) {
-  if (!payload.value) return []
-  const rootId =
-    audience === 'student'
-      ? payload.value.graph?.student_root_node_id
-      : audience === 'public'
-        ? payload.value.graph?.public_root_node_id
-        : payload.value.graph?.internal_root_node_id || payload.value.nodes?.[0]?.node_id
-  if (!rootId) return []
-  const result = []
-  const visit = (nodeId, depth) => {
-    const node = payload.value.nodes.find((item) => item.node_id === nodeId)
-    if (!node) return
-    if (
-      audience === 'internal' ||
-      (node.audiences || []).includes(audience)
-    ) {
-      result.push({ ...node, depth })
-    }
-    childEdges(nodeId)
-      .filter(
-        (edge) =>
-          audience === 'internal' ||
-          !edge.audiences?.length ||
-          edge.audiences.includes(audience),
-      )
-      .forEach((edge) => visit(edge.child_node_id, depth + 1))
+function collectIssues() {
+  if (!payload.value) {
+    return [
+      {
+        id: 'no-payload',
+        severity: 'error',
+        message: 'Crie ou abra um rascunho para editar.',
+        nodeId: null,
+        layer: null,
+        fieldKey: 'draft',
+      },
+    ]
   }
-  visit(rootId, 0)
-  return result
+  const issues = []
+  if (!channelFlags.availableStudent && !channelFlags.availablePublic) {
+    issues.push({
+      id: 'channels-required',
+      severity: 'error',
+      message: 'Selecione ao menos um canal de disponibilidade.',
+      nodeId: null,
+      layer: null,
+      fieldKey: 'channels',
+    })
+  }
+  const nodeIds = new Set(payload.value.nodes.map((node) => node.node_id))
+  const rootId = canonicalRootId(payload.value)
+  if (rootId && !nodeIds.has(rootId)) {
+    issues.push({
+      id: 'root-missing',
+      severity: 'error',
+      message: 'A etapa inicial do fluxo não existe.',
+      nodeId: rootId,
+      layer: null,
+      fieldKey: 'root',
+    })
+  }
+  const patternHasOp = selectedPattern.value?.steps?.includes('op')
+  payload.value.nodes.forEach((node) => {
+    if (!node.display?.title?.trim()) {
+      issues.push({
+        id: `title:${node.node_id}`,
+        severity: 'error',
+        message: `A etapa “${node.display?.title || 'sem título'}” precisa de um nome.`,
+        nodeId: node.node_id,
+        layer: null,
+        fieldKey: 'title',
+      })
+    }
+    if (node.node_kind === 'final') {
+      if (channelFlags.availableStudent) {
+        const studentContent = resolveNodeContent(node, 'student')
+        if (!studentContent?.blocks?.some(blockHasContent)) {
+          issues.push({
+            id: `final-answer:${node.node_id}:student`,
+            severity: 'error',
+            message: `A resposta final “${node.display?.title}” está vazia na orientação.`,
+            nodeId: node.node_id,
+            layer: 'student',
+            fieldKey: 'final_answer',
+          })
+        }
+      }
+      if (channelFlags.availablePublic) {
+        const publicContent = inheritsPublicFromStudent(node)
+          ? resolveNodeContent(node, 'student')
+          : resolveNodeContent(node, 'public')
+        if (!publicContent?.blocks?.some(blockHasContent)) {
+          issues.push({
+            id: `final-answer:${node.node_id}:public`,
+            severity: 'error',
+            message: `A resposta final “${node.display?.title}” está vazia para o público externo.`,
+            nodeId: node.node_id,
+            layer: 'public',
+            fieldKey: 'final_answer',
+          })
+        }
+      }
+      if (
+        patternHasOp &&
+        channelFlags.availableStudent &&
+        !node.playbooks?.op?.objective?.trim()
+      ) {
+        issues.push({
+          id: `op-objective:${node.node_id}`,
+          severity: 'error',
+          message: `Defina o objetivo do playbook OP em “${node.display?.title}”.`,
+          nodeId: node.node_id,
+          layer: 'op',
+          fieldKey: 'op_objective',
+        })
+      }
+      if (node.intake_policy?.requires_cpf && node.intake_policy.cpf_purpose?.trim().length < 10) {
+        issues.push({
+          id: `cpf-purpose:${node.node_id}`,
+          severity: 'error',
+          message: `Explique por que o CPF é necessário em “${node.display?.title}”.`,
+          nodeId: node.node_id,
+          layer: 'document',
+          fieldKey: 'cpf_purpose',
+        })
+      }
+      if (!resolveFinalArea(node)) {
+        issues.push({
+          id: `area:${node.node_id}`,
+          severity: 'error',
+          message: `Defina a área responsável em “${node.display?.title}”.`,
+          nodeId: node.node_id,
+          layer: 'routing',
+          fieldKey: 'area_key',
+        })
+      }
+    } else if (node.document_policy?.mode && node.document_policy.mode !== 'disabled') {
+      issues.push({
+        id: `document-mode:${node.node_id}`,
+        severity: 'error',
+        message: `Documento só pode ser solicitado em resposta final: “${node.display?.title}”.`,
+        nodeId: node.node_id,
+        layer: 'document',
+        fieldKey: 'document_mode',
+      })
+    }
+  })
+  return issues
+}
+
+function blockHasContent(block) {
+  if (['text', 'notice'].includes(block?.type)) return Boolean(block.body?.trim())
+  if (block?.type === 'button') return Boolean(block.body?.trim() && block.action_key)
+  return Boolean(block?.url?.trim() || block?.asset_id)
 }
 
 function childEdges(nodeId) {
   return (payload.value?.edges || [])
     .filter((edge) => edge.active !== false && edge.parent_node_id === nodeId)
     .sort((left, right) => Number(left.order || 0) - Number(right.order || 0))
-}
-
-function isRoot(nodeId) {
-  return Object.values(payload.value?.graph || {}).includes(nodeId)
-}
-
-function validateDraft() {
-  if (!payload.value) return ['Crie ou abra um rascunho para editar.']
-  const issues = []
-  const nodeIds = new Set(payload.value.nodes.map((node) => node.node_id))
-  for (const [field, label] of [
-    ['student_root_node_id', 'Aluno'],
-    ['public_root_node_id', 'Público externo'],
-    ['internal_root_node_id', 'Interno'],
-  ]) {
-    const root = payload.value.graph?.[field]
-    if (root && !nodeIds.has(root)) issues.push(`A raiz de ${label} não existe.`)
-  }
-  const patternHasOp = selectedPattern.value?.steps?.includes('op')
-  payload.value.nodes.forEach((node) => {
-    if (!node.display?.title?.trim()) issues.push(`A etapa ${node.node_id} está sem título.`)
-    if (node.node_kind === 'final') {
-      for (const audience of node.audiences || []) {
-        if (
-          ['student', 'public'].includes(audience) &&
-          !node.content?.[audience]?.blocks?.some(blockHasContent)
-        ) {
-          issues.push(`A resposta final “${node.display?.title}” está vazia para ${personaLabels[audience]}.`)
-        }
-      }
-      if (
-        patternHasOp &&
-        (node.audiences || []).includes('student') &&
-        !node.playbooks?.op?.objective?.trim()
-      ) {
-        issues.push(`Defina o objetivo do playbook OP em “${node.display?.title}”.`)
-      }
-      if (node.intake_policy?.requires_cpf && node.intake_policy.cpf_purpose?.trim().length < 10) {
-        issues.push(`Explique por que o CPF é necessário em “${node.display?.title}”.`)
-      }
-    } else if (node.document_policy?.mode && node.document_policy.mode !== 'disabled') {
-      issues.push(`Documento só pode ser solicitado em resposta final: “${node.display?.title}”.`)
-    }
-  })
-  return [...new Set(issues)]
-}
-
-function blockHasContent(block) {
-  if (['text', 'notice'].includes(block?.type)) return Boolean(block.body?.trim())
-  return Boolean(block?.url?.trim())
-}
-
-function buildPreview(persona) {
-  const node = selectedNode.value
-  if (!node) return null
-  if (persona === 'student' || persona === 'public') {
-    return {
-      title: node.display?.title,
-      body: contentText(persona),
-      lines: [],
-      inherited: false,
-    }
-  }
-  const playbook = effectivePlaybook(persona)
-  return {
-    title: playbook.objective || node.display?.title,
-    body: playbook.suggested_reply || '',
-    lines: playbook.checklist || [],
-    inherited: persona === 'bpo' && !node.playbooks?.bpo,
-  }
 }
 
 function emptyContent() {
@@ -726,37 +991,360 @@ function toInputDate(value) {
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value))
 }
+
+function navigateToIssue(issue) {
+  if (issue?.nodeId) selectedNodeId.value = issue.nodeId
+  if (issue?.layer && ADVANCED_TAB_KEYS.includes(issue.layer)) {
+    advancedOpen.value = true
+    activeTab.value = issue.layer
+  } else if (issue?.layer) {
+    activeTab.value = issue.layer
+  } else if (issue?.fieldKey === 'channels') {
+    settingsOpen.value = true
+  }
+  issuesPanelOpen.value = false
+  if (issue?.fieldKey) {
+    nextTick(() => focusIssueField(issue.fieldKey))
+  }
+}
+
+function focusIssueField(fieldKey) {
+  const idMap = {
+    title: 'faq-field-title',
+    final_answer: 'faq-field-final-answer',
+    op_objective: 'faq-field-op-objective',
+    cpf_purpose: 'faq-field-cpf-purpose',
+    document_mode: 'faq-field-document-mode',
+    channels: 'faq-field-channel-student',
+    area_key: 'faq-field-area-key',
+    pattern_key: 'faq-field-pattern-key',
+  }
+  const element = document.getElementById(idMap[fieldKey])
+  element?.focus()
+}
+
+function stageIssueCount(nodeId) {
+  return draftIssues.value.filter(
+    (issue) => issue.nodeId === nodeId && issue.severity === 'error',
+  ).length
+}
+
+function layerHasContent(node, layer) {
+  if (!node) return false
+  if (layer === 'op' || layer === 'bpo' || layer === 'analyst') {
+    const playbook =
+      layer === 'bpo' && !node.playbooks?.bpo ? node.playbooks?.op : node.playbooks?.[layer]
+    return Boolean(
+      playbook?.objective?.trim() ||
+        playbook?.suggested_reply?.trim() ||
+        (playbook?.checklist || []).length,
+    )
+  }
+  if (layer === 'routing') {
+    if (node.node_kind !== 'final') {
+      return Boolean(node.operational?.routing_override)
+    }
+    return Boolean(
+      node.operational?.routing_override ||
+        node.operational?.criticidade ||
+        node.operational?.sla_policy_key ||
+        node.operational?.area_key ||
+        (node.operational?.routing_chain || []).length ||
+        node.operational?.assignee_email,
+    )
+  }
+  if (layer === 'document') {
+    return Boolean(
+      (node.document_policy?.mode && node.document_policy.mode !== 'disabled') ||
+        node.intake_policy?.requires_cpf ||
+        node.intake_policy?.requires_ra ||
+        node.intake_policy?.requires_course ||
+        node.intake_policy?.requires_polo,
+    )
+  }
+  const content = resolveNodeContent(node, layer)
+  return Boolean(content?.blocks?.some(blockHasContent))
+}
+
+function resolveFinalArea(node) {
+  const area = String(node?.operational?.area_key || '').trim()
+  if (area) return area
+  const owner = payload.value?.metadata?.operational_owner
+  if (owner?.owner_type === 'area') {
+    return String(owner.owner_key || '').trim()
+  }
+  return ''
+}
+
+function effectiveOperationalValue(node, field) {
+  const nodeValue = node?.operational?.[field]
+  if (nodeValue) return nodeValue
+  return bundleOperationalDefaults.value[field] || null
+}
+
+function operationalInheritanceLabel(node, field, options = []) {
+  const effective = effectiveOperationalValue(node, field)
+  if (node?.operational?.[field]) {
+    const match = options.find((item) => item.key === effective)
+    return match?.label || effective
+  }
+  if (effective) {
+    const match = options.find((item) => item.key === effective)
+    return `Herdado do fluxo: ${match?.label || effective}`
+  }
+  return 'Sem padrão definido no fluxo'
+}
+
+function routingChainPresetValue(chain) {
+  if (!Array.isArray(chain) || !chain.length) return ''
+  const serialized = JSON.stringify(chain)
+  const preset = ROUTING_CHAIN_PRESETS.find(
+    (item) => item.chain && JSON.stringify(item.chain) === serialized,
+  )
+  return preset?.value || 'custom'
+}
+
+function setRoutingChainPreset(presetValue) {
+  if (!selectedNode.value?.operational) return
+  const preset = ROUTING_CHAIN_PRESETS.find((item) => item.value === presetValue)
+  selectedNode.value.operational.routing_chain = preset?.chain ? [...preset.chain] : null
+}
+
+function tabStateLabel(tabKey) {
+  const node = selectedNode.value
+  if (!node) return ''
+  const issueCount = draftIssues.value.filter(
+    (issue) => issue.nodeId === node.node_id && issue.layer === tabKey,
+  ).length
+  if (issueCount) return `${issueCount} alerta`
+  if (layerHasContent(node, tabKey)) return 'Completo'
+  if (['op', 'bpo', 'analyst', 'routing', 'document'].includes(tabKey)) return 'Vazio'
+  return resolveNodeContent(node, tabKey)?.blocks?.length ? 'Completo' : 'Vazio'
+}
+
+function readBlockCount(node, layer) {
+  return resolveNodeContent(node, layer)?.blocks?.length || 0
+}
+
+function focusFirstMenuItem(panelRef) {
+  nextTick(() => {
+    const first = panelRef.value?.querySelector('[role="menuitem"]:not([disabled])')
+    first?.focus()
+  })
+}
+
+function closeMoreActions(restoreFocus = true) {
+  if (!moreActionsOpen.value) return
+  moreActionsOpen.value = false
+  if (restoreFocus) nextTick(() => moreActionsTrigger.value?.focus())
+}
+
+function toggleMoreActions() {
+  if (moreActionsOpen.value) {
+    closeMoreActions()
+    return
+  }
+  moreActionsOpen.value = true
+  focusFirstMenuItem(moreActionsPanel)
+}
+
+function handleDocumentPointerDown(event) {
+  const target = event.target
+  if (moreActionsOpen.value) {
+    const insideMenu =
+      moreActionsTrigger.value?.contains(target) || moreActionsPanel.value?.contains(target)
+    if (!insideMenu) closeMoreActions(false)
+  }
+}
+
+function handleMenuKeydown(event) {
+  if (event.key !== 'Escape') return
+  if (moreActionsOpen.value) {
+    event.preventDefault()
+    closeMoreActions()
+  }
+}
+
+function openHistoryFromMenu() {
+  historyOpen.value = true
+  moreActionsOpen.value = false
+}
+
+function openPlaybookFromMenu() {
+  playbookPreviewOpen.value = true
+  moreActionsOpen.value = false
+}
+
+function openImportFromMenu() {
+  importOpen.value = true
+  moreActionsOpen.value = false
+}
+
+function setEditorViewMode(mode) {
+  editorViewMode.value = mode
+  if (mode === 'steps') {
+    mapDrawerOpen.value = false
+    return
+  }
+  nextTick(() => mapWorkspaceRef.value?.centerSelected())
+}
+
+function handleMapSelectNode(nodeId) {
+  selectedNodeId.value = nodeId
+  mapDrawerOpen.value = true
+}
+
+function handleMapAddNode(kind, parentNodeId) {
+  if (parentNodeId) selectedNodeId.value = parentNodeId
+  addNode(kind)
+}
+
+function handleMapRemoveNode(nodeId) {
+  selectedNodeId.value = nodeId
+  removeSelectedNode()
+  if (!payload.value?.nodes?.some((node) => node.node_id === selectedNodeId.value)) {
+    mapDrawerOpen.value = false
+  }
+}
+
+watch(editorViewMode, (mode) => {
+  if (mode === 'map') {
+    nextTick(() => mapWorkspaceRef.value?.centerSelected())
+  }
+})
+
+provide(FAQ_V3_NODE_EDITOR_KEY, {
+  selectedNode,
+  canEdit,
+  activeTab,
+  advancedOpen,
+  editorTabs,
+  advancedTabSummary,
+  publicContentIsCustom,
+  payload,
+  catalogs,
+  runtimeParameters,
+  adminAreas,
+  bundleOperationalDefaults,
+  selectedPattern,
+  allowedRoutingKeys,
+  ROUTING_CHAIN_PRESETS,
+  mediaUploadEnabled,
+  assetBusy,
+  BLOCK_TYPE_LABELS,
+  contentBlocks,
+  addContentBlock,
+  removeContentBlock,
+  moveContentBlock,
+  setOutcome,
+  togglePublicCustomization,
+  ensurePlaybook,
+  useOpPlaybook,
+  effectivePlaybook,
+  updatePlaybookField,
+  updatePlaybookList,
+  playbookList,
+  uploadBlockAsset,
+  tabStateLabel,
+  readBlockCount,
+  isRoot,
+  removeSelectedNode,
+  effectiveOperationalValue,
+  operationalInheritanceLabel,
+  routingChainPresetValue,
+  setRoutingChainPreset,
+  resolveFinalArea,
+})
 </script>
 
 <template>
   <main class="faq-editor-v3 crm-page-wide" aria-labelledby="faq-editor-title">
     <header class="crm-page-header faq-editor-v3__header">
-      <div>
-        <button type="button" class="faq-back-link" @click="goBack">
-          {{ isAreaEditor ? 'Voltar para sugestões' : 'Voltar para a Biblioteca' }}
-        </button>
-        <h1 id="faq-editor-title" class="crm-page-title">
-          {{ bundle?.title || 'Editor do fluxo' }}
-        </h1>
-        <p class="crm-page-description">
-          Conteúdo para o aluno e orientações da operação, no mesmo fluxo.
-        </p>
+      <div class="faq-editor-v3__header-main">
+        <div>
+          <button type="button" class="faq-back-link" @click="goBack">
+            {{ isAreaEditor ? 'Voltar para sugestões' : 'Voltar para a Biblioteca' }}
+          </button>
+          <h1 id="faq-editor-title" class="crm-page-title">
+            {{ bundle?.title || 'Editor do fluxo' }}
+          </h1>
+          <div class="faq-editor-v3__header-status">
+            <span class="crm-chip">
+              {{ lifecycleLabels[currentState] || currentState }}
+            </span>
+            <span v-if="dirty && canEdit" class="faq-editor-v3__dirty" role="status">
+              Alterações não salvas
+            </span>
+          </div>
+        </div>
       </div>
-      <div class="faq-editor-v3__header-actions">
-        <span class="crm-chip">
-          {{ lifecycleLabels[currentState] || currentState }}
-        </span>
-        <button
-          v-if="canEdit"
-          type="button"
-          class="crm-button-secondary"
-          @click="importOpen = !importOpen"
-        >
-          Importar ou atualizar
+      <div v-if="payload" class="faq-editor-v3__header-toolbar">
+        <div class="faq-view-mode-toggle" role="group" aria-label="Modo de visualização">
+          <button
+            type="button"
+            class="crm-button-secondary faq-view-mode-toggle__button"
+            :class="{ 'is-active': editorViewMode === 'steps' }"
+            :aria-pressed="editorViewMode === 'steps'"
+            @click="setEditorViewMode('steps')"
+          >
+            Etapas
+          </button>
+          <button
+            type="button"
+            class="crm-button-secondary faq-view-mode-toggle__button"
+            :class="{ 'is-active': editorViewMode === 'map' }"
+            :aria-pressed="editorViewMode === 'map'"
+            @click="setEditorViewMode('map')"
+          >
+            Mapa
+          </button>
+        </div>
+        <button type="button" class="crm-button-secondary" @click="simulatorOpen = true">
+          Simular jornada
         </button>
-        <button type="button" class="crm-button-secondary" @click="showPreview">
-          Ver como a jornada funciona
+        <button type="button" class="crm-button-secondary" @click="settingsOpen = true">
+          Configurações do fluxo
         </button>
+        <div class="faq-menu">
+          <button
+            ref="moreActionsTrigger"
+            type="button"
+            class="crm-button-secondary"
+            aria-haspopup="menu"
+            :aria-expanded="moreActionsOpen"
+            @click="toggleMoreActions"
+          >
+            Mais ações
+          </button>
+          <div v-if="moreActionsOpen" ref="moreActionsPanel" class="faq-menu__panel" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              class="faq-menu__item"
+              @click="openHistoryFromMenu"
+            >
+              Histórico de versões
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="faq-menu__item"
+              :disabled="!selectedNode"
+              @click="openPlaybookFromMenu"
+            >
+              Ver playbook
+            </button>
+            <button
+              v-if="canEdit"
+              type="button"
+              role="menuitem"
+              class="faq-menu__item"
+              @click="openImportFromMenu"
+            >
+              Importar ou atualizar
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -772,14 +1360,14 @@ function cloneJson(value) {
       <h2>{{ approvedVersion ? 'A versão está aprovada' : 'Este fluxo não tem rascunho em edição' }}</h2>
       <p v-if="approvedVersion">
         {{
-          canPublish
+          canPublishApproved
             ? 'O conteúdo já passou pela aprovação e está pronto para publicação.'
             : 'O conteúdo já passou pela aprovação e aguarda publicação pelo Admin.'
         }}
       </p>
       <p v-else>Crie um novo rascunho a partir da versão publicada para fazer alterações.</p>
       <button
-        v-if="canPublish"
+        v-if="canPublishApproved"
         type="button"
         class="crm-button-primary"
         :disabled="saving"
@@ -799,31 +1387,6 @@ function cloneJson(value) {
     </section>
 
     <template v-else>
-      <section class="crm-panel faq-governance-strip" aria-labelledby="governance-title">
-        <div>
-          <h2 id="governance-title">Vigência e aprovação</h2>
-          <p>Salvar mantém o rascunho. Enviar para aprovação avisa o grupo gestor deste tema.</p>
-        </div>
-        <label class="crm-field-label">
-          Início da vigência
-          <input
-            v-model="validity.valid_from"
-            type="datetime-local"
-            class="crm-field"
-            :disabled="!canEdit"
-          />
-        </label>
-        <label class="crm-field-label">
-          Fim da vigência
-          <input
-            v-model="validity.valid_until"
-            type="datetime-local"
-            class="crm-field"
-            :disabled="!canEdit"
-          />
-        </label>
-      </section>
-
       <section
         v-if="importOpen"
         class="crm-panel faq-import"
@@ -941,20 +1504,12 @@ function cloneJson(value) {
         </template>
       </section>
 
-      <div class="faq-editor-v3__workspace">
+      <div v-if="editorViewMode === 'steps'" class="faq-editor-v3__workspace">
         <aside class="crm-panel faq-tree" aria-labelledby="flow-tree-title">
           <div class="crm-panel-header__copy">
             <h2 id="flow-tree-title">Etapas do fluxo</h2>
-            <p>Escolha o público e depois a etapa que deseja editar.</p>
+            <p>Escolha a etapa que deseja editar.</p>
           </div>
-          <label class="crm-field-label">
-            Árvore para
-            <select v-model="treeAudience" class="crm-field">
-              <option value="student">Aluno</option>
-              <option value="public">Público externo</option>
-              <option value="internal">Operação interna</option>
-            </select>
-          </label>
           <ol class="faq-tree__list">
             <li v-for="node in treeNodes" :key="node.node_id">
               <button
@@ -966,6 +1521,13 @@ function cloneJson(value) {
               >
                 <span>{{ node.display?.title || 'Etapa sem título' }}</span>
                 <small>{{ node.node_kind === 'final' ? 'Resposta final' : 'Etapa' }}</small>
+                <small
+                  v-if="stageIssueCount(node.node_id)"
+                  class="faq-tree__issue-count"
+                  aria-hidden="true"
+                >
+                  {{ stageIssueCount(node.node_id) }} alerta(s)
+                </small>
               </button>
             </li>
           </ol>
@@ -986,376 +1548,76 @@ function cloneJson(value) {
             >
               Adicionar resposta final
             </button>
+            <button
+              type="button"
+              class="crm-button-secondary faq-tree__danger"
+              :disabled="!canEdit || !selectedNode || isRoot(selectedNode.node_id) || childEdges(selectedNode.node_id).length"
+              @click="removeSelectedNode()"
+            >
+              Excluir etapa
+            </button>
           </div>
         </aside>
 
-        <section class="crm-panel faq-node-editor" aria-labelledby="node-editor-title">
-          <template v-if="selectedNode">
-            <div class="faq-node-editor__title">
-              <label class="crm-field-label">
-                Nome da etapa
-                <input
-                  v-model="selectedNode.display.title"
-                  class="crm-field"
-                  :disabled="!canEdit"
-                />
-              </label>
-              <button
-                type="button"
-                class="crm-button-secondary"
-                :disabled="!canEdit || isRoot(selectedNode.node_id)"
-                @click="removeSelectedNode"
-              >
-                Excluir etapa
-              </button>
-            </div>
-
-            <nav class="faq-tabs" aria-label="Camadas da etapa">
-              <button
-                v-for="tab in tabs"
-                :key="tab.key"
-                type="button"
-                class="faq-tabs__button"
-                :class="{ 'is-active': activeTab === tab.key }"
-                :disabled="tab.key === 'document' && selectedNode.node_kind !== 'final'"
-                @click="activeTab = tab.key"
-              >
-                {{ tab.label }}
-              </button>
-            </nav>
-
-            <div v-if="['student', 'public'].includes(activeTab)" class="faq-form-stack">
-              <p>
-                Escreva a orientação que a pessoa verá nesta etapa. Use linguagem direta e indique
-                o próximo passo.
-              </p>
-              <ol class="faq-blocks" aria-label="Blocos da orientação">
-                <li
-                  v-for="(block, index) in contentBlocks(activeTab)"
-                  :key="block.block_id"
-                  class="crm-card-muted faq-block"
-                >
-                  <div class="faq-block__header">
-                    <label v-if="block.type !== 'button'" class="crm-field-label">
-                      Tipo do bloco
-                      <select v-model="block.type" class="crm-field" :disabled="!canEdit">
-                        <option value="text">Texto</option>
-                        <option value="image">Imagem</option>
-                        <option value="link">Link</option>
-                        <option value="video">Vídeo</option>
-                        <option value="notice">Aviso</option>
-                        <option value="button">Botão controlado</option>
-                        <option value="file">Arquivo institucional</option>
-                        <option value="animation">Animação acessível</option>
-                      </select>
-                    </label>
-                    <div class="faq-block__actions">
-                      <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === 0" :aria-label="`Mover bloco ${index + 1} para cima`" @click="moveContentBlock(activeTab, index, -1)">Subir</button>
-                      <button type="button" class="crm-button-secondary" :disabled="!canEdit || index === contentBlocks(activeTab).length - 1" :aria-label="`Mover bloco ${index + 1} para baixo`" @click="moveContentBlock(activeTab, index, 1)">Descer</button>
-                      <button type="button" class="crm-button-secondary" :disabled="!canEdit" :aria-label="`Excluir bloco ${index + 1}`" @click="removeContentBlock(activeTab, index)">Excluir</button>
-                    </div>
-                  </div>
-                  <label v-if="['text', 'notice'].includes(block.type)" class="crm-field-label">
-                    Conteúdo
-                    <textarea v-model="block.body" class="crm-field faq-textarea" :disabled="!canEdit" />
-                  </label>
-                  <template v-else>
-                    <label class="crm-field-label">
-                      Endereço HTTPS
-                      <input v-model="block.url" type="url" class="crm-field" :disabled="!canEdit" />
-                    </label>
-                    <label v-if="['link', 'file'].includes(block.type)" class="crm-field-label">
-                      Texto exibido
-                      <input v-model="block.body" class="crm-field" :disabled="!canEdit" />
-                    </label>
-                    <label v-if="block.type === 'button'" class="crm-field-label">
-                      Ação controlada
-                      <select v-model="block.action_key" class="crm-field" :disabled="!canEdit">
-                        <option value="open_ticket">Abrir atendimento</option>
-                        <option value="go_login">Ir para o portal do aluno</option>
-                      </select>
-                    </label>
-                    <label v-if="block.type === 'button'" class="crm-field-label">
-                      Texto do botão
-                      <input v-model="block.body" class="crm-field" :disabled="!canEdit" />
-                    </label>
-                    <label v-if="['image', 'animation'].includes(block.type)" class="crm-field-label">
-                      Texto alternativo
-                      <input v-model="block.alt" class="crm-field" :disabled="!canEdit" />
-                    </label>
-                    <label v-if="block.type === 'video'" class="crm-field-label">
-                      URL da legenda
-                      <input v-model="block.captions_url" type="url" class="crm-field" :disabled="!canEdit" />
-                    </label>
-                    <label v-if="block.type === 'video'" class="crm-field-label">
-                      Transcrição
-                      <textarea v-model="block.transcript" class="crm-field faq-textarea" :disabled="!canEdit" />
-                    </label>
-                    <label v-if="mediaUploadEnabled && ['image', 'video'].includes(block.type)" class="crm-field-label">
-                      Enviar mídia institucional
-                      <input type="file" :accept="block.type === 'image' ? 'image/png,image/jpeg,image/webp,image/gif' : 'video/mp4,video/webm'" :disabled="!canEdit || assetBusy" @change="uploadBlockAsset(activeTab, block, $event)" />
-                    </label>
-                  </template>
-                </li>
-              </ol>
-              <button type="button" class="crm-button-secondary" :disabled="!canEdit" @click="addContentBlock(activeTab)">
-                Adicionar bloco
-              </button>
-              <label v-if="selectedNode.node_kind === 'final'" class="crm-field-label">
-                Resultado esperado
-                <input
-                  class="crm-field"
-                  :value="selectedNode.content?.[activeTab]?.outcome_key || ''"
-                  :disabled="!canEdit"
-                  placeholder="Ex.: resolveu ou abrir_atendimento"
-                  @input="setOutcome(activeTab, $event.target.value)"
-                />
-              </label>
-            </div>
-
-            <div v-else-if="['op', 'bpo', 'analyst'].includes(activeTab)" class="faq-form-stack">
-              <div v-if="activeTab === 'bpo' && !selectedNode.playbooks?.bpo" class="faq-inheritance">
-                <strong>Herdado do OP</strong>
-                <p>O BPO usa a orientação do OP enquanto não houver uma personalização.</p>
-                <button
-                  type="button"
-                  class="crm-button-secondary"
-                  :disabled="!canEdit"
-                  @click="ensurePlaybook('bpo')"
-                >
-                  Personalizar para BPO
-                </button>
-              </div>
-              <button
-                v-if="activeTab === 'bpo' && selectedNode.playbooks?.bpo"
-                type="button"
-                class="crm-button-secondary"
-                :disabled="!canEdit"
-                @click="useOpPlaybook"
-              >
-                Usar orientação do OP
-              </button>
-              <label class="crm-field-label">
-                Objetivo
-                <textarea
-                  class="crm-field"
-                  :value="effectivePlaybook(activeTab).objective"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookField(activeTab, 'objective', $event.target.value)"
-                />
-              </label>
-              <label class="crm-field-label">
-                Checklist, um item por linha
-                <textarea
-                  class="crm-field faq-textarea"
-                  :value="playbookList(activeTab, 'checklist')"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookList(activeTab, 'checklist', $event.target.value)"
-                />
-              </label>
-              <label class="crm-field-label">
-                Sistemas a consultar, um por linha
-                <textarea
-                  class="crm-field"
-                  :value="playbookList(activeTab, 'systems')"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookList(activeTab, 'systems', $event.target.value)"
-                />
-              </label>
-              <label class="crm-field-label">
-                Documentos a solicitar, um por linha
-                <textarea
-                  class="crm-field"
-                  :value="playbookList(activeTab, 'documents_to_request')"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookList(activeTab, 'documents_to_request', $event.target.value)"
-                />
-              </label>
-              <label class="crm-field-label">
-                Resposta sugerida
-                <textarea
-                  class="crm-field faq-textarea"
-                  :value="effectivePlaybook(activeTab).suggested_reply"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookField(activeTab, 'suggested_reply', $event.target.value)"
-                />
-              </label>
-              <label class="crm-field-label">
-                Ações permitidas, uma por linha
-                <textarea
-                  class="crm-field"
-                  :value="playbookList(activeTab, 'allowed_actions')"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookList(activeTab, 'allowed_actions', $event.target.value)"
-                />
-              </label>
-              <label class="crm-field-label">
-                Quando escalar
-                <textarea
-                  class="crm-field"
-                  :value="effectivePlaybook(activeTab).escalation_criteria"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookField(activeTab, 'escalation_criteria', $event.target.value)"
-                />
-              </label>
-              <label class="crm-field-label">
-                Modelo do motivo do escalonamento
-                <textarea
-                  class="crm-field"
-                  :value="effectivePlaybook(activeTab).escalation_reason_template"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookField(activeTab, 'escalation_reason_template', $event.target.value)"
-                />
-              </label>
-              <label class="crm-field-label">
-                Resultados possíveis, um por linha
-                <textarea
-                  class="crm-field"
-                  :value="playbookList(activeTab, 'possible_outcomes')"
-                  :disabled="!canEdit || (activeTab === 'bpo' && !selectedNode.playbooks?.bpo)"
-                  @input="updatePlaybookList(activeTab, 'possible_outcomes', $event.target.value)"
-                />
-              </label>
-            </div>
-
-            <div v-else-if="activeTab === 'routing'" class="faq-form-stack">
-              <label class="crm-field-label">
-                Caminho operacional
-                <select
-                  v-model="payload.routing_policy.pattern_key"
-                  class="crm-field"
-                  :disabled="!canEdit"
-                >
-                  <option
-                    v-for="pattern in catalogs.routing_patterns"
-                    :key="pattern.pattern_key"
-                    :value="pattern.pattern_key"
-                  >
-                    {{ pattern.label }}
-                  </option>
-                </select>
-              </label>
-              <p>
-                {{ selectedPattern?.steps?.join(' → ') || 'Selecione um caminho.' }}
-                O servidor confirma a fila real ao abrir o protocolo.
-              </p>
-              <label class="crm-field-label">
-                Exceção para esta etapa
-                <select
-                  v-model="selectedNode.operational.routing_override"
-                  class="crm-field"
-                  :disabled="!canEdit"
-                >
-                  <option :value="null">Usar regra do fluxo</option>
-                  <option v-for="key in allowedRoutingKeys" :key="key" :value="key">
-                    {{ key }}
-                  </option>
-                </select>
-              </label>
-            </div>
-
-            <div v-else-if="activeTab === 'document'" class="faq-form-stack">
-              <p>O upload aparece somente nesta resposta final.</p>
-              <label class="crm-field-label">
-                Envio de documento pelo aluno
-                <select
-                  v-model="selectedNode.document_policy.mode"
-                  class="crm-field"
-                  :disabled="!canEdit"
-                >
-                  <option value="disabled">Desabilitado</option>
-                  <option value="optional">Opcional</option>
-                  <option value="required">Obrigatório</option>
-                </select>
-              </label>
-              <fieldset class="crm-card-muted faq-form-stack">
-                <legend>Dados pedidos ao abrir atendimento</legend>
-                <p>Nome, e-mail e celular são sempre pedidos. Marque somente o que esta resposta exige.</p>
-                <label>
-                  <input v-model="selectedNode.intake_policy.requires_cpf" type="checkbox" :disabled="!canEdit" />
-                  Solicitar CPF
-                </label>
-                <label v-if="selectedNode.intake_policy.requires_cpf" class="crm-field-label">
-                  Finalidade objetiva do CPF
-                  <textarea
-                    v-model="selectedNode.intake_policy.cpf_purpose"
-                    class="crm-field faq-textarea"
-                    :disabled="!canEdit"
-                    placeholder="Explique por que este fluxo precisa confirmar o CPF."
-                  />
-                </label>
-                <label>
-                  <input v-model="selectedNode.intake_policy.requires_ra" type="checkbox" :disabled="!canEdit" />
-                  Solicitar RA
-                </label>
-                <label>
-                  <input v-model="selectedNode.intake_policy.requires_course" type="checkbox" :disabled="!canEdit" />
-                  Solicitar curso
-                </label>
-                <label>
-                  <input v-model="selectedNode.intake_policy.requires_polo" type="checkbox" :disabled="!canEdit" />
-                  Solicitar polo
-                </label>
-              </fieldset>
-            </div>
-          </template>
+        <section class="crm-panel faq-node-editor" aria-labelledby="node-editor-heading">
+          <h2 id="node-editor-heading" class="faq-sr-only">Editor da etapa selecionada</h2>
+          <FaqV3NodeEditorPanel />
         </section>
-
-        <aside v-if="previewVisible" class="faq-side-stack">
-          <section class="crm-panel faq-preview" aria-labelledby="preview-title">
-            <h2 id="preview-title" ref="previewHeading" tabindex="-1">Prévia da jornada</h2>
-            <label class="crm-field-label">
-              Ver como
-              <select v-model="previewPersona" class="crm-field">
-                <option v-for="(label, value) in personaLabels" :key="value" :value="value">
-                  {{ label }}
-                </option>
-              </select>
-            </label>
-            <article v-if="previewContent" class="crm-card-muted">
-              <p v-if="previewContent.inherited" class="crm-chip">Herdado do OP</p>
-              <h3>{{ previewContent.title || 'Sem conteúdo' }}</h3>
-              <p>{{ previewContent.body || 'Nenhuma orientação preenchida nesta camada.' }}</p>
-              <ol v-if="previewContent.lines.length">
-                <li v-for="line in previewContent.lines" :key="line">{{ line }}</li>
-              </ol>
-            </article>
-          </section>
-
-          <section class="crm-panel faq-validation" aria-labelledby="validation-title">
-            <h2 id="validation-title">Pronto para aprovação?</h2>
-            <p v-if="!blockers.length" class="faq-ok" role="status">
-              Nenhum bloqueio encontrado.
-            </p>
-            <ul v-else>
-              <li v-for="issue in blockers" :key="issue">{{ issue }}</li>
-            </ul>
-          </section>
-
-          <section class="crm-panel faq-history" aria-labelledby="history-title">
-            <h2 id="history-title">Histórico</h2>
-            <ol>
-              <li v-for="version in versions.slice(0, 6)" :key="version.version_id">
-                <strong>{{ lifecycleLabels[version.lifecycle_state] || version.lifecycle_state }}</strong>
-                <span>{{ formatDate(version.published_at || version.approved_at) }}</span>
-              </li>
-            </ol>
-          </section>
-        </aside>
       </div>
 
-      <section class="crm-panel faq-action-bar" aria-labelledby="next-step-title">
-        <div>
-          <h2 id="next-step-title">Resumo das mudanças</h2>
-          <textarea
-            v-model="changeSummary"
-            class="crm-field"
-            :disabled="!canEdit"
-            placeholder="Explique o que mudou e por quê."
-          />
-          <small>Mínimo de 20 caracteres para enviar à aprovação.</small>
+      <FaqV3MapWorkspace
+        v-else
+        ref="mapWorkspaceRef"
+        :payload="payload"
+        :selected-node-id="selectedNodeId"
+        :node-issues="nodeIssues"
+        :can-edit="canEdit"
+        :drawer-open="mapDrawerOpen"
+        :selected-node="selectedNode"
+        :is-root-node="isRoot"
+        @select-node="handleMapSelectNode"
+        @close-drawer="mapDrawerOpen = false"
+        @add-node="handleMapAddNode"
+        @remove-node="handleMapRemoveNode"
+      />
+
+      <section class="crm-panel faq-action-bar" aria-label="Ações do editor">
+        <div class="faq-action-bar__status">
+          <p v-if="!blockers.length" class="faq-ok" role="status">Nenhum bloqueio encontrado.</p>
+          <p v-else role="status">
+            {{ draftIssues.filter((issue) => issue.severity === 'error').length }}
+            pendência(s) de validação
+          </p>
+          <div class="faq-action-bar__status-actions">
+            <button
+              v-if="draftIssues.length"
+              type="button"
+              class="crm-button-secondary"
+              @click="issuesPanelOpen = true"
+            >
+              Ver pendências
+            </button>
+          </div>
         </div>
         <div class="faq-action-bar__buttons">
+          <button
+            v-if="canPublishDraft"
+            type="button"
+            class="crm-button-primary"
+            :disabled="saving"
+            @click="publishDraftDirect"
+          >
+            Publicar
+          </button>
+          <button
+            v-if="canSubmitReview && isAdmin"
+            type="button"
+            class="crm-button-secondary"
+            :disabled="saving"
+            @click="openSubmitDialog('review')"
+          >
+            Enviar para revisão
+          </button>
           <button
             v-if="canEdit"
             type="button"
@@ -1366,11 +1628,11 @@ function cloneJson(value) {
             Salvar rascunho
           </button>
           <button
-            v-if="canEdit"
+            v-if="canSubmitReview && !isAdmin"
             type="button"
             class="crm-button-primary"
-            :disabled="saving || blockers.length > 0"
-            @click="submitApproval"
+            :disabled="saving"
+            @click="openSubmitDialog('approval')"
           >
             Enviar para aprovação
           </button>
@@ -1383,18 +1645,129 @@ function cloneJson(value) {
           >
             Aprovar conteúdo
           </button>
+        </div>
+      </section>
+
+      <FaqV3JourneySimulator
+        :open="simulatorOpen"
+        :payload="payload"
+        @close="simulatorOpen = false"
+      />
+
+      <FaqV3FlowSettingsPanel
+        :open="settingsOpen"
+        :can-edit="canEdit"
+        :theme-key="payload.theme_key"
+        :pattern-key="payload.routing_policy?.pattern_key || ''"
+        :routing-patterns="catalogs.routing_patterns"
+        :selected-pattern="selectedPattern"
+        :available-student="channelFlags.availableStudent"
+        :available-public="channelFlags.availablePublic"
+        :valid-from="validity.valid_from"
+        :valid-until="validity.valid_until"
+        :themes="catalogs.themes"
+        :owner-email="bundle?.owner_email || ''"
+        @close="settingsOpen = false"
+        @sync-channels="syncChannelSettings"
+        @update:theme-key="payload.theme_key = $event"
+        @update:pattern-key="payload.routing_policy.pattern_key = $event"
+        @update:available-student="channelFlags.availableStudent = $event"
+        @update:available-public="channelFlags.availablePublic = $event"
+        @update:valid-from="validity.valid_from = $event"
+        @update:valid-until="validity.valid_until = $event"
+      />
+
+      <FaqV3SubmitReviewDialog
+        :open="submitDialogOpen"
+        :intent="submitDialogIntent"
+        :blockers="blockers"
+        :change-summary="changeSummary"
+        :saving="saving"
+        @close="submitDialogOpen = false"
+        @confirm="confirmSubmitDialog"
+        @update:change-summary="changeSummary = $event"
+      />
+
+      <FaqV3PlaybookPreviewDialog
+        :open="playbookPreviewOpen"
+        :stage-title="selectedNode?.display?.title || ''"
+        :layers="playbookPreviewLayers"
+        @close="playbookPreviewOpen = false"
+      />
+
+      <FaqV3VersionHistoryDialog
+        :open="historyOpen"
+        :versions="versions"
+        :lifecycle-labels="lifecycleLabels"
+        @close="historyOpen = false"
+      />
+
+      <div
+        v-if="issuesPanelOpen"
+        class="faq-confirm-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="issues-panel-title"
+        @click.self="issuesPanelOpen = false"
+      >
+        <section ref="issuesPanelRef" class="crm-panel faq-confirm-dialog faq-issues-dialog" tabindex="-1">
+          <div class="faq-playbook-preview__header">
+            <h2 id="issues-panel-title">Pendências de validação</h2>
+            <button type="button" class="crm-button-secondary" @click="issuesPanelOpen = false">
+              Fechar
+            </button>
+          </div>
+          <p v-if="!draftIssues.length" class="faq-ok" role="status">Nenhum bloqueio encontrado.</p>
+          <ul v-else class="faq-issues-dialog__list">
+            <li v-for="issue in draftIssues" :key="issue.id">
+              <button
+                type="button"
+                class="faq-issues-dialog__item"
+                :disabled="!issue.nodeId"
+                @click="navigateToIssue(issue)"
+              >
+                {{ issue.message }}
+              </button>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </template>
+
+    <div
+      v-if="publishConfirmOpen"
+      class="faq-confirm-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="publish-confirm-title"
+    >
+      <section ref="publishConfirmPanelRef" class="crm-panel faq-confirm-dialog" tabindex="-1">
+        <h2 id="publish-confirm-title">Confirmar publicação</h2>
+        <ul class="faq-confirm-dialog__details">
+          <li><strong>Canais:</strong> {{ channelLabelText }}</li>
+          <li>
+            <strong>Vigência:</strong>
+            {{ validity.valid_from ? formatDate(validity.valid_from) : 'Imediata' }}
+            até
+            {{ validity.valid_until ? formatDate(validity.valid_until) : 'sem fim definido' }}
+          </li>
+          <li v-if="payload"><strong>Respostas finais:</strong> {{ finalNodeCount }}</li>
+        </ul>
+        <div class="faq-confirm-dialog__actions">
+          <button type="button" class="crm-button-secondary" @click="publishConfirmOpen = false">
+            Cancelar
+          </button>
           <button
-            v-if="canPublish"
             type="button"
             class="crm-button-primary"
             :disabled="saving"
-            @click="publishApproved"
+            @click="confirmPublish"
           >
-            Publicar versão aprovada
+            Confirmar publicação
           </button>
         </div>
       </section>
-    </template>
+    </div>
   </main>
 </template>
 
@@ -1402,20 +1775,180 @@ function cloneJson(value) {
 .faq-editor-v3 {
   display: grid;
   gap: var(--space-4);
+  padding-bottom: calc(var(--faq-action-bar-height, 5.5rem) + var(--space-4));
+}
+
+.faq-editor-v3__header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.faq-editor-v3__header-main,
+.faq-editor-v3__header-toolbar,
+.faq-editor-v3__header-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.faq-editor-v3__header-toolbar {
+  justify-content: flex-start;
+}
+
+.faq-view-mode-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.faq-view-mode-toggle__button.is-active {
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+  font-weight: 700;
+}
+
+.faq-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.faq-editor-v3__dirty {
+  color: var(--color-warning, var(--color-text-muted));
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.faq-menu {
+  position: relative;
+}
+
+.faq-menu__panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 35;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 12rem;
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md, 0 0.5rem 1rem rgba(0, 0, 0, 0.12));
+}
+
+.faq-menu__item {
+  width: 100%;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: start;
+}
+
+.faq-menu__item:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+
+.faq-menu__item--danger {
+  color: var(--color-danger);
 }
 
 .faq-editor-v3__header,
 .faq-editor-v3__header-actions,
+.faq-editor-v3__meta,
 .faq-node-editor__title,
 .faq-governance-strip,
 .faq-action-bar,
 .faq-action-bar__buttons,
-.faq-tree__actions {
+.faq-tree__actions,
+.faq-playbook-preview__header,
+.faq-confirm-dialog__actions,
+.faq-settings__grid {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: end;
   justify-content: space-between;
+}
+
+.faq-editor-v3__meta {
+  margin-top: var(--space-2);
+  align-items: start;
+}
+
+.faq-editor-v3__meta div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.faq-editor-v3__meta dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.faq-editor-v3__meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.faq-settings,
+.faq-playbook-preview,
+.faq-confirm-dialog {
+  padding: var(--space-4);
+}
+
+.faq-settings__channels {
+  display: grid;
+  gap: var(--space-2);
+  border: 0;
+  padding: 0;
+}
+
+.faq-settings__channels label,
+.faq-public-toggle {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.faq-playbook-preview__context {
+  color: var(--color-text-muted);
+}
+
+.faq-playbook-preview article {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.faq-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-text) 35%, transparent);
+}
+
+.faq-confirm-dialog {
+  width: min(100%, 32rem);
+}
+
+.faq-confirm-dialog__details {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-3);
+  padding-left: var(--space-4);
 }
 
 .faq-back-link {
@@ -1506,12 +2039,12 @@ function cloneJson(value) {
 .faq-editor-v3__workspace {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: minmax(14rem, 0.8fr) minmax(24rem, 1.6fr) minmax(16rem, 0.9fr);
+  grid-template-columns: minmax(14rem, 0.85fr) minmax(24rem, 1.75fr);
 }
 
 .faq-tree,
 .faq-node-editor,
-.faq-side-stack {
+.faq-settings {
   min-width: 0;
 }
 
@@ -1541,6 +2074,46 @@ function cloneJson(value) {
 
 .faq-tree__node small {
   color: var(--color-text-muted);
+}
+
+.faq-tree__issue-count {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.faq-tree__danger {
+  color: var(--color-danger);
+}
+
+.faq-tabs__button {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.faq-tabs__state {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.faq-tabs__button.has-issue .faq-tabs__state {
+  color: var(--color-danger);
+}
+
+.faq-advanced-toggle {
+  margin-block: var(--space-2);
+}
+
+.faq-advanced-toggle__meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.faq-empty-tab {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
 }
 
 .faq-tabs {
@@ -1598,9 +2171,9 @@ function cloneJson(value) {
   padding: var(--space-3);
 }
 
-.faq-preview h3,
 .faq-validation h2,
-.faq-history h2 {
+.faq-history h2,
+.faq-playbook-preview h2 {
   margin-bottom: var(--space-2);
 }
 
@@ -1615,29 +2188,69 @@ function cloneJson(value) {
   font-size: var(--font-size-xs);
 }
 
+.faq-action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  margin-top: auto;
+  border-top: 1px solid var(--border-default);
+  background: var(--color-surface);
+  box-shadow: 0 -0.25rem 1rem color-mix(in srgb, var(--color-text) 8%, transparent);
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+}
+
+.faq-action-bar__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  flex: 1 1 16rem;
+}
+
+.faq-action-bar__status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.faq-issues-dialog {
+  width: min(100%, 36rem);
+  max-height: min(100%, 80vh);
+  overflow: auto;
+}
+
+.faq-issues-dialog__list {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.faq-issues-dialog__item {
+  width: 100%;
+  text-align: start;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+}
+
+.faq-issues-dialog__item:not(:disabled):hover {
+  background: var(--color-surface-muted);
+}
+
+.faq-issues-dialog__item:disabled {
+  color: var(--color-text);
+  cursor: default;
+}
+
 .faq-action-bar > div:first-child {
   flex: 1 1 28rem;
 }
 
-@media (max-width: 78rem) {
-  .faq-editor-v3__workspace {
-    grid-template-columns: minmax(14rem, 0.8fr) minmax(24rem, 1.5fr);
-  }
-
-  .faq-side-stack {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 54rem) {
-  .faq-editor-v3__workspace,
-  .faq-side-stack {
+  .faq-editor-v3__workspace {
     grid-template-columns: 1fr;
-  }
-
-  .faq-side-stack {
-    grid-column: auto;
   }
 }
 </style>

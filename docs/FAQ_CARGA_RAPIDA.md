@@ -26,7 +26,7 @@ Vale manter a captura/análise de vídeo fora do CRM. O CRM recebe o resultado e
 4. Aguarde o dry-run e corrija os bloqueios.
 5. Aplique no fluxo aberto.
 6. Revise texto, ordem, ownership, links, imagens, legendas e transcrição.
-7. Salve como rascunho, envie à revisão e publique só após aprovação.
+7. Salve o rascunho. Se for **Admin**, pode **Publicar** diretamente (com resumo, validação e auditoria). Se for Analista, envie à revisão; Gestor aprova; Admin publica.
 8. Confirme no portal do aluno e, quando aplicável, no playbook do OP.
 
 A importação é tudo-ou-nada e substitui o rascunho do fluxo aberto.
