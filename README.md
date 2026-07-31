@@ -1,3 +1,4 @@
+> **Candidato acadêmico UNIVESP:** este branch/worktree contém `univesp-frontend`, `sso-gateway`, `univesp_atendimento_app` e o front door de homologação. O README upstream abaixo é preservado como referência do Frappe CRM; o domínio acadêmico bloqueia CRM/Desk/APIs Frappe genéricas e expõe somente o portal e `/api/app/v1` via gateway.
 <div align="center" markdown="1">
 
 <a href="https://frappe.io/products/crm">

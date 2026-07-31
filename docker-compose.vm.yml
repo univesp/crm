@@ -1,0 +1,63 @@
+# Stack VM interim — homolog-crm.univesp.br
+# Frappe/Helpdesk roda no bench da VM (porta 8000) ou em servico externo.
+# Este compose sobe BFF, frontend e Redis; aponte FRAPPE_ORIGIN para o bench local.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  sso-gateway:
+    build:
+      context: ./sso-gateway
+    restart: unless-stopped
+    env_file:
+      - .env.vm
+    environment:
+      PORT: '8080'
+      HOST: '0.0.0.0'
+      NODE_ENV: production
+      GATEWAY_REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    expose:
+      - '8080'
+
+  web:
+    build:
+      context: ./univesp-frontend
+    restart: unless-stopped
+    ports:
+      - '${VM_HTTP_PORT:-8080}:8080'
+    environment:
+      SSO_GATEWAY_ORIGIN: http://sso-gateway:8080
+      FRAPPE_WEB_ORIGIN: ${FRAPPE_ORIGIN:-http://host.docker.internal:8000}
+      FRAPPE_SOCKETIO_ORIGIN: ${FRAPPE_SOCKETIO_ORIGIN:-http://host.docker.internal:9000}
+    depends_on:
+      - sso-gateway
+
+  knowledge-studio:
+    build:
+      context: .
+      dockerfile: tools/knowledge-studio/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${KNOWLEDGE_STUDIO_PORT:-8090}:8090'
+    environment:
+      PORT: '8090'
+      DATA_DIR: /data
+      STUDIO_PIN: ${KNOWLEDGE_STUDIO_PIN:-}
+    volumes:
+      - knowledge_studio_data:/data
+
+volumes:
+  redis_data:
+  knowledge_studio_data:

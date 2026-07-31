@@ -1,0 +1,41 @@
+{
+  "schema": "procedure-capture-v1",
+  "procedure_id": "recuperar-senha-ava",
+  "title": "Recuperar senha do AVA",
+  "summary": "Procedimento demonstrativo para revisão editorial.",
+  "owner": {
+    "type": "queue",
+    "id": "sra"
+  },
+  "checksum": "substitua-pelo-sha256-da-captura",
+  "steps": [
+    {
+      "order": 1,
+      "title": "Abra a recuperação de senha",
+      "instruction": "Acesse o portal e selecione Esqueci minha senha.",
+      "notes": "Não grave credenciais ou dados pessoais.",
+      "media": [
+        {
+          "type": "video",
+          "source_url": "https://conteudo.univesp.br/faq/ava/recuperacao.mp4",
+          "caption": "Demonstração completa",
+          "transcript": "Abra o portal. Selecione Esqueci minha senha."
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Confirme o e-mail",
+      "instruction": "Use o e-mail institucional e conclua a validação.",
+      "expected_result": "Mensagem de confirmação exibida."
+    }
+  ],
+  "sources": [
+    {
+      "type": "image",
+      "source_url": "https://conteudo.univesp.br/faq/ava/confirmacao.png",
+      "alt": "Mensagem de confirmação enviada ao e-mail institucional",
+      "caption": "Confirmação"
+    }
+  ]
+}

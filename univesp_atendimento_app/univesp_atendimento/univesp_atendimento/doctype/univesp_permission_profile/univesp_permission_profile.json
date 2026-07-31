@@ -1,0 +1,84 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Permission Profile",
+  "module": "Univesp Atendimento",
+  "autoname": "field:profile_key",
+  "title_field": "label",
+  "track_changes": 1,
+  "field_order": [
+    "profile_key",
+    "label",
+    "base_persona",
+    "scope_type",
+    "capabilities_json",
+    "active",
+    "system_profile",
+    "external_id"
+  ],
+  "fields": [
+    {
+      "fieldname": "profile_key",
+      "fieldtype": "Data",
+      "label": "Identificador",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "label",
+      "fieldtype": "Data",
+      "label": "Nome",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "base_persona",
+      "fieldtype": "Select",
+      "label": "Perfil base",
+      "reqd": 1,
+      "options": "aluno\nop\nop_externo\ngestor_polos\nanalista_area\ngestor_area\nadmin_central"
+    },
+    {
+      "fieldname": "scope_type",
+      "fieldtype": "Select",
+      "label": "Tipo de escopo",
+      "options": "\nqueues\npolos\nareas\nregional_pools"
+    },
+    {
+      "fieldname": "capabilities_json",
+      "fieldtype": "Code",
+      "label": "Capacidades JSON",
+      "options": "JSON",
+      "default": "[]",
+      "reqd": 1
+    },
+    {
+      "fieldname": "active",
+      "fieldtype": "Check",
+      "label": "Ativo",
+      "default": "1",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "system_profile",
+      "fieldtype": "Check",
+      "label": "Perfil do sistema",
+      "default": "0",
+      "read_only": 1
+    },
+    {
+      "fieldname": "external_id",
+      "fieldtype": "Data",
+      "label": "Identificador externo"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "report": 1
+    }
+  ]
+}

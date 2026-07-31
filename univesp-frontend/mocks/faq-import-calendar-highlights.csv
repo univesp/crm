@@ -1,0 +1,6 @@
+highlight_id,faq_id,target_type,target_id,prioridade_dinamica,janela_inicio,janela_fim,regra_de_calendario,destaque_home,ordem_dinamica,badge_label,ativo
+faq-aluno-highlight-001,faq-aluno,tema,matricula,90,2026-01-05,2026-03-31,periodo_matricula_rematricula,true,1,Periodo de matricula,true
+faq-aluno-highlight-002,faq-aluno,tema,provas,95,2026-04-20,2026-05-31,periodo_provas,true,1,Provas em andamento,true
+faq-aluno-highlight-003,faq-aluno,tema,atividades_avaliativas,88,2026-04-01,2026-04-30,periodo_entrega_atividades,true,2,Entrega de atividades,true
+faq-aluno-highlight-004,faq-aluno,tema,estagio,72,2026-02-10,2026-04-15,periodo_documentacao_estagio,true,3,Documentacao ativa,true
+faq-aluno-highlight-005,faq-aluno,tema,colacao,84,2026-06-01,2026-07-15,periodo_colacao,true,2,Periodo de colacao,true

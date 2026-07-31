@@ -1,0 +1,36 @@
+{
+  "schema_version": "2.0.0",
+  "faq_id": "acesso-ava-seed",
+  "tipo_faq": "aluno",
+  "metadata": {
+    "title": "Acesso ao AVA",
+    "defaultOwnerType": "queue",
+    "defaultOwnerId": "atendimento-geral"
+  },
+  "versioning": { "publication_status": "draft" },
+  "nodes": [
+    {
+      "id": "acesso-ava-root",
+      "node_kind": "path",
+      "titulo_exibido": "Acesso ao AVA"
+    },
+    {
+      "id": "acesso-ava-recuperar",
+      "node_kind": "final",
+      "titulo_exibido": "Como recuperar o acesso?",
+      "resposta": "Use Esqueci minha senha no portal do aluno com o e-mail institucional. Se nao receber o link, abra um protocolo.",
+      "acao": "abrir_atendimento",
+      "fila_destino": "atendimento-geral"
+    }
+  ],
+  "links": [
+    {
+      "link_id": "acesso-ava-link-1",
+      "parent_node_id": "acesso-ava-root",
+      "child_node_id": "acesso-ava-recuperar",
+      "ordem": 1,
+      "ativo": true
+    }
+  ],
+  "calendar_highlights": []
+}

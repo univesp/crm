@@ -1,0 +1,36 @@
+{
+  "schema_version": "2.0.0",
+  "faq_id": "faq-publico-seed",
+  "tipo_faq": "publico",
+  "metadata": {
+    "title": "Atendimento publico UNIVESP",
+    "defaultOwnerType": "queue",
+    "defaultOwnerId": "atendimento-geral"
+  },
+  "versioning": { "publication_status": "published" },
+  "nodes": [
+    {
+      "id": "publico-root",
+      "node_kind": "path",
+      "titulo_exibido": "Sou candidato, ex-aluno ou visitante"
+    },
+    {
+      "id": "publico-ingresso",
+      "node_kind": "final",
+      "titulo_exibido": "Como ingressar na UNIVESP?",
+      "resposta": "Consulte o processo seletivo vigente no site institucional. Se precisar de orientacao personalizada, abra um protocolo.",
+      "acao": "abrir_atendimento"
+    },
+    {
+      "id": "publico-documentos",
+      "node_kind": "final",
+      "titulo_exibido": "Preciso de documentos ou certidoes",
+      "resposta": "Descreva qual documento precisa e anexe comprovantes se houver. Um atendente retornara pelo e-mail informado.",
+      "acao": "abrir_atendimento"
+    }
+  ],
+  "links": [
+    { "id": "l1", "source": "publico-root", "target": "publico-ingresso" },
+    { "id": "l2", "source": "publico-root", "target": "publico-documentos" }
+  ]
+}
