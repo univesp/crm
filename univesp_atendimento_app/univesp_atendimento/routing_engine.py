@@ -95,7 +95,9 @@ def resolve_route(
 			raise RoutingResolutionError("Excecao institucional sem fila valida.")
 		applied.append("institutional_exception")
 	else:
-		owner = metadata.get("operational_owner") if isinstance(metadata.get("operational_owner"), dict) else {}
+		owner = (
+			metadata.get("operational_owner") if isinstance(metadata.get("operational_owner"), dict) else {}
+		)
 		policy = bundle_payload.get("routing_policy") or {}
 		policy_candidates = (
 			node_operational.get("routing_override"),
@@ -157,7 +159,11 @@ def validate_final_node_operational(
 	routing_chain = _routing_chain(node_operational.get("routing_chain"))
 	default_steps = [_text(step) for step in (pattern_steps or []) if _text(step)]
 	if not default_steps:
-		policy = bundle_payload.get("routing_policy") if isinstance(bundle_payload.get("routing_policy"), dict) else {}
+		policy = (
+			bundle_payload.get("routing_policy")
+			if isinstance(bundle_payload.get("routing_policy"), dict)
+			else {}
+		)
 		default_steps = [_text(step) for step in (policy.get("steps") or []) if _text(step)]
 	effective_steps = routing_chain or default_steps
 	if "area" not in effective_steps:

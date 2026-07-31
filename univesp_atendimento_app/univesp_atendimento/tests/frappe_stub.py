@@ -49,7 +49,7 @@ def whitelist(*_args, **_kwargs):
 def parse_json(value, fallback=None):
 	if isinstance(value, (dict, list)):
 		return value
-	if value in (None, ''):
+	if value in (None, ""):
 		return fallback if fallback is not None else value
 	try:
 		return json.loads(value)
@@ -120,7 +120,7 @@ def _now_datetime():
 def _get_datetime(value):
 	if isinstance(value, datetime):
 		return value
-	return datetime.fromisoformat(str(value).replace('Z', '+00:00')[:19])
+	return datetime.fromisoformat(str(value).replace("Z", "+00:00")[:19])
 
 
 def _add_days(date, days):
@@ -136,20 +136,20 @@ utils = types.SimpleNamespace(
 )
 
 file_manager = types.SimpleNamespace(
-	save_file=MagicMock(return_value=SimpleNamespace(name='stub-file')),
-	get_file=MagicMock(return_value=('stub-file.pdf', b'stub-content')),
+	save_file=MagicMock(return_value=SimpleNamespace(name="stub-file")),
+	get_file=MagicMock(return_value=("stub-file.pdf", b"stub-content")),
 )
 
-model = types.ModuleType('frappe.model')
+model = types.ModuleType("frappe.model")
 model.document = types.SimpleNamespace(Document=Document)
 
-tests = types.ModuleType('frappe.tests')
+tests = types.ModuleType("frappe.tests")
 
 
 class IntegrationTestCase(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
-		raise unittest.SkipTest('Integração Frappe indisponível neste ambiente (use bench).')
+		raise unittest.SkipTest("Integração Frappe indisponível neste ambiente (use bench).")
 
 
 tests.IntegrationTestCase = IntegrationTestCase

@@ -313,7 +313,10 @@ class TestKnowledgeV3Lifecycle(IntegrationTestCase):
 				"audiences": ["student", "public"],
 				"presentation": {"public_content_mode": "inherit_student"},
 				"content": {
-					"student": {"blocks": [{"block_id": "ok", "type": "text", "body": "Ok"}], "outcome_key": "resolved"},
+					"student": {
+						"blocks": [{"block_id": "ok", "type": "text", "body": "Ok"}],
+						"outcome_key": "resolved",
+					},
 					"public": None,
 				},
 				"playbooks": {"op": {"objective": "Resolver"}, "bpo": None, "analyst": None},

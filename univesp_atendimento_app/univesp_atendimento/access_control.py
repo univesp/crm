@@ -159,7 +159,9 @@ def normalize_scopes(profile_key: str, value):
 			if values is None:
 				continue
 			if not isinstance(values, list):
-				raise frappe.ValidationError(_("O perfil exige uma lista de escopos em {0}.").format(scope_key))
+				raise frappe.ValidationError(
+					_("O perfil exige uma lista de escopos em {0}.").format(scope_key)
+				)
 			normalized = list(
 				dict.fromkeys(str(item or "").strip() for item in values if str(item or "").strip())
 			)

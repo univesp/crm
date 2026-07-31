@@ -119,7 +119,9 @@ class TestKnowledgeGraph(TestCase):
 					"presentation": {"public_content_mode": "inherit_student"},
 					"display": {"title": "Início"},
 					"content": {
-						"student": {"blocks": [{"block_id": "b1", "type": "text", "body": "Orientação aluno"}]},
+						"student": {
+							"blocks": [{"block_id": "b1", "type": "text", "body": "Orientação aluno"}]
+						},
 						"public": None,
 					},
 					"playbooks": {"op": None, "bpo": None, "analyst": None},

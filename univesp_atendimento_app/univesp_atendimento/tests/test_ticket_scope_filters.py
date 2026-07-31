@@ -30,9 +30,7 @@ class TestTicketScopeFilters(TestCase):
 		)
 
 	def test_analista_area_intersection_adds_multiple_filters(self):
-		filters = ticket_scope_filters(
-			_context("analista_area", {"areas": ["SRA"], "polos": ["guarulhos"]})
-		)
+		filters = ticket_scope_filters(_context("analista_area", {"areas": ["SRA"], "polos": ["guarulhos"]}))
 		self.assertEqual(
 			filters,
 			[

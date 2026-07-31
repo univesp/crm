@@ -102,7 +102,9 @@ def resolve_ticket_due_at(*, sla_key: str, start_at=None):
 
 	parameters = load_runtime_parameters()
 	sla_level = find_sla_level(parameters.get("slaLevels") or [], sla_key)
-	calendar = parameters.get("businessCalendar") if isinstance(parameters.get("businessCalendar"), dict) else {}
+	calendar = (
+		parameters.get("businessCalendar") if isinstance(parameters.get("businessCalendar"), dict) else {}
+	)
 	start = start_at or now_datetime()
 	due = resolve_due_at(sla_level, start, calendar)
 	return due
