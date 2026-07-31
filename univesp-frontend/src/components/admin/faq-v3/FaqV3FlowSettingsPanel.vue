@@ -7,6 +7,9 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   canEdit: { type: Boolean, default: false },
   themeKey: { type: String, default: '' },
+  patternKey: { type: String, default: '' },
+  routingPatterns: { type: Array, default: () => [] },
+  selectedPattern: { type: Object, default: null },
   availableStudent: { type: Boolean, default: true },
   availablePublic: { type: Boolean, default: false },
   validFrom: { type: String, default: '' },
@@ -19,6 +22,7 @@ const emit = defineEmits([
   'close',
   'sync-channels',
   'update:themeKey',
+  'update:patternKey',
   'update:availableStudent',
   'update:availablePublic',
   'update:validFrom',
@@ -80,6 +84,28 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
             Atendimento público
           </label>
         </fieldset>
+        <label class="crm-field-label">
+          Caminho operacional do fluxo
+          <select
+            id="faq-field-pattern-key"
+            class="crm-field"
+            :value="patternKey"
+            :disabled="!canEdit"
+            @change="$emit('update:patternKey', $event.target.value)"
+          >
+            <option
+              v-for="pattern in routingPatterns"
+              :key="pattern.pattern_key"
+              :value="pattern.pattern_key"
+            >
+              {{ pattern.label }}
+            </option>
+          </select>
+        </label>
+        <p class="faq-settings__hint">
+          {{ selectedPattern?.steps?.join(' → ') || 'Selecione um caminho operacional.' }}
+          Esta escolha vale para todo o fluxo.
+        </p>
         <label class="crm-field-label">
           Tema
           <select

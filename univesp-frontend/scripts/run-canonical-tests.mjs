@@ -2110,6 +2110,32 @@ test('biblioteca de FAQs renderiza a tarefa principal sem termos tecnicos', asyn
   assert.ok(!html.includes('canvas'))
 })
 
+const businessCalendar = await loadModule('/src/services/businessCalendar.js')
+
+test('businessCalendar ignora fim de semana ao somar dias uteis', () => {
+  const calendar = {
+    weeklyOff: [0, 6],
+    entries: [
+      { date: '2026-01-01', type: 'holiday', label: 'Ano novo' },
+      { date: '2026-01-02', type: 'bridge', label: 'Ponte' },
+    ],
+  }
+  const due = businessCalendar.addBusinessDays(new Date('2025-12-31T09:00:00'), 1, calendar)
+  assert.equal(due.toISOString().slice(0, 10), '2026-01-05')
+})
+
+test('businessCalendar resolve prazo curto em horas e longo em dias uteis', () => {
+  const calendar = { weeklyOff: [0, 6], entries: [] }
+  const shortDue = businessCalendar.resolveDueAt({ hours: 4 }, new Date('2026-01-05T10:00:00'))
+  assert.equal(shortDue.toISOString(), new Date('2026-01-05T14:00:00').toISOString())
+  const longDue = businessCalendar.resolveDueAt(
+    { businessDays: 2 },
+    new Date('2026-01-05T10:00:00'),
+    calendar,
+  )
+  assert.equal(longDue.toISOString().slice(0, 10), '2026-01-07')
+})
+
 let failures = 0
 
 try {

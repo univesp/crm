@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { mockAdminGrants } from './helpers/faq-v3-visual-helpers.js'
+
 const catalogs = {
   themes: [
     {
@@ -77,10 +79,10 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
   await page.getByRole('button', { name: 'Orientação', exact: true }).click()
   await page.getByLabel('Conteúdo', { exact: true }).fill('Recupere sua senha pelo portal do aluno.')
-  await page.getByRole('button', { name: 'Adicionar bloco' }).click()
-  await page.getByLabel('Tipo do bloco').last().selectOption('notice')
+  await page.getByRole('button', { name: 'Mais tipos' }).click()
+  await page.getByRole('menuitem', { name: 'Aviso' }).click()
   await page.getByLabel('Conteúdo', { exact: true }).last().fill('Nunca compartilhe sua senha.')
-  await page.getByRole('button', { name: 'Mover bloco 2 para cima' }).click()
+  await page.getByRole('button', { name: 'Mover item 2 para cima' }).click()
 
   await page.getByRole('button', { name: 'Mostrar opções avançadas' }).click()
   await page.getByRole('button', { name: 'OP', exact: true }).click()
@@ -202,11 +204,13 @@ test('mapa do fluxo seleciona a etapa e a simulação percorre a jornada', async
   await mockKnowledgeV3(page, { payload })
   await page.goto('/crm/admin/faq-editor/acesso-ava')
 
-  await page.getByRole('button', { name: 'Ver mapa' }).click()
-  const mapDialog = page.getByRole('dialog', { name: 'Mapa do fluxo' })
-  await expect(mapDialog.getByRole('heading', { name: 'Mapa do fluxo' })).toBeVisible()
-  await mapDialog.getByRole('button', { name: /Etapa:|Resposta final:/ }).first().click()
+  await page.getByRole('button', { name: 'Mapa', exact: true }).click()
+  const mapSection = page.locator('.faq-v3-map-workspace')
+  await expect(mapSection.getByRole('heading', { name: 'Mapa do fluxo' })).toBeVisible()
+  await mapSection.locator('.faq-v3-flow-node').first().click()
   await expect(page.getByLabel('Nome da etapa')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Fechar painel' })).toBeVisible()
+  await page.getByRole('button', { name: 'Fechar painel' }).click()
 
   await page.getByRole('button', { name: 'Simular jornada' }).click()
   const simulator = page.getByRole('dialog', { name: 'Simular jornada' })
@@ -255,7 +259,8 @@ test('editor envia mídia institucional e preserva o asset no rascunho', async (
   await page.goto('/crm/admin/faq-editor/acesso-ava')
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
   await page.getByRole('button', { name: 'Orientação', exact: true }).click()
-  await page.getByLabel('Tipo do bloco').selectOption('image')
+  await page.getByRole('button', { name: 'Excluir item 1' }).click()
+  await page.getByRole('button', { name: '+ Imagem' }).click()
   await page.getByLabel('Texto alternativo').fill('Tela de recuperação de acesso')
   await page.getByLabel('Enviar mídia institucional').setInputFiles({
     name: 'acesso.png',
@@ -273,6 +278,55 @@ test('editor envia mídia institucional e preserva o asset no rascunho', async (
     url: 'https://cdn.univesp.br/faq/acesso.png',
     alt: 'Tela de recuperação de acesso',
   })
+})
+
+test('barra de adição de conteúdo e simulador renderizam tipos avançados', async ({ page }) => {
+  const payload = flowPayload('acesso-ava')
+  payload.metadata.audience_profile = 'mixed'
+  const finalNode = payload.nodes.find((node) => node.node_id === 'final')
+  finalNode.content.student.blocks = [
+    {
+      block_id: 'img-1',
+      type: 'image',
+      url: 'https://cdn.univesp.br/faq/acesso.png',
+      alt: 'Tela de login',
+    },
+    {
+      block_id: 'video-1',
+      type: 'video',
+      url: 'https://cdn.univesp.br/faq/tutorial.mp4',
+      captions_url: 'https://cdn.univesp.br/faq/tutorial.vtt',
+      transcript: 'Passo a passo de recuperação.',
+    },
+  ]
+  await mockKnowledgeV3(page, { payload })
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+
+  await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
+  await page.getByRole('button', { name: 'Orientação', exact: true }).click()
+
+  await expect(page.getByRole('group', { name: 'Adicionar conteúdo' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Texto' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Link' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Imagem' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Vídeo' })).toBeVisible()
+  await expect(page.getByText('Imagem', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Vídeo', { exact: true }).first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Público externo', exact: true }).click()
+  await page.getByText('Personalizar texto para o público externo', { exact: true }).click()
+  await page.getByRole('button', { name: '+ Vídeo' }).click()
+  await expect(page.getByLabel('Endereço HTTPS').last()).toBeVisible()
+  await expect(page.getByLabel('URL da legenda').last()).toBeVisible()
+  await expect(page.getByLabel('Transcrição').last()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Simular jornada' }).click()
+  const simulator = page.getByRole('dialog', { name: 'Simular jornada' })
+  await simulator.getByRole('button', { name: /Resposta final|Continuar/i }).first().click()
+  await expect(simulator.locator('img[alt="Tela de login"]')).toBeVisible()
+  await expect(simulator.locator('video')).toBeVisible()
+  await expect(simulator.getByText('Passo a passo de recuperação.')).toBeVisible()
+  await simulator.getByRole('button', { name: 'Fechar' }).click()
 })
 
 test('importação v3 mostra diff e preserva etapa ausente após decisão explícita', async ({ page }) => {
@@ -340,41 +394,16 @@ test('Admin concede sugestão a OP com tema e validade explícitos', async ({ pa
   const payload = flowPayload('acesso-ava')
   let grantPayload = null
   await mockKnowledgeV3(page, { payload })
-  await page.route('**/api/app/v1/admin/**', async (route) => {
-    const request = route.request()
-    const path = new URL(request.url()).pathname
-    if (path.endsWith('/users')) {
-      return fulfill(route, [
-        {
-          email: 'op.guara@univesp.br',
-          display_name: 'OP Guarulhos',
-          profile_key: 'op',
-        },
-      ])
-    }
-    if (path.endsWith('/access-groups')) return fulfill(route, [])
-    if (path.endsWith('/permission-profiles')) {
-      return fulfill(route, [
-        {
-          id: 'faq-contributor-op',
-          label: 'OP que sugere melhorias',
-          base_persona: 'op',
-          capabilities: ['suggest_knowledge'],
-        },
-      ])
-    }
-    if (path.endsWith('/profile-assignments') && request.method() === 'GET') {
-      return fulfill(route, [])
-    }
-    if (path.endsWith('/profile-assignments') && request.method() === 'POST') {
-      grantPayload = request.postDataJSON()
-      return fulfill(route, { id: 'grant-1' })
-    }
-    return route.fallback()
+  await mockAdminGrants(page, {
+    onGrantPost(value) {
+      grantPayload = value
+    },
   })
 
-  await page.goto('/crm/admin/faq')
-  await page.getByText('Quem pode sugerir melhorias').click()
+  await page.goto('/crm/admin/permissoes?tab=knowledge&context=faq-suggestions')
+  await expect(page.getByRole('heading', { name: 'Conhecimento e FAQ' })).toBeVisible()
+  await expect(page.getByText('Carregando permissões…')).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Conceder permissão' })).toBeVisible()
   await page.getByLabel('Pessoa ou grupo').selectOption('op.guara@univesp.br')
   await page.getByRole('checkbox', { name: 'Acesso ao AVA' }).check()
   await page.getByLabel('Válido até').fill('2026-12-31T23:59')

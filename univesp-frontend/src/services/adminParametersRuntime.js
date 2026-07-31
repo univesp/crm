@@ -48,7 +48,8 @@ function buildDefaultSlaLevels() {
     backgroundColor: '#e8f2fb',
     textColor: '#005f99',
     operationalPriority: index + 1,
-    hours: SLA_CATALOG[key].hours,
+    hours: SLA_CATALOG[key].hours ?? null,
+    businessDays: SLA_CATALOG[key].businessDays ?? null,
     note: '',
   }))
 }
@@ -176,12 +177,20 @@ function selectHighestCriticalityKey(keys, levelsByKey, fallbackKey) {
   )
 }
 
+function slaDurationScore(level) {
+  if (Number.isFinite(Number(level?.hours)) && Number(level.hours) > 0) {
+    return Number(level.hours)
+  }
+  if (Number.isFinite(Number(level?.businessDays)) && Number(level.businessDays) > 0) {
+    return Number(level.businessDays) * 8
+  }
+  return Number(level?.operationalPriority || 0) * 1000
+}
+
 function selectShortestSlaKey(keys, levelsByKey, fallbackKey) {
   return (
     [...keys].sort(
-      (left, right) =>
-        (levelsByKey[right]?.operationalPriority || 0) -
-        (levelsByKey[left]?.operationalPriority || 0),
+      (left, right) => slaDurationScore(levelsByKey[left]) - slaDurationScore(levelsByKey[right]),
     )[0] || fallbackKey
   )
 }
@@ -210,7 +219,7 @@ function buildCaseImpact(caseEntry, rules, criticalityByKey, slaByKey) {
   const highPriorityThreshold = criticalityByKey.alta?.operationalPriority || 3
   const becomesHighCriticality =
     projectedCriticality.operationalPriority >= highPriorityThreshold
-  const getsShorterSla = projectedSla.hours < baselineSla.hours
+  const getsShorterSla = slaDurationScore(projectedSla) < slaDurationScore(baselineSla)
 
   return {
     ...caseEntry,

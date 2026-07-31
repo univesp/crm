@@ -6,10 +6,14 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  criticidade: {
+    type: String,
+    default: '',
+  },
 })
 
 const toneClass = computed(() => {
-  const priority = props.priority.toLowerCase()
+  const priority = (props.criticidade || props.priority).toLowerCase()
 
   if (priority.includes('crit')) {
     return 'badge-criticality-high'
@@ -33,6 +37,6 @@ const toneClass = computed(() => {
 
 <template>
   <span :class="['badge-base', toneClass]">
-    {{ priority }}
+    {{ criticidade || priority }}
   </span>
 </template>

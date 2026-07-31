@@ -51,6 +51,21 @@ class TestAdminAccess(IntegrationTestCase):
 			{"areas": ["SRA"], "knowledge_themes": ["acesso-ava"]},
 		)
 
+	def test_multi_dimensional_scope_preserves_intersection_inputs(self):
+		self.assertEqual(
+			normalize_scopes(
+				"analista_area",
+				{"areas": ["SRA"], "polos": ["guarulhos", "campinas"]},
+			),
+			{"areas": ["SRA"], "polos": ["guarulhos", "campinas"]},
+		)
+
+	def test_bpo_profile_accepts_any_declared_dimension(self):
+		self.assertEqual(
+			normalize_scopes("op_externo", {"areas": ["SRA"]}),
+			{"areas": ["SRA"]},
+		)
+
 	@patch("univesp_atendimento.api.v1.admin.get_request_context")
 	def test_create_user_writes_audit_without_secrets(self, context_mock):
 		context_mock.return_value = self.context

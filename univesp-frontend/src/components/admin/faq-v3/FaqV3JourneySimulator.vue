@@ -50,11 +50,20 @@ const currentContent = computed(() =>
 )
 
 const contentBlocks = computed(() =>
-  (currentContent.value?.blocks || []).filter((block) => {
-    if (['text', 'notice'].includes(block?.type)) return Boolean(block.body?.trim())
-    return Boolean(block?.url?.trim() || block?.body?.trim())
-  }),
+  (currentContent.value?.blocks || []).filter(blockHasDisplayContent),
 )
+
+function blockHasDisplayContent(block) {
+  if (['text', 'notice'].includes(block?.type)) return Boolean(block.body?.trim())
+  if (block?.type === 'button') return Boolean(block.body?.trim() && block.action_key)
+  return Boolean(block?.url?.trim() || block?.asset_id || block?.body?.trim())
+}
+
+function buttonActionLabel(actionKey) {
+  if (actionKey === 'go_login') return 'Ir para o portal do aluno'
+  if (actionKey === 'open_ticket') return 'Abrir atendimento'
+  return actionKey || 'Ação'
+}
 
 const childChoices = computed(() => {
   if (!currentNode.value || currentNode.value.node_kind === 'final') return []
@@ -182,7 +191,34 @@ useDialogA11y(toRef(props, 'open'), panelRef, close)
                 {{ block.body || block.url }}
               </a>
             </p>
-            <p v-else>{{ block.body || block.url }}</p>
+            <figure v-else-if="block.type === 'image' || block.type === 'animation'">
+              <img
+                :src="block.url"
+                :alt="block.alt || block.body || 'Imagem da orientação'"
+              />
+            </figure>
+            <div v-else-if="block.type === 'video'">
+              <video controls :src="block.url">
+                <track
+                  v-if="block.captions_url"
+                  kind="captions"
+                  :src="block.captions_url"
+                  srclang="pt-BR"
+                  label="Legendas"
+                />
+              </video>
+              <p v-if="block.transcript">{{ block.transcript }}</p>
+            </div>
+            <p v-else-if="block.type === 'button'">
+              <button type="button" class="crm-button-secondary" disabled>
+                {{ block.body }} ({{ buttonActionLabel(block.action_key) }})
+              </button>
+            </p>
+            <p v-else-if="block.type === 'file'">
+              <a :href="block.url" target="_blank" rel="noopener noreferrer" download>
+                {{ block.body || 'Baixar arquivo' }}
+              </a>
+            </p>
           </template>
         </div>
         <p v-else class="faq-v3-simulator__empty">Nenhuma orientação preenchida nesta etapa.</p>
@@ -291,5 +327,11 @@ useDialogA11y(toRef(props, 'open'), panelRef, close)
 
 .faq-v3-simulator__choices {
   justify-content: flex-start;
+}
+
+.faq-v3-simulator__blocks img,
+.faq-v3-simulator__blocks video {
+  max-width: 100%;
+  height: auto;
 }
 </style>

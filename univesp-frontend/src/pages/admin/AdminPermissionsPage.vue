@@ -1,11 +1,16 @@
 ﻿<script setup>
 import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+import FaqKnowledgeGrantsPanel from '@/components/admin/faq-v3/FaqKnowledgeGrantsPanel.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import { useFaqKnowledgeGrants } from '@/composables/useFaqKnowledgeGrants'
 import {
   approveAccessRequest,
   getAdminCatalogs,
   getAdminUser,
+  getKnowledgeV3Catalogs,
   isMockRuntimeEnabled,
   listAccessRequests,
   listAdminUsers,
@@ -19,9 +24,30 @@ import {
   cloneAdminPermissionsDraft,
   findPermissionEntry,
 } from '@/services/adminPermissionsRuntime'
+import { KNOWLEDGE_ACTION_CATALOG } from '@/services/knowledgePermissionsRuntime'
 import { useStudentSupportStore } from '@/stores/studentSupport'
 
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+const {
+  loading: grantsLoading,
+  saving: grantsSaving,
+  errorMessage: grantsErrorMessage,
+  successMessage: grantsSuccessMessage,
+  grantForm,
+  grantSubjects,
+  eligibleGrantProfiles,
+  contributorAssignments,
+  loadGrantCatalogs,
+  onGrantSubjectChange,
+  grantSuggestionAccess,
+  revokeSuggestionAccess,
+  prefillTheme,
+} = useFaqKnowledgeGrants()
+const knowledgeThemes = ref([])
+const knowledgeThemeFilter = ref('')
+const knowledgeActionCatalog = Object.values(KNOWLEDGE_ACTION_CATALOG)
 const studentSupportStore = useStudentSupportStore()
 const liveUsers = ref([])
 const liveAccessRequests = ref([])
@@ -36,8 +62,80 @@ const livePanel = reactive({
   userReason: '',
   approvalProfile: '',
   approvalQueues: [],
+  approvalScopes: {
+    queues: [],
+    polos: [],
+    areas: [],
+    regional_pools: [],
+  },
   approvalReason: '',
 })
+
+const SCOPE_DIMENSION_LABELS = {
+  queues: 'Filas',
+  polos: 'Polos',
+  areas: 'Areas',
+  regional_pools: 'Regioes',
+}
+
+const selectedApprovalProfile = computed(() =>
+  liveCatalogs.value.profiles.find((entry) => entry.key === livePanel.approvalProfile) || null,
+)
+
+const approvalScopeDimensions = computed(() => {
+  const profile = selectedApprovalProfile.value
+  const keys = profile?.scope_keys?.length
+    ? profile.scope_keys
+    : profile?.scope_key
+      ? [profile.scope_key]
+      : []
+  return keys.filter(Boolean)
+})
+
+const approvalScopeSummary = computed(() => {
+  const parts = approvalScopeDimensions.value
+    .map((dimension) => {
+      const values = livePanel.approvalScopes[dimension] || []
+      if (!values.length) return ''
+      const catalog = scopeCatalogFor(dimension)
+      const labels = values.map(
+        (value) => catalog.find((entry) => entry.value === value)?.label || value,
+      )
+      return `${SCOPE_DIMENSION_LABELS[dimension] || dimension}: ${labels.join(', ')}`
+    })
+    .filter(Boolean)
+  if (!parts.length) {
+    return 'Selecione ao menos uma dimensao de escopo para este perfil.'
+  }
+  return `Efeito combinado (intersecao): ${parts.join(' · ')}`
+})
+
+function scopeCatalogFor(dimension) {
+  if (dimension === 'queues') return liveCatalogs.value.queues || []
+  if (dimension === 'polos') return liveCatalogs.value.polos || []
+  if (dimension === 'areas') return liveCatalogs.value.areas || []
+  return liveCatalogs.value.regional_pools || liveCatalogs.value.regions || []
+}
+
+function resetApprovalScopes() {
+  livePanel.approvalScopes = {
+    queues: [],
+    polos: [],
+    areas: [],
+    regional_pools: [],
+  }
+}
+
+function buildApprovalScopes() {
+  const scopes = {}
+  for (const dimension of approvalScopeDimensions.value) {
+    const values = (livePanel.approvalScopes[dimension] || []).filter(Boolean)
+    if (values.length) {
+      scopes[dimension] = [...values]
+    }
+  }
+  return scopes
+}
 
 async function loadInstitutionalAccess() {
   if (isMockRuntimeEnabled()) return
@@ -93,19 +191,14 @@ function openLiveRequest(request) {
   livePanel.selectedRequest = request
   livePanel.approvalProfile = ''
   livePanel.approvalQueues = []
+  resetApprovalScopes()
   livePanel.approvalReason = ''
 }
 
 async function approveLiveRequest() {
   const request = livePanel.selectedRequest
   if (!request) return
-  const profile = liveCatalogs.value.profiles.find(
-    (entry) => entry.key === livePanel.approvalProfile,
-  )
-  const scopeKey = profile?.scope_key || ''
-  const scopes = scopeKey
-    ? { [scopeKey]: scopeKey === 'queues' ? [...livePanel.approvalQueues] : [] }
-    : {}
+  const scopes = buildApprovalScopes()
   try {
     await approveAccessRequest(request.id, {
       profile_key: livePanel.approvalProfile,
@@ -119,8 +212,64 @@ async function approveLiveRequest() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   void loadInstitutionalAccess()
+  if (route.query.tab === 'knowledge') {
+    ui.activeModule = 'knowledge'
+    knowledgeThemeFilter.value = String(route.query.theme || '')
+    await loadKnowledgeTab()
+  }
+})
+
+async function loadKnowledgeTab() {
+  try {
+    const catalogResponse = await getKnowledgeV3Catalogs()
+    knowledgeThemes.value = catalogResponse.data?.themes || []
+    await loadGrantCatalogs(knowledgeThemes.value)
+    if (knowledgeThemeFilter.value) {
+      prefillTheme(knowledgeThemeFilter.value)
+    }
+  } catch {
+    knowledgeThemes.value = []
+  }
+}
+
+function setActiveModule(module) {
+  ui.activeModule = module
+  if (module === 'profiles') ui.profileDetailOpen = false
+  if (module === 'users') ui.userDetailOpen = false
+  if (module === 'knowledge') void loadKnowledgeTab()
+  syncPermissionsQuery()
+}
+
+function syncPermissionsQuery() {
+  const query = { ...route.query }
+  if (ui.activeModule === 'knowledge') {
+    query.tab = 'knowledge'
+    query.context = 'faq-suggestions'
+    if (knowledgeThemeFilter.value) query.theme = knowledgeThemeFilter.value
+    else delete query.theme
+  } else {
+    delete query.tab
+    delete query.theme
+    delete query.context
+  }
+  router.replace({ query })
+}
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === 'knowledge' && ui.activeModule !== 'knowledge') {
+      ui.activeModule = 'knowledge'
+      knowledgeThemeFilter.value = String(route.query.theme || '')
+      void loadKnowledgeTab()
+    }
+  },
+)
+
+watch(knowledgeThemeFilter, () => {
+  if (ui.activeModule === 'knowledge') syncPermissionsQuery()
 })
 const permissionsDraft = reactive(cloneAdminPermissionsDraft())
 const form = reactive({
@@ -397,7 +546,7 @@ function savePermissionChanges() {
           type="button"
           class="rounded-full border px-4 py-2 text-sm font-semibold"
           :class="ui.activeModule === 'profiles' ? 'border-[var(--color-primary)] bg-[rgba(209,50,57,0.08)] text-[var(--color-primary)]' : 'border-slate-200 bg-white text-slate-600'"
-          @click="ui.activeModule = 'profiles'; ui.profileDetailOpen = false"
+          @click="setActiveModule('profiles')"
         >
           Perfis
         </button>
@@ -405,9 +554,17 @@ function savePermissionChanges() {
           type="button"
           class="rounded-full border px-4 py-2 text-sm font-semibold"
           :class="ui.activeModule === 'users' ? 'border-[var(--color-primary)] bg-[rgba(209,50,57,0.08)] text-[var(--color-primary)]' : 'border-slate-200 bg-white text-slate-600'"
-          @click="ui.activeModule = 'users'; ui.userDetailOpen = false"
+          @click="setActiveModule('users')"
         >
           Usuarios
+        </button>
+        <button
+          type="button"
+          class="rounded-full border px-4 py-2 text-sm font-semibold"
+          :class="ui.activeModule === 'knowledge' ? 'border-[var(--color-primary)] bg-[rgba(209,50,57,0.08)] text-[var(--color-primary)]' : 'border-slate-200 bg-white text-slate-600'"
+          @click="setActiveModule('knowledge')"
+        >
+          Conhecimento
         </button>
       </div>
     </section>
@@ -509,16 +666,30 @@ function savePermissionChanges() {
             </option>
           </select>
         </label>
-        <div class="grid gap-2">
-          <p class="text-sm font-semibold text-slate-700">Filas</p>
-          <label
-            v-for="queue in liveCatalogs.queues"
-            :key="queue.value"
-            class="flex items-center gap-2 text-sm text-slate-700"
+        <div v-if="approvalScopeDimensions.length" class="grid gap-3">
+          <p class="text-sm font-semibold text-slate-700">Escopos operacionais</p>
+          <div
+            v-for="dimension in approvalScopeDimensions"
+            :key="dimension"
+            class="grid gap-2 rounded-[8px] border border-slate-200 bg-white p-3"
           >
-            <input v-model="livePanel.approvalQueues" type="checkbox" :value="queue.value" />
-            <span>{{ queue.label }}</span>
-          </label>
+            <p class="text-sm font-semibold text-slate-700">
+              {{ SCOPE_DIMENSION_LABELS[dimension] || dimension }}
+            </p>
+            <label
+              v-for="item in scopeCatalogFor(dimension)"
+              :key="`${dimension}-${item.value}`"
+              class="flex items-center gap-2 text-sm text-slate-700"
+            >
+              <input
+                v-model="livePanel.approvalScopes[dimension]"
+                type="checkbox"
+                :value="item.value"
+              />
+              <span>{{ item.label }}</span>
+            </label>
+          </div>
+          <p class="text-sm leading-6 text-slate-600">{{ approvalScopeSummary }}</p>
         </div>
         <label class="grid gap-1 text-sm font-semibold text-slate-700">
           <span>Motivo da decisao</span>
@@ -897,7 +1068,7 @@ function savePermissionChanges() {
       </section>
     </template>
 
-    <template v-else>
+    <template v-else-if="ui.activeModule === 'users'">
       <section
         v-if="!ui.userDetailOpen"
         class="grid gap-3"
@@ -1083,6 +1254,68 @@ function savePermissionChanges() {
             Auditoria demonstrativa. A integracao real deve trazer eventos, alteracoes de perfil e atividade administrativa.
           </p>
         </section>
+      </section>
+    </template>
+
+    <template v-else-if="ui.activeModule === 'knowledge'">
+      <section class="grid gap-4 rounded-[8px] border border-slate-200 bg-white p-4">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-950">Conhecimento e FAQ</h2>
+          <p class="mt-1 text-sm text-slate-600">
+            Concessões de sugestão por tema para OP e BPO. Alterações aqui refletem na biblioteca e
+            no editor.
+          </p>
+        </div>
+
+        <div class="grid gap-2 rounded-[8px] border border-slate-100 bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">
+            Ações do módulo
+          </p>
+          <ul class="grid gap-2 sm:grid-cols-2">
+            <li
+              v-for="action in knowledgeActionCatalog"
+              :key="action.key"
+              class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm"
+            >
+              <span class="font-semibold text-slate-950">{{ action.label }}</span>
+              <span class="mt-1 block text-slate-600">{{ action.description }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <label class="grid max-w-md gap-1 text-sm font-semibold text-slate-700">
+          <span>Filtrar por tema</span>
+          <select
+            v-model="knowledgeThemeFilter"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2"
+          >
+            <option value="">Todos os temas</option>
+            <option
+              v-for="theme in knowledgeThemes"
+              :key="theme.theme_key"
+              :value="theme.theme_key"
+            >
+              {{ theme.theme_label }}
+            </option>
+          </select>
+        </label>
+
+        <FaqKnowledgeGrantsPanel
+          :loading="grantsLoading"
+          :saving="grantsSaving"
+          :error-message="grantsErrorMessage"
+          :success-message="grantsSuccessMessage"
+          :grant-form="grantForm"
+          :grant-subjects="grantSubjects"
+          :eligible-grant-profiles="eligibleGrantProfiles"
+          :contributor-assignments="contributorAssignments"
+          :themes="knowledgeThemes"
+          :theme-filter="knowledgeThemeFilter"
+          @submit="grantSuggestionAccess()"
+          @revoke="revokeSuggestionAccess"
+          @subject-type-change="grantForm.subject_id = ''; onGrantSubjectChange()"
+          @subject-change="onGrantSubjectChange()"
+        />
       </section>
     </template>
   </div>

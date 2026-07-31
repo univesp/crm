@@ -136,11 +136,15 @@ export async function mockKnowledgeV3(
   })
 }
 
-export async function mockAdminGrants(page) {
-  await page.route('**/api/app/v1/admin/**', async (route) => {
+export async function mockAdminGrants(page, { onGrantPost = null } = {}) {
+  await page.route(/\/api\/app\/v1\/admin\//, async (route) => {
     const request = route.request()
-    const path = new URL(request.url()).pathname
-    if (path.endsWith('/users')) {
+    const path = new URL(request.url()).pathname.replace(/\/+$/, '')
+    const method = request.method()
+    if (method === 'OPTIONS') {
+      return route.fulfill({ status: 204 })
+    }
+    if (path.endsWith('/admin/users') && method === 'GET') {
       return fulfill(route, [
         {
           email: 'op.guara@univesp.br',
@@ -149,8 +153,10 @@ export async function mockAdminGrants(page) {
         },
       ])
     }
-    if (path.endsWith('/access-groups')) return fulfill(route, [])
-    if (path.endsWith('/permission-profiles')) {
+    if (path.endsWith('/admin/access-groups') && method === 'GET') {
+      return fulfill(route, [])
+    }
+    if (path.endsWith('/admin/permission-profiles') && method === 'GET') {
       return fulfill(route, [
         {
           id: 'faq-contributor-op',
@@ -160,8 +166,21 @@ export async function mockAdminGrants(page) {
         },
       ])
     }
-    if (path.endsWith('/profile-assignments')) return fulfill(route, [])
-    return route.fallback()
+    if (path.endsWith('/admin/profile-assignments') && method === 'POST') {
+      const body = request.postDataJSON()
+      onGrantPost?.(body)
+      return fulfill(route, { id: 'grant-1', ...body })
+    }
+    if (path.endsWith('/admin/profile-assignments') && method === 'GET') {
+      return fulfill(route, [])
+    }
+    if (path.endsWith('/admin/catalogs') && method === 'GET') {
+      return fulfill(route, { profiles: [], queues: [], polos: [], areas: [] })
+    }
+    if (path.endsWith('/admin/access-requests') && method === 'GET') {
+      return fulfill(route, [])
+    }
+    return fulfill(route, {})
   })
 }
 

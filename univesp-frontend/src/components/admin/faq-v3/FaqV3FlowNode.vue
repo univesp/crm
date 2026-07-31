@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 
 const props = defineProps({
@@ -23,9 +23,36 @@ const statusLabel = computed(() => {
   return kindLabel.value
 })
 
+const structureMenuOpen = ref(false)
+const structureMenuRef = ref(null)
+const structureTriggerRef = ref(null)
+
 function selectNode() {
   props.data?.onSelect?.(props.data?.nodeId)
 }
+
+function toggleStructureMenu(event) {
+  event.stopPropagation()
+  structureMenuOpen.value = !structureMenuOpen.value
+}
+
+function runStructureAction(action, event) {
+  event.stopPropagation()
+  structureMenuOpen.value = false
+  props.data?.onSelect?.(props.data?.nodeId)
+  action()
+}
+
+function handleDocumentPointerDown(event) {
+  if (!structureMenuOpen.value) return
+  const panel = structureMenuRef.value
+  const trigger = structureTriggerRef.value
+  if (panel?.contains(event.target) || trigger?.contains(event.target)) return
+  structureMenuOpen.value = false
+}
+
+onMounted(() => document.addEventListener('pointerdown', handleDocumentPointerDown))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocumentPointerDown))
 </script>
 
 <template>
@@ -51,6 +78,55 @@ function selectNode() {
       <span v-if="data.hasError || data.hasWarning" class="crm-chip faq-v3-flow-node__status">
         {{ statusLabel }}
       </span>
+      <div
+        v-if="data.showStructureMenu && data.canEdit"
+        class="faq-v3-flow-node__structure"
+        @click.stop
+      >
+        <button
+          ref="structureTriggerRef"
+          type="button"
+          class="faq-v3-flow-node__structure-trigger"
+          aria-haspopup="menu"
+          :aria-expanded="structureMenuOpen"
+          aria-label="Ações estruturais da etapa"
+          @click="toggleStructureMenu"
+        >
+          ⋯
+        </button>
+        <div
+          v-if="structureMenuOpen"
+          ref="structureMenuRef"
+          class="faq-v3-flow-node__structure-menu"
+          role="menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            class="faq-v3-flow-node__structure-item"
+            @click="runStructureAction(() => data.onAddChild?.('path'), $event)"
+          >
+            Adicionar etapa abaixo
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="faq-v3-flow-node__structure-item"
+            @click="runStructureAction(() => data.onAddChild?.('final'), $event)"
+          >
+            Adicionar resposta final
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="faq-v3-flow-node__structure-item faq-v3-flow-node__structure-item--danger"
+            :disabled="data.isRoot"
+            @click="runStructureAction(() => data.onDelete?.(), $event)"
+          >
+            Excluir etapa
+          </button>
+        </div>
+      </div>
     </div>
     <h3 class="faq-v3-flow-node__title">{{ data.title || 'Etapa sem título' }}</h3>
     <div class="faq-v3-flow-node__chips" aria-label="Disponibilidade">
@@ -108,6 +184,11 @@ function selectNode() {
   margin-block-end: var(--space-2);
 }
 
+.faq-v3-flow-node__meta {
+  align-items: center;
+  justify-content: space-between;
+}
+
 .faq-v3-flow-node__title {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-sm);
@@ -124,5 +205,53 @@ function selectNode() {
 
 .faq-v3-flow-node__status {
   font-weight: 700;
+}
+
+.faq-v3-flow-node__structure {
+  position: relative;
+  margin-inline-start: auto;
+}
+
+.faq-v3-flow-node__structure-trigger {
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.faq-v3-flow-node__structure-trigger:hover {
+  background: var(--color-surface-muted);
+}
+
+.faq-v3-flow-node__structure-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 5;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 11rem;
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md, 0 0.5rem 1rem rgba(0, 0, 0, 0.12));
+}
+
+.faq-v3-flow-node__structure-item {
+  width: 100%;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.faq-v3-flow-node__structure-item:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+
+.faq-v3-flow-node__structure-item--danger {
+  color: var(--color-danger);
 }
 </style>

@@ -102,3 +102,44 @@ class TestRoutingEngine(TestCase):
 				context={},
 				queue_exists=lambda _key: False,
 			)
+
+	def test_routing_chain_limits_operational_steps(self):
+		payload = _payload()
+		payload["nodes"][0]["operational"]["routing_chain"] = ["area"]
+		payload["nodes"][0]["operational"]["area_key"] = "sra"
+		decision = resolve_route(
+			pattern=_pattern(),
+			bundle_payload=payload,
+			node_id="final",
+			context={"polo_key": "guarulhos", "region_key": "leste"},
+			queue_exists=lambda key: key in {"op-guarulhos", "atendimento-geral"},
+		)
+		self.assertEqual(decision.routing_chain, ("area",))
+		self.assertEqual(decision.path_labels, ("Area responsavel",))
+
+	def test_node_sla_and_assignee_are_returned(self):
+		payload = _payload()
+		payload["nodes"][0]["operational"]["sla_policy_key"] = "48h"
+		payload["nodes"][0]["operational"]["assignee_email"] = "analista@univesp.br"
+		payload["nodes"][0]["operational"]["area_key"] = "sra"
+		decision = resolve_route(
+			pattern=_pattern(),
+			bundle_payload=payload,
+			node_id="final",
+			context={},
+			queue_exists=lambda key: key == "atendimento-geral",
+		)
+		self.assertEqual(decision.sla_policy_key, "48h")
+		self.assertEqual(decision.assignee_email, "analista@univesp.br")
+		self.assertEqual(decision.resolved_area, "sra")
+
+	def test_validate_final_node_requires_area_when_chain_includes_area(self):
+		from univesp_atendimento.routing_engine import validate_final_node_operational
+
+		payload = _payload()
+		node = {
+			"node_kind": "final",
+			"operational": {"routing_chain": ["op", "area"]},
+		}
+		with self.assertRaises(RoutingResolutionError):
+			validate_final_node_operational(node, payload)

@@ -51,11 +51,11 @@ test('editor v3: telas principais sem colapso de layout', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'OP', exact: true })).toBeVisible()
   await expect(page).toHaveScreenshot('editor-modo-avancado.png', { fullPage: true, ...SNAPSHOT_OPTS })
 
-  await page.getByRole('button', { name: 'Ver mapa' }).click()
-  const mapDialog = page.getByRole('dialog').filter({ has: page.getByRole('button', { name: 'Fechar mapa' }) })
-  await expect(mapDialog).toBeVisible()
-  await expect(mapDialog).toHaveScreenshot('mapa-overlay.png', SNAPSHOT_OPTS)
-  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Mapa', exact: true }).click()
+  const mapSection = page.locator('.faq-v3-map-workspace')
+  await expect(mapSection.getByRole('heading', { name: 'Mapa do fluxo' })).toBeVisible()
+  await expect(mapSection).toHaveScreenshot('mapa-modo-inline.png', SNAPSHOT_OPTS)
+  await page.getByRole('button', { name: 'Etapas', exact: true }).click()
 
   await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
   const settingsDialog = page.getByRole('dialog', { name: 'Configurações do fluxo' })
@@ -88,26 +88,20 @@ test('editor v3: vigência legível em somente leitura', async ({ page }) => {
   await expect(settingsDialog).toHaveScreenshot('somente-leitura-configuracoes.png', SNAPSHOT_OPTS)
 })
 
-test('biblioteca: lista e painel de grants legíveis', async ({ page }) => {
+test('biblioteca: lista de fluxos legível', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const payload = flowPayload('acesso-ava')
   await mockKnowledgeV3(page, {
     payload,
     bundleList: sampleBundleList(),
-    includeGrants: true,
   })
 
   await page.goto('/crm/admin/faq')
   await expect(page.getByRole('heading', { name: 'Biblioteca de fluxos' })).toBeVisible()
   await expect(page.getByRole('cell', { name: 'Acesso ao AVA' })).toBeVisible()
   await expect(page.getByRole('cell', { name: 'Matrícula e documentos' })).toBeVisible()
+  await expect(page.getByText('Quem pode sugerir melhorias')).toHaveCount(0)
   await expect(page).toHaveScreenshot('biblioteca-lista-1440x900.png', { fullPage: true, ...SNAPSHOT_OPTS })
-
-  await page.getByText('Quem pode sugerir melhorias').click()
-  const grantsForm = page.locator('.faq-grants__form')
-  await expect(grantsForm).toBeVisible()
-  await assertFieldsStacked(grantsForm.getByLabel('Pessoa ou grupo'), grantsForm.getByLabel('Perfil'))
-  await expect(page.locator('.faq-grants')).toHaveScreenshot('biblioteca-grants-1440x900.png', SNAPSHOT_OPTS)
 })
 
 test('biblioteca: modal Criar novo tema legível', async ({ page }) => {

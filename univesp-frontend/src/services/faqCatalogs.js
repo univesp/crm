@@ -70,6 +70,10 @@ export const SLA_CATALOG = Object.freeze({
   '24h': Object.freeze({ label: '24 horas', hours: 24 }),
   '48h': Object.freeze({ label: '48 horas', hours: 48 }),
   '72h': Object.freeze({ label: '72 horas', hours: 72 }),
+  '1du': Object.freeze({ label: '1 dia util', businessDays: 1 }),
+  '2du': Object.freeze({ label: '2 dias uteis', businessDays: 2 }),
+  '3du': Object.freeze({ label: '3 dias uteis', businessDays: 3 }),
+  '5du': Object.freeze({ label: '5 dias uteis', businessDays: 5 }),
 })
 
 export const FAQ_TYPE_CATALOG = Object.freeze({

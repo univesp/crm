@@ -1,23 +1,23 @@
 <script setup>
 import { computed, markRaw, nextTick, ref, watch } from 'vue'
-import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { MarkerType, VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
 import dagre from 'dagre'
 
 import FaqV3FlowNode from './FaqV3FlowNode.vue'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
-import '@vue-flow/controls/dist/style.css'
 
 const props = defineProps({
   payload: { type: Object, required: true },
   selectedNodeId: { type: String, default: '' },
   nodeIssues: { type: Object, default: () => ({}) },
+  canEdit: { type: Boolean, default: false },
+  showStructureMenu: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['select-node'])
+const emit = defineEmits(['select-node', 'add-node', 'remove-node'])
 
 const FLOW_ID = 'faq-v3-flow-map'
 const NODE_WIDTH = 256
@@ -27,12 +27,20 @@ const nodeTypes = { faqV3: markRaw(FaqV3FlowNode) }
 const {
   fitView,
   setCenter,
-  zoomIn,
-  zoomOut,
+  setViewport,
   findNode,
+  viewport,
 } = useVueFlow({ id: FLOW_ID })
 
 const flowReady = ref(false)
+
+const rootNodeId = computed(
+  () =>
+    props.payload?.graph?.student_root_node_id ||
+    props.payload?.graph?.public_root_node_id ||
+    props.payload?.nodes?.[0]?.node_id ||
+    '',
+)
 
 const graphNodes = computed(() => {
   const nodes = props.payload?.nodes || []
@@ -60,7 +68,12 @@ const graphNodes = computed(() => {
         hasAnalystPlaybook: Boolean(node.playbooks?.analyst),
         hasError,
         hasWarning,
+        isRoot: node.node_id === rootNodeId.value,
+        canEdit: props.canEdit,
+        showStructureMenu: props.showStructureMenu,
         onSelect: (nodeId) => emit('select-node', nodeId),
+        onAddChild: (kind) => emit('add-node', kind, node.node_id),
+        onDelete: () => emit('remove-node', node.node_id),
       },
     }
   })
@@ -76,7 +89,7 @@ const graphEdges = computed(() =>
       type: 'smoothstep',
       selectable: false,
       focusable: false,
-      style: { stroke: 'var(--color-border-strong, var(--color-border))' },
+      markerEnd: MarkerType.ArrowClosed,
     })),
 )
 
@@ -103,32 +116,45 @@ function layoutWithDagre(payload) {
   return positions
 }
 
+function zoomInMap() {
+  setViewport({
+    x: viewport.value.x,
+    y: viewport.value.y,
+    zoom: Math.min(viewport.value.zoom * 1.2, 2.5),
+  })
+}
+
+function zoomOutMap() {
+  setViewport({
+    x: viewport.value.x,
+    y: viewport.value.y,
+    zoom: Math.max(viewport.value.zoom / 1.2, 0.2),
+  })
+}
+
 async function fitToScreen() {
   await nextTick()
-  fitView({ padding: 0.2, duration: 200 })
+  fitView({ padding: 0.22, duration: 200 })
 }
 
 function centerSelected() {
   const node = findNode(props.selectedNodeId)
   if (!node) return
   setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + NODE_HEIGHT / 2, {
-    zoom: 1,
+    zoom: viewport.value.zoom,
     duration: 200,
   })
 }
 
 function goToRoot() {
-  const rootId =
-    props.payload?.graph?.student_root_node_id ||
-    props.payload?.graph?.public_root_node_id ||
-    props.payload?.nodes?.[0]?.node_id
+  const rootId = rootNodeId.value
   if (!rootId) return
   emit('select-node', rootId)
   nextTick(() => {
     const node = findNode(rootId)
     if (!node) return
     setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + NODE_HEIGHT / 2, {
-      zoom: 1,
+      zoom: viewport.value.zoom,
       duration: 200,
     })
   })
@@ -147,7 +173,7 @@ function onInit() {
   fitToScreen()
 }
 
-defineExpose({ fitToScreen, centerSelected, goToRoot, zoomIn, zoomOut })
+defineExpose({ fitToScreen, centerSelected, goToRoot, zoomIn: zoomInMap, zoomOut: zoomOutMap })
 </script>
 
 <template>
@@ -156,13 +182,6 @@ defineExpose({ fitToScreen, centerSelected, goToRoot, zoomIn, zoomOut })
       <div>
         <h2 id="faq-v3-map-title">Mapa do fluxo</h2>
         <p>Representação visual da árvore. Clique em uma etapa para editar.</p>
-      </div>
-      <div class="faq-v3-flow-map__actions" role="group" aria-label="Controles do mapa">
-        <button type="button" class="crm-button-secondary" @click="fitToScreen">Ajustar à tela</button>
-        <button type="button" class="crm-button-secondary" @click="zoomIn()">Ampliar</button>
-        <button type="button" class="crm-button-secondary" @click="zoomOut()">Reduzir</button>
-        <button type="button" class="crm-button-secondary" @click="centerSelected">Centralizar</button>
-        <button type="button" class="crm-button-secondary" @click="goToRoot">Voltar à raiz</button>
       </div>
     </div>
 
@@ -182,8 +201,55 @@ defineExpose({ fitToScreen, centerSelected, goToRoot, zoomIn, zoomOut })
         @node-click="(_, node) => emit('select-node', node.id)"
       >
         <Background pattern-color="var(--color-border)" :gap="28" />
-        <Controls :show-interactive="false" />
       </VueFlow>
+
+      <div class="faq-v3-flow-map__floating-controls" role="toolbar" aria-label="Controles do mapa">
+        <button
+          type="button"
+          class="faq-v3-flow-map__control"
+          aria-label="Ajustar à tela"
+          title="Ajustar à tela"
+          @click="fitToScreen"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        </button>
+        <button
+          type="button"
+          class="faq-v3-flow-map__control"
+          aria-label="Ampliar"
+          title="Ampliar"
+          @click="zoomInMap"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        </button>
+        <button
+          type="button"
+          class="faq-v3-flow-map__control"
+          aria-label="Reduzir"
+          title="Reduzir"
+          @click="zoomOutMap"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        </button>
+        <button
+          type="button"
+          class="faq-v3-flow-map__control"
+          aria-label="Centralizar etapa selecionada"
+          title="Centralizar etapa selecionada"
+          @click="centerSelected"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        </button>
+        <button
+          type="button"
+          class="faq-v3-flow-map__control"
+          aria-label="Voltar à raiz"
+          title="Voltar à raiz"
+          @click="goToRoot"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+        </button>
+      </div>
     </div>
 
     <footer class="faq-v3-flow-map__legend" aria-label="Legenda">
@@ -209,7 +275,6 @@ defineExpose({ fitToScreen, centerSelected, goToRoot, zoomIn, zoomOut })
 }
 
 .faq-v3-flow-map__toolbar,
-.faq-v3-flow-map__actions,
 .faq-v3-flow-map__legend {
   display: flex;
   flex-wrap: wrap;
@@ -231,6 +296,7 @@ defineExpose({ fitToScreen, centerSelected, goToRoot, zoomIn, zoomOut })
 }
 
 .faq-v3-flow-map__canvas {
+  position: relative;
   height: 28rem;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
@@ -240,6 +306,55 @@ defineExpose({ fitToScreen, centerSelected, goToRoot, zoomIn, zoomOut })
 
 .faq-v3-flow-map__canvas :deep(.vue-flow) {
   background: transparent;
+}
+
+.faq-v3-flow-map__canvas :deep(.vue-flow__edge-path) {
+  stroke: #64748b;
+  stroke-width: 2px;
+}
+
+.faq-v3-flow-map__canvas :deep(.vue-flow__arrowhead) {
+  fill: #64748b;
+}
+
+.faq-v3-flow-map__canvas :deep(.vue-flow__handle) {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1px solid #64748b;
+  background: var(--color-surface);
+  opacity: 0;
+}
+
+.faq-v3-flow-map__floating-controls {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 6;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md, 0 0.25rem 0.75rem rgba(0, 0, 0, 0.12));
+}
+
+.faq-v3-flow-map__control {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+}
+
+.faq-v3-flow-map__control:hover {
+  background: var(--color-surface-muted);
+}
+
+.faq-v3-flow-map__control svg {
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .faq-v3-flow-map__legend {

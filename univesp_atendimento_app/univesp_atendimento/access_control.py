@@ -7,12 +7,12 @@ from frappe import _
 PROFILE_DEFINITIONS = {
 	"aluno": {
 		"label": "Aluno",
-		"scope_key": "",
+		"scope_keys": [],
 		"actions": ["create_ticket", "view_ticket", "reply_ticket", "attach_ticket"],
 	},
 	"op": {
 		"label": "OP",
-		"scope_key": "queues",
+		"scope_keys": ["queues"],
 		"actions": [
 			"view_ticket",
 			"reply_ticket",
@@ -24,7 +24,7 @@ PROFILE_DEFINITIONS = {
 	},
 	"op_externo": {
 		"label": "Operador externo (BPO)",
-		"scope_key": "regional_pools",
+		"scope_keys": ["regional_pools", "polos", "areas"],
 		"actions": [
 			"view_ticket",
 			"reply_ticket",
@@ -39,12 +39,12 @@ PROFILE_DEFINITIONS = {
 	},
 	"gestor_polos": {
 		"label": "Gestor de polos",
-		"scope_key": "polos",
+		"scope_keys": ["polos"],
 		"actions": ["view_ticket", "view_playbook_op", "view_contact_details"],
 	},
 	"analista_area": {
 		"label": "Analista de area",
-		"scope_key": "areas",
+		"scope_keys": ["areas", "polos"],
 		"actions": [
 			"view_ticket",
 			"reply_ticket",
@@ -63,7 +63,7 @@ PROFILE_DEFINITIONS = {
 	},
 	"gestor_area": {
 		"label": "Gestor de area",
-		"scope_key": "areas",
+		"scope_keys": ["areas", "polos"],
 		"actions": [
 			"view_ticket",
 			"reply_ticket",
@@ -87,7 +87,7 @@ PROFILE_DEFINITIONS = {
 	},
 	"admin_central": {
 		"label": "Admin central",
-		"scope_key": "",
+		"scope_keys": ["areas"],
 		"actions": [
 			"create_ticket",
 			"view_ticket",
@@ -149,17 +149,24 @@ def normalize_scopes(profile_key: str, value):
 	definition = PROFILE_DEFINITIONS.get(str(profile_key or "").strip())
 	if not definition:
 		raise frappe.ValidationError(_("Perfil institucional invalido."))
-	scope_key = definition["scope_key"]
-	if not scope_key:
-		return {}
-
-	values = value.get(scope_key)
-	if not isinstance(values, list):
-		raise frappe.ValidationError(_("O perfil exige uma lista de escopos em {0}.").format(scope_key))
-	normalized = list(dict.fromkeys(str(item or "").strip() for item in values if str(item or "").strip()))
-	if not normalized:
-		raise frappe.ValidationError(_("Selecione ao menos um escopo para o perfil."))
-	result = {scope_key: normalized}
+	scope_keys = list(definition.get("scope_keys") or [])
+	if not scope_keys:
+		result = {}
+	else:
+		result = {}
+		for scope_key in scope_keys:
+			values = value.get(scope_key)
+			if values is None:
+				continue
+			if not isinstance(values, list):
+				raise frappe.ValidationError(_("O perfil exige uma lista de escopos em {0}.").format(scope_key))
+			normalized = list(
+				dict.fromkeys(str(item or "").strip() for item in values if str(item or "").strip())
+			)
+			if normalized:
+				result[scope_key] = normalized
+		if not result:
+			raise frappe.ValidationError(_("Selecione ao menos um escopo para o perfil."))
 	knowledge_themes = value.get("knowledge_themes")
 	if knowledge_themes is not None:
 		if not isinstance(knowledge_themes, list):
@@ -175,7 +182,8 @@ def profile_catalog():
 		{
 			"key": key,
 			"label": definition["label"],
-			"scope_key": definition["scope_key"],
+			"scope_keys": list(definition.get("scope_keys") or []),
+			"scope_key": (definition.get("scope_keys") or [""])[0],
 			"actions": list(definition["actions"]),
 		}
 		for key, definition in PROFILE_DEFINITIONS.items()
