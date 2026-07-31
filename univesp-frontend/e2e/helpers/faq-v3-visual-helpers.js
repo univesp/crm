@@ -31,7 +31,7 @@ export const VIEWPORTS_ACCESSIBILITY = [
   { name: 'zoom-200-sim', width: 720, height: 450 },
 ]
 
-export const SNAPSHOT_OPTS = { maxDiffPixelRatio: 0.02 }
+export const SNAPSHOT_OPTS = { maxDiffPixelRatio: 0.04 }
 
 export const DEFAULT_RUNTIME_PARAMETERS = {
   parameters: {

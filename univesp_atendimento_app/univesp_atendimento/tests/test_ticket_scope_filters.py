@@ -4,8 +4,8 @@ from univesp_atendimento.tests.bootstrap_frappe_stub import ensure_frappe_stub
 
 ensure_frappe_stub()
 
-from univesp_atendimento.api.v1.common import RequestContext, ticket_scope_filters
-from univesp_atendimento.access_control import actions_for_profile
+from univesp_atendimento.api.v1.common import RequestContext, ticket_scope_filters  # noqa: E402
+from univesp_atendimento.access_control import actions_for_profile  # noqa: E402
 
 
 def _context(profile_key, scopes):
