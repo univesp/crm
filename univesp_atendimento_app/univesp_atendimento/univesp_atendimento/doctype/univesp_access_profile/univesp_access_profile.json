@@ -1,0 +1,43 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Access Profile",
+  "module": "Univesp Atendimento",
+  "autoname": "field:user_email",
+  "title_field": "display_name",
+  "track_changes": 1,
+  "field_order": [
+    "identity_section",
+    "user_email",
+    "display_name",
+    "ra",
+    "profile_key",
+    "active",
+    "provisioning_source",
+    "approved_by",
+    "approved_at",
+    "first_login_at",
+    "last_login_at",
+    "authorization_section",
+    "scopes_json",
+    "actions_json"
+  ],
+  "fields": [
+    {"fieldname": "identity_section", "fieldtype": "Section Break", "label": "Identidade"},
+    {"fieldname": "user_email", "fieldtype": "Data", "label": "Email", "options": "Email", "reqd": 1, "unique": 1, "in_list_view": 1},
+    {"fieldname": "display_name", "fieldtype": "Data", "label": "Nome", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "ra", "fieldtype": "Data", "label": "RA", "in_list_view": 1},
+    {"fieldname": "profile_key", "fieldtype": "Select", "label": "Perfil", "reqd": 1, "in_list_view": 1, "options": "aluno\nop\nop_externo\ngestor_polos\nanalista_area\ngestor_area\nadmin_central"},
+    {"fieldname": "active", "fieldtype": "Check", "label": "Ativo", "default": "1", "in_list_view": 1},
+    {"fieldname": "provisioning_source", "fieldtype": "Select", "label": "Origem", "options": "manual\naccess_request\nacademic", "default": "manual", "reqd": 1},
+    {"fieldname": "approved_by", "fieldtype": "Data", "label": "Aprovado por", "read_only": 1},
+    {"fieldname": "approved_at", "fieldtype": "Datetime", "label": "Aprovado em", "read_only": 1},
+    {"fieldname": "first_login_at", "fieldtype": "Datetime", "label": "Primeiro acesso", "read_only": 1},
+    {"fieldname": "last_login_at", "fieldtype": "Datetime", "label": "Ultimo acesso", "read_only": 1},
+    {"fieldname": "authorization_section", "fieldtype": "Section Break", "label": "Autorizacao"},
+    {"fieldname": "scopes_json", "fieldtype": "Code", "label": "Escopos JSON", "options": "JSON", "default": "{}", "reqd": 1},
+    {"fieldname": "actions_json", "fieldtype": "Code", "label": "Acoes JSON", "options": "JSON", "default": "[]", "reqd": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "report": 1, "export": 1, "share": 1, "print": 1}
+  ]
+}

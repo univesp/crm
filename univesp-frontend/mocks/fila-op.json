@@ -1,0 +1,31 @@
+{
+  "fila": [
+    {
+      "protocolo": "UVSP-20260319-104",
+      "aluno": "Marina Costa",
+      "assunto": "Rematricula para o proximo semestre",
+      "status": "aguardando_acao_op",
+      "criticidade": "alta",
+      "sla_restante": "45 min",
+      "fila": "Secretaria Academica"
+    },
+    {
+      "protocolo": "UVSP-20260320-117",
+      "aluno": "Carlos Menezes",
+      "assunto": "Pagamento nao identificado",
+      "status": "prioridade_maxima",
+      "criticidade": "critica",
+      "sla_restante": "20 min",
+      "fila": "Financeiro"
+    },
+    {
+      "protocolo": "UVSP-20260320-119",
+      "aluno": "Ana Beatriz Lima",
+      "assunto": "Problema em prova do AVA",
+      "status": "em_validacao_operacional",
+      "criticidade": "alta",
+      "sla_restante": "55 min",
+      "fila": "Suporte Academico Digital"
+    }
+  ]
+}

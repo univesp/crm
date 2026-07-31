@@ -1,0 +1,30 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Knowledge Theme Editor Area",
+  "module": "Univesp Atendimento",
+  "istable": 1,
+  "field_order": ["area_key", "area_label", "can_edit_draft"],
+  "fields": [
+    {
+      "fieldname": "area_key",
+      "fieldtype": "Data",
+      "label": "Chave da área",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "area_label",
+      "fieldtype": "Data",
+      "label": "Nome da área",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "can_edit_draft",
+      "fieldtype": "Check",
+      "label": "Pode editar rascunho",
+      "default": "1",
+      "in_list_view": 1
+    }
+  ]
+}

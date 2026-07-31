@@ -1,0 +1,12 @@
+link_id,faq_id,parent_node_id,child_node_id,ordem,ativo
+faq-aluno-link-001,faq-aluno,faq-aluno-tema-matricula,faq-aluno-ramo-rematricula,1,true
+faq-aluno-link-002,faq-aluno,faq-aluno-ramo-rematricula,faq-aluno-rematricula-perda-prazo,1,true
+faq-aluno-link-003,faq-aluno,faq-aluno-tema-provas,faq-aluno-ramo-provas-segunda-chamada,1,true
+faq-aluno-link-004,faq-aluno,faq-aluno-ramo-provas-segunda-chamada,faq-aluno-ramo-provas-motivo-medico,1,true
+faq-aluno-link-005,faq-aluno,faq-aluno-ramo-provas-motivo-medico,faq-aluno-provas-envio-atestado,1,true
+faq-aluno-link-006,faq-aluno,faq-aluno-tema-atividades-avaliativas,faq-aluno-ramo-atividades-entrega,1,true
+faq-aluno-link-007,faq-aluno,faq-aluno-ramo-atividades-entrega,faq-aluno-atividades-prazo-encerrado,1,true
+faq-aluno-link-008,faq-aluno,faq-aluno-tema-estagio,faq-aluno-ramo-estagio-documentacao,1,true
+faq-aluno-link-009,faq-aluno,faq-aluno-ramo-estagio-documentacao,faq-aluno-estagio-termo-compromisso,1,true
+faq-aluno-link-010,faq-aluno,faq-aluno-tema-colacao,faq-aluno-ramo-colacao-diploma,1,true
+faq-aluno-link-011,faq-aluno,faq-aluno-ramo-colacao-diploma,faq-aluno-colacao-prazo-emissao,1,true

@@ -1,0 +1,79 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Knowledge Routing Pattern",
+  "module": "Univesp Atendimento",
+  "autoname": "field:pattern_key",
+  "title_field": "label",
+  "track_changes": 1,
+  "field_order": [
+    "pattern_key",
+    "label",
+    "bpo_enabled",
+    "steps_json",
+    "allowed_routing_keys_json",
+    "institutional_exceptions_json",
+    "active"
+  ],
+  "fields": [
+    {
+      "fieldname": "pattern_key",
+      "fieldtype": "Data",
+      "label": "Chave do padrão",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "label",
+      "fieldtype": "Data",
+      "label": "Nome",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "bpo_enabled",
+      "fieldtype": "Check",
+      "label": "Inclui BPO",
+      "default": "0",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "steps_json",
+      "fieldtype": "Code",
+      "label": "Etapas JSON",
+      "options": "JSON",
+      "reqd": 1
+    },
+    {
+      "fieldname": "allowed_routing_keys_json",
+      "fieldtype": "Code",
+      "label": "Rotas permitidas JSON",
+      "options": "JSON",
+      "reqd": 1
+    },
+    {
+      "fieldname": "institutional_exceptions_json",
+      "fieldtype": "Code",
+      "label": "Exceções institucionais JSON",
+      "options": "JSON",
+      "default": "[]",
+      "reqd": 1
+    },
+    {
+      "fieldname": "active",
+      "fieldtype": "Check",
+      "label": "Ativo",
+      "default": "1",
+      "in_list_view": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "report": 1
+    }
+  ]
+}

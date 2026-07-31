@@ -1,0 +1,45 @@
+{
+  "doctype": "DocType",
+  "name": "Univesp Public Document",
+  "module": "Univesp Atendimento",
+  "autoname": "hash",
+  "track_changes": 1,
+  "field_order": [
+    "intake_session",
+    "ticket",
+    "file",
+    "original_name",
+    "content_type",
+    "size_bytes",
+    "sha256",
+    "scan_status",
+    "scan_detail",
+    "uploaded_at",
+    "scanned_at",
+    "retention_until"
+  ],
+  "fields": [
+    {"fieldname": "intake_session", "fieldtype": "Link", "options": "Univesp Public Intake"},
+    {"fieldname": "ticket", "fieldtype": "Link", "options": "HD Ticket"},
+    {"fieldname": "file", "fieldtype": "Link", "options": "File", "reqd": 1},
+    {"fieldname": "original_name", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "content_type", "fieldtype": "Data", "reqd": 1},
+    {"fieldname": "size_bytes", "fieldtype": "Int", "reqd": 1},
+    {"fieldname": "sha256", "fieldtype": "Data", "reqd": 1},
+    {
+      "fieldname": "scan_status",
+      "fieldtype": "Select",
+      "options": "quarantined\nclean\ninfected\nfailed",
+      "default": "quarantined",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {"fieldname": "scan_detail", "fieldtype": "Small Text", "read_only": 1},
+    {"fieldname": "uploaded_at", "fieldtype": "Datetime", "reqd": 1},
+    {"fieldname": "scanned_at", "fieldtype": "Datetime", "read_only": 1},
+    {"fieldname": "retention_until", "fieldtype": "Date", "reqd": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "delete": 1}
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "steps": [
+    {
+      "id": "crawl",
+      "order": 1,
+      "title": "Crawler",
+      "description": "Extrai o manual do aluno e gera chunks estruturados.",
+      "owner": "automático"
+    },
+    {
+      "id": "structure_review",
+      "order": 2,
+      "title": "Validação de estrutura",
+      "description": "Time confere se pacotes, chunks e temas mínimos fazem sentido.",
+      "owner": "time"
+    },
+    {
+      "id": "ai_analysis",
+      "order": 3,
+      "title": "Análise IA (externa)",
+      "description": "Exporte jobs, rode prompt no Cursor/ChatGPT/Gemini e importe o JSON de volta.",
+      "owner": "time + ia"
+    },
+    {
+      "id": "consolidate",
+      "order": 4,
+      "title": "Consolidação",
+      "description": "Mescla análises IA (pode haver mais de uma visão) no pacote.",
+      "owner": "automático + time"
+    },
+    {
+      "id": "studio_review",
+      "order": 5,
+      "title": "Curadoria no Studio",
+      "description": "Revisão humana item a item, mídia e linguagem.",
+      "owner": "time"
+    },
+    {
+      "id": "export_faq",
+      "order": 6,
+      "title": "Export FAQ Builder",
+      "description": "Gera XLSX/JSON prontos para import no CRM.",
+      "owner": "automático"
+    },
+    {
+      "id": "faq_builder_import",
+      "order": 7,
+      "title": "Import no FAQ Builder",
+      "description": "Dry-run e ajustes no /admin/faq-editor.",
+      "owner": "time"
+    },
+    {
+      "id": "team_test",
+      "order": 8,
+      "title": "Testes internos",
+      "description": "Simulador de jornada + revisão operacional.",
+      "owner": "time"
+    },
+    {
+      "id": "pilot_ops_alunos",
+      "order": 9,
+      "title": "Piloto OP e alunos",
+      "description": "Homolog com grupo reduzido antes da produção.",
+      "owner": "time"
+    },
+    {
+      "id": "production",
+      "order": 10,
+      "title": "Produção",
+      "description": "Publicação final para alunos.",
+      "owner": "admin"
+    }
+  ]
+}

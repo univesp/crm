@@ -1,0 +1,296 @@
+# Frappe CRM no Cloud Run
+
+Este diretório empacota uma topologia de Cloud Run adaptada ao Frappe CRM:
+
+- `web`: Cloud Run público com `nginx + gunicorn + socket.io` no mesmo container. O nginx serve o `univesp-frontend`; Frappe permanece como motor interno e não expõe CRM/Desk/APIs genéricas no domínio acadêmico.
+- `worker`: Cloud Run privado, instância fixa, CPU sempre alocada, processando filas Redis.
+- `scheduler`: Cloud Run privado, instância fixa, CPU sempre alocada, executando `bench schedule`.
+- `bootstrap`: Cloud Run Job idempotente para criar o site, instalar CRM/Helpdesk/`univesp_atendimento`, rodar `migrate` e provisionar a conta técnica.
+- `sso-gateway`: Cloud Run público com OIDC/SAML, sessão Redis e BFF institucional.
+
+## Modo econômico para homolog
+
+Se a homolog vai ficar um tempo com pouco uso e sem necessidade de processar fila em tempo real, use o perfil barato:
+
+- `DEPLOY_PROFILE=single-user` reduz `web` para `1 vCPU`, `1 GiB`, `minScale=0`, `maxScale=1`.
+- Esse mesmo perfil também "estaciona" `worker` e `scheduler`: ambos passam a `minScale=0` e CPU com throttling, então podem escalar para zero.
+- Resultado prático: a aplicação web continua acessível, mas jobs assíncronos e rotinas agendadas deixam de ser garantidos enquanto o ambiente estiver estacionado.
+
+Trade-offs do modo econômico:
+
+- filas Redis podem acumular;
+- envios assíncronos, notificações e tarefas em background podem atrasar ou não rodar;
+- tarefas periódicas do Frappe deixam de ser confiáveis até reativar o modo completo.
+
+Para alternar apenas os serviços existentes, sem rebuild da imagem e sem mexer no banco:
+
+```bash
+export GCP_PROJECT_ID=univesp-201808
+MODE=parked ./ops/cloudrun/set-service-mode.sh
+```
+
+Para restaurar o comportamento atual:
+
+```bash
+export GCP_PROJECT_ID=univesp-201808
+MODE=full ./ops/cloudrun/set-service-mode.sh
+```
+
+## Decisões importantes
+
+- Base upstream: use `main`, não `develop`. Em 16 de março de 2026 o próprio README do projeto marca `main` como estável e `develop` como futuro/v2.
+- Estratégia do fork: mantenha `origin/main` como espelho limpo do upstream e deixe traduções `pt_BR`, GitHub Actions, Cloud Run e `univesp-frontend` somente em `univesp/cloudrun-homolog`.
+- Frappe branch: a imagem usa `version-16` para viabilizar PostgreSQL. O código oficial do Frappe v16 expõe suporte a PostgreSQL, mas marca esse caminho como experimental.
+- Banco: com as instâncias citadas (`pgsql17-prod` e `mysql8-geral`), não existe uma combinação 100% suportada pelo upstream sem trade-off:
+  - `PostgreSQL 17` + `version-16`: caminho explícito no código do Frappe, porém experimental.
+  - `MySQL 8` + modo `mariadb`: plausível no protocolo, porém não é a combinação oficialmente testada pelo Frappe.
+  - Para suporte upstream mais conservador, o ideal seria uma instância MariaDB compatível.
+- SSL: o fluxo padrão aqui usa `Cloud Run domain mapping` com certificado gerenciado pelo Google e renovação automática. Isso substitui `certbot` porque Cloud Run gerenciado não recebe certificado PEM diretamente como um VM/reverse proxy clássico. Se você insistir em `certbot + Let's Encrypt`, a arquitetura correta passa a ser `External HTTPS Load Balancer + Certificate Manager/self-managed cert`, não domain mapping direto.
+- DNS Cloudflare: o deploy cria ou lê o `domain mapping` e sincroniza os registros no Cloudflare via API. Os registros são gravados com `proxied=false` para não atrapalhar validação e renovação do certificado gerenciado.
+- Redis: `Cloud Memorystore for Redis` não funciona com esse bootstrap do Frappe porque o Google bloqueia a família de comandos `CLIENT` e o `redis-py` usado pelo Frappe chama `CLIENT ID`. O caminho validado aqui é Redis 7 autogerenciado em uma VM privada com firewall restrito ao range do connector do Cloud Run.
+- Cloud SQL: para instâncias sem IP público, o container sobe o `cloud-sql-proxy` com `--private-ip`.
+
+## Pré-requisitos
+
+### GitHub
+
+- Fork em `univesp/crm`
+- GitHub Actions habilitado
+- Secrets:
+  - `GCP_WORKLOAD_IDENTITY_PROVIDER`
+  - `GCP_DEPLOYER_SERVICE_ACCOUNT`
+  - `DB_PASSWORD`
+  - `ADMIN_PASSWORD`
+  - `REDIS_CACHE_URL`
+  - `REDIS_QUEUE_URL`
+  - `REDIS_SOCKETIO_URL`
+  - `UNIVESP_BFF_SHARED_SECRET`, `UNIVESP_EDGE_SHARED_SECRET`
+  - `FRAPPE_API_KEY`, `FRAPPE_API_SECRET`
+  - `GATEWAY_SESSION_SECRET`, `GATEWAY_JWT_SECRET`, `GATEWAY_REDIS_URL`
+  - secrets Azure/SAML descritos em `docs/TI_HOMOLOGACAO.md`
+  - `CLOUDFLARE_API_TOKEN`
+
+### GitHub Variables
+
+- `GCP_PROJECT_ID=univesp-201808`
+- `GCP_REGION=us-east1`
+- `ARTIFACT_REPOSITORY=crm`
+- `IMAGE_NAME=frappe-crm`
+- `FRAPPE_SITE_NAME=homolog-crm.univesp.br`
+- `PUBLIC_DOMAIN=homolog-crm.univesp.br`
+- `GATEWAY_IMAGE_NAME=crm-sso-gateway`
+- `GATEWAY_SERVICE=crm-homolog-sso-gateway`
+- `ANTIMALWARE_IMAGE_NAME=crm-faq-antimalware` (opcional; há default)
+- `MEDIA_PROCESSOR_IMAGE_NAME=crm-faq-media-processor` (opcional; há default)
+- `ANTIMALWARE_SERVICE=crm-homolog-antimalware` (opcional; há default)
+- `MEDIA_PROCESSOR_SERVICE=crm-homolog-media-processor` (opcional; há default)
+- `ANTIMALWARE_TOKEN_SECRET_NAME=crm-homolog-antimalware-token` (opcional; criado automaticamente)
+- `MEDIA_PROCESSOR_TOKEN_SECRET_NAME=crm-homolog-media-processor-token` (opcional; criado automaticamente)
+- `FRAPPE_SERVICE_USER_EMAIL=<conta-tecnica>`
+- IDs/tenants e nomes de secrets descritos em `docs/TI_HOMOLOGACAO.md`
+- `DB_TYPE=postgres`
+- `DB_SETUP_MODE=existing`
+- `DB_NAME=crm_homolog`
+- `DB_USER=crm_homolog`
+- `DB_ROOT_USERNAME=postgres`
+- `CLOUDSQL_INSTANCE=univesp-201808:us-east1:pgsql17-prod`
+- `SITES_BUCKET=univesp-201808-crm-homolog-sites`
+- `VPC_NETWORK=default`
+- `VPC_CONNECTOR=crm-homolog-connector`
+- `VPC_CONNECTOR_RANGE=10.8.0.0/28`
+- `CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com`
+- `REDIS_CACHE_SECRET_NAME=crm-homolog-redis-cache-url`
+- `REDIS_QUEUE_SECRET_NAME=crm-homolog-redis-queue-url`
+- `REDIS_SOCKETIO_SECRET_NAME=crm-homolog-redis-socketio-url`
+- `DB_PASSWORD_SECRET_NAME=crm-homolog-db-password`
+- `ADMIN_PASSWORD_SECRET_NAME=crm-homolog-admin-password`
+- `CLOUDFLARE_ZONE_ID=<zone id do domínio univesp.br>`
+
+### Fronteira HTTP da homolog
+
+O nginx do serviço público fica como entrada única do ambiente:
+
+- `/` e `/login` servem o `univesp-frontend`.
+- `/api/me`, `/api/sso/*` e `/api/app/v1/*` vão para a URL do gateway calculada no deploy.
+- `/api/method/univesp_atendimento.api.v1.*` chega ao Frappe somente com o segredo de borda enviado pelo gateway.
+- `/api/method/*`, `/api/resource/*`, `/app*`, `/desk*`, `/assets*`, `/files*`, `/private/files*` e `/socket.io*` retornam `404` externamente.
+- `/crm*` redireciona para o portal acadêmico.
+- O gateway usa o front door como origem Frappe; somente o namespace institucional protegido pelo segredo de borda chega ao gunicorn.
+
+No workflow, `SSO_GATEWAY_ORIGIN` é obtido automaticamente após publicar o gateway. Em execução manual de `deploy.sh`, ele continua obrigatório e deve ser HTTPS.
+
+### Google Cloud / domínio
+
+- O domínio `univesp.br` ou o subdomínio apropriado precisa estar verificado no Google para o `Cloud Run domain mapping`.
+- O service account usado pelo GitHub OIDC precisa ter permissões para Artifact Registry, Cloud Run, Secret Manager e, se for provisionar tudo, VPC Access e Compute Engine.
+
+## Estratégia de branches do fork
+
+Use esta divisão de responsabilidade:
+
+- `upstream/main`: fonte estável do projeto.
+- `origin/main`: espelho limpo do upstream no seu fork. Não suba commits da Univesp aqui.
+- `origin/univesp/cloudrun-homolog`: branch longa com tudo que é específico da Univesp.
+
+O workflow `Univesp Cloud Run Homolog` é exclusivamente manual. Ele aceita deploy apenas quando a referência selecionada é `univesp/cloudrun-homolog`, exige `confirm_homolog_deploy=true` e usa o Environment `homolog`. O deploy não depende de promover customizações para a `main` do fork.
+
+Sincronização recomendada:
+
+```bash
+./scripts/sync-univesp-fork.sh
+```
+
+Esse script:
+
+1. garante o remote `upstream` apontando para `https://github.com/frappe/crm.git`;
+2. trata sua `main` local como espelho de `upstream/main`, criando um backup local se houver commits próprios no fork;
+3. permite espelhar essa `main` em `origin/main`, usando `force-with-lease` quando necessário;
+4. reaplica `univesp/cloudrun-homolog` sobre a `main` já sincronizada.
+
+O fluxo correto para o seu caso é sempre sincronizar primeiro `upstream/main -> origin/main` e só depois atualizar `univesp/cloudrun-homolog`.
+
+Casos comuns:
+
+```bash
+# Atualiza só as branches locais
+./scripts/sync-univesp-fork.sh
+
+# Atualiza a main local e espelha no fork
+PUSH_MAIN=true ./scripts/sync-univesp-fork.sh
+
+# Atualiza a main do fork e publica a branch customizada reescrita com rebase
+PUSH_MAIN=true PUSH_CUSTOM=true ./scripts/sync-univesp-fork.sh
+
+# Atualiza a main do fork e publica a branch customizada sem reescrever histórico
+SYNC_MODE=merge PUSH_MAIN=true PUSH_CUSTOM=true ./scripts/sync-univesp-fork.sh
+```
+
+Use `SYNC_MODE=rebase` quando a branch for basicamente sua e você quiser histórico linear. Use `SYNC_MODE=merge` quando a branch já estiver compartilhada com outras pessoas e você quiser evitar `force-push`.
+
+## Fluxo
+
+1. Execute `ops/cloudrun/provision.sh` autenticado no GCP para criar Artifact Registry, bucket, service account, VPC connector, Redis VM e permissões mínimas do runtime.
+2. Alimente os secrets do GitHub.
+3. Após PR aprovado e merge em `univesp/cloudrun-homolog`, rode manualmente o workflow `Univesp Cloud Run Homolog`, confirme o deploy e obtenha a aprovação do Environment `homolog`.
+4. O workflow:
+   - autentica no GCP via Workload Identity Federation,
+   - constrói e publica as imagens Frappe e SSO Gateway por SHA,
+   - sincroniza os secrets no Secret Manager,
+   - publica o gateway e calcula sua origem,
+   - executa o job de bootstrap dos três apps e da conta técnica,
+   - publica `web`, `worker` e `scheduler`,
+   - cria o `domain mapping`,
+   - sincroniza os registros DNS no Cloudflare.
+
+## Banco gerenciado
+
+O fluxo atual assume `DB_SETUP_MODE=existing`, ou seja:
+
+- o usuário e o banco são criados no Cloud SQL via `gcloud sql`;
+- o job de bootstrap do Frappe usa `bench new-site --no-setup-db`;
+- nenhuma senha de superusuário do PostgreSQL precisa ficar exposta para o container.
+
+## Comandos locais úteis
+
+Provisionar infra base:
+
+```bash
+export PATH="$HOME/.local/src/google-cloud-sdk/bin:$PATH"
+export GCP_PROJECT_ID=univesp-201808
+export GCP_REGION=us-east1
+export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
+export SITES_BUCKET=univesp-201808-crm-homolog-sites
+export VPC_CONNECTOR=crm-homolog-connector
+export CREATE_REDIS=true
+export REDIS_BACKEND=vm
+export REDIS_VM_NAME=crm-homolog-redis
+./ops/cloudrun/provision.sh
+```
+
+Executar deploy completo:
+
+```bash
+export PATH="$HOME/.local/src/google-cloud-sdk/bin:$PATH"
+export GCP_PROJECT_ID=univesp-201808
+export GCP_REGION=us-east1
+export IMAGE_URI=us-east1-docker.pkg.dev/univesp-201808/crm/frappe-crm:manual
+export CLOUDSQL_INSTANCE=univesp-201808:us-east1:pgsql17-prod
+export SITES_BUCKET=univesp-201808-crm-homolog-sites
+export VPC_CONNECTOR=crm-homolog-connector
+export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
+export SSO_GATEWAY_ORIGIN=https://<origem-do-sso-gateway>
+export ANTIMALWARE_ENDPOINT=https://<servico-antimalware>/scan
+export MEDIA_PROCESSOR_ENDPOINT=https://<servico-media>/convert-gif
+./ops/cloudrun/deploy.sh
+```
+
+Executar deploy barato para homolog de baixa utilização:
+
+```bash
+export PATH="$HOME/.local/src/google-cloud-sdk/bin:$PATH"
+export GCP_PROJECT_ID=univesp-201808
+export GCP_REGION=us-east1
+export IMAGE_URI=us-east1-docker.pkg.dev/univesp-201808/crm/frappe-crm:manual
+export CLOUDSQL_INSTANCE=univesp-201808:us-east1:pgsql17-prod
+export SITES_BUCKET=univesp-201808-crm-homolog-sites
+export VPC_CONNECTOR=crm-homolog-connector
+export CLOUDRUN_RUNTIME_SERVICE_ACCOUNT=crm-homolog-run@univesp-201808.iam.gserviceaccount.com
+export DEPLOY_PROFILE=single-user
+export SSO_GATEWAY_ORIGIN=https://<origem-do-sso-gateway>
+export ANTIMALWARE_ENDPOINT=https://<servico-antimalware>/scan
+export MEDIA_PROCESSOR_ENDPOINT=https://<servico-media>/convert-gif
+./ops/cloudrun/deploy.sh
+```
+
+## Rollback de imagem
+
+Use somente uma imagem anterior identificada por SHA ou digest. O procedimento
+preserva a configuração dos serviços e não desfaz migrations:
+
+```bash
+export GCP_PROJECT_ID=univesp-201808
+export GCP_REGION=us-east1
+export ROLLBACK_IMAGE_URI=<imagem-anterior-por-sha-ou-digest>
+export CONFIRM_ROLLBACK=homolog
+./ops/cloudrun/rollback.sh
+```
+
+Após o rollback, execute smoke completo. Migration incompatível exige decisão
+de forward-fix ou restore seguindo `docs/TI_HOMOLOGACAO.md`.
+## Gates e evidências de homologação
+
+Os scripts abaixo são fail-closed e não leem valores de secrets:
+
+```bash
+# Contrato de configuração local
+./ops/cloudrun/preflight-homolog.sh
+
+# Inventário GCP somente leitura (requer ambiente configurado)
+PREFLIGHT_MODE=gcp ./ops/cloudrun/preflight-homolog.sh
+
+# Smoke HTTP anônimo e opcionalmente por perfil
+PUBLIC_URL=https://<dominio-homolog> ./ops/cloudrun/smoke-homolog.sh
+
+# Estado implantado: revisão, imagem, URL e tráfego
+./ops/cloudrun/release-manifest.sh
+
+# Pacote JSON com preflight, manifesto, smoke e checksums
+PUBLIC_URL=https://<dominio-homolog> ./ops/cloudrun/collect-homolog-evidence.sh
+```
+
+O workflow manual executa o preflight depois de sincronizar os secrets e coleta as evidências depois do deploy. O artefato fica disponível no GitHub Actions por 30 dias. Consulte `docs/HOMOLOG_READINESS.md` para os gates que continuam sob responsabilidade da TI.
+
+### Serviços privados da FAQ v3
+
+O mesmo workflow também:
+
+1. cria, quando ausentes, tokens aleatórios no Secret Manager;
+2. constrói `ops/antimalware` e `ops/media-processor`;
+3. publica os serviços `crm-homolog-antimalware` e
+   `crm-homolog-media-processor` sem acesso anônimo;
+4. concede `roles/run.invoker` apenas à service account de runtime;
+5. injeta endpoints, tokens e autenticação IAM no serviço Frappe;
+6. registra os dois serviços no preflight, manifesto e rollback.
+
+Os documentos pessoais ficam em `private/files` dentro do `SITES_BUCKET` montado.
+O upload permanece bloqueado até a flag `faq_public_documents` ser ativada.

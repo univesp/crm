@@ -1,0 +1,68 @@
+name: univesp-frontend-local
+
+services:
+  mariadb:
+    image: mariadb:10.8
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: 123
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  redis:
+    image: redis:alpine
+
+  frappe:
+    image: frappe/bench:latest
+    command: bash /workspace/init.sh
+    environment:
+      SHELL: /bin/bash
+    working_dir: /home/frappe
+    volumes:
+      - ../docker:/workspace
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+
+  univesp-frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 8080"
+    depends_on:
+      - frappe
+    environment:
+      VITE_APP_NAME: UNIVESP Atendimento
+      VITE_APP_BASE: /crm/
+      VITE_ROUTER_BASE: /crm/
+      VITE_DEV_HOST: 0.0.0.0
+      VITE_DEV_PORT: 8080
+      VITE_PREVIEW_HOST: 0.0.0.0
+      VITE_PREVIEW_PORT: 8080
+      VITE_ENABLE_MOCKS: "false"
+      VITE_ENABLE_ANALYTICS_MOCKS: "false"
+      VITE_APP_API_BASE: /api/app/v1
+      VITE_SSO_SESSION_PATH: /api/me
+      VITE_SSO_START_PATH: /api/sso/start
+      VITE_SSO_AZURE_START_PATH: /api/sso/azure/start
+      VITE_SSO_SAML_START_PATH: /api/sso/saml/start
+      VITE_SSO_LOGOUT_PATH: /api/sso/logout
+      VITE_SSO_LOGOUT_METHOD: POST
+      VITE_DEFAULT_AUTH_ROUTE: /
+      VITE_SSO_DEV_BYPASS: "true"
+      VITE_SSO_DEV_BYPASS_EMAIL: ${VITE_SSO_DEV_BYPASS_EMAIL:-admin@univesp.br}
+      VITE_SSO_DEV_BYPASS_NAME: ${VITE_SSO_DEV_BYPASS_NAME:-Administrador Local}
+      VITE_HANDOFF_WEBHOOK_URL: https://contact-center.example.com/handoff
+    ports:
+      - "8080:8080"
+    tty: true
+    volumes:
+      - .:/app
+      - frontend-node-modules:/app/node_modules
+
+volumes:
+  mariadb-data:
+  frontend-node-modules:

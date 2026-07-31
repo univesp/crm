@@ -1,0 +1,30 @@
+{
+  "resumo": {
+    "casos_abertos": 128,
+    "casos_criticos": 17,
+    "resolvidos_por_faq": 46,
+    "areas_com_backlog": 3
+  },
+  "por_area": [
+    {
+      "area": "Secretaria Academica",
+      "abertos": 41,
+      "risco_sla": "moderado"
+    },
+    {
+      "area": "Financeiro",
+      "abertos": 33,
+      "risco_sla": "alto"
+    },
+    {
+      "area": "Suporte Academico Digital",
+      "abertos": 22,
+      "risco_sla": "moderado"
+    }
+  ],
+  "faq": {
+    "itens_aluno": 42,
+    "itens_op": 28,
+    "taxa_resolucao_faq": 0.36
+  }
+}
