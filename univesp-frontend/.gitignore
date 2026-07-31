@@ -13,3 +13,4 @@ tmp-*
 # Playwright runtime artifacts.
 test-results/
 playwright-report/
+playwright-*.log

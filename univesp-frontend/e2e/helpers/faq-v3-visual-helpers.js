@@ -33,6 +33,54 @@ export const VIEWPORTS_ACCESSIBILITY = [
 
 export const SNAPSHOT_OPTS = { maxDiffPixelRatio: 0.02 }
 
+export const DEFAULT_RUNTIME_PARAMETERS = {
+  parameters: {
+    criticalityLevels: [{ key: 'media', label: 'Média' }],
+    slaLevels: [{ key: '48h', label: '48 horas', badgeLabel: '48h' }],
+  },
+}
+
+export const DEFAULT_ADMIN_CATALOGS = {
+  areas: [{ key: 'sra', label: 'Secretaria de Registro Acadêmico' }],
+  profiles: [],
+  queues: [],
+  polos: [],
+}
+
+export function defaultFinalOperational() {
+  return {
+    routing_override: null,
+    area_key: 'sra',
+    criticidade: 'media',
+    sla_policy_key: '48h',
+    routing_chain: ['op', 'area'],
+  }
+}
+
+export async function mockAppSupportRoutes(page) {
+  await page.route(/\/api\/app\/v1\/admin\//, async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname.replace(/\/+$/, '')
+    const method = request.method()
+    if (method === 'OPTIONS') {
+      return route.fulfill({ status: 204 })
+    }
+    if (path.endsWith('/admin/access-groups') && method === 'GET') {
+      return fulfill(route, [])
+    }
+    if (path.endsWith('/admin/runtime-settings') && method === 'GET') {
+      return fulfill(route, DEFAULT_RUNTIME_PARAMETERS)
+    }
+    if (path.endsWith('/admin/catalogs') && method === 'GET') {
+      return fulfill(route, DEFAULT_ADMIN_CATALOGS)
+    }
+    return fulfill(route, {})
+  })
+  await page.route('**/api/app/v1/runtime/flags', async (route) => {
+    return fulfill(route, { knowledge_media_upload: false })
+  })
+}
+
 export async function prepareAdminFaqSession(page) {
   await page.addInitScript(() => {
     window.sessionStorage.setItem('univesp.sso.devBypassProfile', 'admin_central')
@@ -82,6 +130,7 @@ export async function mockKnowledgeV3(
   if (includeGrants) {
     await mockAdminGrants(page)
   }
+  await mockAppSupportRoutes(page)
   await page.route('**/api/app/v1/knowledge/v3/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -390,7 +439,7 @@ export function flowPayload(bundleKey) {
           bpo: null,
           analyst: null,
         },
-        operational: { routing_override: null },
+        operational: defaultFinalOperational(),
         document_policy: { mode: 'disabled' },
         media_refs: [],
       },

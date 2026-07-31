@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test'
 
-import { mockAdminGrants } from './helpers/faq-v3-visual-helpers.js'
+import {
+  defaultFinalOperational,
+  mockAdminGrants,
+  mockAppSupportRoutes,
+} from './helpers/faq-v3-visual-helpers.js'
 
 const catalogs = {
   themes: [
@@ -432,6 +436,7 @@ async function mockKnowledgeV3(
   } = {},
 ) {
   let revision = 1
+  await mockAppSupportRoutes(page)
   await page.route('**/api/app/v1/knowledge/v3/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -586,7 +591,7 @@ function flowPayload(bundleKey) {
           bpo: null,
           analyst: null,
         },
-        operational: { routing_override: null },
+        operational: defaultFinalOperational(),
         document_policy: { mode: 'disabled' },
         media_refs: [],
       },
