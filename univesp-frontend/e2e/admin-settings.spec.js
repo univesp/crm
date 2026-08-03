@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test'
 
 import { assertNoHorizontalOverflow, prepareProfile, SNAPSHOT_OPTS } from './helpers/faq-v3-visual-helpers.js'
 
+function parametersPageHeading(page) {
+  return page.locator('h1.text-sm.font-semibold', { hasText: 'Regras e prazos' })
+}
+
 async function mockRuntimeSettingsRoute(page) {
   let savedPayload = null
   let getRequestCount = 0
@@ -45,7 +49,7 @@ test('salva parametros institucionais com versao e motivo auditavel', async ({ p
   await prepareProfile(page, 'admin_central')
 
   await page.goto('/crm/admin/parametros')
-  await expect(page.getByRole('heading', { name: 'Regras e prazos' })).toBeVisible()
+  await expect(parametersPageHeading(page)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Salvar alterações' })).toBeEnabled()
   await page.getByLabel('Justificativa da alteração').fill('Ajuste operacional homologado')
   await page.getByRole('button', { name: 'Salvar alterações' }).click()
@@ -66,7 +70,7 @@ test('regras e prazos — layout unico sem overflow', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await page.goto('/crm/admin/parametros')
-  await expect(page.getByRole('heading', { name: 'Regras e prazos' })).toBeVisible()
+  await expect(parametersPageHeading(page)).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Níveis oficiais' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Janelas oficiais' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
