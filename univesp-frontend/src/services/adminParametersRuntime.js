@@ -313,6 +313,17 @@ export function findApplicationRule(rules = [], ruleId) {
   return rules.find((rule) => rule.id === ruleId) || null
 }
 
+export function buildAdminParameterLevels(draft) {
+  const criticalityLevels = (draft?.criticalityLevels?.length
+    ? draft.criticalityLevels
+    : buildDefaultCriticalityLevels()
+  ).map(buildLevelPreview)
+  const slaLevels = (draft?.slaLevels?.length ? draft.slaLevels : buildDefaultSlaLevels()).map(
+    buildLevelPreview,
+  )
+  return { criticalityLevels, slaLevels }
+}
+
 export function buildAdminParametersRuntime({ dashboardData, draft }) {
   const activeCases = dashboardData?.activeCases || []
   const criticalityLevels = (draft?.criticalityLevels?.length

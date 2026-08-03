@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onErrorCaptured, ref, watch } from 'vue'
+import { computed, onErrorCaptured, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AccessibilityPreferencesPanel from '@/components/AccessibilityPreferencesPanel.vue'
@@ -13,6 +13,22 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const journey = useJourneyStore()
+const SIDEBAR_COLLAPSED_KEY = 'crm-sidebar-collapsed'
+const sidebarCollapsed = ref(false)
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  sidebarCollapsed.value = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+})
+
+watch(sidebarCollapsed, (value) => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, value ? '1' : '0')
+})
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
 
 const pageTitle = computed(() => {
   if (auth.mockContext.isOperationalShell) {
@@ -416,7 +432,7 @@ onErrorCaptured((error) => {
 
     <div
       :class="[
-        'relative mx-auto flex min-h-screen flex-col px-4 py-4 lg:flex-row',
+        'relative mx-auto flex min-h-screen w-full min-w-0 flex-col px-3 py-3 sm:px-4 sm:py-4 lg:flex-row',
         isStudentShell
           ? 'max-w-[1280px] gap-4 lg:px-4 lg:py-5'
           : isOperationalShell
@@ -425,12 +441,44 @@ onErrorCaptured((error) => {
       ]"
     >
       <div
-        :class="[
-          'app-shell-sidebar shrink-0',
-          isStudentShell ? 'hidden lg:block' : '',
-        ]"
+        v-if="isStudentShell"
+        class="app-shell-sidebar hidden shrink-0 lg:block"
       >
         <AppSidebar />
+      </div>
+
+      <div
+        v-else
+        id="app-sidebar"
+        :class="[
+          'app-shell-sidebar-column shrink-0',
+          sidebarCollapsed && !isOperationalShell ? 'is-collapsed' : '',
+        ]"
+      >
+        <AppSidebar :collapsed="sidebarCollapsed && !isOperationalShell" />
+        <button
+          v-if="!isOperationalShell"
+          type="button"
+          class="app-sidebar-collapse-btn"
+          :aria-expanded="!sidebarCollapsed"
+          aria-controls="app-sidebar"
+          :aria-label="sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'"
+          @click="toggleSidebar"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path v-if="sidebarCollapsed" d="M9 5l7 7-7 7" />
+            <path v-else d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
       </div>
 
       <main
@@ -446,21 +494,31 @@ onErrorCaptured((error) => {
           :class="[
             isOperationalShell
               ? 'mb-3 flex flex-col gap-3 px-1 py-0.5 lg:flex-row lg:items-start lg:justify-between'
-              : 'surface-panel rise-in mb-4 flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between',
+              : 'crm-governance-toolbar mb-3',
           ]"
         >
-          <div class="min-w-0 flex-1">
+          <div class="crm-governance-toolbar__leading">
             <h1
-              :class="[
-                'font-semibold text-slate-950',
-                isOperationalShell ? 'text-[1.35rem] md:text-[1.5rem]' : 'text-[2rem] md:text-[2.3rem]',
-              ]"
+              v-if="!isOperationalShell"
+              class="crm-governance-toolbar__title"
+            >
+              {{ pageTitle }}
+            </h1>
+            <h1
+              v-else
+              class="font-semibold text-slate-950 text-[1.35rem] md:text-[1.5rem]"
             >
               {{ pageTitle }}
             </h1>
           </div>
 
-          <div class="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
+          <div
+            :class="[
+              isOperationalShell
+                ? 'flex w-full min-w-0 shrink-0 flex-wrap items-center gap-2 lg:w-auto lg:justify-end'
+                : 'crm-governance-toolbar__actions',
+            ]"
+          >
             <template v-if="isOperationalShell">
               <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700">
                 <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
@@ -520,36 +578,57 @@ onErrorCaptured((error) => {
               >
                 Voltar para fila
               </RouterLink>
+              <div class="crm-governance-toolbar__tools">
+                <AccessibilityPreferencesPanel />
+                <button
+                  type="button"
+                  class="crm-button-primary crm-button-primary--compact"
+                  @click="auth.logout()"
+                >
+                  Sair
+                </button>
+                <RouterLink
+                  v-if="auth.hasProfilePreview"
+                  to="/acesso-local"
+                  class="crm-button-secondary crm-button-secondary--compact"
+                >
+                  Trocar perfil
+                </RouterLink>
+              </div>
             </template>
-            <div v-else class="inline-flex flex-wrap items-center gap-2">
-              <div
-                class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700"
-                :title="auth.mockContext.userEmail"
-              >
-                <p class="font-semibold text-slate-900">{{ auth.mockContext.userName }}</p>
+            <template v-else>
+              <div class="crm-governance-toolbar__info">
+                <span
+                  class="crm-governance-toolbar__meta truncate"
+                  :title="auth.mockContext.userEmail"
+                >
+                  {{ auth.mockContext.userName }}
+                </span>
+                <span class="crm-governance-toolbar__meta truncate">
+                  {{ auth.mockContext.currentPolo }}
+                </span>
+                <span class="sr-only">
+                  {{ auth.mockContext.userEmail }} · Polo atual: {{ auth.mockContext.currentPolo }}
+                </span>
               </div>
-              <div class="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700">
-                {{ auth.mockContext.currentPolo }}
+              <div class="crm-governance-toolbar__tools">
+                <AccessibilityPreferencesPanel />
+                <button
+                  type="button"
+                  class="crm-button-primary crm-button-primary--compact"
+                  @click="auth.logout()"
+                >
+                  Sair
+                </button>
+                <RouterLink
+                  v-if="auth.hasProfilePreview"
+                  to="/acesso-local"
+                  class="crm-button-secondary crm-button-secondary--compact"
+                >
+                  Trocar perfil
+                </RouterLink>
               </div>
-              <p class="sr-only">
-                {{ auth.mockContext.userEmail }} · Polo atual: {{ auth.mockContext.currentPolo }}
-              </p>
-            </div>
-            <AccessibilityPreferencesPanel />
-            <button
-              type="button"
-              class="inline-flex items-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-              @click="auth.logout()"
-            >
-              Sair
-            </button>
-            <RouterLink
-              v-if="auth.hasProfilePreview"
-              to="/acesso-local"
-              class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Trocar perfil
-            </RouterLink>
+            </template>
           </div>
         </header>
 

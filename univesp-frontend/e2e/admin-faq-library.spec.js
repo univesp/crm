@@ -83,12 +83,10 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
   await page.getByRole('button', { name: 'Orientação', exact: true }).click()
   await page.getByLabel('Conteúdo', { exact: true }).fill('Recupere sua senha pelo portal do aluno.')
-  await page.getByRole('button', { name: 'Mais tipos' }).click()
-  await page.getByRole('menuitem', { name: 'Aviso' }).click()
+  await page.getByRole('button', { name: '+ Aviso' }).click()
   await page.getByLabel('Conteúdo', { exact: true }).last().fill('Nunca compartilhe sua senha.')
   await page.getByRole('button', { name: 'Mover item 2 para cima' }).click()
 
-  await page.getByRole('button', { name: 'Mostrar opções avançadas' }).click()
   await page.getByRole('button', { name: 'OP', exact: true }).click()
   await page.getByLabel('Objetivo').fill('Restabelecer o acesso sem expor credenciais.')
   await page
@@ -98,7 +96,7 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
   await page.getByRole('button', { name: 'BPO', exact: true }).click()
   await expect(page.getByText('Herdado do OP', { exact: true }).first()).toBeVisible()
 
-  await page.getByRole('button', { name: 'Documento', exact: true }).click()
+  await page.getByRole('button', { name: 'Documentos e dados', exact: true }).click()
   await page.getByLabel('Envio de documento pelo aluno').selectOption('optional')
   await page.getByText('Solicitar CPF', { exact: true }).click()
   await page

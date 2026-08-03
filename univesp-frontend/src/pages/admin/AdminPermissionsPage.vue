@@ -3,6 +3,8 @@ import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import FaqKnowledgeGrantsPanel from '@/components/admin/faq-v3/FaqKnowledgeGrantsPanel.vue'
+import AdminInstitutionalAreasPanel from '@/components/admin/AdminInstitutionalAreasPanel.vue'
+import AdminUserAreasAssignment from '@/components/admin/AdminUserAreasAssignment.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useFaqKnowledgeGrants } from '@/composables/useFaqKnowledgeGrants'
@@ -48,6 +50,7 @@ const {
 const knowledgeThemes = ref([])
 const knowledgeThemeFilter = ref('')
 const knowledgeActionCatalog = Object.values(KNOWLEDGE_ACTION_CATALOG)
+const demoUserAreaOverrides = ref({})
 const studentSupportStore = useStudentSupportStore()
 const liveUsers = ref([])
 const liveAccessRequests = ref([])
@@ -218,6 +221,8 @@ onMounted(async () => {
     ui.activeModule = 'knowledge'
     knowledgeThemeFilter.value = String(route.query.theme || '')
     await loadKnowledgeTab()
+  } else if (route.query.tab === 'areas') {
+    ui.activeModule = 'areas'
   }
 })
 
@@ -249,6 +254,10 @@ function syncPermissionsQuery() {
     query.context = 'faq-suggestions'
     if (knowledgeThemeFilter.value) query.theme = knowledgeThemeFilter.value
     else delete query.theme
+  } else if (ui.activeModule === 'areas') {
+    query.tab = 'areas'
+    delete query.theme
+    delete query.context
   } else {
     delete query.tab
     delete query.theme
@@ -264,6 +273,9 @@ watch(
       ui.activeModule = 'knowledge'
       knowledgeThemeFilter.value = String(route.query.theme || '')
       void loadKnowledgeTab()
+    }
+    if (tab === 'areas' && ui.activeModule !== 'areas') {
+      ui.activeModule = 'areas'
     }
   },
 )
@@ -402,7 +414,7 @@ const selectedRuntimeEntry = computed(
 const filteredPermissionUsers = computed(() => {
   const search = ui.userSearch.trim().toLowerCase()
 
-  return demoPermissionUsers.filter((user) => {
+  return enrichedDemoUsers.value.filter((user) => {
     const matchesSearch =
       !search ||
       user.name.toLowerCase().includes(search) ||
@@ -414,6 +426,42 @@ const filteredPermissionUsers = computed(() => {
     return matchesSearch && matchesProfile && matchesScope && matchesStatus
   })
 })
+
+function areaLabelForKey(areaKey) {
+  return (
+    runtime.value.catalogs.areas.find((area) => area.value === areaKey)?.label ||
+    liveCatalogs.value.areas.find((area) => area.value === areaKey)?.label ||
+    areaKey
+  )
+}
+
+function buildAreaScopeLabel(areaKeys = []) {
+  const labels = areaKeys.map((key) => areaLabelForKey(key)).filter(Boolean)
+  return labels.join(', ')
+}
+
+function areasFromScopeKeys(scopeKeys = []) {
+  return scopeKeys
+    .filter((entry) => String(entry).startsWith('area:'))
+    .map((entry) => String(entry).slice(5))
+}
+
+function enrichDemoUser(user) {
+  const override = demoUserAreaOverrides.value[user.id]
+  const areas = override?.areas || areasFromScopeKeys(user.scopeKeys)
+  const scopeKeys = [
+    ...user.scopeKeys.filter((entry) => !String(entry).startsWith('area:')),
+    ...areas.map((areaKey) => `area:${areaKey}`),
+  ]
+  return {
+    ...user,
+    areas,
+    scopeKeys,
+    scopeLabel: areas.length ? buildAreaScopeLabel(areas) : user.scopeLabel,
+  }
+}
+
+const enrichedDemoUsers = computed(() => demoPermissionUsers.map((user) => enrichDemoUser(user)))
 const selectedPermissionUser = computed(
   () =>
     filteredPermissionUsers.value.find((user) => user.id === ui.selectedUserId) ||
@@ -496,6 +544,23 @@ function openUserDetail(userId) {
   ui.userDetailTab = 'summary'
 }
 
+function onDemoUserAreasSaved({ userId, areas }) {
+  demoUserAreaOverrides.value = {
+    ...demoUserAreaOverrides.value,
+    [userId]: { areas: [...areas] },
+  }
+}
+
+async function onLiveUserAreasSaved() {
+  if (!livePanel.selectedUser) return
+  try {
+    const result = await getAdminUser(livePanel.selectedUser.email || livePanel.selectedUser.id)
+    livePanel.selectedUser = result.data || livePanel.selectedUser
+  } catch (error) {
+    livePanel.error = error?.message || 'Áreas salvas, mas não foi possível recarregar o usuário.'
+  }
+}
+
 function updateSingleScopeValue(value) {
   form.scopeValues = value ? [value] : []
 }
@@ -557,6 +622,14 @@ function savePermissionChanges() {
           @click="setActiveModule('users')"
         >
           Usuarios
+        </button>
+        <button
+          type="button"
+          class="rounded-full border px-4 py-2 text-sm font-semibold"
+          :class="ui.activeModule === 'areas' ? 'border-[var(--color-primary)] bg-[rgba(209,50,57,0.08)] text-[var(--color-primary)]' : 'border-slate-200 bg-white text-slate-600'"
+          @click="setActiveModule('areas')"
+        >
+          Áreas
         </button>
         <button
           type="button"
@@ -634,6 +707,17 @@ function savePermissionChanges() {
           Salvar
         </button>
       </form>
+
+      <AdminUserAreasAssignment
+        v-if="livePanel.selectedUser"
+        mode="live"
+        class="rounded-[8px] border border-slate-200 bg-white p-4"
+        :user="{
+          ...livePanel.selectedUser,
+          profileKey: livePanel.selectedUser.profile_key,
+        }"
+        @saved="onLiveUserAreasSaved"
+      />
 
       <div v-if="livePanel.mode === 'requests'" class="grid gap-2">
         <button
@@ -1214,14 +1298,22 @@ function savePermissionChanges() {
 
         <div class="flex flex-wrap gap-2">
           <button
-            v-for="tab in ['summary', 'effective', 'performance', 'audit']"
+            v-for="tab in ['summary', 'areas', 'effective', 'performance', 'audit']"
             :key="tab"
             type="button"
             class="rounded-full border px-3 py-1.5 text-sm font-semibold"
             :class="ui.userDetailTab === tab ? 'border-[var(--color-primary)] bg-[rgba(209,50,57,0.08)] text-[var(--color-primary)]' : 'border-slate-200 bg-white text-slate-600'"
             @click="ui.userDetailTab = tab"
           >
-            {{ { summary: 'Resumo', effective: 'Permissoes efetivas', performance: 'Performance', audit: 'Auditoria' }[tab] }}
+            {{
+              {
+                summary: 'Resumo',
+                areas: 'Áreas',
+                effective: 'Permissoes efetivas',
+                performance: 'Performance',
+                audit: 'Auditoria',
+              }[tab]
+            }}
           </button>
         </div>
 
@@ -1235,6 +1327,12 @@ function savePermissionChanges() {
             <p><span class="block text-xs font-semibold text-slate-500">Status</span><span class="text-sm font-semibold text-slate-950">{{ selectedPermissionUser.status }}</span></p>
             <p><span class="block text-xs font-semibold text-slate-500">Atividade</span><span class="text-sm font-semibold text-slate-950">{{ selectedPermissionUser.activity }}</span></p>
           </div>
+          <AdminUserAreasAssignment
+            v-else-if="ui.userDetailTab === 'areas'"
+            mode="demo"
+            :user="selectedPermissionUser"
+            @saved="onDemoUserAreasSaved"
+          />
           <p
             v-else-if="ui.userDetailTab === 'effective'"
             class="text-sm leading-6 text-slate-700"
@@ -1255,6 +1353,10 @@ function savePermissionChanges() {
           </p>
         </section>
       </section>
+    </template>
+
+    <template v-else-if="ui.activeModule === 'areas'">
+      <AdminInstitutionalAreasPanel />
     </template>
 
     <template v-else-if="ui.activeModule === 'knowledge'">

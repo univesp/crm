@@ -47,8 +47,8 @@ test('editor v3: telas principais sem colapso de layout', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Salvar rascunho' })).toBeVisible()
   await expect(page).toHaveScreenshot('editor-modo-simples.png', { fullPage: true, ...SNAPSHOT_OPTS })
 
-  await page.getByRole('button', { name: 'Mostrar opções avançadas' }).click()
-  await expect(page.getByRole('button', { name: 'OP', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'OP', exact: true }).click()
+  await expect(page.getByLabel('Objetivo')).toBeVisible()
   await expect(page).toHaveScreenshot('editor-modo-avancado.png', { fullPage: true, ...SNAPSHOT_OPTS })
 
   await page.getByRole('button', { name: 'Mapa', exact: true }).click()

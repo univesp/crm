@@ -35,23 +35,40 @@ const assetBusy = editor.assetBusy
 const uploadBlockAsset = editor.uploadBlockAsset
 const readBlockCount = editor.readBlockCount
 
-const DIRECT_BLOCK_TYPES = [
-  { type: 'text', label: 'Texto' },
-  { type: 'link', label: 'Link' },
-  { type: 'image', label: 'Imagem' },
-  { type: 'video', label: 'Vídeo' },
+const BLOCK_TYPE_HINTS = {
+  text: 'Parágrafo de orientação normal.',
+  notice: 'Destaque visual de atenção — use para alertas importantes.',
+  link: 'Link externo com rótulo clicável.',
+  file: 'Documento institucional referenciado por link.',
+  image: 'Imagem por URL ou upload institucional.',
+  video: 'Vídeo por URL, com legenda e transcrição quando possível.',
+  animation: 'GIF ou animação com texto alternativo.',
+  button: 'Ação fixa do sistema (abrir atendimento ou ir para login).',
+}
+
+const PRIMARY_BLOCK_ACTIONS = [
+  { type: 'text', label: 'Texto', hint: BLOCK_TYPE_HINTS.text },
+  { type: 'notice', label: 'Aviso', hint: BLOCK_TYPE_HINTS.notice },
+  { type: 'link', label: 'Link ou documento', hint: 'Link externo ou PDF institucional (marque o tipo ao editar).' },
 ]
 
-const MORE_BLOCK_TYPES = [
-  { type: 'notice', label: 'Aviso' },
-  { type: 'button', label: 'Botão controlado' },
-  { type: 'file', label: 'Arquivo institucional' },
+const MEDIA_BLOCK_TYPES = [
+  { type: 'image', label: 'Imagem' },
+  { type: 'video', label: 'Vídeo' },
   { type: 'animation', label: 'Animação acessível' },
 ]
 
-const moreTypesOpen = ref(false)
-const moreTypesTrigger = ref(null)
-const moreTypesPanel = ref(null)
+const CONTROLLED_ACTIONS = [
+  { type: 'button', actionKey: 'open_ticket', label: 'Botão: Abrir atendimento' },
+  { type: 'button', actionKey: 'go_login', label: 'Botão: Ir para login do aluno' },
+]
+
+const mediaMenuOpen = ref(false)
+const actionsMenuOpen = ref(false)
+const mediaMenuTrigger = ref(null)
+const mediaMenuPanel = ref(null)
+const actionsMenuTrigger = ref(null)
+const actionsMenuPanel = ref(null)
 
 function blocks() {
   return contentBlocks(props.layer)
@@ -61,25 +78,47 @@ function blockCount() {
   return readBlockCount(selectedNode.value, props.layer)
 }
 
-function addBlock(type) {
-  addContentBlock(props.layer, type)
-  closeMoreTypes()
+function addBlock(type, actionKey = null) {
+  addContentBlock(props.layer, type, actionKey)
+  closeMenus()
 }
 
-function toggleMoreTypes() {
-  moreTypesOpen.value = !moreTypesOpen.value
+function addControlledButton(actionKey) {
+  addContentBlock(props.layer, 'button', actionKey)
+  closeMenus()
 }
 
-function closeMoreTypes() {
-  moreTypesOpen.value = false
+function toggleMenu(menu) {
+  if (menu === 'media') {
+    mediaMenuOpen.value = !mediaMenuOpen.value
+    actionsMenuOpen.value = false
+    return
+  }
+  if (menu === 'actions') {
+    actionsMenuOpen.value = !actionsMenuOpen.value
+    mediaMenuOpen.value = false
+    return
+  }
+}
+
+function closeMenus() {
+  mediaMenuOpen.value = false
+  actionsMenuOpen.value = false
+}
+
+function setLinkOrFileType(block, asFile) {
+  block.type = asFile ? 'file' : 'link'
 }
 
 function handleDocumentPointerDown(event) {
-  if (!moreTypesOpen.value) return
-  const panel = moreTypesPanel.value
-  const trigger = moreTypesTrigger.value
-  if (panel?.contains(event.target) || trigger?.contains(event.target)) return
-  closeMoreTypes()
+  const targets = [
+    mediaMenuPanel.value,
+    mediaMenuTrigger.value,
+    actionsMenuPanel.value,
+    actionsMenuTrigger.value,
+  ]
+  if (targets.some((node) => node?.contains(event.target))) return
+  closeMenus()
 }
 
 onMounted(() => document.addEventListener('pointerdown', handleDocumentPointerDown))
@@ -155,12 +194,14 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocument
             Ação controlada
             <select v-model="block.action_key" class="crm-field" :disabled="!canEdit">
               <option value="open_ticket">Abrir atendimento</option>
-              <option value="go_login">Ir para o portal do aluno</option>
+              <option value="go_login">Ir para login do aluno (tela /login)</option>
             </select>
           </label>
+          <p class="faq-block-hint">{{ BLOCK_TYPE_HINTS.button }}</p>
         </template>
 
         <template v-else>
+          <p v-if="BLOCK_TYPE_HINTS[block.type]" class="faq-block-hint">{{ BLOCK_TYPE_HINTS[block.type] }}</p>
           <label
             v-if="mediaUploadEnabled && ['image', 'video'].includes(block.type)"
             class="crm-field-label"
@@ -184,6 +225,15 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocument
           <label v-if="['link', 'file'].includes(block.type)" class="crm-field-label">
             Texto exibido
             <input v-model="block.body" class="crm-field" :disabled="!canEdit" />
+          </label>
+          <label v-if="block.type === 'link' || block.type === 'file'" class="faq-link-type-toggle">
+            <input
+              type="checkbox"
+              :checked="block.type === 'file'"
+              :disabled="!canEdit"
+              @change="setLinkOrFileType(block, $event.target.checked)"
+            />
+            Documento institucional (PDF ou arquivo oficial)
           </label>
           <label v-if="['image', 'animation'].includes(block.type)" class="crm-field-label">
             Texto alternativo
@@ -212,10 +262,11 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocument
 
     <div class="faq-content-blocks__add-bar" role="group" aria-label="Adicionar conteúdo">
       <button
-        v-for="item in DIRECT_BLOCK_TYPES"
+        v-for="item in PRIMARY_BLOCK_ACTIONS"
         :key="item.type"
         type="button"
         class="crm-button-secondary"
+        :title="item.hint"
         :disabled="!canEdit"
         @click="addBlock(item.type)"
       >
@@ -223,24 +274,49 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocument
       </button>
       <div class="faq-menu">
         <button
-          ref="moreTypesTrigger"
+          ref="mediaMenuTrigger"
           type="button"
           class="crm-button-secondary"
           aria-haspopup="menu"
-          :aria-expanded="moreTypesOpen"
+          :aria-expanded="mediaMenuOpen"
           :disabled="!canEdit"
-          @click="toggleMoreTypes"
+          @click="toggleMenu('media')"
         >
-          Mais tipos
+          + Mídia
         </button>
-        <div v-if="moreTypesOpen" ref="moreTypesPanel" class="faq-menu__panel" role="menu">
+        <div v-if="mediaMenuOpen" ref="mediaMenuPanel" class="faq-menu__panel" role="menu">
           <button
-            v-for="item in MORE_BLOCK_TYPES"
+            v-for="item in MEDIA_BLOCK_TYPES"
             :key="item.type"
             type="button"
             role="menuitem"
             class="faq-menu__item"
             @click="addBlock(item.type)"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+      </div>
+      <div class="faq-menu">
+        <button
+          ref="actionsMenuTrigger"
+          type="button"
+          class="crm-button-secondary"
+          aria-haspopup="menu"
+          :aria-expanded="actionsMenuOpen"
+          :disabled="!canEdit"
+          @click="toggleMenu('actions')"
+        >
+          + Ações
+        </button>
+        <div v-if="actionsMenuOpen" ref="actionsMenuPanel" class="faq-menu__panel" role="menu">
+          <button
+            v-for="item in CONTROLLED_ACTIONS"
+            :key="item.actionKey"
+            type="button"
+            role="menuitem"
+            class="faq-menu__item"
+            @click="addControlledButton(item.actionKey)"
           >
             {{ item.label }}
           </button>
@@ -293,6 +369,19 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocument
 
 .faq-block__type {
   font-weight: 700;
+}
+
+.faq-block-hint,
+.faq-link-type-toggle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.faq-link-type-toggle {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
 }
 
 .faq-textarea {
