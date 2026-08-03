@@ -281,15 +281,15 @@ function routingSummary(node) {
             <div><dt>Fila prevista</dt><dd>{{ routingSummary(selectedNode).fila }}</dd></div>
           </dl>
           <p class="faq-routing-summary__hint">
-            Padrão do fluxo: criticidade
+            Padrão do assunto: criticidade
             {{ criticalityLabel(bundleOperationalDefaults.criticidade) }}, prazo
             {{ slaLabel(bundleOperationalDefaults.sla_policy_key) }}.
-            Altere em <strong>Configurações do fluxo</strong>.
+            Altere em <strong>Configurações do assunto</strong>.
           </p>
         </section>
         <p class="faq-inheritance">
-          Estes campos orientam a abertura do protocolo quando o aluno chega nesta resposta final.
-          Deixe em branco para usar o padrão do fluxo.
+          Estes campos definem a regra deste nó na resposta final.
+          Deixe em branco para herdar o padrão do assunto.
         </p>
         <p v-if="!adminAreas.length" class="faq-area-banner" role="status">
           Nenhuma área disponível no catálogo institucional.
@@ -297,7 +297,7 @@ function routingSummary(node) {
           e atribua em <RouterLink to="/admin/permissoes">Usuários → pessoa → Áreas</RouterLink>.
         </p>
         <label class="crm-field-label">
-          Criticidade
+          Criticidade deste nó
           <select
             v-model="selectedNode.operational.criticidade"
             class="crm-field"
@@ -316,7 +316,7 @@ function routingSummary(node) {
           </select>
         </label>
         <label class="crm-field-label">
-          Prazo (SLA)
+          Prazo (SLA) deste nó
           <select
             v-model="selectedNode.operational.sla_policy_key"
             class="crm-field"
@@ -362,7 +362,7 @@ function routingSummary(node) {
           </select>
         </label>
         <p class="faq-field-hint">
-          Caminho operacional: {{ selectedPattern?.steps?.join(' → ') || 'defina em Configurações do fluxo' }}.
+          Caminho operacional: {{ selectedPattern?.steps?.join(' → ') || 'defina em Configurações do assunto' }}.
           A fila exata é confirmada pelo servidor ao abrir o protocolo.
         </p>
         <label class="crm-field-label">

@@ -62,7 +62,7 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
   >
     <section ref="panelRef" class="crm-panel faq-v3-dialog faq-v3-dialog--wide faq-settings" tabindex="-1">
       <div class="faq-v3-dialog__header">
-        <h2 id="faq-settings-title">Configurações do fluxo</h2>
+        <h2 id="faq-settings-title">Configurações do assunto</h2>
         <button type="button" class="crm-button-secondary" @click="$emit('close')">Fechar</button>
       </div>
       <p class="faq-settings__hint">
@@ -114,7 +114,7 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
           Esta escolha vale para todo o fluxo.
         </p>
         <label class="crm-field-label">
-          Criticidade padrão do fluxo
+          Criticidade padrão do assunto
           <select
             class="crm-field"
             :value="criticidadeDefaultKey"
@@ -128,7 +128,7 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
           </select>
         </label>
         <label class="crm-field-label">
-          Prazo padrão (SLA) do fluxo
+          Prazo padrão (SLA) do assunto
           <select
             class="crm-field"
             :value="slaPolicyKey"
@@ -142,8 +142,10 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
           </select>
         </label>
         <p class="faq-settings__hint">
-          Vale para respostas finais sem valor próprio.
-          <RouterLink to="/admin/parametros">Ver níveis institucionais</RouterLink>
+          Vale como padrão do assunto para respostas finais sem regra própria no nó.
+          Um nó pode sobrescrever criticidade e prazo na aba Encaminhamento.
+          Catálogo institucional em
+          <RouterLink to="/admin/parametros">Regras e prazos</RouterLink>.
         </p>
         <label class="crm-field-label">
           Tema

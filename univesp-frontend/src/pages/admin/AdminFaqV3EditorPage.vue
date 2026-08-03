@@ -1078,9 +1078,9 @@ function operationalInheritanceLabel(node, field, options = []) {
   }
   if (effective) {
     const match = options.find((item) => item.key === effective)
-    return `Usar padrão do fluxo (${match?.label || effective})`
+    return `Usar padrão do assunto (${match?.label || effective})`
   }
-  return 'Sem padrão definido — configure em Configurações do fluxo'
+  return 'Sem padrão definido — configure em Configurações do assunto'
 }
 
 function routingKeyLabel(key) {
@@ -1321,7 +1321,7 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
           Simular jornada
         </button>
         <button type="button" class="crm-button-secondary" @click="settingsOpen = true">
-          Configurações do fluxo
+          Configurações do assunto
         </button>
         <div class="faq-menu">
           <button

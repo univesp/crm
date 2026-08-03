@@ -124,7 +124,6 @@ async function loadRuntimeSettings() {
     if (
       Array.isArray(parameters.criticalityLevels)
       && Array.isArray(parameters.slaLevels)
-      && Array.isArray(parameters.applicationRules)
     ) {
       Object.assign(parameterDraft, JSON.parse(JSON.stringify(parameters)))
     }

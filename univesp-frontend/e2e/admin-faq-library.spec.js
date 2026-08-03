@@ -76,7 +76,7 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
   await expect(page.getByRole('heading', { name: 'Acesso ao AVA' })).toBeVisible()
-  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
+  await page.getByRole('button', { name: 'Configurações do assunto' }).click()
   await expect(page.getByText('Canais de disponibilidade', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Fechar' }).click()
 
@@ -103,7 +103,7 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
     .getByLabel('Finalidade objetiva do CPF')
     .fill('Confirmar a identidade antes de corrigir o cadastro de acesso.')
 
-  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
+  await page.getByRole('button', { name: 'Configurações do assunto' }).click()
   await page.getByLabel('Início da vigência').fill('2026-08-01T08:00')
   await page.getByLabel('Fim da vigência').fill('2026-12-31T23:59')
   await page.getByRole('button', { name: 'Fechar' }).click()
@@ -190,7 +190,7 @@ test('vigência permanece legível com campos desabilitados fora de rascunho', a
   })
   await page.goto('/crm/admin/faq-editor/acesso-ava')
 
-  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
+  await page.getByRole('button', { name: 'Configurações do assunto' }).click()
   const validFrom = page.getByLabel('Início da vigência')
   const validUntil = page.getByLabel('Fim da vigência')
   await expect(validFrom).toBeVisible()

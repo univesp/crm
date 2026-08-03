@@ -57,7 +57,6 @@ test('salva parametros institucionais com versao e motivo auditavel', async ({ p
   expect(savedPayload.reason).toBe('Ajuste operacional homologado')
   expect(Array.isArray(savedPayload.parameters.criticalityLevels)).toBe(true)
   expect(Array.isArray(savedPayload.parameters.slaLevels)).toBe(true)
-  expect(Array.isArray(savedPayload.parameters.applicationRules)).toBe(true)
   await expect(page.getByText('Parametros salvos no Frappe com versao e auditoria.')).toBeVisible()
 })
 
