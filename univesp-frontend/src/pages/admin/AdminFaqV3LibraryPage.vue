@@ -80,9 +80,15 @@ const filteredRows = computed(() => {
   return rows.value.filter((row) => {
     if (filters.audience && row.audience_profile !== filters.audience) return false
     if (!term) return true
-    return normalize(`${row.title} ${row.bundle_key} ${row.theme_key}`).includes(term)
+    return normalize(
+      `${row.title} ${row.bundle_key} ${row.theme_key} ${row.owner_email}`,
+    ).includes(term)
   })
 })
+
+const hasActiveFilters = computed(
+  () => Boolean(normalize(filters.search) || filters.audience || filters.status === 'archived'),
+)
 
 const summary = computed(() => ({
   total: rows.value.length,
@@ -379,6 +385,12 @@ function openEditor(bundleKey) {
   })
 }
 
+async function clearFilters() {
+  const shouldReload = filters.status !== 'active'
+  Object.assign(filters, { search: '', status: 'active', audience: '' })
+  if (shouldReload) await loadLibrary()
+}
+
 function lifecycleLabel(row) {
   if (row.status === 'archived') return 'Arquivado'
   const state = row.draft_summary?.lifecycle_state
@@ -612,7 +624,24 @@ function cloneJson(value) {
               </td>
             </tr>
             <tr v-if="!filteredRows.length">
-              <td colspan="9">Nenhum fluxo encontrado com estes filtros.</td>
+              <td colspan="9">
+                <div class="faq-library-empty">
+                  <strong>
+                    {{ rows.length ? 'Nenhum fluxo encontrado com estes filtros.' : 'Nenhum fluxo disponível nesta visão.' }}
+                  </strong>
+                  <p v-if="rows.length && hasActiveFilters">
+                    Ajuste os filtros ou limpe a busca para ver outros fluxos.
+                  </p>
+                  <button
+                    v-if="hasActiveFilters"
+                    type="button"
+                    class="crm-button-secondary"
+                    @click="clearFilters"
+                  >
+                    Limpar filtros
+                  </button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -892,6 +921,18 @@ function cloneJson(value) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.faq-library-empty {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding-block: var(--space-2);
+}
+
+.faq-library-empty p {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 
 .crm-table-scroll table {
