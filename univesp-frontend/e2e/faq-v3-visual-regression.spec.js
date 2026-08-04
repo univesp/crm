@@ -47,8 +47,8 @@ test('editor v3: telas principais sem colapso de layout', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Salvar rascunho' })).toBeVisible()
   await expect(page).toHaveScreenshot('editor-modo-simples.png', { fullPage: true, ...SNAPSHOT_OPTS })
 
-  await page.getByRole('button', { name: 'Mostrar opções avançadas' }).click()
-  await expect(page.getByRole('button', { name: 'OP', exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: 'OP', exact: true }).click()
+  await expect(page.getByLabel('Objetivo')).toBeVisible()
   await expect(page).toHaveScreenshot('editor-modo-avancado.png', { fullPage: true, ...SNAPSHOT_OPTS })
 
   await page.getByRole('button', { name: 'Mapa', exact: true }).click()
@@ -57,8 +57,8 @@ test('editor v3: telas principais sem colapso de layout', async ({ page }) => {
   await expect(mapSection).toHaveScreenshot('mapa-modo-inline.png', SNAPSHOT_OPTS)
   await page.getByRole('button', { name: 'Etapas', exact: true }).click()
 
-  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
-  const settingsDialog = page.getByRole('dialog', { name: 'Configurações do fluxo' })
+  await page.getByRole('button', { name: 'Configurações do assunto' }).click()
+  const settingsDialog = page.getByRole('dialog', { name: 'Configurações do assunto' })
   await expect(settingsDialog).toBeVisible()
   await expect(settingsDialog).toHaveScreenshot('configuracoes-fluxo.png', SNAPSHOT_OPTS)
   await page.keyboard.press('Escape')
@@ -81,8 +81,8 @@ test('editor v3: vigência legível em somente leitura', async ({ page }) => {
   })
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
-  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
-  const settingsDialog = page.getByRole('dialog', { name: 'Configurações do fluxo' })
+  await page.getByRole('button', { name: 'Configurações do assunto' }).click()
+  const settingsDialog = page.getByRole('dialog', { name: 'Configurações do assunto' })
   await expect(settingsDialog.getByLabel('Início da vigência')).toBeDisabled()
   await expect(settingsDialog.getByLabel('Fim da vigência')).toBeDisabled()
   await expect(settingsDialog).toHaveScreenshot('somente-leitura-configuracoes.png', SNAPSHOT_OPTS)

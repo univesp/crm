@@ -84,13 +84,11 @@ const editorViewMode = ref('steps')
 const mapDrawerOpen = ref(false)
 const mapWorkspaceRef = ref(null)
 const moreActionsOpen = ref(false)
-const advancedOpen = ref(false)
 const moreActionsTrigger = ref(null)
 const moreActionsPanel = ref(null)
 const issuesPanelRef = ref(null)
 const publishConfirmPanelRef = ref(null)
 
-const ADVANCED_TAB_KEYS = ['op', 'bpo', 'analyst', 'routing', 'document']
 const BLOCK_TYPE_LABELS = {
   text: 'Texto',
   notice: 'Aviso',
@@ -106,6 +104,11 @@ const channelFlags = reactive({ availableStudent: true, availablePublic: false }
 const catalogs = reactive({ themes: [], routing_patterns: [] })
 const runtimeParameters = reactive({ criticalityLevels: [], slaLevels: [] })
 const adminAreas = ref([])
+
+const ROUTING_KEY_LABELS = {
+  'atendimento-geral': 'Atendimento geral',
+  sra: 'Secretaria de Registro Acadêmico',
+}
 
 const ROUTING_CHAIN_PRESETS = [
   { value: '', label: 'Usar caminho do fluxo', chain: null },
@@ -123,7 +126,7 @@ const tabs = [
   { key: 'bpo', label: 'BPO' },
   { key: 'analyst', label: 'Analista' },
   { key: 'routing', label: 'Encaminhamento e prazo' },
-  { key: 'document', label: 'Documento' },
+  { key: 'document', label: 'Documentos e dados' },
 ]
 const lifecycleLabels = {
   draft: 'Rascunho',
@@ -191,24 +194,7 @@ const channelLabelText = computed(() => availableChannelLabels(channelFlags).joi
 const visibleTabs = computed(() =>
   tabs.filter((tab) => tab.key !== 'public' || channelFlags.availablePublic),
 )
-const editorTabs = computed(() => {
-  if (advancedOpen.value) return visibleTabs.value
-  return visibleTabs.value.filter((tab) => !ADVANCED_TAB_KEYS.includes(tab.key))
-})
-const advancedTabSummary = computed(() => {
-  const node = selectedNode.value
-  if (!node) return { filled: 0, issues: 0 }
-  let filled = 0
-  let issues = 0
-  for (const key of ADVANCED_TAB_KEYS) {
-    if (key === 'document' && node.node_kind !== 'final') continue
-    if (layerHasContent(node, key)) filled += 1
-    if (draftIssues.value.some((issue) => issue.nodeId === node.node_id && issue.layer === key)) {
-      issues += 1
-    }
-  }
-  return { filled, issues }
-})
+const editorTabs = computed(() => visibleTabs.value)
 const publicContentIsCustom = computed(
   () => publicContentMode(selectedNode.value) === PUBLIC_CONTENT_CUSTOM,
 )
@@ -277,12 +263,6 @@ watch(selectedNodeId, () => {
   }
 })
 
-watch(advancedOpen, (open) => {
-  if (!open && ADVANCED_TAB_KEYS.includes(activeTab.value)) {
-    activeTab.value = 'student'
-  }
-})
-
 async function loadEditor() {
   loading.value = true
   errorMessage.value = ''
@@ -304,7 +284,10 @@ async function loadEditor() {
       ? parameters.criticalityLevels
       : []
     runtimeParameters.slaLevels = Array.isArray(parameters.slaLevels) ? parameters.slaLevels : []
-    adminAreas.value = adminCatalogsResponse.data?.areas || []
+    adminAreas.value = (adminCatalogsResponse.data?.areas || []).map((area) => ({
+      value: String(area.value || area.key || '').trim(),
+      label: String(area.label || area.value || area.key || '').trim(),
+    })).filter((area) => area.value)
     try {
       mediaUploadEnabled.value = Boolean((await getRuntimeFlags()).data?.knowledge_media_upload)
     } catch {
@@ -679,7 +662,7 @@ function contentBlocks(layer) {
   return selectedNode.value.content[layer].blocks
 }
 
-function addContentBlock(layer, type = 'text') {
+function addContentBlock(layer, type = 'text', actionKey = null) {
   const block = {
     block_id: `${selectedNode.value.node_id}-${layer}-${type}-${Date.now().toString(36)}`,
     type,
@@ -688,7 +671,7 @@ function addContentBlock(layer, type = 'text') {
     alt: '',
     captions_url: '',
   }
-  if (type === 'button') block.action_key = 'open_ticket'
+  if (type === 'button') block.action_key = actionKey || 'open_ticket'
   contentBlocks(layer).push(block)
 }
 
@@ -992,12 +975,17 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+function ensureMetadataField(field, value) {
+  if (!payload.value) return
+  if (!payload.value.metadata || typeof payload.value.metadata !== 'object') {
+    payload.value.metadata = {}
+  }
+  payload.value.metadata[field] = value || null
+}
+
 function navigateToIssue(issue) {
   if (issue?.nodeId) selectedNodeId.value = issue.nodeId
-  if (issue?.layer && ADVANCED_TAB_KEYS.includes(issue.layer)) {
-    advancedOpen.value = true
-    activeTab.value = issue.layer
-  } else if (issue?.layer) {
+  if (issue?.layer) {
     activeTab.value = issue.layer
   } else if (issue?.fieldKey === 'channels') {
     settingsOpen.value = true
@@ -1090,9 +1078,29 @@ function operationalInheritanceLabel(node, field, options = []) {
   }
   if (effective) {
     const match = options.find((item) => item.key === effective)
-    return `Herdado do fluxo: ${match?.label || effective}`
+    return `Usar padrão do assunto (${match?.label || effective})`
   }
-  return 'Sem padrão definido no fluxo'
+  return 'Sem padrão definido — configure em Configurações do assunto'
+}
+
+function routingKeyLabel(key) {
+  const normalized = String(key || '').trim()
+  if (!normalized) return 'Regra automática do fluxo'
+  return ROUTING_KEY_LABELS[normalized] || normalized
+}
+
+function tabButtonId(tabKey) {
+  return `faq-tab-${tabKey}`
+}
+
+function tabPanelId(tabKey) {
+  return `faq-tabpanel-${tabKey}`
+}
+
+function firstTabIssue(tabKey) {
+  const node = selectedNode.value
+  if (!node) return null
+  return draftIssues.value.find((issue) => issue.nodeId === node.node_id && issue.layer === tabKey) || null
 }
 
 function routingChainPresetValue(chain) {
@@ -1113,13 +1121,22 @@ function setRoutingChainPreset(presetValue) {
 function tabStateLabel(tabKey) {
   const node = selectedNode.value
   if (!node) return ''
-  const issueCount = draftIssues.value.filter(
-    (issue) => issue.nodeId === node.node_id && issue.layer === tabKey,
-  ).length
-  if (issueCount) return `${issueCount} alerta`
-  if (layerHasContent(node, tabKey)) return 'Completo'
-  if (['op', 'bpo', 'analyst', 'routing', 'document'].includes(tabKey)) return 'Vazio'
-  return resolveNodeContent(node, tabKey)?.blocks?.length ? 'Completo' : 'Vazio'
+  const issue = firstTabIssue(tabKey)
+  if (issue) {
+    const short =
+      issue.fieldKey === 'area_key'
+        ? 'área'
+        : issue.fieldKey === 'op_objective'
+          ? 'objetivo OP'
+          : issue.fieldKey === 'cpf_purpose'
+            ? 'finalidade CPF'
+            : issue.layer || 'campo'
+    return `Pendente: ${short}`
+  }
+  if (layerHasContent(node, tabKey)) return 'Pronto'
+  if (tabKey === 'document') return 'Opcional'
+  if (['op', 'bpo', 'analyst', 'routing'].includes(tabKey)) return 'Opcional'
+  return resolveNodeContent(node, tabKey)?.blocks?.length ? 'Pronto' : 'Opcional'
 }
 
 function readBlockCount(node, layer) {
@@ -1217,9 +1234,7 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
   selectedNode,
   canEdit,
   activeTab,
-  advancedOpen,
   editorTabs,
-  advancedTabSummary,
   publicContentIsCustom,
   payload,
   catalogs,
@@ -1254,6 +1269,9 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
   routingChainPresetValue,
   setRoutingChainPreset,
   resolveFinalArea,
+  routingKeyLabel,
+  tabButtonId,
+  tabPanelId,
 })
 </script>
 
@@ -1303,7 +1321,7 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
           Simular jornada
         </button>
         <button type="button" class="crm-button-secondary" @click="settingsOpen = true">
-          Configurações do fluxo
+          Configurações do assunto
         </button>
         <div class="faq-menu">
           <button
@@ -1661,6 +1679,10 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
         :pattern-key="payload.routing_policy?.pattern_key || ''"
         :routing-patterns="catalogs.routing_patterns"
         :selected-pattern="selectedPattern"
+        :criticidade-default-key="payload.metadata?.criticidade_default_key || ''"
+        :sla-policy-key="payload.metadata?.sla_policy_key || ''"
+        :criticality-levels="runtimeParameters.criticalityLevels"
+        :sla-levels="runtimeParameters.slaLevels"
         :available-student="channelFlags.availableStudent"
         :available-public="channelFlags.availablePublic"
         :valid-from="validity.valid_from"
@@ -1671,6 +1693,8 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
         @sync-channels="syncChannelSettings"
         @update:theme-key="payload.theme_key = $event"
         @update:pattern-key="payload.routing_policy.pattern_key = $event"
+        @update:criticidade-default-key="ensureMetadataField('criticidade_default_key', $event)"
+        @update:sla-policy-key="ensureMetadataField('sla_policy_key', $event)"
         @update:available-student="channelFlags.availableStudent = $event"
         @update:available-public="channelFlags.availablePublic = $event"
         @update:valid-from="validity.valid_from = $event"

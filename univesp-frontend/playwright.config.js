@@ -15,6 +15,10 @@ export default defineConfig({
     command: 'npm run dev -- --host 127.0.0.1 --port 4176',
     url: 'http://127.0.0.1:4176/crm/login',
     reuseExistingServer: !process.env.CI,
+    env: {
+      ...process.env,
+      VITE_ENABLE_MOCKS: 'false',
+    },
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
 })

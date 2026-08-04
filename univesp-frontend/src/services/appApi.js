@@ -191,6 +191,14 @@ export async function getAdminCatalogs() {
   return appRequest('/admin/catalogs')
 }
 
+export async function listInstitutionalAreas() {
+  return appRequest('/admin/areas')
+}
+
+export async function createInstitutionalArea(payload) {
+  return appRequest('/admin/areas', { method: 'POST', body: payload })
+}
+
 export async function listAccessAudit(params = {}) {
   return appRequest(withQuery('/admin/audit', params))
 }

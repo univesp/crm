@@ -31,6 +31,24 @@ const catalogs = {
 
 const bundles = new Map()
 
+const institutionalAreas = [
+  {
+    id: 'sra',
+    area_key: 'sra',
+    area_label: 'Secretaria de Registro Acadêmico',
+    active: true,
+    updated_at: '',
+  },
+]
+
+const profileAssignments = []
+
+function areaCatalogEntries() {
+  return institutionalAreas
+    .filter((area) => area.active)
+    .map((area) => ({ value: area.area_key, label: area.area_label }))
+}
+
 function jsonResponse(res, status, data, etag = '') {
   const body = JSON.stringify({
     data,
@@ -338,7 +356,39 @@ async function handleKnowledgeV3(req, res, pathname, method) {
 
 async function handleAdmin(req, res, pathname, method) {
   if (pathname.endsWith('/admin/catalogs') && method === 'GET') {
-    return jsonResponse(res, 200, { queues: [], areas: [] })
+    return jsonResponse(res, 200, {
+      queues: [],
+      areas: areaCatalogEntries(),
+    })
+  }
+
+  if (pathname.endsWith('/admin/areas') && method === 'GET') {
+    return jsonResponse(res, 200, institutionalAreas)
+  }
+
+  if (pathname.endsWith('/admin/areas') && method === 'POST') {
+    const body = await readBody(req)
+    const areaKey = String(body.area_key || body.area_label || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+    if (!areaKey) {
+      return jsonResponse(res, 422, { error: { message: 'Chave da area e obrigatoria.' } })
+    }
+    if (institutionalAreas.some((area) => area.area_key === areaKey)) {
+      return jsonResponse(res, 409, { error: { message: 'Ja existe uma area com essa chave.' } })
+    }
+    const created = {
+      id: areaKey,
+      area_key: areaKey,
+      area_label: String(body.area_label || areaKey).trim(),
+      active: true,
+      updated_at: new Date().toISOString(),
+    }
+    institutionalAreas.push(created)
+    return jsonResponse(res, 200, created)
   }
 
   if (pathname.endsWith('/admin/users') && method === 'GET') {
@@ -368,12 +418,21 @@ async function handleAdmin(req, res, pathname, method) {
   }
 
   if (pathname.endsWith('/profile-assignments') && method === 'GET') {
-    return jsonResponse(res, 200, [])
+    return jsonResponse(res, 200, profileAssignments)
   }
 
   if (pathname.endsWith('/profile-assignments') && method === 'POST') {
     const body = await readBody(req)
-    return jsonResponse(res, 200, { id: 'grant-local-1', ...body })
+    const created = {
+      id: `grant-local-${profileAssignments.length + 1}`,
+      subject_type: body.subject_type || 'person',
+      subject_id: body.subject_id || '',
+      permission_profile: body.permission_profile || '',
+      scopes: body.scopes || {},
+      active: true,
+    }
+    profileAssignments.unshift(created)
+    return jsonResponse(res, 200, created)
   }
 
   return null

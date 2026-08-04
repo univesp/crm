@@ -426,7 +426,7 @@ function cloneJson(value) {
 </script>
 
 <template>
-  <main class="crm-page-wide crm-content-stack" aria-labelledby="faq-library-title">
+  <main class="crm-page-wide crm-content-stack crm-page-container" aria-labelledby="faq-library-title">
     <header class="crm-page-header">
       <div>
         <p class="faq-kicker">FAQs e orientações</p>
@@ -840,6 +840,7 @@ function cloneJson(value) {
   gap: var(--space-3);
   align-items: flex-start;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .crm-page-header > :first-child {
@@ -851,9 +852,14 @@ function cloneJson(value) {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  flex: 1 1 100%;
-  width: 100%;
+  flex: 0 0 auto;
   justify-content: flex-start;
+}
+
+@media (min-width: 768px) {
+  .crm-page-header__actions {
+    justify-content: flex-end;
+  }
 }
 
 .crm-alert {

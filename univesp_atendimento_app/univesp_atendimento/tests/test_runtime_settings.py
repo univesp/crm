@@ -12,7 +12,6 @@ class TestRuntimeSettings(TestCase):
 			{
 				"criticalityLevels": [{"key": "high", "label": "Alta"}],
 				"slaLevels": [{"key": "standard", "label": "Padrao"}],
-				"applicationRules": [{"id": "rule-1", "targetType": "queue"}],
 			}
 		)
 
@@ -25,8 +24,7 @@ class TestRuntimeSettings(TestCase):
 			_validate_parameters(
 				{
 					"criticalityLevels": [{"key": "high"}, {"key": "high"}],
-					"slaLevels": [],
-					"applicationRules": [],
+					"slaLevels": [{"key": "standard"}],
 				}
 			)
 
@@ -35,7 +33,6 @@ class TestRuntimeSettings(TestCase):
 			_validate_parameters(
 				{
 					"criticalityLevels": [{"key": "high", "description": "x" * 270_000}],
-					"slaLevels": [],
-					"applicationRules": [],
+					"slaLevels": [{"key": "standard"}],
 				}
 			)
