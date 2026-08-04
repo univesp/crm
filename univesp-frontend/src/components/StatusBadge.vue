@@ -9,7 +9,10 @@ const props = defineProps({
 })
 
 const toneClass = computed(() => {
-  const label = props.label.toLowerCase()
+  const label = props.label
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 
   if (label.includes('crit')) {
     return 'badge-criticality-high'

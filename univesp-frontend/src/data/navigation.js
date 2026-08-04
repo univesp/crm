@@ -15,22 +15,22 @@ export function buildNavigationSections(mockContext) {
         items: [
           {
             id: 'student-home',
-            label: 'Inicio',
+            label: 'Início',
             route: '/aluno',
             matches: ['/aluno'],
-            description: 'Escolha entre nova duvida e acompanhamento.',
+            description: 'Escolha entre nova dúvida e acompanhamento.',
           },
           {
             id: 'student-journey',
-            label: 'Tenho uma duvida',
+            label: 'Tenho uma dúvida',
             route: '/aluno/duvida',
             matches: ['/aluno/duvida'],
             prefixMatches: ['/aluno/protocolo', '/aluno/confirmacao'],
-            description: 'Jornada guiada antes da solicitacao.',
+            description: 'Jornada guiada antes da solicitação.',
           },
           {
             id: 'student-requests',
-            label: 'Minhas solicitacoes',
+            label: 'Minhas solicitações',
             route: '/aluno/solicitacoes',
             matches: ['/aluno/solicitacoes'],
             prefixMatches: ['/aluno/solicitacoes/'],
@@ -55,7 +55,7 @@ export function buildNavigationSections(mockContext) {
         ? 'Gestão de áreas'
         : 'Área especializada'
       : mockContext.profileKey === 'gestor_polos'
-        ? 'Gestao de polos'
+        ? 'Gestão de polos'
         : 'Operação do polo'
 
     return [
@@ -68,7 +68,7 @@ export function buildNavigationSections(mockContext) {
                 id: 'area-cockpit',
                 label: 'Cockpit operacional',
                 route: '/area/cockpit',
-                description: 'SLAs atrasados, em risco e acao rapida na fila da area.',
+                description: 'SLAs atrasados, em risco e ação rápida na fila da área.',
               },
               ...(mockContext.profileKey === 'gestor_area'
                 ? [
@@ -76,7 +76,7 @@ export function buildNavigationSections(mockContext) {
                       id: 'area-manager-home',
                       label: 'Operação da área',
                       route: '/area/operacao',
-                      description: 'Backlog, gargalos, redistribuicao e excecoes no escopo atual.',
+                      description: 'Backlog, gargalos, redistribuição e exceções no escopo atual.',
                     },
                   ]
                 : []),
@@ -85,13 +85,13 @@ export function buildNavigationSections(mockContext) {
                 label: queueLabel,
                 route: '/area/fila',
                 prefixMatches: ['/area/fila/'],
-                description: 'Fila especializada com handoff do OP e analise tecnica da area.',
+                description: 'Fila especializada com handoff do OP e análise técnica da área.',
               },
               {
                 id: 'area-guidance',
                 label: 'Conteúdo vigente',
                 route: '/area/orientacao',
-                description: 'Consulta da FAQ, da orientacao operacional e do playbook vigente da area.',
+                description: 'Consulta da FAQ, da orientação operacional e do playbook vigente da área.',
               },
               {
                 id: 'area-knowledge-review',
@@ -106,7 +106,7 @@ export function buildNavigationSections(mockContext) {
                       id: 'area-governance',
                       label: 'Regras operacionais',
                       route: '/area/governanca',
-                      description: 'Escopo por assunto, disponibilidade do time e regras de distribuicao.',
+                      description: 'Escopo por assunto, disponibilidade do time e regras de distribuição.',
                     },
                   ]
                 : []),
@@ -139,7 +139,7 @@ export function buildNavigationSections(mockContext) {
             id: 'operator-playbook',
             label: 'Consultar orientação',
             route: '/op/playbook',
-            description: 'Consultar a FAQ do aluno e a orientacao do OP antes de decidir.',
+            description: 'Consultar a FAQ do aluno e a orientação do OP antes de decidir.',
           },
         ],
       },

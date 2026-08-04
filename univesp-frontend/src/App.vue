@@ -690,7 +690,7 @@ onErrorCaptured((error) => {
                 Preparando a tela selecionada
               </h2>
               <p class="mt-2 text-sm leading-6">
-                Aguarde alguns segundos. Se o carregamento nao concluir, use "Recarregar app".
+                Aguarde alguns segundos. Se o carregamento não for concluído, use "Recarregar app".
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
                 <button

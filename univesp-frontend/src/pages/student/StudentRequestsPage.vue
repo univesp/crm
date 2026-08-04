@@ -46,7 +46,7 @@ const sections = computed(() => [
   },
   {
     key: 'actionRequired',
-    title: 'Precisa da minha ação',
+    title: 'Precisa da sua ação',
     empty: 'Nenhum registro aguardando ação sua no momento.',
     tone: {
       sectionClass: 'border-[rgba(209,50,57,0.18)] bg-[rgba(209,50,57,0.04)]',
@@ -68,7 +68,7 @@ const sections = computed(() => [
   },
   {
     key: 'completed',
-    title: 'Atendido / Concluido',
+    title: 'Atendido / Concluído',
     empty: 'Nenhum registro finalizado no momento.',
     tone: {
       sectionClass: 'border-[rgba(26,111,67,0.18)] bg-[rgba(26,111,67,0.04)]',
@@ -281,7 +281,7 @@ function openActionRequiredSection() {
                 v-if="completedSubsections.concluded.length"
                 class="grid gap-3"
               >
-                <p class="student-section-label">Concluidas</p>
+                <p class="student-section-label">Concluídas</p>
                 <article
                   v-for="item in completedSubsections.concluded"
                   :key="item.id"
@@ -382,7 +382,7 @@ function openActionRequiredSection() {
         <div class="rounded-[8px] border border-slate-200 bg-slate-50/85 p-4">
           <p class="text-sm font-semibold text-slate-900">Como ler esta lista</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            O nome da sua dúvida aparece primeiro. O status mostra se você precisa agir, aguardar atendimento, consultar a resposta no portal ou considerar o caso concluido.
+            O nome da sua dúvida aparece primeiro. O status mostra se você precisa agir, aguardar atendimento, consultar a resposta no portal ou considerar o caso concluído.
           </p>
         </div>
       </div>

@@ -84,16 +84,16 @@ function buildStateCopy(studentState, pendingLabel = '') {
   if (studentState === STUDENT_REQUEST_STATES.DRAFT) {
     return {
       statusLabel: 'Em preenchimento',
-      nextStepTitle: 'Complete e envie sua solicitacao',
-      nextStepDescription: 'Revise o resumo, complemente a descricao e envie quando estiver tudo certo.',
+      nextStepTitle: 'Complete e envie sua solicitação',
+      nextStepDescription: 'Revise o resumo, complemente a descrição e envie quando estiver tudo certo.',
     }
   }
 
   if (studentState === STUDENT_REQUEST_STATES.ACTION_REQUIRED) {
     return {
-      statusLabel: 'Precisa da sua acao',
-      nextStepTitle: 'Sua acao e necessaria',
-      nextStepDescription: pendingLabel || 'Existe uma pendencia que depende de voce para o atendimento continuar.',
+      statusLabel: 'Precisa da sua ação',
+      nextStepTitle: 'Sua ação é necessária',
+      nextStepDescription: pendingLabel || 'Existe uma pendência que depende de você para o atendimento continuar.',
     }
   }
 
@@ -101,22 +101,22 @@ function buildStateCopy(studentState, pendingLabel = '') {
     return {
       statusLabel: 'Respondida no portal',
       nextStepTitle: 'Resposta registrada no portal',
-      nextStepDescription: 'A orientacao ja foi registrada e pode ser consultada novamente sempre que necessario.',
+      nextStepDescription: 'A orientação já foi registrada e pode ser consultada novamente sempre que necessário.',
     }
   }
 
   if (studentState === STUDENT_REQUEST_STATES.COMPLETED) {
     return {
-      statusLabel: 'Concluida',
-      nextStepTitle: 'Atendimento concluido',
-      nextStepDescription: 'Este atendimento foi encerrado e nao exige mais nenhuma acao sua.',
+      statusLabel: 'Concluída',
+      nextStepTitle: 'Atendimento concluído',
+      nextStepDescription: 'Este atendimento foi encerrado e não exige mais nenhuma ação sua.',
     }
   }
 
   return {
     statusLabel: 'Aguardando atendimento',
-    nextStepTitle: 'Agora e com nossa equipe',
-    nextStepDescription: pendingLabel || 'Seu registro esta em acompanhamento e voce sera avisado quando houver novidade.',
+    nextStepTitle: 'Agora é com nossa equipe',
+    nextStepDescription: pendingLabel || 'Seu registro está em acompanhamento e você será avisado quando houver novidade.',
   }
 }
 
@@ -236,7 +236,7 @@ function buildDraftEntry(protocolDraft) {
     subject: protocolDraft.form.subject,
     studentState: STUDENT_REQUEST_STATES.DRAFT,
     statusLabel: stateCopy.statusLabel,
-    pendingLabel: 'Revise a descricao e os anexos antes de enviar.',
+    pendingLabel: 'Revise a descrição e os anexos antes de enviar.',
     updatedAtLabel: protocolDraft.createdAtLabel,
     timestampMs: resolveDraftTimestamp(protocolDraft),
     route: '/aluno/protocolo',
@@ -520,14 +520,14 @@ function buildRecordDetail(recordEntry) {
       {
         id: `${record.id}-faq`,
         title: 'Resposta registrada no portal',
-        description: record.context?.displayedAnswer || 'A orientacao oficial foi registrada para consulta.',
+        description: record.context?.displayedAnswer || 'A orientação oficial foi registrada para consulta.',
         atLabel: record.createdAtLabel,
       },
     ],
     attachments: [],
     canUploadDocument: false,
     actionLabel: '',
-    actionDescription: 'Nenhuma acao sua e necessaria neste registro.',
+    actionDescription: 'Nenhuma ação sua é necessária neste registro.',
     contextTrail: record.context?.breadcrumb || [],
   }
 }
@@ -538,7 +538,7 @@ function buildProtocolDetail(protocolEntry) {
   const actionDescription = canUploadDocument
     ? protocol.pendingLabel
     : protocolEntry.studentState === STUDENT_REQUEST_STATES.WAITING
-      ? 'Agora e com nossa equipe. Nao ha nenhuma acao pendente para voce.'
+      ? 'Agora é com nossa equipe. Não há nenhuma ação pendente para você.'
       : protocolEntry.nextStepDescription
 
   return {
