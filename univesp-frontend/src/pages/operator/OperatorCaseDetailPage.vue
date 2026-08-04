@@ -59,11 +59,11 @@ const interventionContext = computed(() =>
 )
 const interventionFeedback = ref({ type: '', message: '' })
 const isAssumingCase = ref(false)
-const escalationDestination = computed(() => detail.value?.lastMileAreaLabel || 'Area interna')
+const escalationDestination = computed(() => detail.value?.lastMileAreaLabel || 'Área interna')
 const escalationReason = computed(() =>
   detail.value?.playbook.escalationReason ||
   detail.value?.playbook.escalationCriteria ||
-  'Escalonamento operacional necessario para continuidade segura.',
+  'Escalonamento operacional necessário para continuidade segura.',
 )
 const canSuggestKnowledge = computed(() => {
   const knowledge = detail.value?.knowledge
@@ -140,7 +140,7 @@ const headerMeta = computed(() => {
     },
     {
       key: 'ra',
-      label: detail.value.studentData.ra ? `RA ${detail.value.studentData.ra}` : 'RA nao informado',
+      label: detail.value.studentData.ra ? `RA ${detail.value.studentData.ra}` : 'RA não informado',
     },
     {
       key: 'protocol',
@@ -179,7 +179,7 @@ const summaryBullets = computed(() => {
   return [
     `O aluno abriu este atendimento sobre ${withPeriod(detail.value.subject.toLowerCase())}`,
     breadcrumb ? `O caso chegou ate aqui pelo caminho ${withPeriod(breadcrumb)}` : '',
-    verifiedSummary ? `Ja foi verificado: ${withPeriod(verifiedSummary)}` : '',
+    verifiedSummary ? `Já foi verificado: ${withPeriod(verifiedSummary)}` : '',
     `Agora falta ${withPeriod(detail.value.pendingLabel.toLowerCase())}`,
   ].filter(Boolean)
 })
@@ -200,7 +200,7 @@ const analysisSections = computed(() => {
   if ((detail.value.playbook.documentsRequested || []).length) {
     decisionItems.push('Se faltar documento, print ou contexto, pedir complementação ao aluno.')
   } else {
-    decisionItems.push('Se o relato do aluno ainda nao sustentar a analise, pedir complementação.')
+    decisionItems.push('Se o relato do aluno ainda não sustentar a análise, pedir complementação.')
   }
 
   if (detail.value.playbook.escalationCriteria) {
@@ -317,11 +317,11 @@ const decisionOptions = computed(() => {
     {
       id: 'reply',
       title: 'Responder ao aluno',
-      description: 'Fiz a analise recomendada e tenho informacoes suficientes.',
+      description: 'Fiz a análise recomendada e tenho informações suficientes.',
       submitLabel: 'Registrar resposta ao aluno',
       fieldLabel: 'Resposta ao aluno',
-      previewLabel: 'Resposta que sera registrada',
-      placeholder: 'Escreva a resposta que sera enviada ao aluno pelo portal.',
+      previewLabel: 'Resposta que será registrada',
+      placeholder: 'Escreva a resposta que será enviada ao aluno pelo portal.',
       toneClass:
         selectedDecision.value === 'reply'
           ? 'border-[rgba(209,50,57,0.22)] bg-[rgba(209,50,57,0.06)] text-[var(--color-primary-dark)]'
@@ -330,10 +330,10 @@ const decisionOptions = computed(() => {
     {
       id: 'request_info',
       title: 'Pedir complementação',
-      description: 'Fiz a analise recomendada, mas ainda faltam informacoes ou evidencias.',
+      description: 'Fiz a análise recomendada, mas ainda faltam informações ou evidências.',
       submitLabel: 'Registrar pedido de complementação',
       fieldLabel: 'Pedido de complementação',
-      previewLabel: 'Complementação que sera solicitada',
+      previewLabel: 'Complementação que será solicitada',
       placeholder: 'Explique ao aluno o que falta: informação, print, documento ou confirmação.',
       toneClass:
         selectedDecision.value === 'request_info'
@@ -342,12 +342,12 @@ const decisionOptions = computed(() => {
     },
     {
       id: 'escalate',
-      title: 'Escalar para area interna',
-      description: 'Fiz toda a analise, mas preciso de apoio superior ou identifico possivel erro.',
+      title: 'Escalar para área interna',
+      description: 'Fiz toda a análise, mas preciso de apoio superior ou identifico possível erro.',
       submitLabel: 'Continuar para escalonamento',
-      fieldLabel: 'Subsidios para a area interna',
-      previewLabel: 'Subsidios que serao registrados',
-      placeholder: 'Descreva o que foi verificado, o que ainda falta e por que a area interna precisa atuar.',
+      fieldLabel: 'Subsídios para a área interna',
+      previewLabel: 'Subsídios que serão registrados',
+      placeholder: 'Descreva o que foi verificado, o que ainda falta e por que a área interna precisa atuar.',
       toneClass:
         selectedDecision.value === 'escalate'
           ? 'border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.18)] text-[#0b6e8c]'
@@ -374,13 +374,13 @@ function buildSuggestedNote(actionType) {
 
   if (actionType === 'request_info') {
     if ((detail.value.playbook.documentsRequested || []).length) {
-      return `Para continuar a analise, envie ${detail.value.playbook.documentsRequested.join(', ')} e, se necessario, mais detalhes sobre o ocorrido.`
+      return `Para continuar a análise, envie ${detail.value.playbook.documentsRequested.join(', ')} e, se necessário, mais detalhes sobre o ocorrido.`
     }
 
-    return 'Para continuar a analise, preciso de mais informacoes, evidencias ou confirmação do relato.'
+    return 'Para continuar a análise, preciso de mais informações, evidências ou confirmação do relato.'
   }
 
-  return `Encaminho o caso para ${escalationDestination.value}. Ja foi verificado: ${detail.value.playbook.checklist?.slice(0, 2).join('; ') || detail.value.pendingLabel}. Motivo do escalonamento: ${detail.value.playbook.escalationReason || detail.value.playbook.escalationCriteria || 'necessidade de validação interna adicional'}.`
+  return `Encaminho o caso para ${escalationDestination.value}. Já foi verificado: ${detail.value.playbook.checklist?.slice(0, 2).join('; ') || detail.value.pendingLabel}. Motivo do escalonamento: ${detail.value.playbook.escalationReason || detail.value.playbook.escalationCriteria || 'necessidade de validação interna adicional'}.`
 }
 
 function syncSuggestedNote(force = false) {
@@ -445,11 +445,11 @@ const historySummary = computed(() => {
   const items = latestTimeline.map((item) => `${item.atLabel}: ${withPeriod(item.title)}`)
 
   if (latestInteraction) {
-    items.push(`${latestInteraction.atLabel}: ultima resposta registrada por ${latestInteraction.actor}.`)
+    items.push(`${latestInteraction.atLabel}: última resposta registrada por ${latestInteraction.actor}.`)
   }
 
   if (latestAttachment) {
-    items.push(`Ultimo documento registrado: ${withPeriod(latestAttachment.name)}`)
+    items.push(`Último documento registrado: ${withPeriod(latestAttachment.name)}`)
   }
 
   return items.filter(Boolean).slice(0, 3)
@@ -519,7 +519,7 @@ const actionAvailability = computed(() => {
   if (status.includes('respondido pelo op') || status.includes('faq') || status.includes('conclu')) {
     return {
       canAct: false,
-      reason: 'Este atendimento ja foi encerrado. Nao ha nova ação do OP neste momento.',
+      reason: 'Este atendimento já foi encerrado. Não há nova ação do OP neste momento.',
     }
   }
 
@@ -530,7 +530,7 @@ const actionAvailability = computed(() => {
   ) {
     return {
       canAct: false,
-      reason: 'Este atendimento esta aguardando retorno do aluno. O OP nao precisa agir agora.',
+      reason: 'Este atendimento está aguardando retorno do aluno. O OP não precisa agir agora.',
     }
   }
 
@@ -543,7 +543,7 @@ const actionAvailability = computed(() => {
   ) {
     return {
       canAct: false,
-      reason: 'Este atendimento esta aguardando retorno da area interna. O OP nao precisa agir agora.',
+      reason: 'Este atendimento está aguardando retorno da área interna. O OP não precisa agir agora.',
     }
   }
 
@@ -572,7 +572,7 @@ function ensureEscalationReason() {
     return true
   }
 
-  noteError.value = 'Preencha os subsidios para a area interna antes de escalar.'
+  noteError.value = 'Preencha os subsídios para a área interna antes de escalar.'
   focusOperatorNote()
   return false
 }
@@ -743,14 +743,14 @@ function assumeCaseFromCockpit() {
   if (!actionLog) {
     interventionFeedback.value = {
       type: 'error',
-      message: 'Nao foi possivel assumir este caso agora.',
+      message: 'Não foi possível assumir este caso agora.',
     }
     return
   }
 
   interventionFeedback.value = {
     type: 'success',
-    message: 'Caso assumido com sucesso. Voce ja pode continuar a tratativa.',
+    message: 'Caso assumido com sucesso. Você já pode continuar a tratativa.',
   }
   dismissIntervention()
 }
@@ -773,7 +773,7 @@ const confirmationCopy = computed(() => {
   if (pendingConfirmationAction.value === 'reply') {
     return {
       title: 'Confirmar resposta ao aluno',
-      consequence: 'A resposta sera registrada no portal como devolutiva do OP.',
+      consequence: 'A resposta será registrada no portal como devolutiva do OP.',
       buttonClass: 'bg-[var(--color-primary)] text-white',
       buttonLabel: 'Confirmar resposta ao aluno',
     }
@@ -782,7 +782,7 @@ const confirmationCopy = computed(() => {
   if (pendingConfirmationAction.value === 'request_info') {
     return {
       title: 'Confirmar pedido de complementação',
-      consequence: 'O aluno sera orientado a complementar o protocolo para continuidade da analise.',
+      consequence: 'O aluno será orientado a complementar o protocolo para continuidade da análise.',
       buttonClass: 'border border-[rgba(202,138,4,0.22)] bg-[rgba(254,243,199,0.82)] text-[#8a5200]',
       buttonLabel: 'Confirmar pedido de complementação',
     }
@@ -790,7 +790,7 @@ const confirmationCopy = computed(() => {
 
   return {
     title: 'Confirmar escalonamento',
-    consequence: `O caso sai da fila atual e segue para ${escalationDestination.value} com os subsidios registrados.`,
+    consequence: `O caso sai da fila atual e segue para ${escalationDestination.value} com os subsídios registrados.`,
     buttonClass: 'bg-[#0f4c81] text-white',
     buttonLabel: 'Confirmar escalonamento',
   }
@@ -800,10 +800,10 @@ const confirmationCopy = computed(() => {
 <template>
   <div v-if="!detail" class="rounded-[8px] border border-slate-200 bg-white px-6 py-6">
     <p class="text-xs font-semibold text-slate-500">
-      Atendimento indisponivel
+      Atendimento indisponível
     </p>
     <h3 class="mt-3 text-2xl font-semibold text-slate-950">
-      O caso informado nao foi encontrado na base operacional.
+      O caso informado não foi encontrado na base operacional.
     </h3>
     <p class="mt-3 text-sm leading-7 text-slate-600">
       Volte para a fila do OP e abra um atendimento existente para visualizar o detalhe.
@@ -843,7 +843,7 @@ const confirmationCopy = computed(() => {
           </div>
         </div>
         <div class="mt-3 rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Pendencia atual</p>
+          <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">Pendência atual</p>
           <p class="mt-1 text-sm font-medium leading-6 text-slate-800">
             {{ detail.pendingLabel }}
           </p>
@@ -1015,7 +1015,7 @@ const confirmationCopy = computed(() => {
 
         <div class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Proxima ação</h3>
+            <h3 class="text-base font-semibold text-slate-950">Próxima ação</h3>
           </div>
 
           <div v-if="!actionAvailability.canAct" class="px-4 py-4 text-sm leading-6 text-slate-700">
@@ -1025,7 +1025,7 @@ const confirmationCopy = computed(() => {
           <template v-else>
             <div class="px-4 py-4">
               <p class="text-sm leading-6 text-slate-600">
-                Escolha a ação somente depois de concluir a analise recomendada.
+                Escolha a ação somente depois de concluir a análise recomendada.
               </p>
 
               <div class="mt-4 grid gap-3 xl:grid-cols-3">
@@ -1121,7 +1121,7 @@ const confirmationCopy = computed(() => {
                     {{ isSubmittingAction ? 'Registrando...' : activeDecision.submitLabel }}
                   </button>
                   <p v-else class="text-sm font-semibold text-slate-600">
-                    Selecione como este atendimento deve seguir para registrar a proxima ação.
+                    Selecione como este atendimento deve seguir para registrar a próxima ação.
                   </p>
                 </div>
 
@@ -1130,7 +1130,7 @@ const confirmationCopy = computed(() => {
                   ref="confirmationPanelRef"
                   tabindex="-1"
                   role="region"
-                  aria-label="Confirmação da proxima ação"
+                  aria-label="Confirmação da próxima ação"
                   class="mt-4 rounded-[8px] border border-[rgba(166,31,40,0.16)] bg-white p-4"
                 >
                   <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
@@ -1179,7 +1179,7 @@ const confirmationCopy = computed(() => {
 
         <details class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <summary class="cursor-pointer list-none bg-slate-100/90 px-4 py-3 text-base font-semibold text-slate-950">
-            Historico do caso
+            Histórico do caso
           </summary>
 
           <div class="border-t border-slate-200 px-4 py-4">
@@ -1192,12 +1192,12 @@ const confirmationCopy = computed(() => {
 
             <details class="mt-4 rounded-[8px] border border-slate-200 bg-white px-4 py-4">
               <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
-                Ver historico completo
+                Ver histórico completo
               </summary>
 
               <div class="mt-4 grid gap-4">
                 <div v-if="detail.timeline.length" class="grid gap-2">
-                  <p class="text-sm font-semibold text-slate-900">Movimentacoes</p>
+                  <p class="text-sm font-semibold text-slate-900">Movimentações</p>
                   <div class="divide-y divide-slate-200 rounded-[8px] border border-slate-200 bg-white">
                     <div
                       v-for="item in detail.timeline"
@@ -1214,7 +1214,7 @@ const confirmationCopy = computed(() => {
                 </div>
 
                 <div v-if="detail.interactions.length" class="grid gap-2">
-                  <p class="text-sm font-semibold text-slate-900">Interacoes registradas</p>
+                  <p class="text-sm font-semibold text-slate-900">Interações registradas</p>
                   <div class="divide-y divide-slate-200 rounded-[8px] border border-slate-200 bg-white">
                     <div
                       v-for="interaction in detail.interactions"

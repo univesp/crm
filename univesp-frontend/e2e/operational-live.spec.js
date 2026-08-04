@@ -55,6 +55,18 @@ test('fila OP usa somente tickets live e nao injeta seeds', async ({ page }) => 
   await expect(page.getByText('Rematricula para o proximo semestre', { exact: true })).toHaveCount(0)
 })
 
+test('fila OP oferece recuperação quando os filtros não encontram atendimentos', async ({ page }) => {
+  await selectBypassProfile(page, 'op')
+  await mockTickets(page)
+
+  await page.goto('/crm/op/fila')
+  await page.getByRole('searchbox', { name: 'Buscar' }).fill('atendimento inexistente')
+
+  await expect(page.getByText('Nenhum atendimento corresponde aos filtros.', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Limpar filtros', exact: true }).click()
+  await expect(page.getByText('Atendimento real carregado para o OP', { exact: true }).first()).toBeVisible()
+})
+
 test('fila da area usa ticket live no escopo da area', async ({ page }) => {
   await selectBypassProfile(page, 'analista_area')
   await mockTickets(page)

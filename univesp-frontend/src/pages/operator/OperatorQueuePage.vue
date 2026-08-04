@@ -64,7 +64,7 @@ const bucketDefinitions = [
   },
   {
     id: 'waiting_area',
-    label: 'Aguardando area',
+    label: 'Aguardando área',
     activeClass: 'border-[rgba(8,115,145,0.2)] bg-[rgba(224,242,254,0.92)] text-[#0b6e8c]',
     inactiveClass: 'border-[rgba(8,115,145,0.16)] bg-white text-[#0b6e8c]',
     rowClass: 'bg-[rgba(8,115,145,0.82)]',
@@ -73,7 +73,7 @@ const bucketDefinitions = [
   },
   {
     id: 'completed',
-    label: 'Concluidos',
+    label: 'Concluídos',
     activeClass: 'border-[rgba(26,111,67,0.2)] bg-[rgba(220,252,231,0.9)] text-[var(--color-success)]',
     inactiveClass: 'border-[rgba(26,111,67,0.16)] bg-white text-[var(--color-success)]',
     rowClass: 'bg-[rgba(26,111,67,0.82)]',
@@ -287,7 +287,7 @@ const scopeBadges = computed(() => {
   }
 
   if (!badges.length) {
-    badges.push('Visao consolidada')
+    badges.push('Visão consolidada')
   }
 
   return badges
@@ -331,7 +331,7 @@ const activeFilterChips = computed(() => {
       const prefixMap = {
         status: 'Status',
         sla: 'Prazo',
-        pending: 'Pendencia',
+        pending: 'Pendência',
         escalation: 'Escalonamento',
         polo: 'Polo',
         operator: 'Operador',
@@ -433,7 +433,9 @@ function resolveOwnershipStateLabel(entry = {}) {
     return entry.operationalOwnerStateLabel
   }
 
-  return entry?.hasOperationalOwnerError ? 'Owner operacional ausente' : 'Owner operacional resolvido'
+  return entry?.hasOperationalOwnerError
+    ? 'Responsável operacional ausente'
+    : 'Responsável operacional definido'
 }
 
 function ownershipToneClass(entry = {}) {
@@ -494,7 +496,7 @@ async function loadLiveQueue() {
       liveQueueMessage.value = `Exibindo os ${protocols.length} atendimentos mais recentes de ${result.meta.total}.`
     }
   } catch (error) {
-    liveQueueMessage.value = error?.message || 'Nao foi possivel carregar a fila institucional.'
+    liveQueueMessage.value = error?.message || 'Não foi possível carregar a fila institucional.'
   } finally {
     liveQueueLoading.value = false
   }
@@ -639,7 +641,7 @@ onUnmounted(() => {
           </label>
 
           <label class="grid gap-2">
-            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Pendencia</span>
+            <span class="text-xs font-semibold uppercase tracking-normal text-slate-500">Pendência</span>
             <select
               v-model="filters.pending"
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700"
@@ -754,7 +756,7 @@ onUnmounted(() => {
           </div>
           <div :id="headerId('pending')" role="columnheader" :aria-sort="ariaSort('pending')">
             <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('pending')">
-              Pendencia atual <span aria-hidden="true">{{ sortMarker('pending') }}</span>
+              Pendência atual <span aria-hidden="true">{{ sortMarker('pending') }}</span>
             </button>
           </div>
           <div :id="headerId('protocol')" role="columnheader" :aria-sort="ariaSort('protocol')">
@@ -772,7 +774,7 @@ onUnmounted(() => {
               Prazo de resposta <span aria-hidden="true">{{ sortMarker('sla') }}</span>
             </button>
           </div>
-          <div :id="headerId('action')" role="columnheader" class="text-right">Acao</div>
+          <div :id="headerId('action')" role="columnheader" class="text-right">Ação</div>
         </div>
       </div>
 
@@ -828,7 +830,7 @@ onUnmounted(() => {
                       <p class="truncate text-sm font-medium leading-5 text-slate-900">{{ item.student }}</p>
                     </div>
                     <div class="min-w-0" role="cell" :aria-labelledby="headerId('ra')">
-                      <p class="truncate text-sm leading-5 text-slate-700">{{ item.studentRa || 'Nao informado' }}</p>
+                      <p class="truncate text-sm leading-5 text-slate-700">{{ item.studentRa || 'Não informado' }}</p>
                     </div>
                     <div v-if="isManagerView" class="min-w-0" role="cell" :aria-labelledby="headerId('polo')">
                       <p class="truncate text-sm leading-5 text-slate-700">{{ item.polo }}</p>
@@ -852,7 +854,7 @@ onUnmounted(() => {
                     <div class="min-w-0" role="cell" :aria-labelledby="headerId('protocol')">
                       <p class="truncate text-xs font-medium leading-5 text-slate-600">{{ item.id }}</p>
                       <p class="mt-1 text-[0.7rem] leading-5 text-slate-500">
-                        Owner: {{ item.operationalOwnerLabel || 'Nao resolvido' }}
+                        Responsável: {{ item.operationalOwnerLabel || 'Não resolvido' }}
                       </p>
                     </div>
                     <div class="min-w-0" role="cell" :aria-labelledby="headerId('status')">
@@ -876,7 +878,7 @@ onUnmounted(() => {
                       <div class="min-w-0 flex-1">
                         <p class="text-base font-semibold leading-6 text-slate-950">{{ item.subject }}</p>
                         <p class="mt-1 text-sm leading-5 text-slate-600">{{ item.student }}</p>
-                        <p class="mt-1 text-xs leading-5 text-slate-500">RA {{ item.studentRa || 'Nao informado' }} | {{ item.id }}</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-500">RA {{ item.studentRa || 'Não informado' }} | {{ item.id }}</p>
                       </div>
 
                       <RouterLink
@@ -897,7 +899,7 @@ onUnmounted(() => {
                       >
                         {{ resolveOwnershipStateLabel(item) }}
                       </span>
-                      <span class="text-[0.72rem] text-slate-500">Owner: {{ item.operationalOwnerLabel || 'Nao resolvido' }}</span>
+                      <span class="text-[0.72rem] text-slate-500">Responsável: {{ item.operationalOwnerLabel || 'Não resolvido' }}</span>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
@@ -944,7 +946,7 @@ onUnmounted(() => {
               </div>
 
               <div class="min-w-0" role="cell" :aria-labelledby="headerId('ra')">
-                <p class="truncate text-sm leading-5 text-slate-700">{{ item.studentRa || 'Nao informado' }}</p>
+                <p class="truncate text-sm leading-5 text-slate-700">{{ item.studentRa || 'Não informado' }}</p>
               </div>
 
               <div v-if="isManagerView" class="min-w-0" role="cell" :aria-labelledby="headerId('polo')">
@@ -972,7 +974,7 @@ onUnmounted(() => {
               <div class="min-w-0" role="cell" :aria-labelledby="headerId('protocol')">
                 <p class="truncate text-xs font-medium leading-5 text-slate-600">{{ item.id }}</p>
                 <p class="mt-1 text-[0.7rem] leading-5 text-slate-500">
-                  Owner: {{ item.operationalOwnerLabel || 'Nao resolvido' }}
+                  Responsável: {{ item.operationalOwnerLabel || 'Não resolvido' }}
                 </p>
               </div>
 
@@ -999,7 +1001,7 @@ onUnmounted(() => {
                 <div class="min-w-0 flex-1">
                   <p class="text-base font-semibold leading-6 text-slate-950">{{ item.subject }}</p>
                   <p class="mt-1 text-sm leading-5 text-slate-600">{{ item.student }}</p>
-                  <p class="mt-1 text-xs leading-5 text-slate-500">RA {{ item.studentRa || 'Nao informado' }} | {{ item.id }}</p>
+                  <p class="mt-1 text-xs leading-5 text-slate-500">RA {{ item.studentRa || 'Não informado' }} | {{ item.id }}</p>
                 </div>
 
                 <RouterLink
@@ -1020,7 +1022,7 @@ onUnmounted(() => {
                 >
                   {{ resolveOwnershipStateLabel(item) }}
                 </span>
-                <span class="text-[0.72rem] text-slate-500">Owner: {{ item.operationalOwnerLabel || 'Nao resolvido' }}</span>
+                <span class="text-[0.72rem] text-slate-500">Responsável: {{ item.operationalOwnerLabel || 'Não resolvido' }}</span>
               </div>
 
               <div class="flex flex-wrap items-center gap-2">
@@ -1053,6 +1055,14 @@ onUnmounted(() => {
       <p class="mt-3 text-sm leading-7 text-slate-600">
         Limpe os filtros ou faça uma nova busca.
       </p>
+      <button
+        v-if="activeFilterCount || filters.bucket !== 'all'"
+        type="button"
+        class="mt-4 rounded-[8px] bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+        @click="clearOperationalFilters"
+      >
+        Limpar filtros
+      </button>
     </div>
 
     <div
@@ -1101,7 +1111,7 @@ onUnmounted(() => {
           </label>
 
           <label class="grid gap-2">
-            <span class="text-sm font-semibold text-slate-700">Pendencia</span>
+            <span class="text-sm font-semibold text-slate-700">Pendência</span>
             <select
               v-model="filters.pending"
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
