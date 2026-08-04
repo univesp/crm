@@ -100,6 +100,9 @@ function routingSummary(node) {
         <small class="faq-tabs__state" aria-hidden="true">{{ tabStateLabel(tab.key) }}</small>
       </button>
     </nav>
+    <p class="faq-tabs__hint">
+      Comece pela orientação do aluno. As demais abas são complementares e mostram o estado de cada camada.
+    </p>
 
     <div
       v-if="activeTab === 'student'"
@@ -109,7 +112,7 @@ function routingSummary(node) {
       class="faq-form-stack"
     >
       <p>
-        Escreva a orientação que a pessoa verá nesta etapa. Use linguagem direta e indique
+        Escreva a orientação que o aluno verá nesta etapa. Use linguagem direta e indique
         o próximo passo.
       </p>
       <FaqV3ContentBlockList

@@ -261,7 +261,8 @@ test('editor envia mídia institucional e preserva o asset no rascunho', async (
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
   await page.getByRole('tab', { name: 'Orientação', exact: true }).click()
   await page.getByRole('button', { name: 'Excluir item 1' }).click()
-  await page.getByRole('button', { name: '+ Imagem' }).click()
+  await page.getByRole('button', { name: '+ Mídia', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Imagem', exact: true }).click()
   await page.getByLabel('Texto alternativo').fill('Tela de recuperação de acesso')
   await page.getByLabel('Enviar mídia institucional').setInputFiles({
     name: 'acesso.png',
@@ -308,15 +309,21 @@ test('barra de adição de conteúdo e simulador renderizam tipos avançados', a
 
   await expect(page.getByRole('group', { name: 'Adicionar conteúdo' })).toBeVisible()
   await expect(page.getByRole('button', { name: '+ Texto' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '+ Link' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '+ Imagem' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '+ Vídeo' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Link ou documento' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Mídia', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Ações', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '+ Mídia', exact: true }).click()
+  const mediaMenu = page.getByRole('menu')
+  await expect(mediaMenu.getByRole('menuitem', { name: 'Imagem', exact: true })).toBeVisible()
+  await expect(mediaMenu.getByRole('menuitem', { name: 'Vídeo', exact: true })).toBeVisible()
+  await mediaMenu.getByRole('menuitem', { name: 'Imagem', exact: true }).click()
   await expect(page.getByText('Imagem', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('Vídeo', { exact: true }).first()).toBeVisible()
 
-  await page.getByRole('button', { name: 'Público externo', exact: true }).click()
+  await page.getByRole('tab', { name: 'Público externo', exact: true }).click()
   await page.getByText('Personalizar texto para o público externo', { exact: true }).click()
-  await page.getByRole('button', { name: '+ Vídeo' }).click()
+  await page.getByRole('button', { name: '+ Mídia', exact: true }).click()
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Vídeo', exact: true }).click()
   await expect(page.getByLabel('Endereço HTTPS').last()).toBeVisible()
   await expect(page.getByLabel('URL da legenda').last()).toBeVisible()
   await expect(page.getByLabel('Transcrição').last()).toBeVisible()
@@ -487,7 +494,7 @@ function bundleResponse(payload, title, revision, lifecycleState = 'draft', vali
     bundle_key: payload.bundle_key,
     title,
     theme_key: payload.theme_key,
-    audience_profile: 'student',
+    audience_profile: payload.metadata?.audience_profile || 'student',
     status: 'active',
     draft_version: 'version-1',
     published_version: '',

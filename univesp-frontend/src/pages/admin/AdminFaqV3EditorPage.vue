@@ -187,6 +187,30 @@ const canPublishApproved = computed(() => knowledgePermissions.value.canPublishA
 const canSubmitReview = computed(
   () => canEdit.value && knowledgePermissions.value.canSubmitReview,
 )
+const nextStepLabel = computed(() => {
+  if (dirty.value && canEdit.value) {
+    return 'Salve o rascunho para registrar as alterações.'
+  }
+  if (blockers.value.length) {
+    return 'Corrija as pendências de validação antes de enviar ou publicar.'
+  }
+  if (canPublishDraft.value) {
+    return 'Revise o conteúdo e publique quando estiver pronto.'
+  }
+  if (canSubmitReview.value && isAdmin.value) {
+    return 'Revise o conteúdo ou envie o rascunho para revisão.'
+  }
+  if (canSubmitReview.value) {
+    return 'Conclua o rascunho e envie o conteúdo para aprovação.'
+  }
+  if (canApprove.value) {
+    return 'Revise o conteúdo e aprove ou solicite ajustes.'
+  }
+  if (canPublishApproved.value) {
+    return 'Publique a versão aprovada.'
+  }
+  return 'Nenhuma ação disponível para seu perfil neste fluxo.'
+})
 const isAreaEditor = computed(() =>
   ['analista_area', 'gestor_area'].includes(auth.mockContext.profileKey),
 )
@@ -1601,6 +1625,9 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
 
       <section class="crm-panel faq-action-bar" aria-label="Ações do editor">
         <div class="faq-action-bar__status">
+          <p class="faq-action-bar__next-step">
+            <strong>Próximo passo:</strong> {{ nextStepLabel }}
+          </p>
           <p v-if="!blockers.length" class="faq-ok" role="status">Nenhum bloqueio encontrado.</p>
           <p v-else role="status">
             {{ draftIssues.filter((issue) => issue.severity === 'error').length }}
@@ -2121,6 +2148,12 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
   font-weight: 600;
 }
 
+.faq-tabs__hint {
+  margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .faq-tabs__button.has-issue .faq-tabs__state {
   color: var(--color-danger);
 }
@@ -2190,7 +2223,8 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
 }
 
 .faq-inheritance {
-  border-left: 4px solid var(--color-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
   background: var(--color-surface-muted);
   padding: var(--space-3);
 }
@@ -2229,6 +2263,11 @@ provide(FAQ_V3_NODE_EDITOR_KEY, {
   gap: var(--space-2);
   align-items: center;
   flex: 1 1 16rem;
+}
+
+.faq-action-bar__next-step {
+  flex: 1 1 100%;
+  margin: 0;
 }
 
 .faq-action-bar__status-actions {
