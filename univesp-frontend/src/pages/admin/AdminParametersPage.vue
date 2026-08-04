@@ -516,11 +516,11 @@ onMounted(() => {
                     type="button"
                     class="parameter-button parameter-button--primary"
                     :disabled="
-                        isGlobalBusy ||
+                      isGlobalBusy ||
                         getItemSave('sla', level.key).loading ||
                         !!priorityFeedback('sla', level.key) ||
                         !!slaDurationFeedback(level.key)
-                      "
+                    "
                     @click="saveSlaItem(level)"
                   >
                     {{ getItemSave('sla', level.key).loading ? 'Salvando...' : 'Salvar' }}
