@@ -51,7 +51,33 @@ const monthGroups = computed(() => {
     }))
 })
 
-const businessHours = computed(() => props.businessCalendar?.businessHours || { start: '09:00', end: '18:00' })
+const businessHoursStart = ref('09:00')
+const businessHoursEnd = ref('18:00')
+
+watchEffect(() => {
+  businessHoursStart.value = props.businessCalendar?.businessHours?.start ?? '09:00'
+  businessHoursEnd.value = props.businessCalendar?.businessHours?.end ?? '18:00'
+})
+
+const businessHours = computed(() => ({
+  start: businessHoursStart.value,
+  end: businessHoursEnd.value,
+}))
+
+function syncBusinessHoursDraft() {
+  const calendar = props.businessCalendar
+  if (!calendar || typeof calendar !== 'object') return
+  if (!calendar.businessHours || typeof calendar.businessHours !== 'object') {
+    calendar.businessHours = { start: '09:00', end: '18:00' }
+  }
+  calendar.businessHours.start = businessHoursStart.value
+  calendar.businessHours.end = businessHoursEnd.value
+}
+
+function saveBusinessHoursSettings() {
+  syncBusinessHoursDraft()
+  emit('save-settings')
+}
 
 function formatPreviewDate(value) {
   if (!value) return ''
@@ -91,13 +117,13 @@ function addEntryForYear() {
       <div class="admin-calendar-panel__hours">
         <label class="parameter-field parameter-field--compact">
           <span>Inicio do dia comercial</span>
-          <input v-model="businessCalendar.businessHours.start" type="time" class="parameter-input" />
+          <input v-model="businessHoursStart" type="time" class="parameter-input" />
         </label>
         <label class="parameter-field parameter-field--compact">
           <span>Fim do dia comercial</span>
-          <input v-model="businessCalendar.businessHours.end" type="time" class="parameter-input" />
+          <input v-model="businessHoursEnd" type="time" class="parameter-input" />
         </label>
-        <button type="button" class="parameter-button parameter-button--primary" :disabled="isBusy" @click="emit('save-settings')">
+        <button type="button" class="parameter-button parameter-button--primary" :disabled="isBusy" @click="saveBusinessHoursSettings">
           Salvar horario
         </button>
       </div>
