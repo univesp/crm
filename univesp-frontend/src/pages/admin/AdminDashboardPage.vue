@@ -69,9 +69,9 @@ const ui = reactive({
 
 const periodOptions = [
   { value: 'today', label: 'Hoje', summary: 'hoje' },
-  { value: '7d', label: '7 dias', summary: 'ultimos 7 dias' },
-  { value: '30d', label: '30 dias', summary: 'ultimos 30 dias' },
-  { value: 'custom', label: 'Periodo', summary: 'periodo personalizado' },
+  { value: '7d', label: '7 dias', summary: 'últimos 7 dias' },
+  { value: '30d', label: '30 dias', summary: 'últimos 30 dias' },
+  { value: 'custom', label: 'Período', summary: 'período personalizado' },
 ]
 const dashboardBase = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const dashboardView = computed(() => buildAdminDashboardView(dashboardBase.value, filters))
@@ -106,7 +106,7 @@ const criticalKpiCards = computed(() => [
   {
     label: 'SLA vencido',
     value: metricValue('SLA vencido'),
-    trend: 'atencao',
+    trend: 'atenção',
     tone: 'danger',
     focus: 'sla',
   },
@@ -242,17 +242,17 @@ const healthScore = computed(() =>
 )
 const healthState = computed(() => {
   if (healthScore.value >= 10) {
-    return 'Critico'
+    return 'Crítico'
   }
 
   if (healthScore.value >= 4) {
-    return 'Atencao'
+    return 'Atenção'
   }
 
   return 'Normal'
 })
 const operationHealth = computed(() => {
-  if (healthState.value === 'Critico') {
+  if (healthState.value === 'Crítico') {
     return {
       label: healthState.value,
       score: healthScore.value,
@@ -261,7 +261,7 @@ const operationHealth = computed(() => {
     }
   }
 
-  if (healthState.value === 'Atencao') {
+  if (healthState.value === 'Atenção') {
     return {
       label: healthState.value,
       score: healthScore.value,
@@ -274,7 +274,7 @@ const operationHealth = computed(() => {
     label: healthState.value,
     score: healthScore.value,
     tone: 'normal',
-    hint: 'estavel',
+    hint: 'estável',
   }
 })
 const demandDistribution = computed(() => {
@@ -287,7 +287,7 @@ const demandDistribution = computed(() => {
   const entries = [
     { label: 'FAQ resolveu', value: resolvedByFaq, color: '#0f766e' },
     { label: 'Passou ao OP', value: sentToOp, color: '#2563eb' },
-    { label: 'Escalou area', value: escalated, color: '#ca8a04' },
+    { label: 'Escalou área', value: escalated, color: '#ca8a04' },
     { label: 'Em andamento', value: activeVolume, color: '#d13239' },
   ]
 
@@ -308,7 +308,7 @@ const clusterRiskRows = computed(() => {
   const clusterIndex = new Map()
 
   for (const item of activeCasesFull.value) {
-    const cluster = item.lastMileAreaLabel || item.queue || 'Nao informado'
+    const cluster = item.lastMileAreaLabel || item.queue || 'Não informado'
     const key = `cluster:${cluster}`
     const current = clusterIndex.get(key) || {
       key,
@@ -320,8 +320,8 @@ const clusterRiskRows = computed(() => {
       escalationsCount: 0,
       recurrenceCount: 0,
       themes: {},
-      dominantTheme: 'Nao informado',
-      dominantQueue: item.queue || 'Nao informado',
+      dominantTheme: 'Não informado',
+      dominantQueue: item.queue || 'Não informado',
       examples: [],
       riskScore: 0,
     }
@@ -330,7 +330,7 @@ const clusterRiskRows = computed(() => {
     current.slaOverdueCount += String(item.sla || '').toLowerCase().includes('vencid') ? 1 : 0
     current.highCriticalityCount += ['alta', 'critica'].includes(String(item.criticality || '').toLowerCase()) ? 1 : 0
     current.recurrenceCount += item.recurrenceSignals?.repeatedTheme || item.recurrenceSignals?.repeatedSubsubject ? 1 : 0
-    current.themes[item.theme || 'Nao informado'] = (current.themes[item.theme || 'Nao informado'] || 0) + 1
+    current.themes[item.theme || 'Não informado'] = (current.themes[item.theme || 'Não informado'] || 0) + 1
 
     if (current.examples.length < 3) {
       current.examples.push(item)
@@ -344,7 +344,7 @@ const clusterRiskRows = computed(() => {
       continue
     }
 
-    const cluster = entry.lastMileAreaLabel || entry.queueBefore || entry.queue || 'Nao informado'
+    const cluster = entry.lastMileAreaLabel || entry.queueBefore || entry.queue || 'Não informado'
     const key = `cluster:${cluster}`
 
     if (!clusterIndex.has(key)) {
@@ -358,8 +358,8 @@ const clusterRiskRows = computed(() => {
         escalationsCount: 0,
         recurrenceCount: 0,
         themes: {},
-        dominantTheme: entry.theme || 'Nao informado',
-        dominantQueue: entry.queueBefore || entry.queue || 'Nao informado',
+        dominantTheme: entry.theme || 'Não informado',
+        dominantQueue: entry.queueBefore || entry.queue || 'Não informado',
         examples: [],
         riskScore: 0,
       })
@@ -394,7 +394,7 @@ function buildRiskRows(items, keyGetter, type) {
   const index = new Map()
 
   for (const item of items) {
-    const cluster = keyGetter(item) || 'Nao informado'
+    const cluster = keyGetter(item) || 'Não informado'
     const key = `${type}:${cluster}`
     const current = index.get(key) || {
       key,
@@ -406,7 +406,7 @@ function buildRiskRows(items, keyGetter, type) {
       escalationsCount: 0,
       recurrenceCount: 0,
       themes: {},
-      dominantTheme: 'Nao informado',
+      dominantTheme: 'Não informado',
       examples: [],
       riskScore: 0,
     }
@@ -415,7 +415,7 @@ function buildRiskRows(items, keyGetter, type) {
     current.slaOverdueCount += String(item.sla || '').toLowerCase().includes('vencid') ? 1 : 0
     current.highCriticalityCount += ['alta', 'critica'].includes(String(item.criticality || '').toLowerCase()) ? 1 : 0
     current.recurrenceCount += item.recurrenceSignals?.repeatedTheme || item.recurrenceSignals?.repeatedSubsubject ? 1 : 0
-    current.themes[item.theme || 'Nao informado'] = (current.themes[item.theme || 'Nao informado'] || 0) + 1
+    current.themes[item.theme || 'Não informado'] = (current.themes[item.theme || 'Não informado'] || 0) + 1
 
     if (current.examples.length < 3) {
       current.examples.push(item)
@@ -461,8 +461,8 @@ const faqRiskRows = computed(() => [{
   highCriticalityCount: metricValue('Criticidade alta'),
   escalationsCount: metricValue('Escalados para area interna'),
   recurrenceCount: selfServiceEscape.value.recurrence,
-  dominantTheme: themeRanking.value[0]?.theme || 'Nao informado',
-  trend: selfServiceEscape.value.recurrence > 0 ? 'subindo' : 'estavel',
+  dominantTheme: themeRanking.value[0]?.theme || 'Não informado',
+  trend: selfServiceEscape.value.recurrence > 0 ? 'subindo' : 'estável',
   riskScore:
     selfServiceEscape.value.sentToOp +
     selfServiceEscape.value.recurrence * 2 +
@@ -582,13 +582,13 @@ const recommendedActions = computed(() => {
 
   return uniqueActions.length
     ? uniqueActions
-    : [{ title: 'Monitorar visao atual', reason: 'Nao ha alerta critico nos filtros atuais.', risk: 'baixo', clusterKey: topRiskItems.value[0]?.key || '', viewMode: ui.viewMode }]
+    : [{ title: 'Monitorar a visão atual', reason: 'Não há alerta crítico nos filtros atuais.', risk: 'baixo', clusterKey: topRiskItems.value[0]?.key || '', viewMode: ui.viewMode }]
 })
 const themeRanking = computed(() => {
   const themeIndex = new Map()
 
   for (const item of activeCasesFull.value) {
-    const theme = item.theme || 'Nao informado'
+    const theme = item.theme || 'Não informado'
     const current = themeIndex.get(theme) || {
       theme,
       count: 0,
@@ -639,7 +639,7 @@ const demandTrendDirection = computed(() => {
     return 'caindo'
   }
 
-  return 'estavel'
+  return 'estável'
 })
 const demandTrendPoints = computed(() => {
   const values = demandTrend.value
@@ -711,7 +711,7 @@ const operationalAlerts = computed(() => {
   if (selfServiceEscape.value.sentToOp > 0 || selfServiceEscape.value.recurrence > 0) {
     alerts.push({
       title: 'FAQ com sinal de falha',
-      detail: `${selfServiceEscape.value.sentToOp} foram ao OP apos FAQ.`,
+      detail: `${selfServiceEscape.value.sentToOp} foram ao OP após a FAQ.`,
       clusterKey: mainCluster?.key || '',
     })
   }
@@ -825,13 +825,13 @@ function getHealthStateClass(tone) {
     <section class="crm-dashboard-card">
       <div class="crm-dashboard-toolbar">
         <div class="crm-dashboard-toolbar__meta">
-          <p class="crm-page-description">Visao rapida da operacao</p>
+          <p class="crm-page-description">Visão rápida da operação</p>
           <div class="crm-dashboard-toolbar__status">
             <span class="crm-chip">
               Fonte institucional
             </span>
             <span class="text-[11px] text-[var(--color-text-muted)]">
-              {{ liveState.loading ? 'Atualizando...' : `${liveState.loaded} de ${liveState.total} tickets carregados` }}
+              {{ liveState.loading ? 'Atualizando…' : `${liveState.loaded} de ${liveState.total} atendimentos carregados` }}
             </span>
             <button
               type="button"
@@ -848,7 +848,7 @@ function getHealthStateClass(tone) {
         </div>
 
         <div class="crm-dashboard-toolbar__period">
-          <div class="crm-segment-group" role="group" aria-label="Periodo">
+          <div class="crm-segment-group" role="group" aria-label="Período">
             <button
               v-for="option in periodOptions"
               :key="option.value"
@@ -876,7 +876,7 @@ function getHealthStateClass(tone) {
               />
             </label>
             <label class="crm-period-range__field">
-              <span class="crm-field-label">Ate</span>
+              <span class="crm-field-label">Até</span>
               <input
                 v-model="ui.periodTo"
                 type="date"
@@ -893,7 +893,7 @@ function getHealthStateClass(tone) {
         >
           <div class="flex items-center justify-between gap-3">
             <div>
-              <p class="text-xs font-semibold text-[var(--color-text-muted)]">Saude da operacao</p>
+              <p class="text-xs font-semibold text-[var(--color-text-muted)]">Saúde da operação</p>
               <div class="flex items-baseline gap-1">
                 <strong class="text-2xl text-[var(--color-text)]">{{ operationHealth.score }}</strong>
                 <span class="text-xs text-[var(--color-text-muted)]">pontos</span>
@@ -932,7 +932,7 @@ function getHealthStateClass(tone) {
 
       <div class="crm-filter-grid crm-filter-grid--dense mt-2">
         <label class="crm-filter-field">
-          <span class="crm-field-label">Area interna</span>
+          <span class="crm-field-label">Área interna</span>
           <select v-model="filters.queue" class="crm-field py-1.5 text-xs">
             <option v-for="o in filterOptions.queue" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
@@ -993,13 +993,13 @@ function getHealthStateClass(tone) {
       <!-- Donut distribuicao -->
       <div class="crm-dashboard-card">
         <div>
-          <h2 class="crm-dashboard-heading">Distribuicao da demanda</h2>
-          <p class="crm-dashboard-lead">Caminho dos atendimentos na visao atual.</p>
+          <h2 class="crm-dashboard-heading">Distribuição da demanda</h2>
+          <p class="crm-dashboard-lead">Caminho dos atendimentos na visão atual.</p>
         </div>
 
         <div class="mt-4 flex flex-1 items-center gap-5">
           <div class="relative h-[120px] w-[120px] shrink-0">
-            <svg viewBox="0 0 42 42" class="h-full w-full -rotate-90" aria-label="Distribuicao da demanda">
+            <svg viewBox="0 0 42 42" class="h-full w-full -rotate-90" aria-label="Distribuição da demanda">
               <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="#e2e8f0" stroke-width="5" />
               <circle
                 v-for="segment in demandDistribution"
@@ -1053,17 +1053,17 @@ function getHealthStateClass(tone) {
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 class="crm-dashboard-heading">Evolucao da demanda</h2>
+            <h2 class="crm-dashboard-heading">Evolução da demanda</h2>
             <p class="crm-dashboard-lead">Demanda nos {{ selectedPeriodLabel }}. Estimativa com a base atual.</p>
           </div>
           <div class="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
             <span class="flex items-center gap-1.5">
               <span class="crm-legend-dot" aria-hidden="true"></span>
-              Periodo atual
+              Período atual
             </span>
             <span class="flex items-center gap-1.5">
               <span class="crm-legend-dot is-muted" aria-hidden="true"></span>
-              Periodo anterior
+              Período anterior
             </span>
           </div>
         </div>
@@ -1126,18 +1126,18 @@ function getHealthStateClass(tone) {
       <!-- Areas internas em risco -->
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
-          <h2 class="crm-dashboard-heading">Areas internas em risco</h2>
+          <h2 class="crm-dashboard-heading">Áreas internas em risco</h2>
         </div>
 
         <div v-if="areaRiskRows.length" class="crm-table-scroll mt-3">
           <div class="min-w-[420px]">
             <div class="crm-dashboard-table__head grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2">
-              <span>Area interna</span>
+              <span>Área interna</span>
               <span class="text-center">Risco</span>
               <span class="text-center">SLA</span>
               <span class="text-center">Crit.</span>
               <span class="text-center">Escal.</span>
-              <span class="text-center">Acao</span>
+              <span class="text-center">Ação</span>
             </div>
             <div
               v-for="area in areaRiskRows"
@@ -1174,7 +1174,7 @@ function getHealthStateClass(tone) {
         </div>
 
         <div v-else class="crm-empty-state mt-3">
-          Ajuste os filtros para retomar a leitura por area.
+          Ajuste os filtros para retomar a leitura por área.
         </div>
 
         <div class="crm-dashboard-card__footer mt-auto">
@@ -1188,10 +1188,10 @@ function getHealthStateClass(tone) {
         </div>
       </div>
 
-      <!-- Polos em atencao -->
+      <!-- Polos em atenção -->
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
-          <h2 class="crm-dashboard-heading">Polos em atencao</h2>
+          <h2 class="crm-dashboard-heading">Polos em atenção</h2>
         </div>
 
         <div v-if="poloRiskRows.length" class="crm-table-scroll mt-3">
@@ -1202,7 +1202,7 @@ function getHealthStateClass(tone) {
               <span class="text-center">SLA</span>
               <span class="text-center">Crit.</span>
               <span class="text-center">Volume</span>
-              <span class="text-center">Acao</span>
+              <span class="text-center">Ação</span>
             </div>
             <div
               v-for="polo in poloRiskRows.slice(0, 6)"
@@ -1370,17 +1370,17 @@ function getHealthStateClass(tone) {
           <div class="crm-kpi-tile crm-card-muted px-3 py-2 text-center">
             <p class="crm-kpi-tile__value">{{ faqEscapeRate }}%</p>
             <p class="text-xs font-semibold text-[var(--color-text)]">{{ selfServiceEscape.sentToOp }} casos</p>
-            <p class="crm-kpi-tile__label">OP apos FAQ</p>
+            <p class="crm-kpi-tile__label">OP após a FAQ</p>
           </div>
           <div class="crm-kpi-tile crm-state-warning px-3 py-2 text-center">
             <p class="crm-kpi-tile__value">{{ areaEscapeRate }}%</p>
             <p class="text-xs font-semibold text-[var(--color-text)]">{{ areaEscapeCount }} casos</p>
-            <p class="crm-kpi-tile__label">Area interna</p>
+            <p class="crm-kpi-tile__label">Área interna</p>
           </div>
         </div>
 
         <div class="mt-2 flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
-          <span><strong class="font-semibold text-[var(--color-text)]">{{ selfServiceEscape.recurrence }}</strong> reincidencias</span>
+          <span><strong class="font-semibold text-[var(--color-text)]">{{ selfServiceEscape.recurrence }}</strong> reincidências</span>
           <span><strong class="font-semibold text-[var(--color-text)]">{{ selfServiceEscape.resolvedByFaq }}</strong> resolv. FAQ</span>
         </div>
 
@@ -1413,7 +1413,7 @@ function getHealthStateClass(tone) {
             class="crm-text-link"
             @click="selectViewMode('faq')"
           >
-            Ver analise completa &rarr;
+            Ver análise completa &rarr;
           </button>
         </div>
       </div>
@@ -1487,7 +1487,7 @@ function getHealthStateClass(tone) {
 
     <!-- 7. ALERTAS RAPIDOS -->
     <section class="crm-dashboard-card !py-3">
-      <h2 class="crm-dashboard-heading mb-2">Alertas rapidos</h2>
+      <h2 class="crm-dashboard-heading mb-2">Alertas rápidos</h2>
 
       <div v-if="operationalAlerts.length" class="grid gap-3 md:grid-cols-3">
         <button
@@ -1531,7 +1531,7 @@ function getHealthStateClass(tone) {
       </section>
 
       <section class="mt-5">
-        <h3 class="crm-dashboard-heading">Casos que pedem atencao</h3>
+        <h3 class="crm-dashboard-heading">Casos que pedem atenção</h3>
         <div v-if="activeCases.length" class="mt-3 grid gap-3">
           <article
             v-for="item in activeCases"
@@ -1553,9 +1553,9 @@ function getHealthStateClass(tone) {
               </div>
             </div>
             <div class="mt-3 flex flex-wrap gap-1.5 text-xs text-[var(--color-text-muted)]">
-              <span v-if="item.recurrenceSignals?.repeatedTheme" class="crm-chip">Repeticao no mesmo tema</span>
-              <span v-if="item.recurrenceSignals?.repeatedSubsubject" class="crm-chip">Repeticao no mesmo subtema</span>
-              <span v-if="item.recurrenceSignals?.priorSelfServiceRelated" class="crm-chip">Autoatendimento previo relacionado</span>
+              <span v-if="item.recurrenceSignals?.repeatedTheme" class="crm-chip">Repetição no mesmo tema</span>
+              <span v-if="item.recurrenceSignals?.repeatedSubsubject" class="crm-chip">Repetição no mesmo subtema</span>
+              <span v-if="item.recurrenceSignals?.priorSelfServiceRelated" class="crm-chip">Autoatendimento prévio relacionado</span>
               <span class="crm-chip">{{ item.queue }}</span>
             </div>
           </article>

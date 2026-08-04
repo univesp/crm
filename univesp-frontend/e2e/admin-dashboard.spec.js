@@ -48,11 +48,14 @@ test('dashboard administrativo usa tickets institucionais e não cria overflow h
   await page.setViewportSize({ width: 1211, height: 912 })
   await page.goto('/crm/admin/dashboard')
 
+  await expect(page.getByText('Visão rápida da operação', { exact: true })).toBeVisible()
   await expect(page.getByText('Fonte institucional')).toBeVisible()
-  await expect(page.getByText('1 de 1 tickets carregados')).toBeVisible()
+  await expect(page.getByText('1 de 1 atendimentos carregados')).toBeVisible()
+  await expect(page.getByText('Saúde da operação', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Volume ativo 1 em tela' })).toBeVisible()
   await expect(page.getByText('Ações recomendadas', { exact: true })).toBeVisible()
   await expect(page.getByText('Saída após a FAQ', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '30 dias', exact: true }).click()
   await page.getByText('Análise avançada e auditoria', { exact: true }).click()
   await expect(page.getByText('Indicador institucional do dashboard', { exact: true }).first()).toBeVisible()
   await expect.poll(() => requests.length).toBe(1)
@@ -63,22 +66,23 @@ test('dashboard administrativo usa tickets institucionais e não cria overflow h
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 })
 
-test('administrador busca e abre protocolo em modo somente leitura', async ({ page }) => {
+test('administrador busca e abre protocolo no diretório institucional', async ({ page }) => {
   await prepareAdmin(page)
   await mockDashboardTickets(page)
-  await page.goto('/crm/admin/dashboard')
+  await page.goto('/crm/admin/protocolos')
 
-  await page.getByLabel('Buscar protocolo').fill('UVSP-DASH-1')
-  await page.getByRole('button', { name: 'Buscar', exact: true }).click()
+  await page.getByLabel('Busca').fill('UVSP-DASH-1')
+  await page.getByRole('button', { name: 'Aplicar filtros', exact: true }).click()
 
-  await expect.poll(() => new URL(page.url()).pathname).toBe('/crm/admin/protocolos/UVSP-DASH-1')
+  await expect(page.getByText('UVSP-DASH-1', { exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'Abrir detalhe', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Consulta de protocolo' })).toBeVisible()
   await expect(page.getByText('UVSP-DASH-1')).toBeVisible()
   await expect(page.getByText('Aluno Dashboard', { exact: true })).toBeVisible()
   await expect(page.getByText('Em análise', { exact: true })).toBeVisible()
 })
 
-test('busca informa quando protocolo não existe ou está fora do escopo', async ({ page }) => {
+test('diretório informa quando não há protocolo no recorte', async ({ page }) => {
   await prepareAdmin(page)
   await page.route('**/api/app/v1/tickets/UVSP-INEXISTENTE', (route) => route.fulfill({
     status: 404,
@@ -88,11 +92,11 @@ test('busca informa quando protocolo não existe ou está fora do escopo', async
     status: 200,
     json: { data: [], error: null, meta: { page: 1, page_size: 100, total: 0 }, request_id: 'dashboard-empty' },
   }))
-  await page.goto('/crm/admin/dashboard')
+  await page.goto('/crm/admin/protocolos')
 
-  await page.getByLabel('Buscar protocolo').fill('UVSP-INEXISTENTE')
-  await page.getByRole('button', { name: 'Buscar', exact: true }).click()
+  await page.getByLabel('Busca').fill('UVSP-INEXISTENTE')
+  await page.getByRole('button', { name: 'Aplicar filtros', exact: true }).click()
 
-  await expect(page.getByRole('alert')).toContainText('Protocolo não encontrado')
-  await expect.poll(() => new URL(page.url()).pathname).toBe('/crm/admin/dashboard')
+  await expect(page.getByText('Nenhum protocolo encontrado', { exact: true })).toBeVisible()
+  await expect(page.getByText('Ajuste os filtros ou confirme se o protocolo existe no escopo atual.', { exact: true })).toBeVisible()
 })
