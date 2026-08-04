@@ -9,7 +9,6 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import { buildAdminDashboardView } from '@/services/adminDashboardRuntime'
 import { buildOperationalCockpitFromDashboard } from '@/services/operationalCockpitRuntime'
 import { getLegacyKnowledgeMetrics, isMockRuntimeEnabled, listTickets } from '@/services/appApi'
-import { useProtocolSearch } from '@/composables/useProtocolSearch'
 import { mapApiTicketToOperationalProtocol } from '@/services/ticketMapper'
 import { useAuthStore } from '@/stores/auth'
 import { useStudentSupportStore } from '@/stores/studentSupport'
@@ -17,7 +16,6 @@ import { useStudentSupportStore } from '@/stores/studentSupport'
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
 const knowledgeMetricOverrides = ref([])
-const protocolSearch = useProtocolSearch(ref('admin_central'))
 const liveState = reactive({
   loading: false,
   error: '',
@@ -63,6 +61,8 @@ const filters = reactive({
 const ui = reactive({
   selectedClusterKey: '',
   periodKey: '7d',
+  periodFrom: '',
+  periodTo: '',
   poloSearch: '',
   viewMode: 'areas',
 })
@@ -71,7 +71,7 @@ const periodOptions = [
   { value: 'today', label: 'Hoje', summary: 'hoje' },
   { value: '7d', label: '7 dias', summary: 'ultimos 7 dias' },
   { value: '30d', label: '30 dias', summary: 'ultimos 30 dias' },
-  { value: 'base', label: 'Periodo', summary: 'base atual' },
+  { value: 'custom', label: 'Periodo', summary: 'periodo personalizado' },
 ]
 const dashboardBase = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
 const dashboardView = computed(() => buildAdminDashboardView(dashboardBase.value, filters))
@@ -144,9 +144,96 @@ const secondaryMetrics = computed(() =>
 )
 const auditEntries = computed(() => dashboardView.value.auditEntries)
 const activeCasesFull = computed(() => dashboardView.value.activeCases)
-const activeCases = computed(() => activeCasesFull.value.slice(0, 4))
+const periodScopedCases = computed(() => activeCasesFull.value.filter((item) => matchesSelectedPeriod(item)))
+const activeCases = computed(() => periodScopedCases.value.slice(0, 4))
 const governanceCards = computed(() => dashboardView.value.governanceCards)
-const selectedPeriodLabel = computed(() => periodOptions.find((option) => option.value === ui.periodKey)?.summary || 'base atual')
+
+function formatDateInput(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function defaultCustomPeriodRange() {
+  const to = new Date()
+  const from = new Date()
+  from.setDate(from.getDate() - 29)
+  return {
+    from: formatDateInput(from),
+    to: formatDateInput(to),
+  }
+}
+
+function formatPeriodLabel(value) {
+  if (!value) return ''
+  const [year, month, day] = String(value).split('-')
+  if (!year || !month || !day) return value
+  return `${day}/${month}/${year}`
+}
+
+function parseCaseDateValue(item) {
+  const raw = item?.createdAt || item?.createdAtLabel
+  if (!raw) return null
+  const normalized = String(raw).trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(normalized)) {
+    return normalized.slice(0, 10)
+  }
+  const brMatch = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (brMatch) {
+    return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`
+  }
+  const parsed = Date.parse(normalized)
+  if (Number.isNaN(parsed)) return null
+  return formatDateInput(new Date(parsed))
+}
+
+function matchesSelectedPeriod(item) {
+  const caseDate = parseCaseDateValue(item)
+  if (!caseDate) return ui.periodKey === 'custom' ? false : true
+
+  const today = formatDateInput(new Date())
+
+  if (ui.periodKey === 'today') {
+    return caseDate === today
+  }
+
+  if (ui.periodKey === '7d' || ui.periodKey === '30d') {
+    const days = ui.periodKey === '7d' ? 7 : 30
+    const from = new Date()
+    from.setDate(from.getDate() - (days - 1))
+    return caseDate >= formatDateInput(from) && caseDate <= today
+  }
+
+  if (ui.periodKey === 'custom') {
+    if (!ui.periodFrom || !ui.periodTo) return true
+    return caseDate >= ui.periodFrom && caseDate <= ui.periodTo
+  }
+
+  return true
+}
+
+function selectPeriod(option) {
+  ui.periodKey = option.value
+  if (option.value !== 'custom') return
+
+  if (!ui.periodFrom || !ui.periodTo) {
+    const range = defaultCustomPeriodRange()
+    ui.periodFrom = range.from
+    ui.periodTo = range.to
+  }
+}
+
+const selectedPeriodLabel = computed(() => {
+  if (ui.periodKey === 'custom') {
+    if (ui.periodFrom && ui.periodTo) {
+      return `${formatPeriodLabel(ui.periodFrom)} a ${formatPeriodLabel(ui.periodTo)}`
+    }
+    return 'periodo personalizado'
+  }
+
+  return periodOptions.find((option) => option.value === ui.periodKey)?.summary || 'base atual'
+})
 const healthScore = computed(() =>
   metricValue('SLA vencido') * 4 +
   metricValue('Criticidade alta') * 3 +
@@ -522,7 +609,7 @@ const totalThemeCount = computed(() => Math.max(themeRanking.value.reduce((sum, 
 const demandTrend = computed(() => {
   const buckets = new Map()
 
-  for (const item of activeCasesFull.value) {
+  for (const item of periodScopedCases.value) {
     const rawDate = item.createdAtLabel || item.createdAt || 'Atual'
     const label = String(rawDate).slice(0, 10)
     const current = buckets.get(label) || { label, count: 0 }
@@ -704,8 +791,6 @@ function applyThemeFilter(theme) {
 }
 
 // --- novos computed/helpers locais ---
-const healthScoreDisplay = computed(() => Math.min(100, Math.max(0, operationHealth.value.score || 0)))
-
 const demandFillPoints = computed(() => {
   const pts = demandTrendPoints.value
   if (!pts) return ''
@@ -719,196 +804,197 @@ function getRiskLabel(row) {
   if (row.highCriticalityCount > 0 || row.escalationsCount > 0) return 'Medio'
   return 'Baixo'
 }
+
+function getRiskChipClass(row) {
+  const label = getRiskLabel(row)
+  if (label === 'Alto') return 'crm-chip crm-state-danger crm-chip--sm'
+  if (label === 'Medio') return 'crm-chip crm-state-warning crm-chip--sm'
+  return 'crm-chip crm-state-success crm-chip--sm'
+}
+
+function getHealthStateClass(tone) {
+  if (tone === 'danger') return 'crm-state-danger'
+  if (tone === 'warning') return 'crm-state-warning'
+  return 'crm-state-success'
+}
 </script>
 
 <template>
   <div class="grid gap-4">
     <!-- 1. HEADER COMPACTO -->
-    <section class="rounded-[8px] border border-slate-200 bg-white p-4">
-      <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 class="text-xl font-semibold text-slate-950">Dashboard admin</h1>
-          <p class="text-xs text-slate-500">Visao rapida da operacao</p>
-          <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-            <span class="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">
+    <section class="crm-dashboard-card">
+      <div class="crm-dashboard-toolbar">
+        <div class="crm-dashboard-toolbar__meta">
+          <p class="crm-page-description">Visao rapida da operacao</p>
+          <div class="crm-dashboard-toolbar__status">
+            <span class="crm-chip">
               Fonte institucional
             </span>
-            <span class="text-slate-500">
+            <span class="text-[11px] text-[var(--color-text-muted)]">
               {{ liveState.loading ? 'Atualizando...' : `${liveState.loaded} de ${liveState.total} tickets carregados` }}
             </span>
             <button
               type="button"
-              class="font-semibold text-[var(--color-primary)] disabled:opacity-50"
+              class="text-[11px] font-semibold text-[var(--color-primary)] disabled:opacity-50"
               :disabled="liveState.loading"
               @click="loadInstitutionalDashboard"
             >
               Atualizar
             </button>
           </div>
-          <p v-if="liveState.error" class="mt-2 text-xs font-semibold text-red-700" role="alert">
+          <p v-if="liveState.error" class="crm-alert-error mt-2" role="alert">
             {{ liveState.error }}
           </p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="flex gap-1">
+        <div class="crm-dashboard-toolbar__period">
+          <div class="crm-segment-group" role="group" aria-label="Periodo">
             <button
               v-for="option in periodOptions"
               :key="option.value"
               type="button"
-              class="rounded-full px-3 py-1.5 text-xs font-semibold transition"
-              :class="ui.periodKey === option.value
-                ? 'bg-[var(--color-primary)] text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-              @click="ui.periodKey = option.value"
+              class="crm-segment"
+              :class="{ 'is-active': ui.periodKey === option.value }"
+              @click="selectPeriod(option)"
             >
               {{ option.label }}
             </button>
           </div>
-
           <div
-            class="min-w-[190px] rounded-[8px] border px-3 py-2"
-            :class="operationHealth.tone === 'danger'
-              ? 'border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.74)]'
-              : operationHealth.tone === 'warning'
-                ? 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.62)]'
-                : 'border-[rgba(15,118,110,0.18)] bg-[rgba(240,253,250,0.72)]'"
+            v-if="ui.periodKey === 'custom'"
+            class="crm-period-range"
+            role="group"
+            aria-label="Intervalo personalizado"
           >
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="text-xs font-semibold text-slate-500">Saude da operacao</p>
-                <div class="flex items-baseline gap-1">
-                  <strong class="text-2xl text-slate-950">{{ healthScoreDisplay }}</strong>
-                  <span class="text-xs text-slate-500">/100</span>
-                </div>
-              </div>
-              <span
-                class="rounded-full px-2 py-0.5 text-xs font-semibold"
-                :class="operationHealth.tone === 'danger'
-                  ? 'bg-[var(--color-primary)] text-white'
-                  : operationHealth.tone === 'warning'
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-teal-600 text-white'"
-              >
-                {{ operationHealth.label }}
-              </span>
-            </div>
-            <svg viewBox="0 0 80 18" class="mt-1 h-4 w-full" aria-hidden="true">
-              <polyline
-                points="0,11 12,11 18,7 24,14 31,5 38,11 48,11 56,3 64,16 72,6 80,9"
-                fill="none"
-                stroke="var(--color-primary)"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
+            <label class="crm-period-range__field">
+              <span class="crm-field-label">De</span>
+              <input
+                v-model="ui.periodFrom"
+                type="date"
+                class="crm-field py-1.5 text-xs"
+                :max="ui.periodTo || undefined"
               />
-            </svg>
+            </label>
+            <label class="crm-period-range__field">
+              <span class="crm-field-label">Ate</span>
+              <input
+                v-model="ui.periodTo"
+                type="date"
+                class="crm-field py-1.5 text-xs"
+                :min="ui.periodFrom || undefined"
+              />
+            </label>
           </div>
+        </div>
+
+        <div
+          class="crm-dashboard-toolbar__health crm-card"
+          :class="getHealthStateClass(operationHealth.tone)"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold text-[var(--color-text-muted)]">Saude da operacao</p>
+              <div class="flex items-baseline gap-1">
+                <strong class="text-2xl text-[var(--color-text)]">{{ operationHealth.score }}</strong>
+                <span class="text-xs text-[var(--color-text-muted)]">pontos</span>
+              </div>
+            </div>
+            <span
+              class="crm-chip"
+              :class="getHealthStateClass(operationHealth.tone)"
+            >
+              {{ operationHealth.label }}
+            </span>
+          </div>
+          <svg viewBox="0 0 80 18" class="mt-1 h-4 w-full" aria-hidden="true">
+            <polyline
+              points="0,11 12,11 18,7 24,14 31,5 38,11 48,11 56,3 64,16 72,6 80,9"
+              fill="none"
+              stroke="var(--color-primary)"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            />
+          </svg>
         </div>
       </div>
 
-      <form class="mt-3 flex flex-wrap items-end gap-2" @submit.prevent="protocolSearch.submit">
-        <label class="grid min-w-[240px] flex-1 gap-1">
-          <span class="text-xs font-semibold text-slate-500">Buscar protocolo</span>
-          <input
-            v-model="protocolSearch.query.value"
-            type="search"
-            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-          />
-        </label>
-        <button
-          type="submit"
-          class="rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          :disabled="protocolSearch.loading.value"
-        >
-          Buscar
-        </button>
-        <p v-if="protocolSearch.error.value" class="w-full text-xs font-semibold text-red-700" role="alert">
-          {{ protocolSearch.error.value }}
-        </p>
-      </form>
-
-      <div class="mt-3 flex flex-wrap items-end gap-2">
-        <label class="grid min-w-[130px] gap-1">
-          <span class="text-xs font-semibold text-slate-500">Area interna</span>
-          <select
-            v-model="filters.queue"
-            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
-          >
-            <option v-for="o in filterOptions.queue" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </label>
-
-        <label class="grid min-w-[130px] gap-1">
-          <span class="text-xs font-semibold text-slate-500">Polos</span>
-          <input
-            v-model="ui.poloSearch"
-            type="search"
-            placeholder="Buscar polo"
-            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
-          />
-        </label>
-
-        <label class="grid min-w-[130px] gap-1">
-          <span class="text-xs font-semibold text-slate-500">Tema</span>
-          <select
-            v-model="filters.theme"
-            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
-          >
-            <option v-for="o in filterOptions.theme" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </label>
-
-        <label class="grid min-w-[110px] gap-1">
-          <span class="text-xs font-semibold text-slate-500">Status</span>
-          <select
-            v-model="filters.status"
-            class="rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700"
-          >
-            <option v-for="o in filterOptions.status" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </label>
-
+      <div class="crm-filter-toolbar mt-3">
+        <span class="crm-filter-toolbar__label">Filtros do recorte</span>
         <button
           type="button"
-          class="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+          class="crm-button-secondary crm-button-secondary--compact"
           @click="clearFilters"
         >
           Limpar filtros
         </button>
       </div>
+
+      <div class="crm-filter-grid crm-filter-grid--dense mt-2">
+        <label class="crm-filter-field">
+          <span class="crm-field-label">Area interna</span>
+          <select v-model="filters.queue" class="crm-field py-1.5 text-xs">
+            <option v-for="o in filterOptions.queue" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </label>
+
+        <label class="crm-filter-field">
+          <span class="crm-field-label">Polos</span>
+          <input
+            v-model="ui.poloSearch"
+            type="search"
+            placeholder="Buscar polo"
+            class="crm-field py-1.5 text-xs"
+          />
+        </label>
+
+        <label class="crm-filter-field">
+          <span class="crm-field-label">Tema</span>
+          <select v-model="filters.theme" class="crm-field py-1.5 text-xs">
+            <option v-for="o in filterOptions.theme" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </label>
+
+        <label class="crm-filter-field">
+          <span class="crm-field-label">Status</span>
+          <select v-model="filters.status" class="crm-field py-1.5 text-xs">
+            <option v-for="o in filterOptions.status" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </label>
+      </div>
     </section>
 
     <!-- 2. KPI ROW -->
-    <section class="crm-stat-grid">
+    <section class="crm-stat-grid crm-stat-grid--five">
       <button
         v-for="card in criticalKpiCards"
         :key="card.label"
         type="button"
-        class="rounded-[8px] border px-4 py-3 text-left transition hover:bg-slate-50 hover:shadow-sm"
-        :class="card.tone === 'danger'
-          ? 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.54)]'
-          : card.tone === 'warning'
-            ? 'border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.48)]'
-            : 'border-slate-200 bg-white'"
+        class="crm-stat-tile text-left transition hover:opacity-95"
+        :class="{
+          'crm-state-danger': card.tone === 'danger',
+          'crm-state-warning': card.tone === 'warning',
+        }"
         @click="applyKpiFocus(card)"
       >
-        <p class="text-xs font-semibold text-slate-500">{{ card.label }}</p>
-        <p class="mt-1 text-3xl font-semibold text-slate-950">{{ card.value }}</p>
-        <p class="mt-1 text-[11px] font-semibold text-slate-400">{{ card.trend }}</p>
+        <p class="crm-stat-tile__label">{{ card.label }}</p>
+        <p
+          class="crm-stat-tile__value"
+          :class="{ 'is-danger': card.tone === 'danger' }"
+        >
+          {{ card.value }}
+        </p>
+        <p class="mt-1 text-[11px] font-semibold text-[var(--color-text-muted)]">{{ card.trend }}</p>
       </button>
     </section>
 
-    <OperationalCockpitPanel :cockpit="operationalCockpit" compact />
-
-    <!-- 3. DISTRIBUICAO + TENDENCIA -->
+    <!-- DISTRIBUICAO + TENDENCIA -->
     <div class="crm-split-grid crm-split-grid--chart gap-4">
       <!-- Donut distribuicao -->
-      <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
+      <div class="crm-dashboard-card">
         <div>
-          <p class="text-xs font-semibold text-slate-500">Fluxo</p>
-          <p class="text-sm font-semibold text-slate-950">Distribuicao da demanda</p>
-          <p class="mt-0.5 text-xs text-slate-400">Caminho dos atendimentos na visao atual.</p>
+          <h2 class="crm-dashboard-heading">Distribuicao da demanda</h2>
+          <p class="crm-dashboard-lead">Caminho dos atendimentos na visao atual.</p>
         </div>
 
         <div class="mt-4 flex flex-1 items-center gap-5">
@@ -932,8 +1018,8 @@ function getRiskLabel(row) {
             </svg>
             <div class="absolute inset-0 grid place-items-center text-center">
               <div>
-                <p class="text-2xl font-semibold text-slate-950">{{ activeCasesFull.length }}</p>
-                <p class="text-[10px] font-semibold text-slate-500">ativos</p>
+                <p class="text-2xl font-semibold text-[var(--color-text)]">{{ activeCasesFull.length }}</p>
+                <p class="text-[10px] font-semibold text-[var(--color-text-muted)]">ativos</p>
               </div>
             </div>
           </div>
@@ -945,17 +1031,17 @@ function getRiskLabel(row) {
               class="flex items-center gap-2 text-xs"
             >
               <span class="h-2 w-2 shrink-0 rounded-full" :style="{ backgroundColor: segment.color }"></span>
-              <span class="flex-1 truncate font-medium text-slate-700">{{ segment.label }}</span>
-              <span class="shrink-0 font-semibold text-slate-950">{{ segment.percent }}%</span>
-              <span class="shrink-0 text-slate-400">({{ segment.value }})</span>
+              <span class="flex-1 truncate font-medium text-[var(--color-text)]">{{ segment.label }}</span>
+              <span class="shrink-0 font-semibold text-[var(--color-text)]">{{ segment.percent }}%</span>
+              <span class="shrink-0 text-[var(--color-text-muted)]">({{ segment.value }})</span>
             </div>
           </div>
         </div>
 
-        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+        <div class="crm-dashboard-card__footer">
           <button
             type="button"
-            class="text-xs font-semibold text-[var(--color-primary)]"
+            class="crm-text-link"
             @click="selectViewMode('faq')"
           >
             Ver detalhes &rarr;
@@ -967,24 +1053,23 @@ function getRiskLabel(row) {
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold text-slate-500">Tendencia</p>
-            <p class="text-sm font-semibold text-slate-950">Evolucao da demanda</p>
-            <p class="mt-0.5 text-xs text-slate-400">Demanda nos {{ selectedPeriodLabel }}. Estimativa com a base atual.</p>
+            <h2 class="crm-dashboard-heading">Evolucao da demanda</h2>
+            <p class="crm-dashboard-lead">Demanda nos {{ selectedPeriodLabel }}. Estimativa com a base atual.</p>
           </div>
-          <div class="flex items-center gap-3 text-xs text-slate-500">
+          <div class="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
             <span class="flex items-center gap-1.5">
-              <span class="inline-block h-2 w-5 rounded-full bg-[var(--color-primary)]"></span>
+              <span class="crm-legend-dot" aria-hidden="true"></span>
               Periodo atual
             </span>
             <span class="flex items-center gap-1.5">
-              <span class="inline-block h-2 w-5 rounded-full bg-slate-200"></span>
+              <span class="crm-legend-dot is-muted" aria-hidden="true"></span>
               Periodo anterior
             </span>
           </div>
         </div>
 
         <div class="mt-2 flex items-baseline gap-2">
-          <strong class="text-3xl text-slate-950">{{ demandTrend[demandTrend.length - 1]?.count || 0 }}</strong>
+          <strong class="text-3xl text-[var(--color-text)]">{{ demandTrend[demandTrend.length - 1]?.count || 0 }}</strong>
           <StatusBadge :label="demandTrendDirection" />
         </div>
 
@@ -1020,14 +1105,14 @@ function getRiskLabel(row) {
           />
         </svg>
 
-        <div class="crm-stat-grid mt-1 gap-1 text-center text-[10px] font-semibold text-slate-400">
+        <div class="crm-stat-grid mt-1 gap-1 text-center text-[10px] font-semibold text-[var(--color-text-muted)]">
           <span v-for="entry in demandTrend" :key="entry.label" class="truncate">{{ entry.label }}</span>
         </div>
 
-        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+        <div class="crm-dashboard-card__footer">
           <button
             type="button"
-            class="text-xs font-semibold text-[var(--color-primary)]"
+            class="crm-text-link"
             @click="selectViewMode('areas')"
           >
             Ver evolucao completa &rarr;
@@ -1041,13 +1126,12 @@ function getRiskLabel(row) {
       <!-- Areas internas em risco -->
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
-          <p class="text-xs font-semibold text-slate-500">Risco</p>
-          <p class="text-sm font-semibold text-slate-950">Areas internas em risco</p>
+          <h2 class="crm-dashboard-heading">Areas internas em risco</h2>
         </div>
 
         <div v-if="areaRiskRows.length" class="crm-table-scroll mt-3">
           <div class="min-w-[420px]">
-            <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
+            <div class="crm-dashboard-table__head grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2">
               <span>Area interna</span>
               <span class="text-center">Risco</span>
               <span class="text-center">SLA</span>
@@ -1058,33 +1142,29 @@ function getRiskLabel(row) {
             <div
               v-for="area in areaRiskRows"
               :key="area.key"
-              class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
+              class="crm-dashboard-table__row grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2"
             >
               <div class="min-w-0">
-                <p class="truncate text-xs font-semibold text-slate-900">{{ area.cluster }}</p>
-                <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
+                <p class="truncate text-xs font-semibold text-[var(--color-text)]">{{ area.cluster }}</p>
+                <div class="crm-progress-track mt-1 h-1">
                   <span
-                    class="block h-full rounded-full bg-[var(--color-primary)]"
+                    class="crm-progress-bar"
                     :style="{ width: `${Math.max(8, Math.round((area.riskScore / maxAreaRisk) * 100))}%` }"
                   ></span>
                 </div>
               </div>
               <span
-                class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
-                :class="getRiskLabel(area) === 'Alto'
-                  ? 'bg-red-100 text-red-700'
-                  : getRiskLabel(area) === 'Medio'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'bg-emerald-100 text-emerald-700'"
+                class="justify-center"
+                :class="getRiskChipClass(area)"
               >
                 {{ getRiskLabel(area) }}
               </span>
-              <span class="text-center text-xs font-semibold text-slate-700">{{ area.slaOverdueCount }}</span>
-              <span class="text-center text-xs font-semibold text-slate-700">{{ area.highCriticalityCount }}</span>
-              <span class="text-center text-xs font-semibold text-slate-700">{{ area.escalationsCount }}</span>
+              <span class="text-center text-xs font-semibold text-[var(--color-text)]">{{ area.slaOverdueCount }}</span>
+              <span class="text-center text-xs font-semibold text-[var(--color-text)]">{{ area.highCriticalityCount }}</span>
+              <span class="text-center text-xs font-semibold text-[var(--color-text)]">{{ area.escalationsCount }}</span>
               <button
                 type="button"
-                class="text-center text-[10px] font-semibold text-[var(--color-primary)]"
+                class="crm-text-link text-center text-[10px]"
                 @click="openInsight(area, 'areas')"
               >
                 Abrir
@@ -1093,14 +1173,14 @@ function getRiskLabel(row) {
           </div>
         </div>
 
-        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="crm-empty-state mt-3">
           Ajuste os filtros para retomar a leitura por area.
         </div>
 
-        <div class="mt-auto flex justify-end border-t border-slate-50 pt-3">
+        <div class="crm-dashboard-card__footer mt-auto">
           <button
             type="button"
-            class="text-xs font-semibold text-[var(--color-primary)]"
+            class="crm-text-link"
             @click="selectViewMode('areas')"
           >
             Ver todas as areas internas &rarr;
@@ -1111,13 +1191,12 @@ function getRiskLabel(row) {
       <!-- Polos em atencao -->
       <div class="flex flex-col rounded-[8px] border border-slate-200 bg-white p-4">
         <div>
-          <p class="text-xs font-semibold text-slate-500">Polos</p>
-          <p class="text-sm font-semibold text-slate-950">Polos em atencao</p>
+          <h2 class="crm-dashboard-heading">Polos em atencao</h2>
         </div>
 
         <div v-if="poloRiskRows.length" class="crm-table-scroll mt-3">
           <div class="min-w-[420px]">
-            <div class="mb-1.5 grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2 border-b border-slate-100 pb-1.5 text-[10px] font-semibold text-slate-400">
+            <div class="crm-dashboard-table__head grid grid-cols-[1fr_52px_44px_44px_52px_44px] gap-x-2">
               <span>Polo</span>
               <span class="text-center">Risco</span>
               <span class="text-center">SLA</span>
@@ -1128,33 +1207,29 @@ function getRiskLabel(row) {
             <div
               v-for="polo in poloRiskRows.slice(0, 6)"
               :key="polo.key"
-              class="grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2 border-b border-slate-50 py-1.5 last:border-0"
+              class="crm-dashboard-table__row grid grid-cols-[1fr_52px_44px_44px_52px_44px] items-center gap-x-2"
             >
               <div class="min-w-0">
-                <p class="truncate text-xs font-semibold text-slate-900">{{ polo.cluster }}</p>
-                <div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
+                <p class="truncate text-xs font-semibold text-[var(--color-text)]">{{ polo.cluster }}</p>
+                <div class="crm-progress-track mt-1 h-1">
                   <span
-                    class="block h-full rounded-full bg-[var(--color-primary)]"
+                    class="crm-progress-bar"
                     :style="{ width: `${Math.max(8, Math.round((polo.riskScore / maxPoloRisk) * 100))}%` }"
                   ></span>
                 </div>
               </div>
               <span
-                class="rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
-                :class="getRiskLabel(polo) === 'Alto'
-                  ? 'bg-red-100 text-red-700'
-                  : getRiskLabel(polo) === 'Medio'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'bg-emerald-100 text-emerald-700'"
+                class="justify-center"
+                :class="getRiskChipClass(polo)"
               >
                 {{ getRiskLabel(polo) }}
               </span>
-              <span class="text-center text-xs font-semibold text-slate-700">{{ polo.slaOverdueCount }}</span>
-              <span class="text-center text-xs font-semibold text-slate-700">{{ polo.highCriticalityCount }}</span>
-              <span class="text-center text-xs font-semibold text-slate-700">{{ polo.volume }}</span>
+              <span class="text-center text-xs font-semibold text-[var(--color-text)]">{{ polo.slaOverdueCount }}</span>
+              <span class="text-center text-xs font-semibold text-[var(--color-text)]">{{ polo.highCriticalityCount }}</span>
+              <span class="text-center text-xs font-semibold text-[var(--color-text)]">{{ polo.volume }}</span>
               <button
                 type="button"
-                class="text-center text-[10px] font-semibold text-[var(--color-primary)]"
+                class="crm-text-link text-center text-[10px]"
                 @click="openInsight(polo, 'polos')"
               >
                 Abrir
@@ -1167,10 +1242,10 @@ function getRiskLabel(row) {
           Nenhum polo encontrado nos filtros atuais.
         </div>
 
-        <div class="mt-3 flex justify-end border-t border-slate-50 pt-2">
+        <div class="crm-dashboard-card__footer">
           <button
             type="button"
-            class="text-xs font-semibold text-[var(--color-primary)]"
+            class="crm-text-link"
             @click="selectViewMode('polos')"
           >
             Ver todos os polos &rarr;
@@ -1184,8 +1259,7 @@ function getRiskLabel(row) {
       <!-- Temas em alta -->
       <div class="crm-dashboard-card">
         <div>
-          <p class="text-xs font-semibold text-slate-500">Temas</p>
-          <p class="text-sm font-semibold text-slate-950">Temas em alta</p>
+          <h2 class="crm-dashboard-heading">Temas em alta</h2>
         </div>
 
         <div v-if="themeRanking.length" class="crm-dashboard-card__body">
@@ -1197,27 +1271,27 @@ function getRiskLabel(row) {
             @click="applyThemeFilter(theme.theme)"
           >
             <div class="flex items-center gap-2">
-              <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-900">{{ theme.theme }}</span>
-              <span class="shrink-0 text-xs font-semibold text-slate-700">{{ theme.count }}</span>
-              <span class="shrink-0 text-[11px] text-slate-400">{{ Math.round((theme.count / totalThemeCount) * 100) }}%</span>
+              <span class="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--color-text)]">{{ theme.theme }}</span>
+              <span class="shrink-0 text-xs font-semibold text-[var(--color-text)]">{{ theme.count }}</span>
+              <span class="shrink-0 text-[11px] text-[var(--color-text-muted)]">{{ Math.round((theme.count / totalThemeCount) * 100) }}%</span>
             </div>
-            <div class="h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div class="crm-progress-track h-1.5">
               <span
-                class="block h-full rounded-full bg-[var(--color-primary)]"
+                class="crm-progress-bar"
                 :style="{ width: `${Math.max(6, Math.round((theme.count / maxThemeCount) * 100))}%` }"
               ></span>
             </div>
           </button>
         </div>
 
-        <div v-else class="crm-dashboard-card__body rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        <div v-else class="crm-dashboard-card__body crm-empty-state">
           Sem temas ativos nos filtros atuais.
         </div>
 
         <div class="crm-dashboard-card__footer">
           <button
             type="button"
-            class="text-xs font-semibold text-[var(--color-primary)]"
+            class="crm-text-link"
             @click="selectViewMode('temas')"
           >
             Ver todos &rarr;
@@ -1228,8 +1302,7 @@ function getRiskLabel(row) {
       <!-- Acoes recomendadas -->
       <div class="crm-dashboard-card">
         <div>
-          <p class="text-xs font-semibold text-slate-500">Agora</p>
-          <p class="text-sm font-semibold text-slate-950">Ações recomendadas</p>
+          <h2 class="crm-dashboard-heading">Ações recomendadas</h2>
         </div>
 
         <div class="crm-dashboard-card__body">
@@ -1294,22 +1367,21 @@ function getRiskLabel(row) {
 
         <!-- Dois indicadores de escape lado a lado -->
         <div class="mt-3 grid grid-cols-2 gap-2">
-          <div class="rounded-[8px] bg-slate-50 px-3 py-2 text-center">
-            <p class="text-2xl font-semibold text-slate-950">{{ faqEscapeRate }}%</p>
-            <p class="text-xs font-semibold text-slate-700">{{ selfServiceEscape.sentToOp }} casos</p>
-            <p class="mt-0.5 text-[10px] text-slate-400">OP apos FAQ</p>
+          <div class="crm-kpi-tile crm-card-muted px-3 py-2 text-center">
+            <p class="crm-kpi-tile__value">{{ faqEscapeRate }}%</p>
+            <p class="text-xs font-semibold text-[var(--color-text)]">{{ selfServiceEscape.sentToOp }} casos</p>
+            <p class="crm-kpi-tile__label">OP apos FAQ</p>
           </div>
-          <div class="rounded-[8px] bg-amber-50 px-3 py-2 text-center">
-            <p class="text-2xl font-semibold text-slate-950">{{ areaEscapeRate }}%</p>
-            <p class="text-xs font-semibold text-slate-700">{{ areaEscapeCount }} casos</p>
-            <p class="mt-0.5 text-[10px] text-slate-400">Area interna</p>
+          <div class="crm-kpi-tile crm-state-warning px-3 py-2 text-center">
+            <p class="crm-kpi-tile__value">{{ areaEscapeRate }}%</p>
+            <p class="text-xs font-semibold text-[var(--color-text)]">{{ areaEscapeCount }} casos</p>
+            <p class="crm-kpi-tile__label">Area interna</p>
           </div>
         </div>
 
-        <!-- Secundarios compactos -->
-        <div class="mt-2 flex items-center gap-4 text-xs text-slate-600">
-          <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.recurrence }}</strong> reincidencias</span>
-          <span><strong class="font-semibold text-slate-900">{{ selfServiceEscape.resolvedByFaq }}</strong> resolv. FAQ</span>
+        <div class="mt-2 flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
+          <span><strong class="font-semibold text-[var(--color-text)]">{{ selfServiceEscape.recurrence }}</strong> reincidencias</span>
+          <span><strong class="font-semibold text-[var(--color-text)]">{{ selfServiceEscape.resolvedByFaq }}</strong> resolv. FAQ</span>
         </div>
 
         <!-- Mini grafico de evolucao -->
@@ -1321,7 +1393,7 @@ function getRiskLabel(row) {
               class="flex flex-1 items-end"
             >
               <span
-                class="w-full rounded-t-sm bg-[rgba(37,99,235,0.65)]"
+                class="crm-bar-chart__bar"
                 :style="{ height: `${Math.max(4, Math.round(entry.value * 0.28))}px` }"
               ></span>
             </span>
@@ -1330,15 +1402,15 @@ function getRiskLabel(row) {
             <span
               v-for="entry in faqEscapeTrend"
               :key="`l-${entry.label}`"
-              class="flex-1 truncate text-center text-[9px] text-slate-400"
+              class="flex-1 truncate text-center text-[9px] text-[var(--color-text-muted)]"
             >{{ entry.label }}</span>
           </div>
         </div>
 
-        <div class="mt-auto flex justify-end border-t border-slate-50 pt-3">
+        <div class="crm-dashboard-card__footer mt-auto">
           <button
             type="button"
-            class="text-xs font-semibold text-[var(--color-primary)]"
+            class="crm-text-link"
             @click="selectViewMode('faq')"
           >
             Ver analise completa &rarr;
@@ -1347,37 +1419,65 @@ function getRiskLabel(row) {
       </div>
     </div>
 
+    <!-- Cockpit operacional (recolhido por padrao) -->
+    <details class="crm-dashboard-card">
+      <summary class="crm-details-summary">
+        <div class="min-w-0">
+          <h2 class="crm-dashboard-heading">Cockpit operacional</h2>
+          <p class="crm-dashboard-lead">
+            {{ operationalCockpit.kpis?.overdue || 0 }} atrasados ·
+            {{ operationalCockpit.kpis?.atRisk || 0 }} em risco ·
+            {{ operationalCockpit.kpis?.active || 0 }} ativos
+          </p>
+        </div>
+        <span class="crm-text-link shrink-0">Expandir</span>
+      </summary>
+      <OperationalCockpitPanel :cockpit="operationalCockpit" compact embedded />
+    </details>
+
     <!-- 6. RECORTE SELECIONADO (condicional) -->
     <div
       v-if="selectedClusterDetails"
-      class="rounded-[8px] border border-slate-200 bg-white p-4"
+      class="crm-dashboard-card"
     >
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold text-slate-500">{{ selectedClusterDetails.type }}</p>
-          <h3 class="text-base font-semibold text-slate-950">{{ selectedClusterDetails.cluster }}</h3>
-          <p class="mt-1 text-xs text-slate-600">{{ selectedClusterDetails.reason }}</p>
+          <p class="text-xs font-semibold text-[var(--color-text-muted)]">{{ selectedClusterDetails.type }}</p>
+          <h3 class="crm-dashboard-heading text-base">{{ selectedClusterDetails.cluster }}</h3>
+          <p class="crm-dashboard-lead">{{ selectedClusterDetails.reason }}</p>
         </div>
         <button
           type="button"
-          class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+          class="crm-chip"
           @click="selectCluster('')"
         >
           Voltar para visao geral
         </button>
       </div>
       <div class="mt-3 grid gap-4 xl:grid-cols-2">
-        <div class="grid grid-cols-4 gap-2 text-center text-xs font-semibold text-slate-600">
-          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.volume }} vol.</span>
-          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.slaOverdueCount }} SLA</span>
-          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.highCriticalityCount }} crit.</span>
-          <span class="rounded-[8px] bg-slate-50 px-2 py-2">{{ selectedClusterDetails.escalationsCount }} esc.</span>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div class="crm-kpi-tile crm-card-muted">
+            <p class="crm-kpi-tile__value">{{ selectedClusterDetails.volume }}</p>
+            <p class="crm-kpi-tile__label">Volume</p>
+          </div>
+          <div class="crm-kpi-tile crm-card-muted">
+            <p class="crm-kpi-tile__value">{{ selectedClusterDetails.slaOverdueCount }}</p>
+            <p class="crm-kpi-tile__label">SLA</p>
+          </div>
+          <div class="crm-kpi-tile crm-card-muted">
+            <p class="crm-kpi-tile__value">{{ selectedClusterDetails.highCriticalityCount }}</p>
+            <p class="crm-kpi-tile__label">Crit.</p>
+          </div>
+          <div class="crm-kpi-tile crm-card-muted">
+            <p class="crm-kpi-tile__value">{{ selectedClusterDetails.escalationsCount }}</p>
+            <p class="crm-kpi-tile__label">Escal.</p>
+          </div>
         </div>
         <ul class="grid gap-1.5">
           <li
             v-for="step in selectedClusterDetails.nextSteps"
             :key="step"
-            class="rounded-[8px] bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
+            class="crm-card-muted px-3 py-1.5 text-xs font-semibold text-[var(--color-text)]"
           >
             {{ step }}
           </li>
@@ -1386,39 +1486,39 @@ function getRiskLabel(row) {
     </div>
 
     <!-- 7. ALERTAS RAPIDOS -->
-    <section class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
-      <p class="mb-2 text-xs font-semibold text-slate-500">Alertas rapidos</p>
+    <section class="crm-dashboard-card !py-3">
+      <h2 class="crm-dashboard-heading mb-2">Alertas rapidos</h2>
 
       <div v-if="operationalAlerts.length" class="grid gap-3 md:grid-cols-3">
         <button
           v-for="alert in operationalAlerts"
           :key="alert.title"
           type="button"
-          class="flex items-start gap-3 rounded-[8px] border border-slate-100 bg-slate-50 px-3 py-2.5 text-left transition hover:bg-slate-100"
+          class="crm-action-item"
           @click="alert.theme ? applyThemeFilter(alert.theme) : selectCluster(alert.clusterKey)"
         >
-          <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary)]"></span>
-          <div class="min-w-0 flex-1">
-            <p class="text-xs font-semibold text-slate-900">{{ alert.title }}</p>
-            <p class="mt-0.5 text-[11px] text-slate-500">{{ alert.detail }}</p>
+          <span class="crm-action-item__signal is-low" aria-hidden="true"></span>
+          <div class="crm-action-item__body">
+            <p class="crm-action-item__title">{{ alert.title }}</p>
+            <p class="crm-action-item__reason">{{ alert.detail }}</p>
           </div>
-          <span class="shrink-0 text-xs font-semibold text-[var(--color-primary)]">Ver agora &rarr;</span>
+          <span class="crm-text-link shrink-0">Ver agora &rarr;</span>
         </button>
       </div>
 
-      <div v-else class="rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+      <div v-else class="crm-empty-state">
         Sem alertas operacionais nos filtros atuais.
       </div>
     </section>
 
     <!-- 8. ANALISE AVANCADA E AUDITORIA (recolhida) -->
-    <details class="rounded-[8px] border border-slate-200 bg-white p-4">
-      <summary class="cursor-pointer text-sm font-semibold text-slate-700">
+    <details class="crm-dashboard-card">
+      <summary class="cursor-pointer crm-dashboard-heading">
         Análise avançada e auditoria
       </summary>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Demais indicadores</h3>
+        <h3 class="crm-dashboard-heading">Demais indicadores</h3>
         <div class="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             v-for="metric in secondaryMetrics"
@@ -1431,7 +1531,7 @@ function getRiskLabel(row) {
       </section>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Casos que pedem atencao</h3>
+        <h3 class="crm-dashboard-heading">Casos que pedem atencao</h3>
         <div v-if="activeCases.length" class="mt-3 grid gap-3">
           <article
             v-for="item in activeCases"
@@ -1440,10 +1540,10 @@ function getRiskLabel(row) {
           >
             <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div>
-                <p class="text-xs font-semibold text-slate-500">{{ item.id }}</p>
-                <h3 class="mt-2 text-base font-semibold text-slate-950">{{ item.subject }}</h3>
-                <p class="mt-1 text-xs text-slate-600">{{ item.student }} - Polo {{ item.polo }}</p>
-                <p class="mt-0.5 text-xs text-slate-600">{{ item.theme }} - {{ item.subsubject }}</p>
+                <p class="text-xs font-semibold text-[var(--color-text-muted)]">{{ item.id }}</p>
+                <h3 class="mt-2 text-base font-semibold text-[var(--color-text)]">{{ item.subject }}</h3>
+                <p class="mt-1 text-xs text-[var(--color-text-muted)]">{{ item.student }} - Polo {{ item.polo }}</p>
+                <p class="mt-0.5 text-xs text-[var(--color-text-muted)]">{{ item.theme }} - {{ item.subsubject }}</p>
               </div>
               <div class="flex flex-wrap gap-2">
                 <PriorityBadge :priority="item.priority" />
@@ -1452,22 +1552,22 @@ function getRiskLabel(row) {
                 <SlaBadge :label="item.sla" />
               </div>
             </div>
-            <div class="mt-3 flex flex-wrap gap-1.5 text-xs text-slate-500">
-              <span v-if="item.recurrenceSignals?.repeatedTheme" class="rounded-full bg-slate-100 px-2.5 py-1">Repeticao no mesmo tema</span>
-              <span v-if="item.recurrenceSignals?.repeatedSubsubject" class="rounded-full bg-slate-100 px-2.5 py-1">Repeticao no mesmo subtema</span>
-              <span v-if="item.recurrenceSignals?.priorSelfServiceRelated" class="rounded-full bg-slate-100 px-2.5 py-1">Autoatendimento previo relacionado</span>
-              <span class="rounded-full bg-slate-100 px-2.5 py-1">{{ item.queue }}</span>
+            <div class="mt-3 flex flex-wrap gap-1.5 text-xs text-[var(--color-text-muted)]">
+              <span v-if="item.recurrenceSignals?.repeatedTheme" class="crm-chip">Repeticao no mesmo tema</span>
+              <span v-if="item.recurrenceSignals?.repeatedSubsubject" class="crm-chip">Repeticao no mesmo subtema</span>
+              <span v-if="item.recurrenceSignals?.priorSelfServiceRelated" class="crm-chip">Autoatendimento previo relacionado</span>
+              <span class="crm-chip">{{ item.queue }}</span>
             </div>
           </article>
         </div>
 
-        <div v-else class="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+        <div v-else class="crm-empty-state mt-3 py-4">
           Nenhum caso ativo nos filtros atuais.
         </div>
       </section>
 
       <section class="mt-5">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Frentes de governanca</h3>
+        <h3 class="crm-dashboard-heading">Frentes de governanca</h3>
         <div class="mt-3 grid gap-3 md:grid-cols-2">
           <ActionTile
             v-for="card in governanceCards"

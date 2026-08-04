@@ -5,6 +5,12 @@ import { useRoute } from 'vue-router'
 import { buildNavigationSections } from '@/data/navigation'
 import { useAuthStore } from '@/stores/auth'
 
+const props = defineProps({
+  collapsed: {
+    type: Boolean,
+    default: false,
+  },
+})
 const route = useRoute()
 const auth = useAuthStore()
 
@@ -90,17 +96,23 @@ function navLinkClass(item) {
 
   return ['nav-link', isGroupActive(item) ? 'is-active' : '']
 }
+
+const isCollapsedGovernance = computed(
+  () => props.collapsed && !mockContext.value.isStudentShell && !mockContext.value.isOperationalShell,
+)
 </script>
 
 <template>
   <aside
     :class="[
-      'w-full shrink-0',
+      'w-full shrink-0 transition-[width] duration-200',
       mockContext.isStudentShell
         ? 'lg:sticky lg:top-4 lg:z-20 lg:h-fit lg:w-[208px] xl:w-[220px]'
         : mockContext.isOperationalShell
           ? 'lg:sticky lg:top-4 lg:z-20 lg:h-fit lg:w-[176px] xl:w-[188px]'
-          : 'lg:sticky lg:top-4 lg:z-20 lg:h-[calc(100vh-2rem)] lg:w-[248px] xl:w-[320px]',
+          : isCollapsedGovernance
+            ? 'app-sidebar--collapsed lg:sticky lg:top-4 lg:z-20 lg:h-[calc(100vh-2rem)] lg:w-[72px]'
+            : 'lg:sticky lg:top-4 lg:z-20 lg:h-[calc(100vh-2rem)] lg:w-[248px] xl:w-[320px]',
     ]"
   >
     <div
@@ -108,10 +120,16 @@ function navLinkClass(item) {
         mockContext.isOperationalShell
           ? 'flex h-full flex-col gap-3 rounded-[8px] border border-slate-200 bg-white p-3'
           : 'surface-panel rise-in flex h-full flex-col',
-        mockContext.isStudentShell ? 'gap-5 p-4' : mockContext.isOperationalShell ? '' : 'gap-5 p-4 md:p-5',
+        mockContext.isStudentShell
+          ? 'gap-5 p-4'
+          : mockContext.isOperationalShell
+            ? ''
+            : isCollapsedGovernance
+              ? 'gap-3 p-2'
+              : 'gap-4 p-3 sm:gap-5 sm:p-4 md:p-5',
       ]"
     >
-      <div>
+      <div v-if="!isCollapsedGovernance">
         <span
           v-if="shellCopy.chip"
           class="soft-chip"
@@ -128,14 +146,14 @@ function navLinkClass(item) {
           v-else
           :class="[
             'font-semibold text-slate-950',
-            mockContext.isOperationalShell ? 'text-[1rem]' : 'mt-3 text-[1.8rem]',
+            mockContext.isOperationalShell ? 'text-[1rem]' : 'text-xl sm:text-[1.8rem]',
           ]"
         >
           {{ shellCopy.title }}
         </h2>
         <p
           v-if="!mockContext.isStudentShell && !mockContext.isOperationalShell"
-          class="mt-2 text-sm leading-6 text-slate-600"
+          class="mt-2 hidden text-sm leading-6 text-slate-600 sm:block"
         >
           {{ shellCopy.description }}
         </p>
@@ -154,6 +172,8 @@ function navLinkClass(item) {
             <RouterLink
               :to="item.route"
               :class="navLinkClass(item)"
+              :title="isCollapsedGovernance ? item.label : undefined"
+              :aria-label="isCollapsedGovernance ? item.label : undefined"
             >
               <template v-if="mockContext.isStudentShell">
                 <div class="flex items-center justify-between gap-4">
@@ -190,11 +210,11 @@ function navLinkClass(item) {
                 >
                   <path :d="item.icon" />
                 </svg>
-                <p class="text-sm font-semibold">{{ item.label }}</p>
+                <p :class="['text-sm font-semibold', isCollapsedGovernance ? 'sr-only' : '']">{{ item.label }}</p>
               </template>
             </RouterLink>
             <template
-              v-if="!mockContext.isStudentShell && !mockContext.isOperationalShell && Array.isArray(item.children) && item.children.length"
+              v-if="!isCollapsedGovernance && !mockContext.isStudentShell && !mockContext.isOperationalShell && Array.isArray(item.children) && item.children.length"
             >
               <RouterLink
                 v-for="child in item.children"

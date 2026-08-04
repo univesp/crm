@@ -1,5 +1,6 @@
 <script setup>
 import { ref, toRef } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import { useDialogA11y } from '@/composables/useDialogA11y'
 
@@ -16,6 +17,10 @@ const props = defineProps({
   validUntil: { type: String, default: '' },
   themes: { type: Array, default: () => [] },
   ownerEmail: { type: String, default: '' },
+  criticidadeDefaultKey: { type: String, default: '' },
+  slaPolicyKey: { type: String, default: '' },
+  criticalityLevels: { type: Array, default: () => [] },
+  slaLevels: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits([
@@ -23,6 +28,8 @@ const emit = defineEmits([
   'sync-channels',
   'update:themeKey',
   'update:patternKey',
+  'update:criticidadeDefaultKey',
+  'update:slaPolicyKey',
   'update:availableStudent',
   'update:availablePublic',
   'update:validFrom',
@@ -55,7 +62,7 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
   >
     <section ref="panelRef" class="crm-panel faq-v3-dialog faq-v3-dialog--wide faq-settings" tabindex="-1">
       <div class="faq-v3-dialog__header">
-        <h2 id="faq-settings-title">Configurações do fluxo</h2>
+        <h2 id="faq-settings-title">Configurações do assunto</h2>
         <button type="button" class="crm-button-secondary" @click="$emit('close')">Fechar</button>
       </div>
       <p class="faq-settings__hint">
@@ -105,6 +112,40 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
         <p class="faq-settings__hint">
           {{ selectedPattern?.steps?.join(' → ') || 'Selecione um caminho operacional.' }}
           Esta escolha vale para todo o fluxo.
+        </p>
+        <label class="crm-field-label">
+          Criticidade padrão do assunto
+          <select
+            class="crm-field"
+            :value="criticidadeDefaultKey"
+            :disabled="!canEdit"
+            @change="$emit('update:criticidadeDefaultKey', $event.target.value)"
+          >
+            <option value="">Selecione</option>
+            <option v-for="level in criticalityLevels" :key="level.key" :value="level.key">
+              {{ level.label }}
+            </option>
+          </select>
+        </label>
+        <label class="crm-field-label">
+          Prazo padrão (SLA) do assunto
+          <select
+            class="crm-field"
+            :value="slaPolicyKey"
+            :disabled="!canEdit"
+            @change="$emit('update:slaPolicyKey', $event.target.value)"
+          >
+            <option value="">Selecione</option>
+            <option v-for="level in slaLevels" :key="level.key" :value="level.key">
+              {{ level.label }}
+            </option>
+          </select>
+        </label>
+        <p class="faq-settings__hint">
+          Vale como padrão do assunto para respostas finais sem regra própria no nó.
+          Um nó pode sobrescrever criticidade e prazo na aba Encaminhamento.
+          Catálogo institucional em
+          <RouterLink to="/admin/parametros">Regras e prazos</RouterLink>.
         </p>
         <label class="crm-field-label">
           Tema

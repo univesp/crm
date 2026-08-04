@@ -1,5 +1,6 @@
 <script setup>
 import { inject } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import FaqV3ContentBlockList from './FaqV3ContentBlockList.vue'
 import { FAQ_V3_NODE_EDITOR_KEY } from './faqV3NodeEditorContext'
@@ -12,9 +13,7 @@ if (!editor) {
 const selectedNode = editor.selectedNode
 const canEdit = editor.canEdit
 const activeTab = editor.activeTab
-const advancedOpen = editor.advancedOpen
 const editorTabs = editor.editorTabs
-const advancedTabSummary = editor.advancedTabSummary
 const publicContentIsCustom = editor.publicContentIsCustom
 const runtimeParameters = editor.runtimeParameters
 const adminAreas = editor.adminAreas
@@ -32,6 +31,41 @@ const tabStateLabel = editor.tabStateLabel
 const operationalInheritanceLabel = editor.operationalInheritanceLabel
 const routingChainPresetValue = editor.routingChainPresetValue
 const setRoutingChainPreset = editor.setRoutingChainPreset
+const effectiveOperationalValue = editor.effectiveOperationalValue
+const resolveFinalArea = editor.resolveFinalArea
+const routingKeyLabel = editor.routingKeyLabel
+const tabButtonId = editor.tabButtonId
+const tabPanelId = editor.tabPanelId
+const bundleOperationalDefaults = editor.bundleOperationalDefaults
+
+function criticalityLabel(key) {
+  const match = runtimeParameters.criticalityLevels.find((item) => item.key === key)
+  return match?.label || key || '—'
+}
+
+function slaLabel(key) {
+  const match = runtimeParameters.slaLevels.find((item) => item.key === key)
+  return match?.label || key || '—'
+}
+
+function areaLabel(key) {
+  const match = adminAreas.value.find((item) => item.value === key)
+  return match?.label || key || '—'
+}
+
+function routingSummary(node) {
+  if (!node || node.node_kind !== 'final') return null
+  const criticidade = effectiveOperationalValue(node, 'criticidade')
+  const sla = effectiveOperationalValue(node, 'sla_policy_key')
+  const area = resolveFinalArea(node)
+  const override = node.operational?.routing_override
+  return {
+    criticidade: criticalityLabel(criticidade),
+    sla: slaLabel(sla),
+    area: area ? areaLabel(area) : 'Não definida',
+    fila: override ? routingKeyLabel(override) : routingKeyLabel(null),
+  }
+}
 </script>
 
 <template>
@@ -48,13 +82,17 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
       </label>
     </div>
 
-    <nav class="faq-tabs" aria-label="Camadas da etapa">
+    <nav class="faq-tabs" role="tablist" aria-label="Camadas da etapa">
       <button
         v-for="tab in editorTabs"
+        :id="tabButtonId(tab.key)"
         :key="tab.key"
         type="button"
+        role="tab"
         class="faq-tabs__button"
-        :class="{ 'is-active': activeTab === tab.key, 'has-issue': tabStateLabel(tab.key).includes('alerta') }"
+        :class="{ 'is-active': activeTab === tab.key, 'has-issue': tabStateLabel(tab.key).startsWith('Pendente') }"
+        :aria-selected="activeTab === tab.key"
+        :aria-controls="tabPanelId(tab.key)"
         :disabled="tab.key === 'document' && selectedNode.node_kind !== 'final'"
         @click="activeTab = tab.key"
       >
@@ -63,31 +101,13 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
       </button>
     </nav>
 
-    <button
-      v-if="!advancedOpen"
-      type="button"
-      class="crm-button-secondary faq-advanced-toggle"
-      @click="advancedOpen = true"
+    <div
+      v-if="activeTab === 'student'"
+      :id="tabPanelId('student')"
+      role="tabpanel"
+      :aria-labelledby="tabButtonId('student')"
+      class="faq-form-stack"
     >
-      Mostrar opções avançadas
-      <span
-        v-if="advancedTabSummary.filled || advancedTabSummary.issues"
-        class="faq-advanced-toggle__meta"
-      >
-        ({{ advancedTabSummary.filled }} abas avançadas ·
-        {{ advancedTabSummary.issues }} com pendência)
-      </span>
-    </button>
-    <button
-      v-else
-      type="button"
-      class="crm-button-secondary faq-advanced-toggle"
-      @click="advancedOpen = false"
-    >
-      Ocultar opções avançadas
-    </button>
-
-    <div v-if="activeTab === 'student'" class="faq-form-stack">
       <p>
         Escreva a orientação que a pessoa verá nesta etapa. Use linguagem direta e indique
         o próximo passo.
@@ -100,7 +120,13 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
       />
     </div>
 
-    <div v-else-if="activeTab === 'public'" class="faq-form-stack">
+    <div
+      v-else-if="activeTab === 'public'"
+      :id="tabPanelId('public')"
+      role="tabpanel"
+      :aria-labelledby="tabButtonId('public')"
+      class="faq-form-stack"
+    >
       <label class="faq-public-toggle">
         <input
           type="checkbox"
@@ -126,7 +152,13 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
       </template>
     </div>
 
-    <div v-else-if="['op', 'bpo', 'analyst'].includes(activeTab)" class="faq-form-stack">
+    <div
+      v-else-if="['op', 'bpo', 'analyst'].includes(activeTab)"
+      :id="tabPanelId(activeTab)"
+      role="tabpanel"
+      :aria-labelledby="tabButtonId(activeTab)"
+      class="faq-form-stack"
+    >
       <div v-if="activeTab === 'bpo' && !selectedNode.playbooks?.bpo" class="faq-inheritance">
         <strong>Herdado do OP</strong>
         <p>O BPO usa a orientação do OP enquanto não houver uma personalização.</p>
@@ -232,14 +264,40 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
       </label>
     </div>
 
-    <div v-else-if="activeTab === 'routing'" class="faq-form-stack">
+    <div
+      v-else-if="activeTab === 'routing'"
+      :id="tabPanelId('routing')"
+      role="tabpanel"
+      :aria-labelledby="tabButtonId('routing')"
+      class="faq-form-stack"
+    >
       <template v-if="selectedNode.node_kind === 'final'">
+        <section v-if="routingSummary(selectedNode)" class="crm-card-muted faq-routing-summary" aria-label="Resumo do encaminhamento">
+          <h3 class="faq-routing-summary__title">Resumo do encaminhamento</h3>
+          <dl class="faq-routing-summary__list">
+            <div><dt>Criticidade</dt><dd>{{ routingSummary(selectedNode).criticidade }}</dd></div>
+            <div><dt>Prazo (SLA)</dt><dd>{{ routingSummary(selectedNode).sla }}</dd></div>
+            <div><dt>Área</dt><dd>{{ routingSummary(selectedNode).area }}</dd></div>
+            <div><dt>Fila prevista</dt><dd>{{ routingSummary(selectedNode).fila }}</dd></div>
+          </dl>
+          <p class="faq-routing-summary__hint">
+            Padrão do assunto: criticidade
+            {{ criticalityLabel(bundleOperationalDefaults.criticidade) }}, prazo
+            {{ slaLabel(bundleOperationalDefaults.sla_policy_key) }}.
+            Altere em <strong>Configurações do assunto</strong>.
+          </p>
+        </section>
         <p class="faq-inheritance">
-          Criticidade, prazo e encaminhamento desta resposta final orientam a abertura do protocolo.
-          Quando vazio, o fluxo usa o padrão institucional do bundle.
+          Estes campos definem a regra deste nó na resposta final.
+          Deixe em branco para herdar o padrão do assunto.
+        </p>
+        <p v-if="!adminAreas.length" class="faq-area-banner" role="status">
+          Nenhuma área disponível no catálogo institucional.
+          <RouterLink to="/admin/permissoes?tab=areas">Cadastre em Pessoas e acessos → Áreas</RouterLink>
+          e atribua em <RouterLink to="/admin/permissoes">Usuários → pessoa → Áreas</RouterLink>.
         </p>
         <label class="crm-field-label">
-          Criticidade
+          Criticidade deste nó
           <select
             v-model="selectedNode.operational.criticidade"
             class="crm-field"
@@ -258,7 +316,7 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
           </select>
         </label>
         <label class="crm-field-label">
-          Prazo (SLA)
+          Prazo (SLA) deste nó
           <select
             v-model="selectedNode.operational.sla_policy_key"
             class="crm-field"
@@ -303,9 +361,9 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
             </option>
           </select>
         </label>
-        <p>
-          {{ selectedPattern?.steps?.join(' → ') || 'Selecione um caminho no fluxo.' }}
-          O servidor confirma a fila real ao abrir o protocolo.
+        <p class="faq-field-hint">
+          Caminho operacional: {{ selectedPattern?.steps?.join(' → ') || 'defina em Configurações do assunto' }}.
+          A fila exata é confirmada pelo servidor ao abrir o protocolo.
         </p>
         <label class="crm-field-label">
           Pessoa específica (opcional)
@@ -317,27 +375,50 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
             placeholder="email@univesp.br"
           />
         </label>
+        <label class="crm-field-label">
+          Fila fixa (opcional)
+          <select
+            v-model="selectedNode.operational.routing_override"
+            class="crm-field"
+            :disabled="!canEdit"
+          >
+            <option :value="null">Usar regra automática do fluxo</option>
+            <option v-for="key in allowedRoutingKeys" :key="key" :value="key">
+              {{ routingKeyLabel(key) }}
+            </option>
+          </select>
+        </label>
+        <p class="faq-field-hint">
+          Use fila fixa só quando esta resposta sempre deve ir para a mesma fila.
+          Não altera criticidade nem prazo (SLA).
+        </p>
       </template>
       <template v-else>
-        <p>Encaminhamento operacional detalhado fica nas respostas finais do fluxo.</p>
+        <p>Encaminhamento detalhado fica nas respostas finais do fluxo.</p>
+        <label class="crm-field-label">
+          Fila fixa (opcional)
+          <select
+            v-model="selectedNode.operational.routing_override"
+            class="crm-field"
+            :disabled="!canEdit"
+          >
+            <option :value="null">Usar regra automática do fluxo</option>
+            <option v-for="key in allowedRoutingKeys" :key="key" :value="key">
+              {{ routingKeyLabel(key) }}
+            </option>
+          </select>
+        </label>
       </template>
-      <label class="crm-field-label">
-        Exceção para esta etapa
-        <select
-          v-model="selectedNode.operational.routing_override"
-          class="crm-field"
-          :disabled="!canEdit"
-        >
-          <option :value="null">Usar regra do fluxo</option>
-          <option v-for="key in allowedRoutingKeys" :key="key" :value="key">
-            {{ key }}
-          </option>
-        </select>
-      </label>
     </div>
 
-    <div v-else-if="activeTab === 'document'" class="faq-form-stack">
-      <p>O upload aparece somente nesta resposta final.</p>
+    <div
+      v-else-if="activeTab === 'document'"
+      :id="tabPanelId('document')"
+      role="tabpanel"
+      :aria-labelledby="tabButtonId('document')"
+      class="faq-form-stack"
+    >
+      <p>Configure se o aluno deve enviar documentos ao abrir o atendimento nesta resposta final.</p>
       <label class="crm-field-label">
         Envio de documento pelo aluno
         <select
@@ -428,15 +509,6 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
   color: var(--color-danger);
 }
 
-.faq-advanced-toggle {
-  margin-block: var(--space-2);
-}
-
-.faq-advanced-toggle__meta {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
 .faq-form-stack {
   display: grid;
   gap: var(--space-3);
@@ -447,9 +519,58 @@ const setRoutingChainPreset = editor.setRoutingChainPreset
 }
 
 .faq-inheritance {
-  border-left: 4px solid var(--color-primary);
   background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
   padding: var(--space-3);
+}
+
+.faq-routing-summary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.faq-routing-summary__title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.faq-routing-summary__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.faq-routing-summary__list div {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: var(--space-2);
+}
+
+.faq-routing-summary__list dt {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.faq-routing-summary__list dd {
+  margin: 0;
+}
+
+.faq-routing-summary__hint,
+.faq-field-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.faq-area-banner {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning, #ed6c02) 12%, var(--color-surface));
 }
 
 .faq-public-toggle {

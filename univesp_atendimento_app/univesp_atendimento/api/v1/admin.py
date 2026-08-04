@@ -265,13 +265,74 @@ def catalogs():
 		"HD Team", filters={"disabled": 0}, fields=["name", "team_name"], order_by="team_name asc"
 	)
 	polos = _distinct_ticket_values("custom_student_polo", "polos")
-	areas = _distinct_ticket_values("custom_univesp_area", "areas")
 	return response(
 		{
 			"profiles": profile_catalog(),
 			"queues": [{"value": row.name, "label": row.team_name or row.name} for row in queues],
 			"polos": [{"value": value, "label": value} for value in polos],
-			"areas": [{"value": value, "label": value} for value in areas],
+			"areas": _merged_area_catalog(),
+		},
+		request_id=context.request_id,
+	)
+
+
+@frappe.whitelist(methods=["GET"])
+def list_institutional_areas():
+	context = _admin_context()
+	rows = frappe.get_all(
+		"Univesp Institutional Area",
+		fields=["name", "area_key", "area_label", "active", "modified"],
+		order_by="area_label asc",
+		limit_page_length=500,
+	)
+	return response(
+		[
+			{
+				"id": row.name,
+				"area_key": row.area_key,
+				"area_label": row.area_label or row.area_key,
+				"active": bool(row.active),
+				"updated_at": str(row.modified or ""),
+			}
+			for row in rows
+		],
+		request_id=context.request_id,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def create_institutional_area(payload: dict | str | None = None):
+	context = _admin_context()
+	data = _payload(payload)
+	reason = _required_reason(data)
+	area_key = _normalize_area_key(data.get("area_key") or data.get("area_label") or "")
+	area_label = str(data.get("area_label") or area_key).strip()
+	if not area_label:
+		raise UnivespValidationError(_("Nome da area e obrigatorio."))
+	if frappe.db.exists("Univesp Institutional Area", area_key):
+		raise UnivespConflictError(_("Ja existe uma area com essa chave."))
+	doc = frappe.get_doc(
+		{
+			"doctype": "Univesp Institutional Area",
+			"area_key": area_key,
+			"area_label": area_label,
+			"active": 1,
+		}
+	).insert(ignore_permissions=True)
+	_write_audit(
+		context,
+		doc.area_key,
+		"institutional_area_created",
+		reason,
+		None,
+		{"area_key": doc.area_key, "area_label": doc.area_label},
+	)
+	return response(
+		{
+			"id": doc.name,
+			"area_key": doc.area_key,
+			"area_label": doc.area_label,
+			"active": bool(doc.active),
 		},
 		request_id=context.request_id,
 	)
@@ -1008,4 +1069,52 @@ def _distinct_ticket_values(fieldname, scope_key):
 	for row in frappe.get_all("Univesp Access Profile", fields=["scopes_json"], limit_page_length=0):
 		scopes = frappe.parse_json(row.scopes_json or "{}")
 		values.update(str(item).strip() for item in scopes.get(scope_key, []) if str(item).strip())
+	if scope_key == "areas":
+		values.update(_institutional_area_keys())
 	return sorted(values)
+
+
+def _institutional_area_keys():
+	return {
+		str(row.area_key or "").strip()
+		for row in frappe.get_all(
+			"Univesp Institutional Area",
+			filters={"active": 1},
+			fields=["area_key"],
+			limit_page_length=0,
+		)
+		if str(row.area_key or "").strip()
+	}
+
+
+def _institutional_area_catalog():
+	rows = frappe.get_all(
+		"Univesp Institutional Area",
+		filters={"active": 1},
+		fields=["area_key", "area_label"],
+		order_by="area_label asc",
+		limit_page_length=500,
+	)
+	return [
+		{"value": row.area_key, "label": row.area_label or row.area_key}
+		for row in rows
+		if row.area_key
+	]
+
+
+def _merged_area_catalog():
+	merged = {}
+	for item in _institutional_area_catalog():
+		merged[item["value"]] = item["label"]
+	for value in _distinct_ticket_values("custom_univesp_area", "areas"):
+		merged.setdefault(value, value)
+	return [{"value": key, "label": merged[key]} for key in sorted(merged.keys(), key=lambda item: merged[item].lower())]
+
+
+def _normalize_area_key(raw):
+	normalized = str(raw or "").strip().lower()
+	normalized = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized)
+	normalized = "-".join(part for part in normalized.split("-") if part)
+	if not normalized:
+		raise UnivespValidationError(_("Chave da area e obrigatoria."))
+	return normalized[:120]

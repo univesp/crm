@@ -1,38 +1,52 @@
 ﻿<script setup>
-import { computed, onMounted, reactive, ref, watchEffect } from 'vue'
-import MetricCard from '@/components/MetricCard.vue'
-import SectionPanel from '@/components/SectionPanel.vue'
-import SlaBadge from '@/components/SlaBadge.vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+
+import AdminBusinessCalendarPanel from '@/components/admin/AdminBusinessCalendarPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import { buildAdminParametersRuntime, cloneAdminParametersDraft, findApplicationRule, findParameterLevel } from '@/services/adminParametersRuntime'
+import {
+  buildAdminParameterLevels,
+  cloneAdminParametersDraft,
+  findParameterLevel,
+} from '@/services/adminParametersRuntime'
+import {
+  findDuplicatePriority,
+  findDuplicateSlaDuration,
+  formatSlaDurationSummary,
+  getSlaDurationMode,
+  getSlaDurationValue,
+  setSlaDurationMode,
+  setSlaDurationValue,
+  validateCriticalityLevel,
+  validateSlaLevel,
+} from '@/services/adminParametersValidation'
 import { resolveDueAt } from '@/services/businessCalendar'
 import { getRuntimeSettings, isMockRuntimeEnabled, updateRuntimeSettings } from '@/services/appApi'
-import { useAuthStore } from '@/stores/auth'
-import { useStudentSupportStore } from '@/stores/studentSupport'
 
-const auth = useAuthStore()
-const studentSupportStore = useStudentSupportStore()
 const parameterDraft = reactive(cloneAdminParametersDraft())
 const settingsVersion = ref('')
-const saveState = reactive({
+
+const loadState = reactive({
   loading: false,
   error: '',
-  success: '',
-  reason: '',
 })
+
+const itemSave = reactive({})
+
 const ui = reactive({
   selectedCriticalityKey: null,
   selectedSlaKey: null,
-  selectedRuleId: null,
   selectedCalendarEntryId: null,
 })
 
 function ensureBusinessCalendarDraft() {
   if (!parameterDraft.businessCalendar || typeof parameterDraft.businessCalendar !== 'object') {
-    parameterDraft.businessCalendar = { weeklyOff: [0, 6], entries: [] }
+    parameterDraft.businessCalendar = { weeklyOff: [0, 6], entries: [], businessHours: { start: '09:00', end: '18:00' } }
   }
   if (!Array.isArray(parameterDraft.businessCalendar.entries)) {
     parameterDraft.businessCalendar.entries = []
+  }
+  if (!parameterDraft.businessCalendar.businessHours) {
+    parameterDraft.businessCalendar.businessHours = { start: '09:00', end: '18:00' }
   }
 }
 
@@ -41,25 +55,58 @@ const calendarEntries = computed(() => {
   return parameterDraft.businessCalendar.entries
 })
 
-const selectedCalendarEntry = computed(() =>
-  calendarEntries.value.find((entry) => entry.id === ui.selectedCalendarEntryId) || null,
-)
+const levels = computed(() => buildAdminParameterLevels(parameterDraft))
 
 const calendarPreviewDueAt = computed(() => {
-  if (!selectedSlaLevel.value) return null
+  if (!parameterDraft.slaLevels[0]) return null
   ensureBusinessCalendarDraft()
-  return resolveDueAt(selectedSlaLevel.value, new Date(), parameterDraft.businessCalendar)
+  return resolveDueAt(parameterDraft.slaLevels[0], new Date(), parameterDraft.businessCalendar)
 })
 
-function selectCalendarEntry(entryId) {
-  ui.selectedCalendarEntryId = entryId
+const isGlobalBusy = computed(() => loadState.loading)
+
+function itemSaveKey(section, key) {
+  return `${section}:${key}`
 }
 
-function addCalendarEntry() {
+function getItemSave(section, key) {
+  return itemSave[itemSaveKey(section, key)] || { loading: false, error: '', success: '' }
+}
+
+function ensureItemSave(section, key) {
+  const saveKey = itemSaveKey(section, key)
+  if (!itemSave[saveKey]) {
+    itemSave[saveKey] = { loading: false, error: '', success: '' }
+  }
+  return itemSave[saveKey]
+}
+
+function clearItemFeedback(section, key) {
+  const state = getItemSave(section, key)
+  state.error = ''
+  state.success = ''
+}
+
+function priorityFeedback(section, key) {
+  const levelsList =
+    section === 'criticality' ? parameterDraft.criticalityLevels : parameterDraft.slaLevels
+  return findDuplicatePriority(levelsList, key)
+}
+
+function slaDurationFeedback(key) {
+  return findDuplicateSlaDuration(parameterDraft.slaLevels, key)
+}
+
+function selectCalendarEntry(entryId) {
+  ui.selectedCalendarEntryId = ui.selectedCalendarEntryId === entryId ? null : entryId
+}
+
+function addCalendarEntry(year) {
   ensureBusinessCalendarDraft()
   const entry = {
     id: `calendar-${Date.now().toString(36)}`,
-    date: new Date().toISOString().slice(0, 10),
+    date: `${year}-01-01`,
+    endDate: `${year}-01-01`,
     type: 'holiday',
     label: '',
   }
@@ -73,797 +120,625 @@ function removeCalendarEntry(entryId) {
     (entry) => entry.id !== entryId,
   )
   if (ui.selectedCalendarEntryId === entryId) {
-    ui.selectedCalendarEntryId = parameterDraft.businessCalendar.entries[0]?.id || null
+    ui.selectedCalendarEntryId = null
   }
 }
 
-const dashboardData = computed(() => studentSupportStore.adminDashboardData(auth.mockContext))
-const runtime = computed(() =>
-  buildAdminParametersRuntime({
-    dashboardData: dashboardData.value,
-    draft: parameterDraft,
-  }),
-)
-const metrics = computed(() => runtime.value.metrics)
-const selectedCriticalityLevel = computed(() =>
-  findParameterLevel(parameterDraft.criticalityLevels, ui.selectedCriticalityKey),
-)
-const selectedSlaLevel = computed(() =>
-  findParameterLevel(parameterDraft.slaLevels, ui.selectedSlaKey),
-)
-const selectedRule = computed(() =>
-  findApplicationRule(parameterDraft.applicationRules, ui.selectedRuleId),
-)
-const selectedRuleImpact = computed(() => {
-  if (!selectedRule.value) {
-    return null
-  }
-
-  const impactedCases = runtime.value.caseImpacts.filter((item) =>
-    item.matchedRules.some((rule) => rule.id === selectedRule.value.id),
-  )
-  const impactScope =
-    selectedRule.value.targetType === 'queue'
-      ? 'local'
-      : impactedCases.length >= 12
-        ? 'amplo'
-        : 'controlado'
-
-  return {
-    impactedCases: impactedCases.length,
-    highCriticalityCases: impactedCases.filter((item) => item.becomesHighCriticality).length,
-    shorterSlaCases: impactedCases.filter((item) => item.getsShorterSla).length,
-    impactScope,
-    targetLabel:
-      selectedRule.value.targetType === 'queue'
-        ? selectedRule.value.targetValue
-        : selectedRule.value.targetValue.replaceAll('_', ' '),
-  }
-})
-const currentRuleTargetOptions = computed(() => {
-  if (!selectedRule.value) {
-    return []
-  }
-
-  if (selectedRule.value.targetType === 'theme') {
-    return runtime.value.targetOptions.themes
-  }
-
-  if (selectedRule.value.targetType === 'subtheme') {
-    return runtime.value.targetOptions.subthemes
-  }
-
-  return runtime.value.targetOptions.queues
-})
-
-watchEffect(() => {
-  ensureBusinessCalendarDraft()
-  if (!selectedCriticalityLevel.value && parameterDraft.criticalityLevels[0]) {
-    ui.selectedCriticalityKey = parameterDraft.criticalityLevels[0].key
-  }
-
-  if (!selectedSlaLevel.value && parameterDraft.slaLevels[0]) {
-    ui.selectedSlaKey = parameterDraft.slaLevels[0].key
-  }
-
-  if (!selectedRule.value && parameterDraft.applicationRules[0]) {
-    ui.selectedRuleId = parameterDraft.applicationRules[0].id
-  }
-
-  if (!selectedCalendarEntry.value && calendarEntries.value[0]) {
-    ui.selectedCalendarEntryId = calendarEntries.value[0].id
-  }
-})
-
 function selectCriticalityLevel(key) {
-  ui.selectedCriticalityKey = key
+  ui.selectedCriticalityKey = ui.selectedCriticalityKey === key ? null : key
 }
 
 function selectSlaLevel(key) {
-  ui.selectedSlaKey = key
+  ui.selectedSlaKey = ui.selectedSlaKey === key ? null : key
 }
 
-function selectRule(ruleId) {
-  ui.selectedRuleId = ruleId
+function getCriticalityDraft(key) {
+  return findParameterLevel(parameterDraft.criticalityLevels, key)
+}
+
+function getSlaDraft(key) {
+  return findParameterLevel(parameterDraft.slaLevels, key)
+}
+
+function getSlaMode(key) {
+  const draft = getSlaDraft(key)
+  return draft ? getSlaDurationMode(draft) : 'hours'
+}
+
+function setSlaMode(key, mode) {
+  const draft = getSlaDraft(key)
+  if (!draft) return
+  setSlaDurationMode(draft, mode)
+  clearItemFeedback('sla', key)
+}
+
+function getSlaAmount(key) {
+  const draft = getSlaDraft(key)
+  return draft ? getSlaDurationValue(draft) : null
+}
+
+function setSlaAmount(key, value) {
+  const draft = getSlaDraft(key)
+  if (!draft) return
+  setSlaDurationValue(draft, value)
+  clearItemFeedback('sla', key)
 }
 
 async function loadRuntimeSettings() {
   if (isMockRuntimeEnabled()) return
-  saveState.loading = true
-  saveState.error = ''
+  loadState.loading = true
+  loadState.error = ''
   try {
     const result = await getRuntimeSettings()
     settingsVersion.value = result.data?.version || ''
     const parameters = result.data?.parameters || {}
-    if (
-      Array.isArray(parameters.criticalityLevels)
-      && Array.isArray(parameters.slaLevels)
-      && Array.isArray(parameters.applicationRules)
-    ) {
+    if (Array.isArray(parameters.criticalityLevels) && Array.isArray(parameters.slaLevels)) {
       Object.assign(parameterDraft, JSON.parse(JSON.stringify(parameters)))
     }
     ensureBusinessCalendarDraft()
   } catch (error) {
-    saveState.error = error?.message || 'Nao foi possivel carregar os parametros institucionais.'
+    loadState.error = error?.message || 'Nao foi possivel carregar os parametros institucionais.'
   } finally {
-    saveState.loading = false
+    loadState.loading = false
   }
 }
 
-async function saveRuntimeSettings() {
-  saveState.error = ''
-  saveState.success = ''
-  if (saveState.reason.trim().length < 5) {
-    saveState.error = 'Informe uma justificativa com pelo menos 5 caracteres.'
-    return
+async function saveItem(section, key, label) {
+  const state = ensureItemSave(section, key)
+  state.error = ''
+  state.success = ''
+
+  if (section === 'criticality') {
+    const validationError = validateCriticalityLevel(parameterDraft.criticalityLevels, key)
+    if (validationError) {
+      state.error = validationError
+      return
+    }
   }
-  saveState.loading = true
+
+  if (section === 'sla') {
+    const validationError = validateSlaLevel(parameterDraft.slaLevels, key)
+    if (validationError) {
+      state.error = validationError
+      return
+    }
+  }
+
+  state.loading = true
   try {
     const result = await updateRuntimeSettings({
       version: settingsVersion.value,
-      reason: saveState.reason.trim(),
+      reason: `Ajuste em ${label}`,
       parameters: JSON.parse(JSON.stringify(parameterDraft)),
     })
     settingsVersion.value = result.data?.version || ''
-    saveState.reason = ''
-    saveState.success = 'Parametros salvos no Frappe com versao e auditoria.'
+    state.success = 'Salvo.'
   } catch (error) {
-    saveState.error = error?.message || 'Nao foi possivel salvar os parametros institucionais.'
+    state.error = error?.message || 'Nao foi possivel salvar.'
   } finally {
-    saveState.loading = false
+    state.loading = false
   }
 }
 
+function saveCriticalityItem(level) {
+  void saveItem('criticality', level.key, `Nivel oficial ${level.label}`)
+}
+
+function saveSlaItem(level) {
+  void saveItem('sla', level.key, `Janela oficial ${level.label}`)
+}
+
+function saveCalendarItem(entry) {
+  void saveItem('calendar', entry.id, `Calendario ${entry.label || entry.date}`)
+}
+
+function saveCalendarSettings() {
+  void saveItem('calendar', 'settings', 'Horario comercial do calendario')
+}
+
 onMounted(() => {
+  ensureBusinessCalendarDraft()
   void loadRuntimeSettings()
 })
 </script>
 
 <template>
-  <div class="grid gap-6">
-    <section class="rounded-[8px] border border-slate-200 bg-white p-4">
-      <div class="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <button type="button" class="text-sm font-semibold text-slate-900">Padrões oficiais</button>
-          <p class="mt-1 text-xs text-slate-500">Alterações são versionadas e registradas para auditoria.</p>
-        </div>
-        <div class="grid w-full gap-2 lg:max-w-xl lg:grid-cols-[minmax(0,1fr)_auto]">
-          <label class="grid gap-1 text-sm font-semibold text-slate-700">
-            <span>Justificativa da alteração</span>
-            <input
-              v-model="saveState.reason"
-              type="text"
-              class="min-h-10 rounded-[8px] border border-slate-200 px-3 font-normal"
-              placeholder="Explique o ajuste operacional"
-            />
-          </label>
-          <button
-            type="button"
-            :disabled="saveState.loading"
-            class="min-h-10 self-end rounded-[8px] bg-slate-950 px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
-            @click="saveRuntimeSettings"
-          >
-            {{ saveState.loading ? 'Salvando...' : 'Salvar alterações' }}
-          </button>
-        </div>
-      </div>
-      <p v-if="saveState.error" class="mt-3 text-sm font-medium text-[var(--color-danger)]" role="alert">
-        {{ saveState.error }}
+  <div class="grid gap-4">
+    <section class="rounded-[8px] border border-slate-200 bg-white p-3">
+      <p class="text-sm text-slate-600">
+        Catálogos usados pelo FAQ e pela operação. Clique em um item para editar e salvar no próprio bloco.
       </p>
-      <p v-if="saveState.success" class="mt-3 text-sm font-medium text-[var(--color-success)]" role="status">
-        {{ saveState.success }}
+      <p v-if="loadState.error" class="mt-2 text-sm font-medium text-[var(--color-danger)]" role="alert">
+        {{ loadState.error }}
       </p>
     </section>
 
-    <SectionPanel
-      eyebrow="Admin"
-      title="Parametros de SLA e criticidade"
-      description="Ajuste os niveis oficiais e veja como as regras mudam a leitura dos casos existentes."
-    >
-      <div class="crm-split-grid gap-4">
-        <div class="grid gap-3 md:grid-cols-2">
-          <div class="inner-panel p-5">
-            <p class="text-sm font-semibold text-slate-500">Criticidade</p>
-            <p class="mt-3 text-lg font-semibold text-slate-950">{{ runtime.criticalityLevels.length }} niveis oficiais</p>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              Ajuste nome, cor, badge e prioridade operacional de cada nivel.
-            </p>
-          </div>
-          <div class="inner-panel p-5">
-            <p class="text-sm font-semibold text-slate-500">Prazos</p>
-            <p class="mt-3 text-lg font-semibold text-slate-950">{{ runtime.slaLevels.length }} janelas oficiais</p>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              A leitura reaproveita os mesmos casos do painel, da fila operacional e da auditoria.
-            </p>
-          </div>
-        </div>
-
-        <div class="inner-panel p-5">
-          <p class="text-sm font-semibold text-slate-500">Base de impacto</p>
-          <p class="mt-3 text-lg font-semibold text-slate-950">{{ dashboardData.activeCases.length }} casos ativos em leitura</p>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            Regras por tema, subtema ou fila mudam a leitura projetada sem alterar o backend nesta etapa.
+    <details class="admin-parameters-section" open>
+      <summary class="crm-details-summary admin-parameters-section__summary">
+        <div class="min-w-0">
+          <h2 class="text-base font-semibold text-slate-900">Níveis oficiais</h2>
+          <p class="mt-0.5 text-sm text-slate-500">
+            {{ levels.criticalityLevels.length }} níveis de criticidade
           </p>
         </div>
-      </div>
-    </SectionPanel>
+        <span class="crm-text-link shrink-0">Abrir</span>
+      </summary>
 
-    <section class="crm-filter-grid--dense">
-      <MetricCard
-        v-for="metric in metrics"
-        :key="metric.label"
-        :label="metric.label"
-        :value="metric.value"
-        :hint="metric.hint"
-      />
-    </section>
-
-    <div class="crm-split-grid gap-6">
-      <SectionPanel
-        eyebrow="Criticidade"
-        title="Niveis oficiais"
-        description="Revise os niveis de criticidade e ajuste como eles aparecem na operação."
-      >
-        <div class="grid gap-4">
-          <div class="grid gap-2">
+      <div class="admin-parameters-section__body">
+        <div class="grid gap-2">
+          <article
+            v-for="level in levels.criticalityLevels"
+            :key="level.key"
+            class="parameter-item parameter-item--compact"
+            :class="{ 'is-active': ui.selectedCriticalityKey === level.key }"
+          >
             <button
-              v-for="level in runtime.criticalityLevels"
-              :key="level.key"
               type="button"
-              class="option-button"
+              class="parameter-item__header option-button"
               :class="{ 'is-active': ui.selectedCriticalityKey === level.key }"
+              :aria-expanded="ui.selectedCriticalityKey === level.key"
               @click="selectCriticalityLevel(level.key)"
             >
-              <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div>
-                  <p class="text-xs font-semibold text-slate-500">
-                    {{ level.key }}
-                  </p>
-                  <p class="mt-2 text-base font-semibold text-slate-950">{{ level.label }}</p>
-                  <p class="mt-2 text-sm leading-6 text-slate-600">{{ level.note }}</p>
+              <div class="parameter-item__summary">
+                <div class="min-w-0">
+                  <p class="parameter-item__title">{{ level.label }}</p>
+                  <p v-if="level.note" class="parameter-item__note">{{ level.note }}</p>
                 </div>
-
-                <div class="flex flex-wrap items-center gap-2">
-                  <span
-                    class="badge-base"
-                    :style="level.style"
-                  >
-                    {{ level.badgeLabel }}
-                  </span>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="badge-base" :style="level.style">{{ level.badgeLabel }}</span>
                   <StatusBadge :label="`Prioridade ${level.operationalPriority}`" />
                 </div>
               </div>
             </button>
-          </div>
-
-          <div v-if="selectedCriticalityLevel" class="grid gap-4 rounded-[8px] border border-slate-200 bg-slate-50/75 p-4">
-            <div class="flex flex-wrap items-center gap-2">
-              <span
-                class="badge-base"
-                :style="{ backgroundColor: selectedCriticalityLevel.backgroundColor, color: selectedCriticalityLevel.textColor }"
-              >
-                {{ selectedCriticalityLevel.badgeLabel }}
-              </span>
-              <StatusBadge :label="selectedCriticalityLevel.key" />
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Nome</span>
-                <input
-                  v-model="selectedCriticalityLevel.label"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Texto do badge</span>
-                <input
-                  v-model="selectedCriticalityLevel.badgeLabel"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Cor de fundo</span>
-                <input
-                  v-model="selectedCriticalityLevel.backgroundColor"
-                  type="color"
-                  class="h-12 rounded-[8px] border border-slate-200 bg-white px-2 py-2"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Cor do texto</span>
-                <input
-                  v-model="selectedCriticalityLevel.textColor"
-                  type="color"
-                  class="h-12 rounded-[8px] border border-slate-200 bg-white px-2 py-2"
-                />
-              </label>
-              <label class="grid gap-2 md:col-span-2">
-                <span class="text-sm font-semibold text-slate-600">Prioridade operacional</span>
-                <input
-                  v-model.number="selectedCriticalityLevel.operationalPriority"
-                  type="number"
-                  min="1"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                />
-              </label>
-            </div>
-          </div>
-        </div>
-      </SectionPanel>
-
-      <SectionPanel
-        eyebrow="SLA"
-        title="Janelas oficiais"
-        description="Revise os prazos oficiais e ajuste como eles aparecem na operação."
-      >
-        <div class="grid gap-4">
-          <div class="grid gap-2">
-            <button
-              v-for="level in runtime.slaLevels"
-              :key="level.key"
-              type="button"
-              class="option-button"
-              :class="{ 'is-active': ui.selectedSlaKey === level.key }"
-              @click="selectSlaLevel(level.key)"
-            >
-              <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div>
-                  <p class="text-xs font-semibold text-slate-500">
-                    {{ level.key }}
-                  </p>
-                  <p class="mt-2 text-base font-semibold text-slate-950">{{ level.label }}</p>
-                  <p class="mt-2 text-sm leading-6 text-slate-600">{{ level.note }}</p>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-2">
-                  <span
-                    class="badge-base"
-                    :style="level.style"
-                  >
-                    {{ level.badgeLabel }}
-                  </span>
-                  <StatusBadge :label="`Prioridade ${level.operationalPriority}`" />
-                </div>
-              </div>
-            </button>
-          </div>
-
-          <div v-if="selectedSlaLevel" class="grid gap-4 rounded-[8px] border border-slate-200 bg-slate-50/75 p-4">
-            <div class="flex flex-wrap items-center gap-2">
-              <span
-                class="badge-base"
-                :style="{ backgroundColor: selectedSlaLevel.backgroundColor, color: selectedSlaLevel.textColor }"
-              >
-                {{ selectedSlaLevel.badgeLabel }}
-              </span>
-              <SlaBadge :label="selectedSlaLevel.badgeLabel" />
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Nome</span>
-                <input
-                  v-model="selectedSlaLevel.label"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Texto do badge</span>
-                <input
-                  v-model="selectedSlaLevel.badgeLabel"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Cor de fundo</span>
-                <input
-                  v-model="selectedSlaLevel.backgroundColor"
-                  type="color"
-                  class="h-12 rounded-[8px] border border-slate-200 bg-white px-2 py-2"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Cor do texto</span>
-                <input
-                  v-model="selectedSlaLevel.textColor"
-                  type="color"
-                  class="h-12 rounded-[8px] border border-slate-200 bg-white px-2 py-2"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Horas</span>
-                <input
-                  v-model.number="selectedSlaLevel.hours"
-                  type="number"
-                  min="0"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Dias uteis</span>
-                <input
-                  v-model.number="selectedSlaLevel.businessDays"
-                  type="number"
-                  min="0"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Prioridade operacional</span>
-                <input
-                  v-model.number="selectedSlaLevel.operationalPriority"
-                  type="number"
-                  min="1"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                />
-              </label>
-            </div>
-          </div>
-        </div>
-      </SectionPanel>
-    </div>
-
-    <SectionPanel
-      eyebrow="Calendario"
-      title="Calendario e prazos"
-      description="Cadastre feriados, pontes e recessos que nao contam como dia util nos prazos institucionais."
-    >
-      <div class="grid gap-4">
-        <div class="inner-panel p-5">
-          <p class="text-sm font-semibold text-slate-500">Regra base</p>
-          <p class="mt-2 text-sm leading-6 text-slate-600">
-            Sabado e domingo nao contam por padrao. Use as entradas abaixo para feriados, pontes e recessos.
-          </p>
-          <p v-if="calendarPreviewDueAt" class="mt-3 text-sm text-slate-700">
-            Exemplo com o SLA selecionado:
-            {{ new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(calendarPreviewDueAt) }}
-          </p>
-        </div>
-
-        <div class="grid gap-2">
-          <button
-            v-for="entry in calendarEntries"
-            :key="entry.id"
-            type="button"
-            class="option-button"
-            :class="{ 'is-active': ui.selectedCalendarEntryId === entry.id }"
-            @click="selectCalendarEntry(entry.id)"
-          >
-            <div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <p class="text-xs font-semibold text-slate-500">{{ entry.type }}</p>
-                <p class="mt-1 text-base font-semibold text-slate-950">{{ entry.date }}</p>
-                <p class="mt-1 text-sm text-slate-600">{{ entry.label || 'Sem descricao' }}</p>
-              </div>
-              <StatusBadge :label="entry.type" />
-            </div>
-          </button>
-        </div>
-
-        <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            class="rounded-[8px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-            @click="addCalendarEntry"
-          >
-            Adicionar entrada
-          </button>
-          <button
-            v-if="selectedCalendarEntry"
-            type="button"
-            class="rounded-[8px] border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700"
-            @click="removeCalendarEntry(selectedCalendarEntry.id)"
-          >
-            Remover selecionada
-          </button>
-        </div>
-
-        <div v-if="selectedCalendarEntry" class="grid gap-4 rounded-[8px] border border-slate-200 bg-slate-50/75 p-4 md:grid-cols-2">
-          <label class="grid gap-2">
-            <span class="text-sm font-semibold text-slate-600">Data</span>
-            <input
-              v-model="selectedCalendarEntry.date"
-              type="date"
-              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-            />
-          </label>
-          <label class="grid gap-2">
-            <span class="text-sm font-semibold text-slate-600">Tipo</span>
-            <select
-              v-model="selectedCalendarEntry.type"
-              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-            >
-              <option value="holiday">Feriado</option>
-              <option value="bridge">Ponte</option>
-              <option value="recess">Recesso</option>
-            </select>
-          </label>
-          <label class="grid gap-2 md:col-span-2">
-            <span class="text-sm font-semibold text-slate-600">Descricao</span>
-            <input
-              v-model="selectedCalendarEntry.label"
-              type="text"
-              class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-            />
-          </label>
-        </div>
-      </div>
-    </SectionPanel>
-
-    <div class="crm-split-grid gap-6">
-      <SectionPanel
-        eyebrow="Regras"
-        title="Aplicação por tema, subtema e fila"
-        description="Defina onde cada regra deve valer e acompanhe o impacto dessa leitura."
-      >
-        <div class="grid gap-4">
-          <div class="grid gap-2">
-            <button
-              v-for="rule in runtime.rules"
-              :key="rule.id"
-              type="button"
-              class="option-button"
-              :class="{ 'is-active': ui.selectedRuleId === rule.id }"
-              @click="selectRule(rule.id)"
-            >
-              <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div>
-                  <p class="text-xs font-semibold text-slate-500">
-                    {{ rule.targetType }} - {{ rule.id }}
-                  </p>
-                  <p class="mt-2 text-base font-semibold text-slate-950">
-                    {{ rule.targetType === 'queue' ? rule.targetValue : rule.targetValue.replaceAll('_', ' ') }}
-                  </p>
-                  <p class="mt-2 text-sm leading-6 text-slate-600">{{ rule.note }}</p>
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-                  <StatusBadge :label="rule.active ? 'Ativa' : 'Inativa'" />
-                  <StatusBadge :label="rule.criticalityKey" />
-                  <SlaBadge :label="rule.slaKey" />
-                </div>
-              </div>
-            </button>
-          </div>
-
-          <div v-if="selectedRule" class="grid gap-4 rounded-[8px] border border-slate-200 bg-slate-50/75 p-4">
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Tipo de alvo</span>
-                <select
-                  v-model="selectedRule.targetType"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                >
-                  <option
-                    v-for="option in runtime.targetOptions.targetTypes"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Valor do alvo</span>
-                <select
-                  v-model="selectedRule.targetValue"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                >
-                  <option
-                    v-for="option in currentRuleTargetOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Criticidade aplicada</span>
-                <select
-                  v-model="selectedRule.criticalityKey"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                >
-                  <option
-                    v-for="level in runtime.criticalityLevels"
-                    :key="level.key"
-                    :value="level.key"
-                  >
-                    {{ level.label }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold text-slate-600">Prazo aplicado</span>
-                <select
-                  v-model="selectedRule.slaKey"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                >
-                  <option
-                    v-for="level in runtime.slaLevels"
-                    :key="level.key"
-                    :value="level.key"
-                  >
-                    {{ level.label }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="grid gap-2 md:col-span-2">
-                <span class="text-sm font-semibold text-slate-600">Observação operacional</span>
-                <textarea
-                  v-model="selectedRule.note"
-                  rows="4"
-                  class="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700"
-                ></textarea>
-              </label>
-            </div>
 
             <div
-              v-if="selectedRuleImpact"
-              :class="[
-                'rounded-[8px] border px-4 py-4',
-                selectedRuleImpact.impactScope === 'amplo'
-                  ? 'border-[rgba(166,31,40,0.16)] bg-[rgba(253,236,237,0.58)]'
-                  : selectedRuleImpact.impactScope === 'local'
-                    ? 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.55)]'
-                    : 'border-[rgba(202,138,4,0.16)] bg-[rgba(254,243,199,0.58)]',
-              ]"
+              v-if="ui.selectedCriticalityKey === level.key && getCriticalityDraft(level.key)"
+              class="parameter-item__editor"
             >
-              <p class="text-sm font-semibold text-slate-900">
-                Impacto estimado da regra: {{ selectedRuleImpact.targetLabel }}
-              </p>
-              <p class="mt-2 text-sm leading-6 text-slate-700">
-                Escopo {{ selectedRuleImpact.impactScope }}. {{ selectedRuleImpact.impactedCases }} caso(s) podem ser alterados nesta leitura.
-              </p>
-              <p class="mt-1 text-xs text-slate-600">
-                {{ selectedRuleImpact.highCriticalityCases }} caso(s) podem subir criticidade e {{ selectedRuleImpact.shorterSlaCases }} podem reduzir SLA.
-              </p>
-            </div>
-
-            <label class="inner-panel flex items-center justify-between gap-3 p-4">
-              <span class="text-sm font-semibold text-slate-900">Regra ativa</span>
-              <input
-                v-model="selectedRule.active"
-                type="checkbox"
-              />
-            </label>
-
-            <div class="rounded-[8px] border border-slate-200 bg-white px-4 py-4">
-              <p class="text-sm font-semibold text-slate-900">Preparação para rollback</p>
-              <p class="mt-2 text-sm leading-6 text-slate-600">
-                Nesta rodada o rollback ainda e manual por historico de auditoria. A proxima etapa deve salvar versao anterior e permitir restauração em um clique.
-              </p>
-            </div>
-          </div>
-        </div>
-      </SectionPanel>
-
-      <SectionPanel
-        eyebrow="Impacto"
-        title="Filas mais afetadas"
-        description="Veja em quais filas a leitura de criticidade e prazo mudaria mais."
-      >
-        <div v-if="runtime.queueImpact.length" class="grid gap-3">
-          <article
-            v-for="queue in runtime.queueImpact"
-            :key="queue.queue"
-            class="inner-panel p-5"
-          >
-            <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-normal text-slate-500">Fila</p>
-                
-                <h3 class="mt-3 text-xl font-semibold text-slate-950">{{ queue.queue }}</h3>
-                <p class="mt-2 text-sm leading-6 text-slate-600">
-                  Tema dominante: {{ queue.dominantTheme }}
-                </p>
+              <div class="parameter-grid">
+                <label class="parameter-field">
+                  <span>Nome</span>
+                  <input v-model="getCriticalityDraft(level.key).label" class="parameter-input" />
+                </label>
+                <label class="parameter-field">
+                  <span>Texto do badge</span>
+                  <input v-model="getCriticalityDraft(level.key).badgeLabel" class="parameter-input" />
+                </label>
+                <label class="parameter-field">
+                  <span>Cor de fundo</span>
+                  <input
+                    v-model="getCriticalityDraft(level.key).backgroundColor"
+                    type="color"
+                    class="parameter-input parameter-input--color"
+                  />
+                </label>
+                <label class="parameter-field">
+                  <span>Cor do texto</span>
+                  <input
+                    v-model="getCriticalityDraft(level.key).textColor"
+                    type="color"
+                    class="parameter-input parameter-input--color"
+                  />
+                </label>
+                <label class="parameter-field">
+                  <span>Prioridade operacional</span>
+                  <input
+                    v-model.number="getCriticalityDraft(level.key).operationalPriority"
+                    type="number"
+                    min="1"
+                    class="parameter-input"
+                    @input="clearItemFeedback('criticality', level.key)"
+                  />
+                </label>
               </div>
-              <div class="flex flex-wrap gap-2">
-                <StatusBadge :label="`${queue.highCriticalityCases} alta/critica`" />
-                <SlaBadge :label="`${queue.shorterSlaCases} SLA mais curto`" />
-              </div>
-            </div>
-
-            <div class="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
-              <div class="rounded-[8px] bg-slate-50 px-4 py-3">
-                <p class="text-sm font-semibold text-slate-500">Casos impactados</p>
-                <p class="mt-2 font-semibold text-slate-900">{{ queue.impactedCases }}</p>
-              </div>
-              <div class="rounded-[8px] bg-slate-50 px-4 py-3">
-                <p class="text-sm font-semibold text-slate-500">Alta criticidade</p>
-                <p class="mt-2 font-semibold text-slate-900">{{ queue.highCriticalityCases }}</p>
-              </div>
-              <div class="rounded-[8px] bg-slate-50 px-4 py-3">
-                <p class="text-sm font-semibold text-slate-500">Prazo mais curto</p>
-                <p class="mt-2 font-semibold text-slate-900">{{ queue.shorterSlaCases }}</p>
+              <p
+                v-if="priorityFeedback('criticality', level.key)"
+                class="parameter-feedback parameter-feedback--error"
+                role="alert"
+              >
+                {{ priorityFeedback('criticality', level.key) }}
+              </p>
+              <div class="parameter-item__actions">
+                <div class="parameter-item__save">
+                  <p
+                    v-if="getItemSave('criticality', level.key).error"
+                    class="parameter-feedback parameter-feedback--error"
+                    role="alert"
+                  >
+                    {{ getItemSave('criticality', level.key).error }}
+                  </p>
+                  <p
+                    v-else-if="getItemSave('criticality', level.key).success"
+                    class="parameter-feedback parameter-feedback--success"
+                    role="status"
+                  >
+                    {{ getItemSave('criticality', level.key).success }}
+                  </p>
+                  <button
+                    type="button"
+                    class="parameter-button parameter-button--primary"
+                    :disabled="isGlobalBusy || getItemSave('criticality', level.key).loading || !!priorityFeedback('criticality', level.key)"
+                    @click="saveCriticalityItem(level)"
+                  >
+                    {{ getItemSave('criticality', level.key).loading ? 'Salvando...' : 'Salvar' }}
+                  </button>
+                </div>
               </div>
             </div>
           </article>
         </div>
-      </SectionPanel>
-    </div>
+      </div>
+    </details>
 
-    <div class="grid gap-6 xl:grid-cols-2">
-      <SectionPanel
-        eyebrow="Impacto"
-        title="Casos que ficariam com criticidade alta"
-        description="Casos que passariam a exigir leitura mais sensivel com a combinação atual."
-      >
-        <div v-if="runtime.highCriticalityCases.length" class="grid gap-3">
+    <details class="admin-parameters-section">
+      <summary class="crm-details-summary admin-parameters-section__summary">
+        <div class="min-w-0">
+          <h2 class="text-base font-semibold text-slate-900">Janelas oficiais</h2>
+          <p class="mt-0.5 text-sm text-slate-500">{{ levels.slaLevels.length }} prazos de SLA</p>
+        </div>
+        <span class="crm-text-link shrink-0">Abrir</span>
+      </summary>
+
+      <div class="admin-parameters-section__body">
+        <div class="grid gap-2">
           <article
-            v-for="item in runtime.highCriticalityCases"
-            :key="item.id"
-            class="inner-panel p-5"
+            v-for="level in levels.slaLevels"
+            :key="level.key"
+            class="parameter-item parameter-item--compact"
+            :class="{ 'is-active': ui.selectedSlaKey === level.key }"
           >
-            <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-normal text-slate-500">{{ item.id }}</p>
-                
-                <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ item.subject }}</h3>
-                <p class="mt-2 text-sm leading-6 text-slate-600">
-                  {{ item.student }} - {{ item.queue }} - {{ item.theme }} / {{ item.subsubject }}
-                </p>
+            <button
+              type="button"
+              class="parameter-item__header option-button"
+              :class="{ 'is-active': ui.selectedSlaKey === level.key }"
+              :aria-expanded="ui.selectedSlaKey === level.key"
+              @click="selectSlaLevel(level.key)"
+            >
+              <div class="parameter-item__summary">
+                <div class="min-w-0">
+                  <p class="parameter-item__title">{{ level.label }}</p>
+                  <p v-if="level.note" class="parameter-item__note">{{ level.note }}</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="badge-base" :style="level.style">{{ level.badgeLabel }}</span>
+                  <StatusBadge :label="`Prioridade ${level.operationalPriority}`" />
+                </div>
               </div>
-              <div class="flex flex-wrap gap-2">
-                <span class="badge-base" :style="item.baselineCriticality.style">
-                  {{ item.baselineCriticality.badgeLabel }}
-                </span>
-                <span class="badge-base" :style="item.projectedCriticality.style">
-                  {{ item.projectedCriticality.badgeLabel }}
-                </span>
+            </button>
+
+            <div
+              v-if="ui.selectedSlaKey === level.key && getSlaDraft(level.key)"
+              class="parameter-item__editor"
+            >
+              <div class="parameter-grid">
+                <label class="parameter-field">
+                  <span>Nome</span>
+                  <input v-model="getSlaDraft(level.key).label" class="parameter-input" />
+                </label>
+                <label class="parameter-field">
+                  <span>Texto do badge</span>
+                  <input v-model="getSlaDraft(level.key).badgeLabel" class="parameter-input" />
+                </label>
+                <label class="parameter-field">
+                  <span>Cor de fundo</span>
+                  <input
+                    v-model="getSlaDraft(level.key).backgroundColor"
+                    type="color"
+                    class="parameter-input parameter-input--color"
+                  />
+                </label>
+                <label class="parameter-field">
+                  <span>Cor do texto</span>
+                  <input
+                    v-model="getSlaDraft(level.key).textColor"
+                    type="color"
+                    class="parameter-input parameter-input--color"
+                  />
+                </label>
+                <label class="parameter-field">
+                  <span>Prioridade operacional</span>
+                  <input
+                    v-model.number="getSlaDraft(level.key).operationalPriority"
+                    type="number"
+                    min="1"
+                    class="parameter-input"
+                    @input="clearItemFeedback('sla', level.key)"
+                  />
+                </label>
+                <fieldset class="parameter-field parameter-field--wide">
+                  <legend class="parameter-field__legend">Unidade do prazo</legend>
+                  <div class="parameter-toggle">
+                    <label class="parameter-toggle__option">
+                      <input
+                        type="radio"
+                        :name="`sla-mode-${level.key}`"
+                        value="hours"
+                        :checked="getSlaMode(level.key) === 'hours'"
+                        @change="setSlaMode(level.key, 'hours')"
+                      />
+                      Horas corridas
+                    </label>
+                    <label class="parameter-toggle__option">
+                      <input
+                        type="radio"
+                        :name="`sla-mode-${level.key}`"
+                        value="businessDays"
+                        :checked="getSlaMode(level.key) === 'businessDays'"
+                        @change="setSlaMode(level.key, 'businessDays')"
+                      />
+                      Dias uteis
+                    </label>
+                  </div>
+                </fieldset>
+                <label class="parameter-field">
+                  <span>{{ getSlaMode(level.key) === 'businessDays' ? 'Quantidade de dias uteis' : 'Quantidade de horas' }}</span>
+                  <input
+                    :value="getSlaAmount(level.key)"
+                    type="number"
+                    min="1"
+                    class="parameter-input"
+                    @input="setSlaAmount(level.key, $event.target.value)"
+                  />
+                </label>
+              </div>
+              <p class="parameter-hint">{{ formatSlaDurationSummary(getSlaDraft(level.key)) }}</p>
+              <p
+                v-if="priorityFeedback('sla', level.key)"
+                class="parameter-feedback parameter-feedback--error"
+                role="alert"
+              >
+                {{ priorityFeedback('sla', level.key) }}
+              </p>
+              <p
+                v-else-if="slaDurationFeedback(level.key)"
+                class="parameter-feedback parameter-feedback--error"
+                role="alert"
+              >
+                {{ slaDurationFeedback(level.key) }}
+              </p>
+              <div class="parameter-item__actions">
+                <div class="parameter-item__save">
+                  <p
+                    v-if="getItemSave('sla', level.key).error"
+                    class="parameter-feedback parameter-feedback--error"
+                    role="alert"
+                  >
+                    {{ getItemSave('sla', level.key).error }}
+                  </p>
+                  <p
+                    v-else-if="getItemSave('sla', level.key).success"
+                    class="parameter-feedback parameter-feedback--success"
+                    role="status"
+                  >
+                    {{ getItemSave('sla', level.key).success }}
+                  </p>
+                  <button
+                    type="button"
+                    class="parameter-button parameter-button--primary"
+                    :disabled="
+                        isGlobalBusy ||
+                        getItemSave('sla', level.key).loading ||
+                        !!priorityFeedback('sla', level.key) ||
+                        !!slaDurationFeedback(level.key)
+                      "
+                    @click="saveSlaItem(level)"
+                  >
+                    {{ getItemSave('sla', level.key).loading ? 'Salvando...' : 'Salvar' }}
+                  </button>
+                </div>
               </div>
             </div>
-
-            <p class="mt-4 text-sm leading-6 text-slate-600">
-              Regras consideradas:
-              {{ item.matchedRules.map((rule) => `${rule.targetType}:${rule.targetLabel}`).join(', ') || 'nenhuma' }}
-            </p>
           </article>
         </div>
-      </SectionPanel>
+      </div>
+    </details>
 
-      <SectionPanel
-        eyebrow="Impacto"
-        title="Casos com SLA mais curto"
-        description="Casos cujo prazo inicial ficaria mais curto do que a leitura atual."
-      >
-        <div v-if="runtime.shorterSlaCases.length" class="grid gap-3">
-          <article
-            v-for="item in runtime.shorterSlaCases"
-            :key="item.id"
-            class="inner-panel p-5"
-          >
-            <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p class="text-[11px] font-semibold uppercase tracking-normal text-slate-500">{{ item.id }}</p>
-                
-                <h3 class="mt-3 text-lg font-semibold text-slate-950">{{ item.subject }}</h3>
-                <p class="mt-2 text-sm leading-6 text-slate-600">
-                  {{ item.student }} - {{ item.queue }} - {{ item.theme }} / {{ item.subsubject }}
-                </p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <span class="badge-base" :style="item.baselineSla.style">
-                  {{ item.baselineSla.badgeLabel }}
-                </span>
-                <span class="badge-base" :style="item.projectedSla.style">
-                  {{ item.projectedSla.badgeLabel }}
-                </span>
-              </div>
-            </div>
-
-            <p class="mt-4 text-sm leading-6 text-slate-600">
-              Regras consideradas:
-              {{ item.matchedRules.map((rule) => `${rule.targetType}:${rule.targetLabel}`).join(', ') || 'nenhuma' }}
-            </p>
-          </article>
+    <details class="admin-parameters-section">
+      <summary class="crm-details-summary admin-parameters-section__summary">
+        <div class="min-w-0">
+          <h2 class="text-base font-semibold text-slate-900">Calendário institucional</h2>
+          <p class="mt-0.5 text-sm text-slate-500">
+            {{ calendarEntries.length }} entradas · feriados, pontes e recessos
+          </p>
         </div>
-      </SectionPanel>
-    </div>
+        <span class="crm-text-link shrink-0">Abrir</span>
+      </summary>
+
+      <div class="admin-parameters-section__body">
+        <AdminBusinessCalendarPanel
+          :business-calendar="parameterDraft.businessCalendar"
+          :selected-entry-id="ui.selectedCalendarEntryId"
+          :preview-due-at="calendarPreviewDueAt"
+          :item-save-state="itemSave"
+          :is-busy="isGlobalBusy"
+          @select="selectCalendarEntry"
+          @add="addCalendarEntry"
+          @remove="removeCalendarEntry"
+          @save-entry="saveCalendarItem"
+          @save-settings="saveCalendarSettings"
+        />
+      </div>
+    </details>
   </div>
 </template>
+
+<style scoped>
+.admin-parameters-section {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  padding: var(--space-3);
+}
+
+.admin-parameters-section__summary {
+  padding-bottom: var(--space-1);
+}
+
+.admin-parameters-section__body {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-default);
+  margin-top: var(--space-2);
+}
+
+.parameter-item {
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.parameter-item.is-active {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--border-default));
+}
+
+.parameter-item__header {
+  width: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+.parameter-item__header.option-button.is-active {
+  border-bottom: 1px solid var(--border-default);
+}
+
+.parameter-item__summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+
+.parameter-item__title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.parameter-item__note {
+  margin: 0.125rem 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.parameter-item__editor {
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--surface-muted, #f8fafc) 80%, white);
+}
+
+.parameter-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.parameter-field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.parameter-field--wide {
+  grid-column: 1 / -1;
+}
+
+.parameter-field span,
+.parameter-field__legend {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.parameter-field__legend {
+  margin-bottom: 0.25rem;
+}
+
+.parameter-input {
+  min-height: 2.25rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: white;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.parameter-input--color {
+  padding: 0.125rem;
+}
+
+.parameter-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.parameter-toggle__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: white;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.parameter-hint {
+  margin: var(--space-2) 0 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.parameter-item__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+}
+
+.parameter-item__save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.parameter-button {
+  min-height: 2.25rem;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.parameter-button--primary {
+  border: none;
+  background: var(--color-text, #0f172a);
+  color: white;
+}
+
+.parameter-button--primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.parameter-feedback {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.parameter-feedback--error {
+  color: var(--color-danger);
+}
+
+.parameter-feedback--success {
+  color: var(--color-success);
+}
+</style>

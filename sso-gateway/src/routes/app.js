@@ -314,6 +314,8 @@ router.post('/admin/access-requests/:requestId/reject', forward('admin.reject_ac
   wrapPayload: true,
 }))
 router.get('/admin/catalogs', forward('admin.catalogs'))
+router.get('/admin/areas', forward('admin.list_institutional_areas'))
+router.post('/admin/areas', forward('admin.create_institutional_area', { wrapPayload: true }))
 router.get('/admin/audit', forward('admin.list_audit', { query: true }))
 router.get('/admin/runtime-settings', forward('settings.get_settings'))
 router.patch('/admin/runtime-settings', forward('settings.update_settings', { wrapPayload: true }))

@@ -76,36 +76,34 @@ test('editor v3 reúne conteúdo, playbook, mapa, vigência e publicação', asy
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
   await expect(page.getByRole('heading', { name: 'Acesso ao AVA' })).toBeVisible()
-  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
+  await page.getByRole('button', { name: 'Configurações do assunto' }).click()
   await expect(page.getByText('Canais de disponibilidade', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Fechar' }).click()
 
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
-  await page.getByRole('button', { name: 'Orientação', exact: true }).click()
+  await page.getByRole('tab', { name: 'Orientação', exact: true }).click()
   await page.getByLabel('Conteúdo', { exact: true }).fill('Recupere sua senha pelo portal do aluno.')
-  await page.getByRole('button', { name: 'Mais tipos' }).click()
-  await page.getByRole('menuitem', { name: 'Aviso' }).click()
+  await page.getByRole('button', { name: '+ Aviso' }).click()
   await page.getByLabel('Conteúdo', { exact: true }).last().fill('Nunca compartilhe sua senha.')
   await page.getByRole('button', { name: 'Mover item 2 para cima' }).click()
 
-  await page.getByRole('button', { name: 'Mostrar opções avançadas' }).click()
-  await page.getByRole('button', { name: 'OP', exact: true }).click()
+  await page.getByRole('tab', { name: 'OP', exact: true }).click()
   await page.getByLabel('Objetivo').fill('Restabelecer o acesso sem expor credenciais.')
   await page
     .getByLabel('Checklist, um item por linha')
     .fill('Confirmar e-mail institucional\nOrientar recuperação de senha')
 
-  await page.getByRole('button', { name: 'BPO', exact: true }).click()
+  await page.getByRole('tab', { name: 'BPO', exact: true }).click()
   await expect(page.getByText('Herdado do OP', { exact: true }).first()).toBeVisible()
 
-  await page.getByRole('button', { name: 'Documento', exact: true }).click()
+  await page.getByRole('tab', { name: 'Documentos e dados', exact: true }).click()
   await page.getByLabel('Envio de documento pelo aluno').selectOption('optional')
   await page.getByText('Solicitar CPF', { exact: true }).click()
   await page
     .getByLabel('Finalidade objetiva do CPF')
     .fill('Confirmar a identidade antes de corrigir o cadastro de acesso.')
 
-  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
+  await page.getByRole('button', { name: 'Configurações do assunto' }).click()
   await page.getByLabel('Início da vigência').fill('2026-08-01T08:00')
   await page.getByLabel('Fim da vigência').fill('2026-12-31T23:59')
   await page.getByRole('button', { name: 'Fechar' }).click()
@@ -177,8 +175,7 @@ test('pendência em camada avançada navega até o campo Objetivo', async ({ pag
     .getByRole('button', { name: /Defina o objetivo do playbook OP em “Resposta final”/ })
     .click()
 
-  await expect(page.getByRole('button', { name: 'Ocultar opções avançadas' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'OP', exact: true })).toHaveClass(/is-active/)
+  await expect(page.getByRole('tab', { name: 'OP', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('#faq-field-op-objective')).toBeFocused()
 })
 
@@ -192,7 +189,7 @@ test('vigência permanece legível com campos desabilitados fora de rascunho', a
   })
   await page.goto('/crm/admin/faq-editor/acesso-ava')
 
-  await page.getByRole('button', { name: 'Configurações do fluxo' }).click()
+  await page.getByRole('button', { name: 'Configurações do assunto' }).click()
   const validFrom = page.getByLabel('Início da vigência')
   const validUntil = page.getByLabel('Fim da vigência')
   await expect(validFrom).toBeVisible()
@@ -262,7 +259,7 @@ test('editor envia mídia institucional e preserva o asset no rascunho', async (
 
   await page.goto('/crm/admin/faq-editor/acesso-ava')
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
-  await page.getByRole('button', { name: 'Orientação', exact: true }).click()
+  await page.getByRole('tab', { name: 'Orientação', exact: true }).click()
   await page.getByRole('button', { name: 'Excluir item 1' }).click()
   await page.getByRole('button', { name: '+ Imagem' }).click()
   await page.getByLabel('Texto alternativo').fill('Tela de recuperação de acesso')
@@ -307,7 +304,7 @@ test('barra de adição de conteúdo e simulador renderizam tipos avançados', a
   await page.goto('/crm/admin/faq-editor/acesso-ava')
 
   await page.getByRole('button', { name: 'Resposta final Resposta final', exact: true }).click()
-  await page.getByRole('button', { name: 'Orientação', exact: true }).click()
+  await page.getByRole('tab', { name: 'Orientação', exact: true }).click()
 
   await expect(page.getByRole('group', { name: 'Adicionar conteúdo' })).toBeVisible()
   await expect(page.getByRole('button', { name: '+ Texto' })).toBeVisible()

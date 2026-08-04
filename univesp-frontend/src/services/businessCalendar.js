@@ -18,24 +18,51 @@ function dateKey(date) {
   return `${year}-${month}-${day}`
 }
 
+function expandEntryDates(entry) {
+  const startKey = String(entry?.date || '').trim()
+  if (!startKey) return []
+
+  const endKey = String(entry?.endDate || entry?.date || '').trim() || startKey
+  const start = new Date(`${startKey}T12:00:00`)
+  const end = new Date(`${endKey}T12:00:00`)
+  if (Number.isNaN(start.getTime())) return []
+  if (Number.isNaN(end.getTime()) || end < start) return [startKey]
+
+  const dates = []
+  const cursor = new Date(start.getTime())
+  while (cursor <= end) {
+    dates.push(dateKey(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return dates
+}
+
 function normalizeCalendar(calendar = {}) {
   const weeklyOff = Array.isArray(calendar.weeklyOff) && calendar.weeklyOff.length
     ? calendar.weeklyOff.map((item) => Number(item))
     : DEFAULT_WEEKLY_OFF
   const entries = Array.isArray(calendar.entries) ? calendar.entries : []
+  const businessHours =
+    calendar.businessHours &&
+    typeof calendar.businessHours === 'object' &&
+    calendar.businessHours.start &&
+    calendar.businessHours.end
+      ? {
+          start: String(calendar.businessHours.start),
+          end: String(calendar.businessHours.end),
+        }
+      : { start: '09:00', end: '18:00' }
   const byDate = new Map()
 
   for (const entry of entries) {
-    const key = String(entry?.date || '').trim()
-    if (!key) continue
-    byDate.set(key, {
-      date: key,
-      type: String(entry.type || 'holiday').trim() || 'holiday',
-      label: String(entry.label || entry.description || '').trim(),
-    })
+    const type = String(entry.type || 'holiday').trim() || 'holiday'
+    const label = String(entry.label || entry.description || '').trim()
+    for (const key of expandEntryDates(entry)) {
+      byDate.set(key, { date: key, type, label })
+    }
   }
 
-  return { weeklyOff, byDate }
+  return { weeklyOff, businessHours, byDate }
 }
 
 export function isWeekend(date, calendar) {

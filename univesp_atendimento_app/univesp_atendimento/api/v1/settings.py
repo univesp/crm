@@ -8,7 +8,7 @@ from univesp_atendimento.api.v1.common import get_request_context, response
 
 
 MAX_SETTINGS_BYTES = 262_144
-REQUIRED_COLLECTIONS = ("criticalityLevels", "slaLevels", "applicationRules")
+REQUIRED_COLLECTIONS = ("criticalityLevels", "slaLevels")
 
 
 class RuntimeSettingsValidationError(frappe.ValidationError):
@@ -142,8 +142,8 @@ def _validate_parameters(parameters):
 	encoded = json.dumps(parameters, ensure_ascii=False).encode("utf-8")
 	if len(encoded) > MAX_SETTINGS_BYTES:
 		raise RuntimeSettingsValidationError(_("Parametros excedem o limite de 256 KiB."))
-	limits = {"criticalityLevels": 50, "slaLevels": 50, "applicationRules": 500}
-	identity_fields = {"criticalityLevels": "key", "slaLevels": "key", "applicationRules": "id"}
+	limits = {"criticalityLevels": 50, "slaLevels": 50}
+	identity_fields = {"criticalityLevels": "key", "slaLevels": "key"}
 	for collection in REQUIRED_COLLECTIONS:
 		items = parameters.get(collection)
 		if not isinstance(items, list):

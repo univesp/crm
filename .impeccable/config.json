@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "open sans",
+        "createdAt": "2026-08-03T14:28:09.775Z",
+        "reason": "Fonte institucional UNIVESP definida em DESIGN.md"
+      }
+    ]
+  }
+}
