@@ -549,7 +549,7 @@ function buildProtocolDetail(protocolEntry) {
     updatedAtLabel: protocolEntry.updatedAtLabel,
     nextStepTitle: protocolEntry.nextStepTitle,
     nextStepDescription: protocolEntry.nextStepDescription,
-    summary: protocol.interactions?.[0]?.text || 'Solicitacao registrada no portal.',
+    summary: protocol.interactions?.[0]?.text || 'Solicitação registrada no portal.',
     timeline: protocol.timeline || buildFallbackTimeline(protocolEntry),
     attachments: protocol.attachments || [],
     canUploadDocument,
@@ -576,7 +576,7 @@ function buildSeedDetail(seedEntry) {
     actionDescription:
       seedEntry.studentState === STUDENT_REQUEST_STATES.ACTION_REQUIRED
         ? seedEntry.pendingLabel
-        : 'Este registro permanece disponivel no portal para acompanhamento.',
+        : 'Este registro permanece disponível no portal para acompanhamento.',
     contextTrail: [],
   }
 }
