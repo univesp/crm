@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 
 import {
-  AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
   buildAreaManagerBackendReadiness,
 } from '@/contracts/areaManagerOperationalContract'
 import OperationalCockpitPanel from '@/components/operational/OperationalCockpitPanel.vue'
@@ -63,57 +62,57 @@ const kpiCards = computed(() => [
     id: 'risk',
     label: 'Em risco',
     value: overview.value.kpis.atRisk,
-    helper: 'Podem virar vencidos no turno.',
+    helper: 'Podem vencer ainda neste turno.',
   },
   {
     id: 'owner_missing',
-    label: 'Sem owner operacional',
+    label: 'Sem responsável temático',
     value: overview.value.kpis.ownerMissing,
-    helper: 'Erro estrutural: caso sem dono tematico efetivo.',
+    helper: 'Caso sem responsável temático efetivo.',
   },
   {
     id: 'unassigned',
-    label: 'Sem responsavel',
+    label: 'Sem responsável',
     value: overview.value.kpis.unassigned,
-    helper: 'Exigem intervencao de ownership.',
+    helper: 'Exigem intervenção de distribuição.',
   },
   {
     id: 'exceptions',
-    label: 'Excecoes',
+    label: 'Exceções',
     value: overview.value.kpis.exceptionCount,
-    helper: 'Casos fora do caminho padrao.',
+    helper: 'Casos fora do caminho padrão.',
   },
   {
     id: 'knowledge',
-    label: 'Mudancas pendentes',
+    label: 'Mudanças pendentes',
     value: overview.value.kpis.pendingKnowledgeChanges,
-    helper: 'Sugestoes aguardando decisao.',
+    helper: 'Sugestões aguardando decisão.',
   },
 ])
 
 const quickActions = computed(() => [
   {
     id: 'owner_missing',
-    title: 'Corrigir ownership estrutural',
-    description: 'Abrir fila focando casos sem owner operacional efetivo.',
+    title: 'Corrigir responsáveis temáticos',
+    description: 'Abrir a fila com casos sem responsável temático efetivo.',
     route: buildQueueRoute({ scopeState: 'owner_missing', bucket: 'all', owner: 'todos' }),
   },
   {
     id: 'unassigned',
-    title: 'Assumir sem responsavel',
-    description: 'Abrir fila de casos com owner definido, mas sem assignee humano.',
+    title: 'Distribuir casos sem responsável',
+    description: 'Abrir a fila de casos com responsável temático, mas sem analista definido.',
     route: buildQueueRoute({ owner: 'Sem responsavel', bucket: 'all' }),
   },
   {
     id: 'sla',
-    title: 'Atacar risco de SLA',
-    description: 'Abrir fila priorizada por vencidos e em risco.',
+    title: 'Tratar risco de prazo',
+    description: 'Abrir a fila priorizada por casos vencidos e em risco.',
     route: buildQueueRoute({ bucket: 'needs_review', sortField: 'sla', sortDirection: 'asc' }),
   },
   {
     id: 'knowledge',
-    title: 'Decidir mudancas pendentes',
-    description: 'Revisar propostas de melhoria da base operacional.',
+    title: 'Decidir mudanças pendentes',
+    description: 'Revisar propostas de melhoria da orientação operacional.',
     route: '/area/mudancas',
   },
   {
@@ -154,7 +153,7 @@ function recommendationToneClass(tone = '') {
 
 function recommendationPriorityLabel(priority = '') {
   if (priority === 'critical') {
-    return 'Critico'
+    return 'Crítico'
   }
 
   if (priority === 'high') {
@@ -162,7 +161,7 @@ function recommendationPriorityLabel(priority = '') {
   }
 
   if (priority === 'medium') {
-    return 'Media prioridade'
+    return 'Média prioridade'
   }
 
   return 'Acompanhar'
@@ -175,10 +174,10 @@ function recommendationPriorityLabel(priority = '') {
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[780px]">
           <p class="text-sm font-semibold text-slate-900">
-            Entrada gerencial da area: leia risco, gargalo e necessidade de intervencao antes de abrir caso a caso.
+            Priorize risco, gargalo e necessidade de intervenção antes de abrir caso a caso.
           </p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            O objetivo desta tela e priorizar acao. Fila, mudancas e governanca devem ser usadas como desdobramento.
+            O objetivo desta tela é orientar a próxima decisão. A fila, as mudanças e a governança são desdobramentos.
           </p>
         </div>
 
@@ -193,14 +192,10 @@ function recommendationPriorityLabel(priority = '') {
             to="/area/mudancas"
             class="rounded-[8px] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            Decidir mudancas
+            Decidir mudanças
           </RouterLink>
         </div>
       </div>
-
-      <p class="mt-4 rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
-        {{ AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE }}
-      </p>
     </section>
 
     <OperationalCockpitPanel :cockpit="operationalCockpit" compact title="Cockpit da area" />
@@ -226,9 +221,9 @@ function recommendationPriorityLabel(priority = '') {
 
     <section class="rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
-        <p class="text-base font-semibold text-slate-950">Intervencao recomendada agora</p>
+        <p class="text-base font-semibold text-slate-950">Intervenção recomendada agora</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
-          Acao gerencial sugerida com base em risco de SLA, ownership e desequilibrio da fila.
+          Ação gerencial sugerida com base em risco de prazo, distribuição e desequilíbrio da fila.
         </p>
       </div>
       <div class="grid gap-3 px-5 py-4">
@@ -253,7 +248,7 @@ function recommendationPriorityLabel(priority = '') {
         </article>
 
         <p v-if="!overview.interventionQueue.length" class="text-sm leading-6 text-slate-600">
-          Sem excecao forte no momento. Mantenha monitoramento de risco de SLA e ownership.
+          Nenhuma exceção forte no momento. Mantenha o monitoramento de prazo e distribuição.
         </p>
       </div>
     </section>
@@ -272,9 +267,9 @@ function recommendationPriorityLabel(priority = '') {
 
     <section class="rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
-        <p class="text-base font-semibold text-slate-950">Atalhos de acao gerencial</p>
+        <p class="text-base font-semibold text-slate-950">Atalhos de ação gerencial</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
-          Caminhos curtos para intervir na fila e ajustar governanca com menor friccao.
+          Caminhos curtos para intervir na fila e ajustar a governança com menos esforço.
         </p>
       </div>
       <div class="grid gap-3 px-5 py-5 xl:grid-cols-2">
@@ -295,7 +290,7 @@ function recommendationPriorityLabel(priority = '') {
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Carga por analista</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Compare distribuicao, risco e fila de complemento para decidir reatribuicao.
+            Compare distribuição, risco e fila de complemento para decidir redistribuição.
           </p>
         </div>
         <div class="divide-y divide-slate-200">
@@ -330,9 +325,9 @@ function recommendationPriorityLabel(priority = '') {
 
       <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
-          <p class="text-base font-semibold text-slate-950">Impacto de regra na operacao</p>
+          <p class="text-base font-semibold text-slate-950">Impacto de regra na operação</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Sinais de configuracao local que podem gerar gargalo, sem responsavel ou atraso.
+            Sinais de configuração local que podem gerar gargalo, falta de responsável ou atraso.
           </p>
         </div>
         <div class="grid gap-3 px-5 py-4">
@@ -363,7 +358,7 @@ function recommendationPriorityLabel(priority = '') {
         <div class="border-b border-slate-200 px-5 py-4">
           <p class="text-base font-semibold text-slate-950">Gargalos por assunto</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Assuntos com maior concentracao de backlog, vencidos ou risco de SLA.
+            Assuntos com maior concentração de casos ativos, vencidos ou em risco de prazo.
           </p>
         </div>
         <div class="divide-y divide-slate-200">
@@ -406,9 +401,9 @@ function recommendationPriorityLabel(priority = '') {
 
       <article class="rounded-[8px] border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-5 py-4">
-          <p class="text-base font-semibold text-slate-950">Casos expostos e mudancas pendentes</p>
+          <p class="text-base font-semibold text-slate-950">Casos expostos e mudanças pendentes</p>
           <p class="mt-1 text-sm leading-6 text-slate-600">
-            Priorize os casos mais sensiveis e as sugestoes de conhecimento que afetam a fila.
+            Priorize os casos mais sensíveis e as sugestões de conhecimento que afetam a fila.
           </p>
         </div>
         <div class="grid gap-3 px-5 py-4">
@@ -439,7 +434,7 @@ function recommendationPriorityLabel(priority = '') {
             to="/area/mudancas"
             class="inline-flex items-center justify-center rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Abrir mudancas pendentes
+            Abrir mudanças pendentes
           </RouterLink>
         </div>
       </article>
@@ -448,7 +443,7 @@ function recommendationPriorityLabel(priority = '') {
     <section class="rounded-[8px] border border-slate-200 bg-white px-5 py-4">
       <details>
         <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
-          Contrato minimo esperado para backend da home gerencial
+          Contrato mínimo esperado para a home gerencial
         </summary>
         <ul class="mt-3 grid gap-1 text-xs leading-5 text-slate-600">
           <li v-for="[field, type] in backendFieldEntries" :key="field">

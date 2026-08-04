@@ -44,12 +44,11 @@ const cockpit = computed(() =>
       </div>
 
       <div v-if="linkedPolos.length" class="crm-card-muted mt-4">
-        <p class="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Polos no seu pool</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Polos no seu escopo</p>
         <p class="mt-2 text-sm text-[var(--color-text)]">{{ linkedPolos.join(' · ') }}</p>
       </div>
       <p v-else class="mt-4 text-sm text-[var(--color-text-muted)]">
-        Nenhum polo vinculado nesta sessão. Em produção, o escopo vem do perfil Frappe
-        (<code>regional_pools</code>).
+        Nenhum polo foi vinculado a este escopo nesta sessão. A fila ficará disponível quando houver casos para acompanhar.
       </p>
     </section>
 

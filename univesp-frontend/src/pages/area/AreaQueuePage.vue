@@ -284,19 +284,19 @@ const managerQueueCards = computed(() =>
           id: 'backlog',
           label: 'Backlog',
           value: managerOverview.value.summary.find((item) => item.id === 'backlog')?.value || 0,
-          helper: 'Casos ativos da area neste momento.',
+          helper: 'Casos ativos da área neste momento.',
         },
         {
           id: 'owner_missing',
-          label: 'Sem owner operacional',
+          label: 'Sem responsável temático',
           value: managerOverview.value.summary.find((item) => item.id === 'owner_missing')?.value || 0,
           helper: 'Fluxo sem responsável definido.',
         },
         {
           id: 'unassigned',
-          label: 'Sem responsavel',
+          label: 'Sem responsável',
           value: managerOverview.value.summary.find((item) => item.id === 'unassigned')?.value || 0,
-          helper: 'Casos que exigem intervencao de distribuicao.',
+          helper: 'Casos que exigem intervenção de distribuição.',
         },
         {
           id: 'overdue',
@@ -329,10 +329,10 @@ const managerPriorityAlerts = computed(() =>
 
 const queueIntro = computed(() =>
   isAreaManager.value
-    ? 'Use esta fila para intervencao gerencial por caso. A visao consolidada continua em Operação da area.'
+    ? 'Use esta fila para intervenção gerencial por caso. A visão consolidada continua em Operação da área.'
     : isMultiAreaAnalyst.value
-      ? 'Use esta fila unica para resolver seus casos em todas as areas do seu escopo. Reencaminhamentos ficam como excecao operacional.'
-      : 'Use a fila para resolver seus casos primeiro. Reencaminhamentos ficam como excecao operacional, nao como saida normal.',
+      ? 'Use esta fila única para resolver seus casos em todas as áreas do seu escopo. Reencaminhamentos ficam como exceção operacional.'
+      : 'Use a fila para resolver seus casos primeiro. Reencaminhamentos ficam como exceção operacional, não como saída normal.',
 )
 const serverParityNote = computed(() =>
   isAreaManager.value ? AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE : AREA_OPERATIONAL_SERVER_PARITY_NOTE,
@@ -351,7 +351,7 @@ const quickBuckets = computed(() =>
 
 const analystScopeShortcuts = computed(() => [
   { id: 'mine', label: 'Meus casos', kind: 'scope', value: 'mine' },
-  { id: 'unassigned', label: 'Sem responsavel', kind: 'scope', value: 'unassigned' },
+  { id: 'unassigned', label: 'Sem responsável', kind: 'scope', value: 'unassigned' },
   { id: 'waiting_complement', label: 'Aguardando complemento', kind: 'scope', value: 'waiting_complement' },
   { id: 'completed', label: 'Concluidos', kind: 'bucket', value: 'completed' },
   { id: 'todos', label: 'Todos do meu escopo', kind: 'reset', value: 'todos' },
@@ -455,7 +455,7 @@ function managerRowSignals(entry = {}) {
   if (entry.isUnassigned) {
     items.push({
       id: `${entry.id}-unassigned`,
-      label: 'Sem responsavel',
+      label: 'Sem responsável',
       toneClass: 'border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.56)] text-[#8a5200]',
     })
   }
@@ -463,7 +463,7 @@ function managerRowSignals(entry = {}) {
   if (entry.hasOperationalOwnerError) {
     items.push({
       id: `${entry.id}-owner-missing`,
-      label: 'Sem owner operacional',
+      label: 'Sem responsável temático',
       toneClass: 'border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.76)] text-[var(--color-danger)]',
     })
   }
@@ -485,7 +485,7 @@ function managerRowSignals(entry = {}) {
   if (entry.isExceptionRoute) {
     items.push({
       id: `${entry.id}-exception`,
-      label: 'Excecao',
+      label: 'Exceção',
       toneClass: 'border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.7)] text-[#0b6e8c]',
     })
   }
@@ -521,7 +521,7 @@ const activeFilterChips = computed(() => {
   if (filters.area !== 'todos') {
     chips.push({
       key: 'area',
-      label: `Area: ${filters.area}`,
+      label: `Área: ${filters.area}`,
     })
   }
 
@@ -535,17 +535,17 @@ const activeFilterChips = computed(() => {
   if (filters.owner !== 'todos') {
     chips.push({
       key: 'owner',
-      label: `Responsavel: ${filters.owner}`,
+      label: `Responsável: ${filters.owner}`,
     })
   }
 
   if (filters.scopeState !== 'todos') {
     const scopeLabels = {
       mine: 'Meus casos',
-      unassigned: 'Sem responsavel',
+      unassigned: 'Sem responsável',
       returned_to_me: 'Devolvidos para mim',
       waiting_complement: 'Aguardando complemento',
-      owner_missing: 'Sem owner operacional',
+      owner_missing: 'Sem responsável temático',
     }
 
     chips.push({
@@ -716,7 +716,7 @@ async function loadLiveQueue() {
       liveQueueMessage.value = `Exibindo os ${protocols.length} atendimentos mais recentes de ${result.meta.total}.`
     }
   } catch (error) {
-    liveQueueMessage.value = error?.message || 'Nao foi possivel carregar a fila da area.'
+    liveQueueMessage.value = error?.message || 'Não foi possível carregar a fila da área.'
   } finally {
     liveQueueLoading.value = false
   }
@@ -914,7 +914,7 @@ onUnmounted(() => {
           </label>
 
           <label v-if="isAreaManager" class="crm-filter-field gap-2">
-            <span class="text-sm font-semibold text-slate-700">Responsavel atual</span>
+            <span class="text-sm font-semibold text-slate-700">Responsável atual</span>
             <select
               v-model="filters.owner"
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
@@ -926,7 +926,7 @@ onUnmounted(() => {
           </label>
 
           <label class="grid min-w-[150px] gap-2">
-            <span class="text-sm font-semibold text-slate-700">Itens por pagina</span>
+            <span class="text-sm font-semibold text-slate-700">Itens por página</span>
             <select
               v-model.number="filters.pageSize"
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
@@ -973,7 +973,7 @@ onUnmounted(() => {
           v-if="ownerMissingCount > 0"
           class="rounded-[8px] border border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.66)] px-4 py-3 text-sm leading-6 text-[var(--color-danger)]"
         >
-          <p class="font-semibold">Sem owner operacional: {{ ownerMissingCount }} caso(s)</p>
+          <p class="font-semibold">Sem responsável temático: {{ ownerMissingCount }} caso(s)</p>
           <p class="mt-1">O fluxo não tem responsável válido. Corrija a FAQ e atualize a fila.</p>
         </div>
 
@@ -982,7 +982,7 @@ onUnmounted(() => {
           class="rounded-[8px] border border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.5)] px-4 py-3 text-sm leading-6 text-[#8a5200]"
         >
           <p class="font-semibold">Sem assignee humano: {{ unassignedCount }} caso(s)</p>
-          <p class="mt-1">Owner operacional existe, mas falta distribuir para analista responsavel.</p>
+          <p class="mt-1">O responsável temático existe, mas falta distribuir o caso para um analista.</p>
         </div>
       </div>
     </section>
@@ -1022,7 +1022,7 @@ onUnmounted(() => {
           </div>
           <div v-if="showAssigneeColumn" :id="headerId('owner')" role="columnheader" :aria-sort="ariaSort('owner')">
             <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('owner')">
-              Responsavel atual <span aria-hidden="true">{{ sortMarker('owner') }}</span>
+              Responsável atual <span aria-hidden="true">{{ sortMarker('owner') }}</span>
             </button>
           </div>
           <div :id="headerId('status')" role="columnheader" :aria-sort="ariaSort('status')">
@@ -1035,7 +1035,7 @@ onUnmounted(() => {
               Prazo <span aria-hidden="true">{{ sortMarker('sla') }}</span>
             </button>
           </div>
-          <div role="columnheader" class="text-right">Acao</div>
+          <div role="columnheader" class="text-right">Ação</div>
         </div>
       </div>
 
@@ -1055,10 +1055,10 @@ onUnmounted(() => {
                   <p class="text-sm font-semibold text-slate-950">{{ entry.student }}</p>
                 </div>
                 <div :aria-labelledby="headerId('ra')" class="text-sm text-slate-700">
-                  {{ entry.studentRa || 'Nao informado' }}
+                  {{ entry.studentRa || 'Não informado' }}
                 </div>
                 <div :aria-labelledby="headerId('polo')" class="text-sm text-slate-700">
-                  {{ entry.polo || 'Nao informado' }}
+                  {{ entry.polo || 'Não informado' }}
                 </div>
                 <div :aria-labelledby="headerId('subject')">
                   <p class="text-sm font-semibold leading-6 text-slate-900">{{ entry.subject }}</p>
@@ -1074,7 +1074,7 @@ onUnmounted(() => {
                     v-if="entry.hasOperationalOwnerError"
                     class="mt-1 text-xs font-semibold text-[var(--color-danger)]"
                   >
-                    Erro estrutural: sem owner operacional efetivo.
+                    Erro estrutural: sem responsável temático efetivo.
                   </p>
                   <div v-if="isAreaManager" class="mt-2 flex flex-wrap gap-1.5">
                     <span
@@ -1089,12 +1089,12 @@ onUnmounted(() => {
                 <div v-if="showAssigneeColumn" :aria-labelledby="headerId('owner')">
                   <p class="text-sm font-semibold text-slate-900">{{ entry.currentAssigneeLabel }}</p>
                   <p class="mt-1 text-xs text-slate-500">{{ entry.currentAssigneeMeta }}</p>
-                  <p class="mt-1 text-xs text-slate-500">Owner operacional: {{ entry.operationalOwnerLabel || 'Nao resolvido' }}</p>
+                  <p class="mt-1 text-xs text-slate-500">Responsável temático: {{ entry.operationalOwnerLabel || 'Não resolvido' }}</p>
                   <p
                     class="mt-1 text-xs font-semibold"
                     :class="entry.hasOperationalOwnerError ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'"
                   >
-                    {{ entry.operationalOwnerStateLabel || (entry.hasOperationalOwnerError ? 'Owner ausente' : 'Owner resolvido') }}
+                    {{ entry.operationalOwnerStateLabel || (entry.hasOperationalOwnerError ? 'Responsável ausente' : 'Responsável definido') }}
                   </p>
                 </div>
                 <div :aria-labelledby="headerId('status')">
@@ -1126,10 +1126,10 @@ onUnmounted(() => {
             :disabled="!queueResult.hasPreviousPage"
             @click="previousPage"
           >
-            Pagina anterior
+            Página anterior
           </button>
           <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-            Pagina {{ queueResult.query.page }}
+            Página {{ queueResult.query.page }}
           </span>
           <button
             type="button"
@@ -1137,7 +1137,7 @@ onUnmounted(() => {
             :disabled="!queueResult.hasNextPage"
             @click="nextPage"
           >
-            Proxima pagina
+            Próxima página
           </button>
         </div>
       </div>

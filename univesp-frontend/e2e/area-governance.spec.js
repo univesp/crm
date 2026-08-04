@@ -74,3 +74,16 @@ test('gestor carrega e persiste regra de area pela API institucional', async ({ 
   expect(savedPayload.rules[0].allowedAnalysts).toContain('Analista Um')
   await expect(page.getByText('Regra de escopo atualizada para Matricula institucional.')).toBeVisible()
 })
+
+test('home do gestor destaca a próxima decisão sem expor jargão técnico', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('univesp.sso.devBypassProfile', 'gestor_area')
+  })
+
+  await page.goto('/crm/area/operacao')
+
+  await expect(page.getByText('Priorize risco, gargalo e necessidade de intervenção antes de abrir caso a caso.')).toBeVisible()
+  await expect(page.getByText('Corrigir responsáveis temáticos', { exact: true })).toBeVisible()
+  const visibleText = await page.locator('main').innerText()
+  expect(visibleText).not.toMatch(/owner/i)
+})

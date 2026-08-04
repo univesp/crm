@@ -492,7 +492,7 @@ export function buildAreaManagerOverview({
         ownerMissingEntries.length || unassignedEntries.length || stalledEntries.length
           ? `${ownerMissingEntries.length} sem owner, ${unassignedEntries.length} sem assignee e ${stalledEntries.length} parado(s)`
           : 'Sem intervencao obrigatoria imediata',
-      helper: 'Ownership vazio e casos travados devem ser tratados antes da fila crescer.',
+      helper: 'Casos sem responsável e casos travados devem ser tratados antes de a fila crescer.',
       tone:
         ownerMissingEntries.length || unassignedEntries.length
           ? 'danger'
