@@ -63,7 +63,7 @@ function toggleSearch() {
           <div>
             <p class="text-xl font-semibold text-slate-950">Tenho uma dúvida</p>
             <p class="mt-2 text-sm leading-6 text-slate-600">
-              Consulte a orientação oficial e siga para solicitação se precisar.
+              Consulte a orientação oficial antes de abrir uma solicitação.
             </p>
           </div>
         </div>
@@ -80,7 +80,7 @@ function toggleSearch() {
           <div>
             <p class="text-lg font-semibold text-slate-950">Minhas solicitações</p>
             <p class="mt-2 text-sm leading-6 text-slate-600">
-              Acompanhe protocolos e respostas em andamento.
+              Acompanhe solicitações, respostas e pendências.
             </p>
           </div>
         </div>
@@ -96,7 +96,7 @@ function toggleSearch() {
           @click="toggleSearch"
         >
           <div>
-            <p class="text-sm font-semibold text-slate-900">Já sabe o assunto ou protocolo?</p>
+            <p class="text-sm font-semibold text-slate-900">Buscar uma orientação ou protocolo</p>
             <p class="mt-1 text-sm leading-6 text-slate-600">
               Use a busca como atalho rápido.
             </p>
@@ -122,7 +122,7 @@ function toggleSearch() {
             />
           </label>
           <p id="student-search-help" class="text-sm leading-6 text-slate-600">
-            A busca encontra assuntos do portal e registros já existentes.
+            A busca encontra orientações do portal e registros já existentes.
           </p>
 
           <div
@@ -171,7 +171,7 @@ function toggleSearch() {
               v-if="!searchResults.faqMatches.length && !searchResults.requestMatches.length"
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-600"
             >
-              Nenhum resultado encontrado para esta busca.
+              Não encontramos esse assunto ou protocolo. Tente outra busca ou comece pela jornada guiada.
             </p>
           </div>
         </div>

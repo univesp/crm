@@ -191,7 +191,7 @@ function submitPendingAction() {
                 : 'border-slate-200 bg-slate-50/80',
         ]"
       >
-        <p class="student-section-label">Proximo passo</p>
+        <p class="student-section-label">Próximo passo</p>
         <h3 class="mt-3 text-lg font-semibold text-slate-950">
           {{ detail.nextStepTitle }}
         </h3>
@@ -205,7 +205,7 @@ function submitPendingAction() {
           {{
             detail.studentState === STUDENT_REQUEST_STATES.ACTION_REQUIRED
               ? detail.actionDescription
-              : 'Nenhuma ação sua e necessaria neste momento.'
+              : 'Nenhuma ação sua é necessária neste momento.'
           }}
         </p>
 
@@ -214,7 +214,7 @@ function submitPendingAction() {
           class="mt-5 rounded-[8px] border border-[rgba(209,50,57,0.18)] bg-white p-4"
         >
           <p class="text-sm font-semibold text-slate-900">
-            {{ detail.actionLabel || 'Sua ação e necessaria' }}
+            {{ detail.actionLabel || 'Sua ação é necessária' }}
           </p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
             Envie a informação pendente por aqui para o atendimento continuar.
@@ -263,7 +263,7 @@ function submitPendingAction() {
               @change="handleActionAttachmentChange"
             />
             <p id="student-detail-action-attachment-help" class="text-sm leading-6 text-slate-600">
-              {{ requiresAttachment ? 'Envie o documento solicitado para esta pendencia.' : 'Se quiser, você pode anexar um documento para complementar a resposta.' }}
+              {{ requiresAttachment ? 'Envie o documento solicitado para esta pendência.' : 'Se quiser, você pode anexar um documento para complementar a resposta.' }}
             </p>
           </div>
 
@@ -379,7 +379,7 @@ function submitPendingAction() {
             v-else
             class="mt-2 text-sm leading-6 text-slate-600"
           >
-            Nenhum anexo enviado ate agora.
+            Nenhum anexo enviado até agora.
           </p>
         </div>
       </div>

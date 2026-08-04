@@ -68,8 +68,8 @@ const sections = computed(() => [
   },
   {
     key: 'completed',
-    title: 'Atendido / Concluído',
-    empty: 'Nenhum registro finalizado no momento.',
+    title: 'Finalizadas',
+    empty: 'Nenhuma solicitação finalizada no momento.',
     tone: {
       sectionClass: 'border-[rgba(26,111,67,0.18)] bg-[rgba(26,111,67,0.04)]',
       countClass: 'bg-[rgba(26,111,67,0.12)] text-[var(--color-success)]',

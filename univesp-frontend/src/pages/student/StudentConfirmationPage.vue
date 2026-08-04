@@ -66,7 +66,7 @@ const pageContent = computed(() => {
     highlightLabel: 'Registro',
     highlight: protocolId.value || 'Atendimento',
     helperTitle: 'Qual é o próximo passo',
-    helper: 'Você pode voltar ao inicio ou acompanhar suas solicitações.',
+    helper: 'Você pode voltar ao início ou acompanhar suas solicitações.',
     primaryLabel: 'Voltar ao início',
     primaryRoute: '/aluno',
     secondaryLabel: 'Ver minhas solicitações',
@@ -116,7 +116,7 @@ const pageContent = computed(() => {
         <div class="crm-split-grid mt-5 gap-3">
           <RouterLink
             :to="pageContent.primaryRoute"
-            class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-slate-50"
+            class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-[var(--color-primary-dark)]"
           >
             {{ pageContent.primaryLabel }}
           </RouterLink>

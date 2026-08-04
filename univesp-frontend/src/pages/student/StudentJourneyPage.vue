@@ -54,7 +54,7 @@ const stageCopy = computed(() => {
   if (!activeNode.value) {
     return {
       eyebrow: 'Tenho uma dúvida',
-      title: 'Sobre o que e sua dúvida?',
+      title: 'Sobre o que é sua dúvida?',
       description: 'Escolha o tema para continuar.',
       mobileLabel: 'Tenho uma dúvida',
     }
@@ -65,8 +65,8 @@ const stageCopy = computed(() => {
       eyebrow: activeNode.value.titulo_exibido,
       title:
         activeNode.value.pergunta_exibida ||
-        'Qual assunto mais se aaproxima da sua dúvida?',
-      description: 'Você esta vendo apenas o nivel atual da escolha.',
+        'Qual assunto mais se aproxima da sua dúvida?',
+      description: 'Você está vendo apenas o nível atual da escolha.',
       mobileLabel: activeNode.value.titulo_exibido,
     }
   }
@@ -139,7 +139,7 @@ const currentHighlights = computed(() => {
         id: activeNode.value.id,
         label: activeNode.value.runtime.highlightLabel,
         title: activeNode.value.titulo_exibido,
-        description: 'Este assunto esta em destaque e aparece antes das demais opcoes quando aplicavel.',
+        description: 'Este assunto está em destaque e aparece antes das demais opções quando aplicável.',
       },
     ]
   }
@@ -173,20 +173,20 @@ const supportNotes = computed(() => {
   if (!activeNode.value) {
     return [
       'Escolha um tema para seguir.',
-      'Destaques do momento aparecem antes das opcoes quando estiverem ativos.',
+      'Destaques do momento aparecem antes das opções quando estiverem ativos.',
     ]
   }
 
   if (!activeNodeIsLeaf.value) {
     return [
-      'Você esta vendo apenas o nivel atual da escolha.',
+      'Você está vendo apenas o nível atual da escolha.',
       'Clique em um item do caminho para voltar a uma etapa anterior.',
     ]
   }
 
   return [
-    'Se esta orientação resolver, o registro aparece em Minhas solicitações como Respondida no portal.',
-    'Se ainda precisar de ajuda, o resumo desta navegação segue preenchido para a solicitação.',
+    'Se esta orientação resolver, o registro aparece em Minhas solicitações como “Respondida no portal”.',
+    'Se ainda precisar de ajuda, o resumo desta navegação seguirá preenchido na solicitação.',
   ]
 })
 
@@ -196,7 +196,7 @@ const studentMeaning = computed(() => {
   }
 
   if (activeNode.value.runtime.highlightLabel) {
-    return 'Se este assunto estiver ligado a prazo ou calendario, confira o destaque antes de decidir continuar.'
+    return 'Se este assunto estiver ligado a prazo ou calendário, confira o destaque antes de decidir continuar.'
   }
 
   if (activeNode.value.abre_atendimento) {
@@ -472,7 +472,7 @@ watch(
           </section>
 
           <section class="rounded-[8px] border border-slate-200 bg-white/92 p-5">
-            <p class="student-section-label">Decisao final</p>
+            <p class="student-section-label">Sua decisão</p>
             <p class="mt-3 text-sm font-semibold text-slate-900">
               Essa resposta resolveu sua dúvida?
             </p>
@@ -480,7 +480,7 @@ watch(
             <div class="crm-split-grid mt-4 gap-3">
               <button
                 type="button"
-                class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-slate-50"
+                class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-[var(--color-primary-dark)]"
                 @click="markAsResolved"
               >
                 Sim, resolveu minha dúvida

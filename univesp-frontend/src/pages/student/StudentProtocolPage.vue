@@ -224,14 +224,14 @@ async function submitProtocol() {
           v-else
           class="mt-5 text-sm leading-6 text-slate-500"
         >
-          Nenhum anexo e necessário neste assunto.
+          Nenhum anexo é necessário neste assunto.
         </p>
 
         <div class="crm-split-grid mt-6 gap-3">
           <button
             type="button"
             :disabled="isSubmitting"
-            class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-slate-50 disabled:cursor-wait disabled:opacity-75"
+            class="student-focus-ring min-w-0 rounded-[8px] bg-[var(--color-primary)] px-5 py-4 text-center text-sm font-semibold leading-5 text-white shadow-sm hover:bg-[var(--color-primary-dark)] disabled:cursor-wait disabled:opacity-75"
             @click="submitProtocol"
           >
             {{ isSubmitting ? 'Enviando solicitação...' : 'Enviar solicitação' }}
