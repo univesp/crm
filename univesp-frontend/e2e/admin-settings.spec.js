@@ -2,10 +2,6 @@ import { expect, test } from '@playwright/test'
 
 import { assertNoHorizontalOverflow, prepareProfile, SNAPSHOT_OPTS } from './helpers/faq-v3-visual-helpers.js'
 
-function parametersPageHeading(page) {
-  return page.locator('h1.text-sm.font-semibold', { hasText: 'Regras e prazos' })
-}
-
 async function mockRuntimeSettingsRoute(page) {
   let savedPayload = null
   let getRequestCount = 0
@@ -44,35 +40,34 @@ async function mockRuntimeSettingsRoute(page) {
   }
 }
 
-test('salva parametros institucionais com versao e motivo auditavel', async ({ page }) => {
+test('salva nivel oficial com versao e auditoria', async ({ page }) => {
   const { getSavedPayload, getLoadCount } = await mockRuntimeSettingsRoute(page)
   await prepareProfile(page, 'admin_central')
 
   await page.goto('/crm/admin/parametros')
-  await expect(parametersPageHeading(page)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Salvar alterações' })).toBeEnabled()
-  await page.getByLabel('Justificativa da alteração').fill('Ajuste operacional homologado')
-  await page.getByRole('button', { name: 'Salvar alterações' }).click()
+  await expect(page.getByRole('heading', { name: 'Níveis oficiais' })).toBeVisible()
+  await page.getByRole('button', { name: 'Baixa' }).click()
+  await page.getByRole('button', { name: 'Salvar', exact: true }).first().click()
 
   await expect.poll(() => getSavedPayload()).not.toBeNull()
   const savedPayload = getSavedPayload()
   expect(getLoadCount()).toBeGreaterThan(0)
   expect(savedPayload.version).toBe('version-1')
-  expect(savedPayload.reason).toBe('Ajuste operacional homologado')
+  expect(savedPayload.reason).toContain('Nivel oficial')
   expect(Array.isArray(savedPayload.parameters.criticalityLevels)).toBe(true)
   expect(Array.isArray(savedPayload.parameters.slaLevels)).toBe(true)
-  await expect(page.getByText('Parametros salvos no Frappe com versao e auditoria.')).toBeVisible()
+  await expect(page.getByText('Salvo.')).toBeVisible()
 })
 
-test('regras e prazos — layout unico sem overflow', async ({ page }) => {
+test('regras e prazos — tres blocos expansiveis sem overflow', async ({ page }) => {
   await mockRuntimeSettingsRoute(page)
   await prepareProfile(page, 'admin_central')
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await page.goto('/crm/admin/parametros')
-  await expect(parametersPageHeading(page)).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Níveis oficiais' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Janelas oficiais' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Calendário institucional' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
   await expect(page).toHaveScreenshot('admin-parametros-1440x900.png', {
     fullPage: true,
@@ -80,14 +75,15 @@ test('regras e prazos — layout unico sem overflow', async ({ page }) => {
   })
 })
 
-test('calendario institucional abre em modal', async ({ page }) => {
+test('calendario institucional abre inline na secao', async ({ page }) => {
   await mockRuntimeSettingsRoute(page)
   await prepareProfile(page, 'admin_central')
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await page.goto('/crm/admin/parametros')
-  await page.getByRole('button', { name: 'Gerenciar calendário' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Calendário institucional' })
-  await expect(dialog).toBeVisible()
-  await expect(dialog).toHaveScreenshot('admin-parametros-calendario-modal.png', SNAPSHOT_OPTS)
+  await page.getByRole('heading', { name: 'Calendário institucional' }).click()
+  await expect(page.getByRole('button', { name: /Adicionar em/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Salvar horario' })).toBeVisible()
+  const calendarSection = page.locator('details').filter({ hasText: 'Calendário institucional' })
+  await expect(calendarSection).toHaveScreenshot('admin-parametros-calendario-secao.png', SNAPSHOT_OPTS)
 })

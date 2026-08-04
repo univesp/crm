@@ -136,16 +136,19 @@ export const adminParametersDraft = {
   ],
   businessCalendar: {
     weeklyOff: [0, 6],
+    businessHours: { start: '09:00', end: '18:00' },
     entries: [
       {
         id: 'calendar-2026-reveillon',
         date: '2026-01-01',
+        endDate: '2026-01-01',
         type: 'holiday',
         label: 'Confraternizacao Universal',
       },
       {
         id: 'calendar-2026-ponte-jan',
         date: '2026-01-02',
+        endDate: '2026-01-03',
         type: 'bridge',
         label: 'Ponte de reveillon',
       },
