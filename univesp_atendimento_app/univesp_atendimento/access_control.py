@@ -12,7 +12,7 @@ PROFILE_DEFINITIONS = {
 	},
 	"op": {
 		"label": "OP",
-		"scope_keys": ["queues"],
+		"scope_keys": ["queues", "polos"],
 		"actions": [
 			"view_ticket",
 			"reply_ticket",

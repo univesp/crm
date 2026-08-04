@@ -44,6 +44,8 @@ def upsert_rows(rows=None):
 			"polo_nome": str(raw.get("polo_nome") or "").strip(),
 			"curso": str(raw.get("curso") or "").strip(),
 			"situacao": str(raw.get("situacao") or "").strip(),
+			"matricula_codigo": str(raw.get("matricula_codigo") or "").strip(),
+			"enrollment_track": str(raw.get("enrollment_track") or "").strip(),
 			"pessoa_codigo": str(raw.get("pessoa_codigo") or "").strip(),
 			"source_updated_at": raw.get("source_updated_at"),
 			"last_import_at": now,
