@@ -247,6 +247,8 @@ if ! gcloud run jobs execute "${BOOTSTRAP_JOB}" \
 	)
 	EVIDENCE_DIR="${EVIDENCE_DIR:-artifacts/homolog/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}}" \
 		EXECUTION_NAME="${bootstrap_execution}" \
+		SITES_BUCKET="${SITES_BUCKET}" \
+		FRAPPE_SITE_NAME="${FRAPPE_SITE_NAME}" \
 		bash ./ops/cloudrun/collect-bootstrap-failure.sh || true
 	if [[ -n "${bootstrap_execution}" && -n "${GITHUB_ENV:-}" ]]; then
 		printf 'BOOTSTRAP_EXECUTION_NAME=%s\n' "${bootstrap_execution}" >> "${GITHUB_ENV}"
