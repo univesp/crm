@@ -30,10 +30,14 @@ RUN export APP_INSTALL_ARGS="" && \
     --verbose \
     /home/frappe/frappe-bench && \
   cd /home/frappe/frappe-bench && \
-  test -d apps/helpdesk && \
-  git -C apps/helpdesk fetch --depth 1 "${HELPDESK_REPOSITORY}" "${HELPDESK_REF}" && \
-  git -C apps/helpdesk checkout --detach "${HELPDESK_REF}" && \
+  rm -rf apps/helpdesk && \
+  mkdir apps/helpdesk && \
+  git -C apps/helpdesk init -q && \
+  git -C apps/helpdesk remote add origin "${HELPDESK_REPOSITORY}" && \
+  git -C apps/helpdesk fetch --depth 1 origin "${HELPDESK_REF}" && \
+  git -C apps/helpdesk checkout -q FETCH_HEAD && \
   test "$(git -C apps/helpdesk rev-parse HEAD)" = "${HELPDESK_REF}" && \
+  ./env/bin/pip install --no-cache-dir --editable apps/helpdesk && \
   echo "{}" > sites/common_site_config.json
 
 COPY --chown=frappe:frappe univesp_atendimento_app /home/frappe/frappe-bench/apps/univesp_atendimento
