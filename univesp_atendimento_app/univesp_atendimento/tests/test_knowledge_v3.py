@@ -88,6 +88,73 @@ def _valid_payload():
 
 
 class TestKnowledgeV3Contracts(TestCase):
+	def test_read_only_list_filters_before_pagination(self):
+		context = SimpleNamespace(
+			profile_key="analista_area",
+			scopes={"areas": ["sra"]},
+			request_id="request-analyst",
+		)
+		rows = [
+			SimpleNamespace(
+				name=f"bundle-{index}",
+				bundle_key=f"bundle-{index}",
+				title=f"Bundle {index}",
+				theme_key="theme",
+				audience_profile="mixed",
+				status="active",
+				published_version=f"published-{index}",
+				draft_version=f"draft-{index}",
+				modified="2026-08-05",
+			)
+			for index in range(3)
+		]
+
+		with (
+			patch.object(knowledge_v3, "_knowledge_context", return_value=(context, False)),
+			patch.object(knowledge_v3, "_theme_scope_keys", return_value={"theme"}),
+			patch.object(knowledge_v3.frappe, "get_all", return_value=rows, create=True) as get_all,
+			patch.object(knowledge_v3.frappe.db, "get_value", return_value="published"),
+			patch.object(knowledge_v3, "_bundle_has_visible_area", return_value=True),
+			patch.object(
+				knowledge_v3,
+				"_serialize_bundle",
+				side_effect=lambda row, **_kwargs: {"bundle_key": row.bundle_key},
+			),
+		):
+			result = knowledge_v3.list_bundles(page=2, page_size=1)
+
+		self.assertEqual(result["meta"], {"page": 2, "page_size": 1, "total": 3})
+		self.assertEqual(result["data"], [{"bundle_key": "bundle-1"}])
+		self.assertEqual(get_all.call_args.kwargs["start"], 0)
+		self.assertEqual(get_all.call_args.kwargs["page_length"], 0)
+
+	def test_read_only_bundle_filter_uses_published_state_and_area_scope(self):
+		context = SimpleNamespace(profile_key="analista_area", scopes={"areas": ["sra"]})
+		rows = [
+			SimpleNamespace(name="visible", published_version="published-1", draft_version="draft-1"),
+			SimpleNamespace(name="draft-only", published_version="draft-2", draft_version="draft-3"),
+			SimpleNamespace(name="other-area", published_version="published-2", draft_version="draft-4"),
+		]
+
+		def version_state(_doctype, version_name, _field):
+			return {
+				"published-1": "published",
+				"draft-2": "draft",
+				"published-2": "published",
+			}[version_name]
+
+		with (
+			patch.object(knowledge_v3.frappe.db, "get_value", side_effect=version_state),
+			patch.object(
+				knowledge_v3,
+				"_bundle_has_visible_area",
+				side_effect=lambda version_name, _context: version_name == "published-1",
+			),
+		):
+			filtered = knowledge_v3._filter_read_only_bundle_rows(rows, context)
+
+		self.assertEqual([row.name for row in filtered], ["visible"])
+
 	def test_area_analyst_can_read_but_cannot_edit(self):
 		context = RequestContext(
 			email="analyst.tests@univesp.br",

@@ -63,6 +63,8 @@ def list_bundles(
 
 	page_number = max(int(page or 1), 1)
 	limit = min(max(int(page_size or 25), 1), 100)
+	query_start = 0 if not can_edit else (page_number - 1) * limit
+	query_page_length = 0 if not can_edit else limit
 	rows = frappe.get_all(
 		"Univesp Knowledge Bundle",
 		filters=filters,
@@ -78,41 +80,70 @@ def list_bundles(
 			"modified",
 		],
 		order_by="modified desc",
-		start=(page_number - 1) * limit,
-		page_length=limit,
+		start=query_start,
+		page_length=query_page_length,
 	)
-	if context.profile_key == "analista_area":
-		rows = [
-			row
-			for row in rows
-			if frappe.db.get_value("Univesp Knowledge Version", row.published_version, "lifecycle_state")
-			in IMMUTABLE_STATES
-		]
+	if not can_edit:
+		rows = _filter_read_only_bundle_rows(rows, context, lifecycle_state)
+		total = len(rows)
+		rows = rows[(page_number - 1) * limit : page_number * limit]
+	else:
+		if lifecycle_state:
+			expected = _choice(
+				lifecycle_state,
+				ACTIVE_DRAFT_STATES | IMMUTABLE_STATES,
+				"lifecycle",
+			)
+			rows = [
+				row
+				for row in rows
+				if row.draft_version
+				and frappe.db.get_value("Univesp Knowledge Version", row.draft_version, "lifecycle_state")
+				== expected
+			]
+		total = frappe.db.count("Univesp Knowledge Bundle", filters=filters)
+	return response(
+		[_serialize_bundle(row, include_draft=can_edit, include_private=can_edit) for row in rows],
+		meta={"page": page_number, "page_size": limit, "total": total},
+		request_id=context.request_id,
+	)
+
+
+def _filter_read_only_bundle_rows(rows, context, lifecycle_state=None):
+	"""Keep only published, area-visible bundles before applying pagination.
+
+	Read-only profiles must never use the draft version for filtering. Applying
+	this filter before slicing is important because database ordering can place
+	out-of-scope or non-published rows inside an otherwise valid page.
+	"""
+	expected = None
 	if lifecycle_state:
 		expected = _choice(
 			lifecycle_state,
 			ACTIVE_DRAFT_STATES | IMMUTABLE_STATES,
 			"lifecycle",
 		)
-		rows = [
-			row
-			for row in rows
-			if row.draft_version
-			and frappe.db.get_value("Univesp Knowledge Version", row.draft_version, "lifecycle_state")
-			== expected
-		]
-	if not can_edit:
-		rows = [
-			row
-			for row in rows
-			if _bundle_has_visible_area(row.published_version, context)
-		]
-	total = len(rows) if not can_edit else frappe.db.count("Univesp Knowledge Bundle", filters=filters)
-	return response(
-		[_serialize_bundle(row, include_draft=can_edit, include_private=can_edit) for row in rows],
-		meta={"page": page_number, "page_size": limit, "total": total},
-		request_id=context.request_id,
-	)
+
+	visible = []
+	for row in rows:
+		published_version = _bundle_row_value(row, "published_version")
+		published_state = frappe.db.get_value(
+			"Univesp Knowledge Version", published_version, "lifecycle_state"
+		)
+		if published_state not in IMMUTABLE_STATES:
+			continue
+		if expected and published_state != expected:
+			continue
+		if not _bundle_has_visible_area(published_version, context):
+			continue
+		visible.append(row)
+	return visible
+
+
+def _bundle_row_value(row, fieldname):
+	if isinstance(row, dict):
+		return row.get(fieldname)
+	return getattr(row, fieldname, None)
 
 
 @frappe.whitelist(methods=["GET"])
