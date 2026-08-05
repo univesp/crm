@@ -235,10 +235,14 @@ gcloud run jobs deploy "${BOOTSTRAP_JOB}" \
 	--set-secrets "DB_PASSWORD=${DB_PASSWORD_SECRET_NAME}:latest,ADMIN_PASSWORD=${ADMIN_PASSWORD_SECRET_NAME}:latest,${redis_secrets},${integration_secrets},${email_secrets}" \
 	--command /usr/local/bin/start-bootstrap.sh
 
-gcloud run jobs execute "${BOOTSTRAP_JOB}" \
+if ! gcloud run jobs execute "${BOOTSTRAP_JOB}" \
 	--project "${PROJECT_ID}" \
 	--region "${REGION}" \
-	--wait
+	--wait; then
+	EVIDENCE_DIR="${EVIDENCE_DIR:-artifacts/homolog/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}}" \
+		./ops/cloudrun/collect-bootstrap-failure.sh || true
+	exit 1
+fi
 
 gcloud run deploy "${WEB_SERVICE}" \
 	--project "${PROJECT_ID}" \

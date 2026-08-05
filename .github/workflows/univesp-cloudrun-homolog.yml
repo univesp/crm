@@ -397,7 +397,14 @@ jobs:
         env:
           IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          EVIDENCE_DIR: artifacts/homolog/${{ github.run_id }}-${{ github.run_attempt }}
         run: ./ops/cloudrun/deploy.sh
+
+      - name: Collect bootstrap failure diagnostics
+        if: failure()
+        env:
+          EVIDENCE_DIR: artifacts/homolog/${{ github.run_id }}-${{ github.run_attempt }}
+        run: ./ops/cloudrun/collect-bootstrap-failure.sh
 
       - name: Verify FAQ v3 homolog pilot state
         run: ./ops/cloudrun/verify-faq-v3-pilot.sh
