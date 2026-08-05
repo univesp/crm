@@ -132,7 +132,7 @@ onMounted(loadProtocol)
       loading-message="Abrindo protocolo..."
       empty-title="Protocolo não encontrado"
       empty-message="Confira o número informado ou volte ao diretório de protocolos."
-      empty-next-step="Use a busca global no cabeçalho para localizar um protocolo pelo número exato."
+      empty-next-step="Use os filtros da página para refinar a lista ou volte ao diretório de protocolos."
       @retry="loadProtocol"
     >
       <OperationalInterventionBanner
