@@ -99,6 +99,10 @@ test('OP consome somente o bundle operacional publicado', async ({ page }) => {
   await page.goto('/crm/op/playbook')
   await expect(page.getByText('Playbook operacional publicado', { exact: true })).toBeVisible()
   await expect(page.getByText('Matricula e rematricula', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: /Playbook operacional publicado/ }).click()
+  await page.getByRole('button', { name: /Procedimento vigente do OP/ }).click()
+  await expect(page.getByText('Orientação publicada para o aluno', { exact: true })).toBeVisible()
+  await expect(page.locator('#main-content').getByRole('link', { name: 'Abrir atendimento', exact: true })).toBeVisible()
 })
 
 test('público consome API real e envia lineage sem escolher fila', async ({ page }) => {

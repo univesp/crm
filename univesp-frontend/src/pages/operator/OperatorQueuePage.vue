@@ -434,8 +434,8 @@ function resolveOwnershipStateLabel(entry = {}) {
   }
 
   return entry?.hasOperationalOwnerError
-    ? 'Responsável operacional ausente'
-    : 'Responsável operacional definido'
+    ? 'Sem responsável'
+    : 'Responsável definido'
 }
 
 function ownershipToneClass(entry = {}) {
@@ -600,6 +600,8 @@ onUnmounted(() => {
             <button
               type="button"
               class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 lg:hidden"
+              aria-haspopup="dialog"
+              :aria-expanded="showMobileFilters ? 'true' : 'false'"
               @click="showMobileFilters = true"
             >
               Filtros<span v-if="activeFilterCount"> ({{ activeFilterCount }})</span>
@@ -854,7 +856,7 @@ onUnmounted(() => {
                     <div class="min-w-0" role="cell" :aria-labelledby="headerId('protocol')">
                       <p class="truncate text-xs font-medium leading-5 text-slate-600">{{ item.id }}</p>
                       <p class="mt-1 text-[0.7rem] leading-5 text-slate-500">
-                        Responsável: {{ item.operationalOwnerLabel || 'Não resolvido' }}
+                        Responsável: {{ item.operationalOwnerLabel || 'Não definido' }}
                       </p>
                     </div>
                     <div class="min-w-0" role="cell" :aria-labelledby="headerId('status')">
@@ -866,7 +868,8 @@ onUnmounted(() => {
                     <div class="justify-self-end" role="cell" :aria-labelledby="headerId('action')">
                       <RouterLink
                         :to="buildCaseRoute(item.id)"
-                        class="inline-flex items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm"
+                        class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm"
+                        :aria-label="`Abrir atendimento ${item.id}`"
                       >
                         Abrir
                       </RouterLink>
@@ -883,7 +886,8 @@ onUnmounted(() => {
 
                       <RouterLink
                         :to="buildCaseRoute(item.id)"
-                        class="inline-flex items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm"
+                        class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm"
+                        :aria-label="`Abrir atendimento ${item.id}`"
                       >
                         Abrir
                       </RouterLink>
@@ -899,7 +903,7 @@ onUnmounted(() => {
                       >
                         {{ resolveOwnershipStateLabel(item) }}
                       </span>
-                      <span class="text-[0.72rem] text-slate-500">Responsável: {{ item.operationalOwnerLabel || 'Não resolvido' }}</span>
+                      <span class="text-[0.72rem] text-slate-500">Responsável: {{ item.operationalOwnerLabel || 'Não definido' }}</span>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
@@ -974,7 +978,7 @@ onUnmounted(() => {
               <div class="min-w-0" role="cell" :aria-labelledby="headerId('protocol')">
                 <p class="truncate text-xs font-medium leading-5 text-slate-600">{{ item.id }}</p>
                 <p class="mt-1 text-[0.7rem] leading-5 text-slate-500">
-                  Responsável: {{ item.operationalOwnerLabel || 'Não resolvido' }}
+                  Responsável: {{ item.operationalOwnerLabel || 'Não definido' }}
                 </p>
               </div>
 
@@ -989,7 +993,8 @@ onUnmounted(() => {
               <div class="justify-self-end" role="cell" :aria-labelledby="headerId('action')">
                 <RouterLink
                   :to="buildCaseRoute(item.id)"
-                  class="inline-flex items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm"
+                  class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm"
+                  :aria-label="`Abrir atendimento ${item.id}`"
                 >
                   Abrir
                 </RouterLink>
@@ -1006,7 +1011,8 @@ onUnmounted(() => {
 
                 <RouterLink
                   :to="buildCaseRoute(item.id)"
-                  class="inline-flex items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm"
+                  class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-sm"
+                  :aria-label="`Abrir atendimento ${item.id}`"
                 >
                   Abrir
                 </RouterLink>
@@ -1022,7 +1028,7 @@ onUnmounted(() => {
                 >
                   {{ resolveOwnershipStateLabel(item) }}
                 </span>
-                <span class="text-[0.72rem] text-slate-500">Responsável: {{ item.operationalOwnerLabel || 'Não resolvido' }}</span>
+                <span class="text-[0.72rem] text-slate-500">Responsável: {{ item.operationalOwnerLabel || 'Não definido' }}</span>
               </div>
 
               <div class="flex flex-wrap items-center gap-2">
@@ -1068,13 +1074,16 @@ onUnmounted(() => {
     <div
       v-if="showMobileFilters"
       class="fixed inset-0 z-[80] bg-slate-950/35 lg:hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="operator-queue-mobile-filters-title"
       @click.self="showMobileFilters = false"
     >
       <div class="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[8px] bg-white p-4 shadow-sm">
         <div class="flex items-center justify-between gap-3">
           <div>
             <p class="text-xs font-semibold tracking-normal text-slate-500">Filtros</p>
-            <h3 class="mt-2 text-xl font-semibold text-slate-950">Refinar atendimentos</h3>
+            <h3 id="operator-queue-mobile-filters-title" class="mt-2 text-xl font-semibold text-slate-950">Refinar atendimentos</h3>
           </div>
           <button
             type="button"
