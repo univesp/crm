@@ -42,6 +42,10 @@ output="${EVIDENCE_DIR}/bootstrap-failure.log"
 			--order=asc \
 			--format='value(timestamp,severity,textPayload,jsonPayload.message)' || true
 	fi
+	if [[ -n "${SITES_BUCKET:-}" && -n "${FRAPPE_SITE_NAME:-}" ]]; then
+		printf '\n--- bootstrap-progress.log (GCS) ---\n'
+		gsutil cat "gs://${SITES_BUCKET}/${FRAPPE_SITE_NAME}/bootstrap-progress.log" 2>/dev/null || true
+	fi
 } > "${output}" 2>&1
 
 printf 'Bootstrap failure diagnostics written to %s\n' "${output}"

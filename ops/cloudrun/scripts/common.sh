@@ -25,6 +25,14 @@ log() {
 	printf '[cloudrun] %s\n' "$*"
 }
 
+bootstrap_progress() {
+	log "$*"
+	if [[ -n "${SITE_DIR:-}" ]]; then
+		mkdir -p "${SITE_DIR}"
+		printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "${SITE_DIR}/bootstrap-progress.log"
+	fi
+}
+
 clear_site_runtime_cache() {
 	log "Clearing shared website and asset cache for ${SITE_NAME}"
 	bench --site "${SITE_NAME}" execute frappe.cache_manager.clear_global_cache
@@ -204,12 +212,17 @@ bootstrap_site() {
 	cd "${BENCH_DIR}"
 
 	if site_bootstrapped; then
-		log "Site ${SITE_NAME} already exists, ensuring academic apps and running migrate"
+		bootstrap_progress "bootstrap_site: existing site detected"
 		ensure_required_apps
+		bootstrap_progress "bootstrap_site: required apps ensured"
 		configure_academic_integration
+		bootstrap_progress "bootstrap_site: academic integration configured"
 		configure_public_email
+		bootstrap_progress "bootstrap_site: public email configured"
 		bench --site "${SITE_NAME}" migrate
+		bootstrap_progress "bootstrap_site: migrate complete"
 		configure_initial_access_admin
+		bootstrap_progress "bootstrap_site: initial admin configured"
 		if [[ -n "${HOST_NAME:-}" ]]; then
 			bench --site "${SITE_NAME}" set-config host_name "${HOST_NAME}"
 		fi
