@@ -86,6 +86,46 @@ def _valid_payload():
 
 
 class TestKnowledgeV3Contracts(TestCase):
+	def test_area_analyst_can_read_but_cannot_edit(self):
+		context = RequestContext(
+			email="analyst.tests@univesp.br",
+			name="Analista",
+			ra="",
+			profile_key="analista_area",
+			scopes={"areas": ["sra"]},
+			actions=frozenset({"view_area_guidance", "suggest_knowledge", "edit_knowledge_draft"}),
+			request_id="request-analyst",
+			actor_email="analyst.tests@univesp.br",
+		)
+		with patch.object(knowledge_v3, "get_request_context", return_value=context):
+			with self.assertRaises(frappe.PermissionError):
+				knowledge_v3._write_context("edit_knowledge_draft")
+
+	def test_area_analyst_context_is_read_only(self):
+		context = RequestContext(
+			email="analyst.tests@univesp.br",
+			name="Analista",
+			ra="",
+			profile_key="analista_area",
+			scopes={"areas": ["sra"]},
+			actions=frozenset({"view_area_guidance", "suggest_knowledge"}),
+			request_id="request-analyst",
+			actor_email="analyst.tests@univesp.br",
+		)
+		with patch.object(knowledge_v3, "get_request_context", return_value=context):
+			resolved, can_edit = knowledge_v3._knowledge_context()
+		self.assertIs(resolved, context)
+		self.assertFalse(can_edit)
+
+	def test_published_payload_is_scoped_to_area(self):
+		context = SimpleNamespace(profile_key="analista_area", scopes={"areas": ["sra"]})
+		payload = _valid_payload()
+		payload["nodes"][1]["operational"] = {"area_key": "sra"}
+		payload["nodes"][2]["operational"] = {"area_key": "outra-area"}
+		scoped = knowledge_v3._scope_published_payload(payload, context)
+		self.assertEqual([node["node_id"] for node in scoped["nodes"]], ["final"])
+		self.assertEqual(scoped["edges"], [])
+
 	def test_etag_is_version_and_revision(self):
 		self.assertEqual(_etag(_version()), '"version-123-3"')
 
@@ -183,7 +223,7 @@ class TestKnowledgeV3Lifecycle(IntegrationTestCase):
 	def test_crud_etag_lifecycle_and_rollback(self):
 		author = self.context(
 			"author.tests@univesp.br",
-			"analista_area",
+			"gestor_area",
 			{"edit_knowledge_draft", "submit_knowledge_approval"},
 		)
 		approver = self.context(

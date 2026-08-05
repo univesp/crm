@@ -35,7 +35,7 @@ def list_bundles(
 	page: int | str = 1,
 	page_size: int | str = 25,
 ):
-	context = get_request_context("edit_knowledge_draft")
+	context, can_edit = _knowledge_context()
 	filters = {}
 	if status:
 		filters["status"] = _choice(status, {"active", "archived"}, "estado")
@@ -58,6 +58,8 @@ def list_bundles(
 				request_id=context.request_id,
 			)
 		filters["theme_key"] = ["in", allowed_themes]
+	if not can_edit:
+		filters["published_version"] = ["is", "set"]
 
 	page_number = max(int(page or 1), 1)
 	limit = min(max(int(page_size or 25), 1), 100)
@@ -79,6 +81,13 @@ def list_bundles(
 		start=(page_number - 1) * limit,
 		page_length=limit,
 	)
+	if context.profile_key == "analista_area":
+		rows = [
+			row
+			for row in rows
+			if frappe.db.get_value("Univesp Knowledge Version", row.published_version, "lifecycle_state")
+			in IMMUTABLE_STATES
+		]
 	if lifecycle_state:
 		expected = _choice(
 			lifecycle_state,
@@ -92,9 +101,15 @@ def list_bundles(
 			and frappe.db.get_value("Univesp Knowledge Version", row.draft_version, "lifecycle_state")
 			== expected
 		]
-	total = frappe.db.count("Univesp Knowledge Bundle", filters=filters)
+	if not can_edit:
+		rows = [
+			row
+			for row in rows
+			if _bundle_has_visible_area(row.published_version, context)
+		]
+	total = len(rows) if not can_edit else frappe.db.count("Univesp Knowledge Bundle", filters=filters)
 	return response(
-		[_serialize_bundle(row) for row in rows],
+		[_serialize_bundle(row, include_draft=can_edit, include_private=can_edit) for row in rows],
 		meta={"page": page_number, "page_size": limit, "total": total},
 		request_id=context.request_id,
 	)
@@ -102,17 +117,23 @@ def list_bundles(
 
 @frappe.whitelist(methods=["GET"])
 def get_bundle(bundle_key: str):
-	context = get_request_context("edit_knowledge_draft")
+	context, can_edit = _knowledge_context()
 	bundle = _bundle(bundle_key)
 	_ensure_theme_scope(context, bundle.theme_key)
-	data = _serialize_bundle(bundle)
-	if bundle.draft_version:
+	if not can_edit and not _bundle_has_visible_area(bundle.published_version, context):
+		raise frappe.PermissionError(_("Fluxo fora do escopo da sua área."))
+	data = _serialize_bundle(bundle, include_draft=can_edit, include_private=can_edit)
+	if can_edit and bundle.draft_version:
 		data["draft"] = _serialize_version(frappe.get_doc("Univesp Knowledge Version", bundle.draft_version))
 	if bundle.published_version:
 		data["published"] = _serialize_version(
 			frappe.get_doc("Univesp Knowledge Version", bundle.published_version),
 		)
-	etag = data.get("draft", {}).get("etag", "")
+		if not can_edit:
+			data["published"]["payload"] = _scope_published_payload(
+				data["published"].get("payload") or {}, context
+			)
+	etag = data.get("draft", {}).get("etag", "") if can_edit else ""
 	_set_etag(etag)
 	return response(data, meta={"etag": etag}, request_id=context.request_id)
 
@@ -132,6 +153,13 @@ def list_versions(bundle_key: str, page: int | str = 1, page_size: int | str = 2
 		start=(page_number - 1) * limit,
 		page_length=limit,
 	)
+	if context.profile_key == "analista_area":
+		rows = [
+			row
+			for row in rows
+			if frappe.db.get_value("Univesp Knowledge Version", row.name, "lifecycle_state")
+			in IMMUTABLE_STATES
+		]
 	versions = [
 		_serialize_version(
 			frappe.get_doc("Univesp Knowledge Version", row.name),
@@ -144,7 +172,9 @@ def list_versions(bundle_key: str, page: int | str = 1, page_size: int | str = 2
 		meta={
 			"page": page_number,
 			"page_size": limit,
-			"total": frappe.db.count("Univesp Knowledge Version", {"bundle": bundle.name}),
+			"total": len(versions)
+			if context.profile_key == "analista_area"
+			else frappe.db.count("Univesp Knowledge Version", {"bundle": bundle.name}),
 		},
 		request_id=context.request_id,
 	)
@@ -152,7 +182,7 @@ def list_versions(bundle_key: str, page: int | str = 1, page_size: int | str = 2
 
 @frappe.whitelist(methods=["GET"])
 def catalogs():
-	context = get_request_context("edit_knowledge_draft")
+	context, can_edit = _knowledge_context()
 	theme_filters = {"active": 1}
 	if context.profile_key != "admin_central":
 		allowed = sorted(_theme_scope_keys(context))
@@ -188,7 +218,10 @@ def catalogs():
 	)
 	return response(
 		{
-			"themes": [dict(row) for row in themes],
+		"themes": [
+			{**dict(row), "owner_email": row.owner_email if can_edit else ""}
+			for row in themes
+		],
 			"routing_patterns": [
 				{
 					"pattern_key": row.pattern_key,
@@ -239,7 +272,7 @@ def apply_v2_migration(payload: dict | str | None = None):
 		)
 	results = []
 	for plan in plans:
-		_ensure_theme_scope(context, plan["theme_key"])
+		_ensure_theme_scope(context, plan["theme_key"], require_edit=True)
 		if not frappe.db.exists("Univesp Knowledge Theme Governance", plan["theme_key"]):
 			raise KnowledgeV3ValidationError(
 				_("Tema sem governança configurada: {0}.").format(plan["theme_key"])
@@ -316,7 +349,7 @@ def create_bundle(payload: dict | str | None = None):
 	data = _payload(payload)
 	bundle_key = _key(data.get("bundle_key"), "bundle_key")
 	theme_key = _key(data.get("theme_key"), "theme_key")
-	_ensure_theme_scope(context, theme_key)
+	_ensure_theme_scope(context, theme_key, require_edit=True)
 	if not frappe.db.exists("Univesp Knowledge Theme Governance", theme_key):
 		raise KnowledgeV3ValidationError(_("Tema sem governança configurada."))
 	if frappe.db.exists("Univesp Knowledge Bundle", bundle_key):
@@ -358,7 +391,7 @@ def create_bundle(payload: dict | str | None = None):
 def save_draft(bundle_key: str, payload: dict | str | None = None, if_match: str | None = None):
 	context = _write_context("edit_knowledge_draft")
 	bundle = _bundle(bundle_key)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	if bundle.status != "active":
 		raise KnowledgeV3ValidationError(_("Fluxo arquivado não pode ser editado."))
 	if not bundle.draft_version:
@@ -390,7 +423,7 @@ def save_draft(bundle_key: str, payload: dict | str | None = None, if_match: str
 def fork_draft(bundle_key: str):
 	context = _write_context("edit_knowledge_draft")
 	bundle = _bundle(bundle_key)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	if bundle.draft_version:
 		raise KnowledgeV3ConflictError(_("O fluxo já possui rascunho ativo."))
 	source = (
@@ -411,7 +444,7 @@ def fork_draft(bundle_key: str):
 def submit_for_approval(bundle_key: str, payload: dict | str | None = None):
 	context = _write_context("submit_knowledge_approval")
 	bundle = _bundle(bundle_key)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	version = _active_draft(bundle, "draft")
 	data = _payload(payload)
 	_expect_etag(version, data.get("if_match"))
@@ -438,7 +471,7 @@ def submit_for_approval(bundle_key: str, payload: dict | str | None = None):
 def request_changes(bundle_key: str, payload: dict | str | None = None):
 	context = _write_context("approve_knowledge")
 	bundle = _bundle(bundle_key)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	_ensure_theme_approver(context, bundle.theme_key)
 	version = _active_draft(bundle, "pending_approval")
 	data = _payload(payload)
@@ -459,7 +492,7 @@ def request_changes(bundle_key: str, payload: dict | str | None = None):
 def approve(bundle_key: str):
 	context = _write_context("approve_knowledge")
 	bundle = _bundle(bundle_key)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	_ensure_theme_approver(context, bundle.theme_key)
 	version = _active_draft(bundle, "pending_approval")
 	if context.email == version.author_email:
@@ -477,7 +510,7 @@ def approve(bundle_key: str):
 def reject(bundle_key: str, payload: dict | str | None = None):
 	context = _write_context("approve_knowledge")
 	bundle = _bundle(bundle_key)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	_ensure_theme_approver(context, bundle.theme_key)
 	version = _active_draft(bundle, "pending_approval")
 	data = _payload(payload)
@@ -498,7 +531,7 @@ def publish(version_id: str, payload: dict | str | None = None):
 	context = _write_context("publish_knowledge_version")
 	version = frappe.get_doc("Univesp Knowledge Version", version_id)
 	bundle = frappe.get_doc("Univesp Knowledge Bundle", version.bundle)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	if context.profile_key != "admin_central":
 		raise frappe.PermissionError(_("Somente Admin central pode publicar."))
 	data = _payload(payload)
@@ -639,7 +672,7 @@ def unarchive_bundle(bundle_key: str):
 def delete_unpublished_bundle(bundle_key: str):
 	context = _write_context("edit_knowledge_draft")
 	bundle = _bundle(bundle_key)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	if bundle.published_version or frappe.db.exists(
 		"Univesp Knowledge Version",
 		{"bundle": bundle.name, "lifecycle_state": ["in", ["published", "superseded"]]},
@@ -989,10 +1022,83 @@ def _empty_payload(bundle):
 	}
 
 
-def _serialize_bundle(bundle):
-	draft = _version_summary(bundle.draft_version)
+def _knowledge_context():
+	context = get_request_context()
+	can_edit = (
+		context.profile_key != "analista_area"
+		and "edit_knowledge_draft" in context.actions
+	)
+	if not can_edit and "view_area_guidance" not in context.actions:
+		raise frappe.PermissionError(_("Seu perfil não permite consultar o conteúdo da FAQ."))
+	return context, can_edit
+
+
+def _context_area_keys(context):
+	return {
+		str(item).strip()
+		for item in (context.scopes.get("areas") or [])
+		if str(item).strip()
+	}
+
+
+def _node_area(node):
+	operational = node.get("operational") if isinstance(node, dict) else {}
+	if not isinstance(operational, dict):
+		return ""
+	return str(operational.get("area_key") or "").strip()
+
+
+def _bundle_has_visible_area(version_name, context):
+	if context.profile_key == "admin_central":
+		return True
+	if not version_name:
+		return False
+	raw = frappe.db.get_value("Univesp Knowledge Version", version_name, "payload_json") or "{}"
+	try:
+		payload = json.loads(raw)
+	except (TypeError, json.JSONDecodeError):
+		return False
+	areas = _context_area_keys(context)
+	return any(
+		_node_area(node) in areas
+		for node in payload.get("nodes") or []
+		if isinstance(node, dict) and _node_area(node)
+	)
+
+
+def _scope_published_payload(payload, context):
+	if context.profile_key == "admin_central":
+		return payload
+	areas = _context_area_keys(context)
+	visible = [
+		node
+		for node in payload.get("nodes") or []
+		if isinstance(node, dict) and _node_area(node) in areas
+	]
+	visible_ids = {
+		str(node.get("node_id") or node.get("stable_key") or "").strip()
+		for node in visible
+		if str(node.get("node_id") or node.get("stable_key") or "").strip()
+	}
+	edges = [
+		edge
+		for edge in payload.get("edges") or []
+		if isinstance(edge, dict)
+		and str(edge.get("parent_node_id") or "").strip() in visible_ids
+		and str(edge.get("child_node_id") or "").strip() in visible_ids
+	]
+	return {**payload, "nodes": visible, "edges": edges}
+
+
+def _serialize_bundle(bundle, include_draft=True, include_private=True):
+	draft = _version_summary(bundle.draft_version) if include_draft else None
 	published = _version_summary(bundle.published_version)
-	content_summary = _bundle_content_summary(bundle.draft_version or bundle.published_version)
+	content_version = (
+		bundle.draft_version or bundle.published_version
+		if include_draft
+		else bundle.published_version
+	)
+	content_summary = _bundle_content_summary(content_version)
 	return {
 		"bundle_key": bundle.bundle_key,
 		"title": bundle.title,
@@ -1000,14 +1106,16 @@ def _serialize_bundle(bundle):
 		"audience_profile": bundle.audience_profile,
 		"status": bundle.status,
 		"published_version": bundle.published_version or "",
-		"draft_version": bundle.draft_version or "",
+		"draft_version": bundle.draft_version or "" if include_draft else "",
 		"legacy_v2_bundle_id": bundle.legacy_v2_bundle_id or "",
 		"owner_email": frappe.db.get_value(
 			"Univesp Knowledge Theme Governance",
 			bundle.theme_key,
 			"owner_email",
 		)
-		or "",
+		or ""
+		if include_private
+		else "",
 		"draft_summary": draft,
 		"published_summary": published,
 		**content_summary,
@@ -1109,6 +1217,11 @@ def _set_bundle_pointer(bundle_name, fieldname, value):
 
 def _write_context(required_action):
 	context = get_request_context(required_action)
+	if context.profile_key == "analista_area" and required_action in {
+		"edit_knowledge_draft",
+		"submit_knowledge_approval",
+	}:
+		raise frappe.PermissionError(_("Analista de área pode sugerir, mas não editar a FAQ diretamente."))
 	settings = frappe.get_single("Univesp Runtime Settings")
 	if not bool(settings.knowledge_v3_write):
 		raise frappe.PermissionError(_("Escrita FAQ v3 está desativada neste ambiente."))
@@ -1138,13 +1251,13 @@ def _set_etag(etag):
 		frappe.local.response["headers"] = {"ETag": etag}
 
 
-def _ensure_theme_scope(context, theme_key):
-	if context.profile_key == "admin_central" or theme_key in _theme_scope_keys(context):
+def _ensure_theme_scope(context, theme_key, require_edit=False):
+	if context.profile_key == "admin_central" or theme_key in _theme_scope_keys(context, require_edit=require_edit):
 		return
 	raise frappe.PermissionError(_("Tema fora do seu escopo de conhecimento."))
 
 
-def _theme_scope_keys(context):
+def _theme_scope_keys(context, require_edit=False):
 	allowed = {
 		str(item).strip() for item in (context.scopes.get("knowledge_themes") or []) if str(item).strip()
 	}
@@ -1155,7 +1268,10 @@ def _theme_scope_keys(context):
 		allowed.update(
 			frappe.get_all(
 				"Univesp Knowledge Theme Editor Area",
-				filters={"area_key": ["in", sorted(areas)], "can_edit_draft": 1},
+				filters={
+					"area_key": ["in", sorted(areas)],
+					"can_edit_draft" if require_edit else "can_view_content": 1,
+				},
 				pluck="parent",
 				limit_page_length=0,
 			)

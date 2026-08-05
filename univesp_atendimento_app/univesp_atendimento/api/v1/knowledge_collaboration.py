@@ -13,6 +13,8 @@ from univesp_atendimento.api.v1.knowledge_v3 import (
 	_bundle,
 	_create_draft,
 	_ensure_theme_scope,
+	_context_area_keys,
+	_node_area,
 	_serialize_version,
 	_set_bundle_pointer,
 	_theme_scope_keys,
@@ -32,6 +34,13 @@ PLAYBOOK_FIELDS = {
 	"escalation_reason_template",
 	"possible_outcomes",
 }
+
+
+def _editor_context():
+	context = get_request_context("edit_knowledge_draft")
+	if context.profile_key == "analista_area":
+		raise frappe.PermissionError(_("Analista de área pode sugerir, mas não revisar ou alterar diretamente."))
+	return context
 
 
 @frappe.whitelist(methods=["POST"])
@@ -58,6 +67,20 @@ def create_suggestion(payload: dict | str | None = None):
 		raise KnowledgeV3ValidationError(_("Referência estável da sugestão é inválida."))
 	if not isinstance(target_path, list) or not target_path:
 		raise KnowledgeV3ValidationError(_("Caminho da sugestão é obrigatório."))
+	target_node = next(
+		(
+			item
+			for item in source_payload.get("nodes") or []
+			if isinstance(item, dict)
+			and (
+				str(item.get("node_id") or "").strip() == str(target_ref.get("node_id") or "").strip()
+				or str(item.get("stable_key") or "").strip() == str(target_ref.get("node_id") or "").strip()
+			)
+		),
+		None,
+	)
+	if context.profile_key == "analista_area" and _node_area(target_node) not in _context_area_keys(context):
+		raise frappe.PermissionError(_("A sugestão precisa pertencer à área do analista."))
 	current_value, node_id = _target_value(source_payload, target_ref, layer)
 	if str(data.get("node_id") or "").strip() not in {"", node_id}:
 		raise KnowledgeV3ValidationError(_("Etapa informada diverge da referência estável."))
@@ -105,7 +128,7 @@ def create_suggestion(payload: dict | str | None = None):
 		{"bundle_key": bundle.bundle_key, "node_id": node_id, "target_ref": target_ref},
 	)
 	_notify_reviewers(bundle.theme_key, "Nova sugestão de conhecimento", doc)
-	return response(_serialize_suggestion(doc), request_id=context.request_id)
+	return response(_serialize_suggestion(doc, context), request_id=context.request_id)
 
 
 @frappe.whitelist(methods=["GET"])
@@ -118,7 +141,7 @@ def list_suggestions(
 ):
 	context = get_request_context()
 	_collaboration_enabled()
-	can_review = bool(
+	can_review = context.profile_key != "analista_area" and bool(
 		{"edit_knowledge_draft", "approve_knowledge", "publish_knowledge_version"} & set(context.actions)
 	)
 	if not can_review and "suggest_knowledge" not in context.actions:
@@ -167,7 +190,10 @@ def list_suggestions(
 		page_length=limit,
 	)
 	return response(
-		[_serialize_suggestion(frappe.get_doc("Univesp Knowledge Suggestion", row.name)) for row in rows],
+		[
+			_serialize_suggestion(frappe.get_doc("Univesp Knowledge Suggestion", row.name), context)
+			for row in rows
+		],
 		meta={
 			"page": page_number,
 			"page_size": limit,
@@ -179,7 +205,7 @@ def list_suggestions(
 
 @frappe.whitelist(methods=["POST"])
 def start_review(suggestion_id: str):
-	context = get_request_context("edit_knowledge_draft")
+	context = _editor_context()
 	_collaboration_enabled()
 	doc, bundle = _reviewable_suggestion(suggestion_id, context, {"received", "in_review"})
 	if doc.state == "in_review" and doc.reviewer_email != context.email:
@@ -188,12 +214,12 @@ def start_review(suggestion_id: str):
 	doc.reviewer_email = context.email
 	doc.save(ignore_permissions=True)
 	_audit(context, "knowledge_suggestion_review_started", doc.name, {})
-	return response(_serialize_suggestion(doc), request_id=context.request_id)
+	return response(_serialize_suggestion(doc, context), request_id=context.request_id)
 
 
 @frappe.whitelist(methods=["POST"])
 def incorporate_suggestion(suggestion_id: str, payload: dict | str | None = None):
-	context = get_request_context("edit_knowledge_draft")
+	context = _editor_context()
 	_collaboration_enabled()
 	doc, bundle = _reviewable_suggestion(suggestion_id, context, {"received", "in_review"})
 	if doc.reviewer_email and doc.reviewer_email != context.email:
@@ -229,14 +255,14 @@ def incorporate_suggestion(suggestion_id: str, payload: dict | str | None = None
 	)
 	_notify_author(doc, "Sua sugestão foi incorporada a um rascunho")
 	return response(
-		{"suggestion": _serialize_suggestion(doc), "draft": _serialize_version(version)},
+		{"suggestion": _serialize_suggestion(doc, context), "draft": _serialize_version(version)},
 		request_id=context.request_id,
 	)
 
 
 @frappe.whitelist(methods=["POST"])
 def reject_suggestion(suggestion_id: str, payload: dict | str | None = None):
-	context = get_request_context("edit_knowledge_draft")
+	context = _editor_context()
 	_collaboration_enabled()
 	doc, _bundle_doc = _reviewable_suggestion(suggestion_id, context, {"received", "in_review"})
 	data = _payload(payload)
@@ -250,7 +276,7 @@ def reject_suggestion(suggestion_id: str, payload: dict | str | None = None):
 	doc.save(ignore_permissions=True)
 	_audit(context, "knowledge_suggestion_rejected", doc.name, {"reason": reason})
 	_notify_author(doc, "Sua sugestão foi revisada")
-	return response(_serialize_suggestion(doc), request_id=context.request_id)
+	return response(_serialize_suggestion(doc, context), request_id=context.request_id)
 
 
 def alert_overdue_suggestions():
@@ -289,7 +315,7 @@ def _reviewable_suggestion(suggestion_id, context, states):
 	if doc.state not in states:
 		raise KnowledgeV3ValidationError(_("Sugestão não está disponível para esta ação."))
 	bundle = frappe.get_doc("Univesp Knowledge Bundle", doc.bundle)
-	_ensure_theme_scope(context, bundle.theme_key)
+	_ensure_theme_scope(context, bundle.theme_key, require_edit=True)
 	return doc, bundle
 
 
@@ -401,8 +427,14 @@ def _set_target_value(payload, target_ref, layer, proposed):
 	playbooks[layer][target_ref["field"]] = proposed
 
 
-def _serialize_suggestion(doc):
+def _profile_display_name(email):
+	name = frappe.db.get_value("Univesp Access Profile", {"user_email": email}, "display_name")
+	return str(name or "").strip() or "Usuário da área"
+
+
+def _serialize_suggestion(doc, context=None):
 	bundle = frappe.get_doc("Univesp Knowledge Bundle", doc.bundle)
+	sensitive = bool(context and context.profile_key == "admin_central")
 	return {
 		"suggestion_id": doc.name,
 		"bundle_key": bundle.bundle_key,
@@ -416,9 +448,11 @@ def _serialize_suggestion(doc):
 		"current_value": frappe.parse_json(doc.current_value_json or "null"),
 		"proposed_value": frappe.parse_json(doc.proposed_value_json or "null"),
 		"reason": doc.reason,
-		"author_email": doc.author_email,
+		"author_email": doc.author_email if sensitive else "",
+		"author_name": _profile_display_name(doc.author_email),
 		"state": doc.state,
-		"reviewer_email": doc.reviewer_email or "",
+		"reviewer_email": doc.reviewer_email if sensitive else "",
+		"reviewer_name": _profile_display_name(doc.reviewer_email) if doc.reviewer_email else "",
 		"reviewed_at": str(doc.reviewed_at or ""),
 		"review_notes": doc.review_notes or "",
 		"draft_version_created": doc.draft_version_created or "",
