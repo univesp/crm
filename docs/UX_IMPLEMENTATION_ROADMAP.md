@@ -1,7 +1,7 @@
 # Roteiro de Implementação UX — CRM UNIVESP
 
 Status: **ativo** — guia operacional para agentes e Codex.
-Atualizado: 2026-08-04.
+Atualizado: 2026-08-05.
 
 Documentos relacionados:
 
@@ -77,11 +77,11 @@ Decisão pendente: como o visitante acompanha protocolo (portal, código ou e-ma
 |------|--------|-----------------|-------|
 | **0** | Proteção — não alterar produto na branch SEI/sync | — | — |
 | **1** | Copy, acentuação, estados vazios/erro/carregamento, contraste, uma ação primária por tela | `codex/ux-01-copy-status` | Baixo — **merged** ([PR #43](https://github.com/univesp/crm/pull/43)) |
-| **2** | Perfil aluno autenticado (`/aluno/*`) | `codex/ux-02-aluno` | Baixo–médio — **em andamento** |
-| **7** | FAQ Builder (`/admin/faq`, editor V3) — em paralelo após Fase 1 | `codex/ux-05-admin-faq` | Médio |
-| **4** | OP/secretário (`/op/*`) | `codex/ux-03-operacao` | Médio |
-| **5** | Gestores, área, BPO | `codex/ux-04-gestao` | Médio |
-| **6** | Admin central | `codex/ux-04-gestao` ou branch dedicada | Médio |
+| **2** | Perfil aluno autenticado (`/aluno/*`) | `codex/ux-02-aluno` | Baixo–médio — **merged** ([PR #44](https://github.com/univesp/crm/pull/44), [PR #45](https://github.com/univesp/crm/pull/45)) |
+| **7** | FAQ Builder (`/admin/faq`, editor V3) — em paralelo após Fase 1 | `codex/ux-05-admin-faq` | Médio — **1ª entrega merged** ([PR #46](https://github.com/univesp/crm/pull/46)) |
+| **4** | OP/secretário (`/op/*`) | `codex/ux-03-operacao` | Médio — **1ª entrega merged** ([PR #47](https://github.com/univesp/crm/pull/47)); pendente `/op/playbook`, `/op/novo-atendimento` |
+| **5** | Gestores, área, BPO | `codex/area-manager-progressive-ux` | Médio — **1ª entrega merged** ([PR #48](https://github.com/univesp/crm/pull/48)); governança/distribuição + copy gestor |
+| **6** | Admin central | `codex/ux-06-admin-central` | Médio — **1ª entrega merged** ([PR #49](https://github.com/univesp/crm/pull/49)); pendente auditoria, parâmetros, permissões |
 | **3** | Público externo | `codex/ux-06-homologacao-integrada` | Alto — por último |
 
 ### Fase 1 — arquivos prioritários
