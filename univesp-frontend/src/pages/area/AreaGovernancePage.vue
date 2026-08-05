@@ -45,8 +45,12 @@ async function loadInstitutionalGovernance() {
       : []
     governanceState.version = String(stateResponse.data?.version || '')
     liveTeamMembers.value = (membersResponse.data || [])
-      .map((member) => member.display_name)
-      .filter(Boolean)
+      .filter((member) => member.profile_id && member.display_name)
+      .map((member) => ({
+        profileId: member.profile_id,
+        displayName: member.display_name,
+        profileKey: member.profile_key || '',
+      }))
     studentSupportStore.replaceLiveTickets(
       (ticketsResponse.data || []).map(mapApiTicketToOperationalProtocol),
     )
@@ -70,6 +74,12 @@ async function persistInstitutionalGovernance(reason) {
     reason,
   })
   governanceState.version = String(response.data?.version || governanceState.version)
+  if (Array.isArray(response.data?.rules)) {
+    studentSupportStore.areaSubjectRules = response.data.rules
+  }
+  if (Array.isArray(response.data?.availability)) {
+    studentSupportStore.userAvailability = response.data.availability
+  }
 }
 
 watch(
@@ -94,6 +104,15 @@ const managerOverview = computed(
 const areaTeamMembers = computed(() =>
   isMockRuntimeEnabled()
     ? studentSupportStore.areaTeamMembers(auth.mockContext.currentArea)
+    : liveTeamMembers.value.map((member) => member.displayName),
+)
+const areaMemberOptions = computed(() =>
+  isMockRuntimeEnabled()
+    ? areaTeamMembers.value.map((displayName) => ({
+        profileId: displayName,
+        displayName,
+        profileKey: 'analista_area',
+      }))
     : liveTeamMembers.value,
 )
 const availabilityRows = computed(() =>
@@ -141,6 +160,7 @@ const feedback = reactive({
   availability: { type: '', message: '' },
 })
 const availabilityForm = reactive({
+  userId: '',
   userName: '',
   scope: 'current_area',
   statusCode: 'unavailable',
@@ -157,8 +177,13 @@ function ensureScopeDraft(row) {
   }
 
   scopeDrafts[row.id] = {
-    accessMode: row.accessMode || 'team',
-    allowedAnalysts: [...(row.allowedAnalysts || [])],
+    visibilityMode: row.visibilityMode || row.accessMode || 'team',
+    visibilityUsers: [...(row.visibilityUsers || row.allowedAnalysts || [])],
+    distributionMode:
+      row.distributionMode || (row.accessMode === 'restricted' ? 'restricted' : 'automatic'),
+    distributionUsers: [
+      ...(row.distributionUsers || row.eligibleUsers || row.allowedAnalysts || []),
+    ],
   }
 }
 
@@ -180,21 +205,30 @@ watch(
   (members) => {
     if (!availabilityForm.userName && members[0]) {
       availabilityForm.userName = members[0]
+      availabilityForm.userId = areaMemberOptions.value[0]?.profileId || members[0]
     }
   },
   { immediate: true },
 )
 
-function toggleAnalyst(rowId, analystName) {
+function containsMember(values = [], member) {
+  return values.some(
+    (value) => String(value) === String(member.profileId) || String(value) === String(member.displayName),
+  )
+}
+
+function toggleMember(rowId, field, member) {
   const draft = scopeDrafts[rowId]
   if (!draft) {
     return
   }
 
-  const exists = draft.allowedAnalysts.includes(analystName)
-  draft.allowedAnalysts = exists
-    ? draft.allowedAnalysts.filter((item) => item !== analystName)
-    : [...draft.allowedAnalysts, analystName]
+  const values = draft[field] || []
+  draft[field] = containsMember(values, member)
+    ? values.filter(
+        (item) => String(item) !== String(member.profileId) && String(item) !== String(member.displayName),
+      )
+    : [...values, member.profileId]
 }
 
 async function saveScopeRule(row) {
@@ -208,15 +242,19 @@ async function saveScopeRule(row) {
     themeKey: row.themeKey,
     subsubjectKey: row.subsubjectKey,
     subjectLabel: row.subjectLabel,
-    accessMode: draft.accessMode,
-    allowedAnalysts: draft.accessMode === 'restricted' ? draft.allowedAnalysts : [],
+    accessMode: draft.visibilityMode,
+    allowedAnalysts: draft.visibilityMode === 'restricted' ? draft.visibilityUsers : [],
+    visibilityMode: draft.visibilityMode,
+    visibilityUsers: draft.visibilityMode === 'restricted' ? draft.visibilityUsers : [],
+    distributionMode: draft.distributionMode,
+    distributionUsers: draft.distributionMode === 'restricted' ? draft.distributionUsers : [],
     actorName: auth.mockContext.userName,
   })
 
   try {
     await persistInstitutionalGovernance(`Atualização da regra de escopo: ${row.subjectLabel}`)
     feedback.scope.type = 'success'
-    feedback.scope.message = `Regra de escopo atualizada para ${row.subjectLabel}.`
+    feedback.scope.message = `Regra operacional atualizada para ${row.subjectLabel}.`
   } catch (error) {
     feedback.scope.type = 'error'
     feedback.scope.message = error?.message || 'Falha ao persistir a regra de escopo.'
@@ -268,13 +306,17 @@ function buildRuleQueueRoute(row = {}) {
 }
 
 function rowRiskState(row = {}) {
-  const restricted = row.accessMode === 'restricted'
-  const allowedCount = Array.isArray(row.allowedAnalysts) ? row.allowedAnalysts.length : 0
+  const restricted = row.distributionMode === 'restricted'
+  const allowedCount = Array.isArray(row.distributionUsers)
+    ? row.distributionUsers.length
+    : Array.isArray(row.eligibleUsers)
+      ? row.eligibleUsers.length
+      : 0
 
   if (restricted && allowedCount === 0) {
     return {
       label: 'Risco alto',
-      helper: 'Regra restrita sem analista autorizado gera bloqueio de visibilidade e ownership.',
+      helper: 'Regra restrita sem pessoa selecionada deixa novos casos sem responsável e exige ação do gestor.',
       toneClass: 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.72)] text-[var(--color-danger)]',
     }
   }
@@ -282,7 +324,7 @@ function rowRiskState(row = {}) {
   if (restricted && allowedCount === 1 && row.openCases > 0) {
     return {
       label: 'Atencao',
-      helper: 'Apenas 1 analista autorizado em assunto com casos abertos.',
+      helper: 'Apenas 1 pessoa recebe novos casos deste assunto.',
       toneClass: 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.72)] text-[#8a5200]',
     }
   }
@@ -315,6 +357,8 @@ function impactHintToneClass(tone = '') {
 }
 
 function resetAvailabilityForm() {
+  availabilityForm.userId = areaMemberOptions.value[0]?.profileId || ''
+  availabilityForm.userName = areaMemberOptions.value[0]?.displayName || areaTeamMembers.value[0] || ''
   availabilityForm.scope = 'current_area'
   availabilityForm.statusCode = 'unavailable'
   availabilityForm.reasonType = 'vacation'
@@ -324,14 +368,15 @@ function resetAvailabilityForm() {
   availabilityForm.notes = ''
 }
 
-function saveAvailability() {
-  if (!availabilityForm.userName || !availabilityForm.startsAt || !availabilityForm.endsAt) {
+async function saveAvailability() {
+  if (!availabilityForm.userId || !availabilityForm.startsAt || !availabilityForm.endsAt) {
     feedback.availability.type = 'error'
     feedback.availability.message = 'Preencha pessoa, inicio e fim para registrar a disponibilidade.'
     return
   }
 
   studentSupportStore.upsertUserAvailability({
+    userId: availabilityForm.userId,
     userName: availabilityForm.userName,
     areaLabel: availabilityForm.scope === 'global' ? '' : auth.mockContext.currentArea,
     statusCode: availabilityForm.statusCode,
@@ -347,9 +392,15 @@ function saveAvailability() {
     notes: availabilityForm.notes,
   })
 
-  feedback.availability.type = 'success'
-  feedback.availability.message = `Disponibilidade registrada para ${availabilityForm.userName}.`
-  resetAvailabilityForm()
+  try {
+    await persistInstitutionalGovernance(`Atualização de disponibilidade: ${availabilityForm.userName}`)
+    feedback.availability.type = 'success'
+    feedback.availability.message = `Disponibilidade registrada para ${availabilityForm.userName}.`
+    resetAvailabilityForm()
+  } catch (error) {
+    feedback.availability.type = 'error'
+    feedback.availability.message = error?.message || 'Falha ao persistir a disponibilidade.'
+  }
 }
 </script>
 
@@ -422,9 +473,9 @@ function saveAvailability() {
 
     <section class="rounded-[8px] border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-5 py-4">
-        <p class="text-base font-semibold text-slate-950">Escopo e visibilidade por assunto</p>
+        <p class="text-base font-semibold text-slate-950">Distribuição por assunto</p>
         <p class="mt-1 text-sm leading-6 text-slate-600">
-          Defina se o subassunto fica aberto para todo o time ou restrito a analistas especificos. Essa regra afeta visibilidade e distribuicao, nao so filtro visual.
+          Defina quem pode consultar o assunto e quem recebe novos casos. A distribuição automática é o padrão e considera carga, disponibilidade e capacidade.
         </p>
       </div>
 
@@ -481,31 +532,65 @@ function saveAvailability() {
             </div>
 
             <label class="grid gap-2">
-              <span class="text-sm font-semibold text-slate-700">Regra de visibilidade</span>
+              <span class="text-sm font-semibold text-slate-700">Quem pode consultar</span>
               <select
-                v-model="draftFor(row).accessMode"
+                v-model="draftFor(row).visibilityMode"
                 class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
               >
-                <option value="team">Todo o time ve este assunto</option>
-                <option value="restricted">Somente analistas selecionados</option>
+                <option value="team">Todo o time da área</option>
+                <option value="restricted">Somente pessoas selecionadas</option>
               </select>
             </label>
 
-            <div v-if="draftFor(row).accessMode === 'restricted'" class="mt-4 grid gap-2">
-              <p class="text-sm font-semibold text-slate-700">Analistas autorizados</p>
+            <div v-if="draftFor(row).visibilityMode === 'restricted'" class="mt-4 grid gap-2">
+              <p class="text-sm font-semibold text-slate-700">Pessoas que podem consultar</p>
               <label
-                v-for="analyst in areaTeamMembers"
-                :key="`${row.id}-${analyst}`"
+                v-for="member in areaMemberOptions"
+                :key="`${row.id}-visibility-${member.profileId}`"
                 class="flex items-center gap-3 rounded-[8px] border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
               >
                 <input
-                  :checked="draftFor(row).allowedAnalysts.includes(analyst)"
+                  :checked="containsMember(draftFor(row).visibilityUsers, member)"
                   type="checkbox"
                   class="h-4 w-4 rounded border-slate-300"
-                  @change="toggleAnalyst(row.id, analyst)"
+                  @change="toggleMember(row.id, 'visibilityUsers', member)"
                 />
-                <span>{{ analyst }}</span>
+                <span>{{ member.displayName }}</span>
               </label>
+            </div>
+
+            <label class="mt-4 grid gap-2">
+              <span class="text-sm font-semibold text-slate-700">Quem recebe novos casos</span>
+              <select
+                v-model="draftFor(row).distributionMode"
+                class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+              >
+                <option value="automatic">Distribuição automática</option>
+                <option value="restricted">Somente pessoas selecionadas</option>
+              </select>
+              <span class="text-xs leading-5 text-slate-500">
+                Automática escolhe analistas ativos pela menor carga ponderada e usa o gestor como fallback.
+              </span>
+            </label>
+
+            <div v-if="draftFor(row).distributionMode === 'restricted'" class="mt-4 grid gap-2">
+              <p class="text-sm font-semibold text-slate-700">Pessoas que recebem</p>
+              <label
+                v-for="member in areaMemberOptions"
+                :key="`${row.id}-distribution-${member.profileId}`"
+                class="flex items-center gap-3 rounded-[8px] border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
+              >
+                <input
+                  :checked="containsMember(draftFor(row).distributionUsers, member)"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300"
+                  @change="toggleMember(row.id, 'distributionUsers', member)"
+                />
+                <span>{{ member.displayName }}</span>
+              </label>
+              <p class="text-xs leading-5 text-slate-500">
+                Se todas estiverem indisponíveis, o caso fica sem responsável e o gestor será sinalizado.
+              </p>
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
@@ -547,12 +632,13 @@ function saveAvailability() {
           <label class="grid gap-2">
             <span class="text-sm font-semibold text-slate-700">Pessoa</span>
             <select
-              v-model="availabilityForm.userName"
+              v-model="availabilityForm.userId"
               class="rounded-[8px] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700"
+              @change="availabilityForm.userName = areaMemberOptions.find((member) => member.profileId === availabilityForm.userId)?.displayName || ''"
             >
               <option value="">Selecione</option>
-              <option v-for="analyst in areaTeamMembers" :key="analyst" :value="analyst">
-                {{ analyst }}
+              <option v-for="member in areaMemberOptions" :key="member.profileId" :value="member.profileId">
+                {{ member.displayName }}
               </option>
             </select>
           </label>
