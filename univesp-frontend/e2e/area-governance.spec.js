@@ -87,3 +87,14 @@ test('home do gestor destaca a próxima decisão sem expor jargão técnico', as
   const visibleText = await page.locator('main').innerText()
   expect(visibleText).not.toMatch(/owner/i)
 })
+
+test('fila da área não expõe termos técnicos de atribuição', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('univesp.sso.devBypassProfile', 'gestor_area')
+  })
+
+  await page.goto('/crm/area/fila')
+
+  const visibleText = await page.locator('main').innerText()
+  expect(visibleText).not.toMatch(/\b(owner|assignee|ownership)\b/i)
+})

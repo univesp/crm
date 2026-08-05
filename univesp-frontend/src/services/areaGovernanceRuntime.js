@@ -394,8 +394,8 @@ export function buildAreaManagerOverview({
     redistributionSuggestions.push({
       id: 'unassigned-cases',
       tone: 'danger',
-      title: `${unassignedEntries.length} caso(s) sem responsavel`,
-      description: `Distribuir primeiro para ${leastLoaded.join(', ')} ou assumir excepcionalmente no gestor.`,
+      title: `${unassignedEntries.length} caso(s) sem analista responsável`,
+      description: `Distribua primeiro para ${leastLoaded.join(', ')} ou assuma excepcionalmente como gestor.`,
       routeQuery: { owner: 'Sem responsavel', bucket: 'all' },
       priority: 'critical',
     })
@@ -405,9 +405,9 @@ export function buildAreaManagerOverview({
     redistributionSuggestions.push({
       id: 'owner-structural-gap',
       tone: 'danger',
-      title: `${ownerMissingEntries.length} caso(s) sem owner operacional`,
+      title: `${ownerMissingEntries.length} caso(s) sem responsável temático`,
       description:
-        'Falha estrutural de ownership detectada. Revisar bundle/nos de origem e reprocessar roteamento.',
+        'O fluxo não definiu um responsável temático válido. Revise a origem do caso e atualize o roteamento.',
       routeQuery: { bucket: 'all', scopeState: 'owner_missing', owner: 'todos' },
       priority: 'critical',
     })
@@ -418,7 +418,7 @@ export function buildAreaManagerOverview({
       id: 'load-imbalance',
       tone: 'warning',
       title: 'Carga desigual entre analistas',
-      description: `${loadByAnalyst[0].analystName} esta com ${maxLoad} casos ativos e ${leastLoaded.join(', ')} com ${minLoad}. Vale redistribuir parte do backlog.`,
+      description: `${loadByAnalyst[0].analystName} está com ${maxLoad} casos ativos e ${leastLoaded.join(', ')} com ${minLoad}. Vale redistribuir parte do backlog.`,
       routeQuery: { bucket: 'all', owner: 'todos', sortField: 'owner' },
       priority: 'high',
     })
@@ -429,7 +429,7 @@ export function buildAreaManagerOverview({
       id: 'overdue-cases',
       tone: 'danger',
       title: `${overdueEntries.length} caso(s) vencido(s)`,
-      description: 'Priorize reatribuicao ou assuncao gerencial nos casos vencidos desta area.',
+      description: 'Priorize a redistribuição ou a assunção gerencial dos casos vencidos desta área.',
       routeQuery: { bucket: 'needs_review', status: 'Precisa de analise', sortField: 'sla', sortDirection: 'asc' },
       priority: 'critical',
     })
@@ -440,7 +440,7 @@ export function buildAreaManagerOverview({
       id: 'stalled-cases',
       tone: 'warning',
       title: `${stalledEntries.length} caso(s) parado(s) aguardando complemento`,
-      description: 'Revise dependencias com o polo e force retomada para evitar reabertura de SLA.',
+      description: 'Revise as dependências com o polo e retome o caso para evitar novo atraso.',
       routeQuery: { bucket: 'waiting_complement', sortField: 'sla', sortDirection: 'asc' },
       priority: 'high',
     })
@@ -450,8 +450,8 @@ export function buildAreaManagerOverview({
     redistributionSuggestions.push({
       id: 'complement-bottleneck',
       tone: 'info',
-      title: 'Complementacoes recorrentes por assunto',
-      description: `Ha recorrencia de devolucao em ${repeatedComplementSubjects.map((item) => item.subjectLabel).join(', ')}.`,
+      title: 'Complementações recorrentes por assunto',
+      description: `Há recorrência de devolução em ${repeatedComplementSubjects.map((item) => item.subjectLabel).join(', ')}.`,
       routeQuery: { bucket: 'waiting_complement', sortField: 'subject' },
       priority: 'medium',
     })
@@ -460,25 +460,25 @@ export function buildAreaManagerOverview({
   const operationalQuestions = [
     {
       id: 'risk-now',
-      question: 'Onde esta o risco agora?',
+      question: 'Onde está o risco agora?',
       value: overdueEntries.length + riskEntries.length,
       headline: overdueEntries.length
-        ? `${overdueEntries.length} vencido(s) exigem acao imediata`
+        ? `${overdueEntries.length} vencido(s) exigem ação imediata`
         : riskEntries.length
           ? `${riskEntries.length} caso(s) em risco de SLA`
           : 'Sem risco forte no momento',
-      helper: 'Combine vencidos e em risco para priorizar a intervencao.',
+      helper: 'Combine vencidos e em risco para priorizar a intervenção.',
       tone: overdueEntries.length ? 'danger' : riskEntries.length ? 'warning' : 'stable',
       routeQuery: { bucket: 'needs_review', sortField: 'sla', sortDirection: 'asc' },
     },
     {
       id: 'gargalo-now',
-      question: 'Onde esta o gargalo agora?',
+      question: 'Onde está o gargalo agora?',
       value: subjectBottlenecks[0]?.openCases || 0,
       headline: subjectBottlenecks[0]
         ? `${subjectBottlenecks[0].subjectLabel} concentra ${subjectBottlenecks[0].openCases} caso(s)`
         : 'Sem gargalo de assunto no recorte atual',
-      helper: 'Assunto com maior concentracao de backlog na area.',
+      helper: 'Assunto com maior concentração de casos ativos na área.',
       tone: subjectBottlenecks[0]?.overdueCases ? 'warning' : 'info',
       routeQuery: subjectBottlenecks[0]
         ? { subject: subjectBottlenecks[0].subjectLabel, bucket: 'all', sortField: 'sla', sortDirection: 'asc' }
@@ -490,8 +490,8 @@ export function buildAreaManagerOverview({
       value: ownerMissingEntries.length + unassignedEntries.length + stalledEntries.length,
       headline:
         ownerMissingEntries.length || unassignedEntries.length || stalledEntries.length
-          ? `${ownerMissingEntries.length} sem owner, ${unassignedEntries.length} sem assignee e ${stalledEntries.length} parado(s)`
-          : 'Sem intervencao obrigatoria imediata',
+          ? `${ownerMissingEntries.length} sem responsável temático, ${unassignedEntries.length} sem analista responsável e ${stalledEntries.length} parado(s)`
+          : 'Sem intervenção obrigatória imediata',
       helper: 'Casos sem responsável e casos travados devem ser tratados antes de a fila crescer.',
       tone:
         ownerMissingEntries.length || unassignedEntries.length
@@ -507,15 +507,15 @@ export function buildAreaManagerOverview({
     },
     {
       id: 'rules-impact-now',
-      question: 'Quais regras impactam a operacao?',
+      question: 'Quais regras impactam a operação?',
       value: restrictedCriticalSubjects.length + pendingSuggestions.length + unavailableAnalysts.length,
       headline:
         restrictedCriticalSubjects.length
           ? `${restrictedCriticalSubjects.length} assunto(s) restrito(s) com alto impacto`
           : pendingSuggestions.length
-            ? `${pendingSuggestions.length} mudanca(s) pendente(s) de conhecimento`
+            ? `${pendingSuggestions.length} mudança(s) pendente(s) de conhecimento`
             : 'Sem impacto forte de regra no momento',
-      helper: 'Conecte disponibilidade, escopo e mudancas pendentes com a saude da fila.',
+      helper: 'Conecte disponibilidade, escopo e mudanças pendentes com a saúde da fila.',
       tone:
         ownerMissingEntries.length
           ? 'danger'
@@ -534,8 +534,8 @@ export function buildAreaManagerOverview({
           {
             id: 'owner-structural-gaps',
             tone: 'danger',
-            title: 'Fluxo gerando caso sem owner operacional',
-            description: `${ownerMissingEntries.length} caso(s) com ownership estrutural ausente/invalido no runtime.`,
+            title: 'Fluxo sem responsável temático definido',
+            description: `${ownerMissingEntries.length} caso(s) sem responsável temático válido.`,
           },
         ]
       : []),
@@ -545,7 +545,7 @@ export function buildAreaManagerOverview({
             id: 'restricted-subject-pressure',
             tone: 'warning',
             title: 'Escopo restrito pode gerar gargalo',
-            description: `Assuntos com alta pressao e pouca cobertura: ${restrictedCriticalSubjects.map((row) => row.subjectLabel).join(', ')}.`,
+            description: `Assuntos com alta pressão e pouca cobertura: ${restrictedCriticalSubjects.map((row) => row.subjectLabel).join(', ')}.`,
           },
         ]
       : []),
@@ -555,7 +555,7 @@ export function buildAreaManagerOverview({
             id: 'unavailable-analysts',
             tone: 'warning',
             title: 'Indisponibilidade ativa no time',
-            description: `${unavailableAnalysts.join(', ')} fora da distribuicao. Reavalie ownership e visibilidade de assuntos restritos.`,
+            description: `${unavailableAnalysts.join(', ')} fora da distribuição. Revise a cobertura e a visibilidade dos assuntos restritos.`,
           },
         ]
       : []),
@@ -565,7 +565,7 @@ export function buildAreaManagerOverview({
             id: 'reduced-capacity-analysts',
             tone: 'info',
             title: 'Capacidade reduzida em vigor',
-            description: `${reducedCapacityAnalysts.join(', ')} recebendo menos carga. Ajuste expectativas de prazo e reatribuicao.`,
+            description: `${reducedCapacityAnalysts.join(', ')} recebendo menos carga. Ajuste as expectativas de prazo e redistribuição.`,
           },
         ]
       : []),
@@ -592,21 +592,21 @@ export function buildAreaManagerOverview({
     summary: [
       {
         id: 'backlog',
-        label: 'Backlog da area',
+        label: 'Backlog da área',
         value: activeEntries.length,
         helper: 'Casos ativos no escopo atual.',
       },
       {
         id: 'owner_missing',
-        label: 'Sem owner operacional',
+        label: 'Sem responsável temático',
         value: ownerMissingEntries.length,
-        helper: 'Erro estrutural de ownership no fluxo.',
+        helper: 'O fluxo não definiu um responsável temático válido.',
       },
       {
         id: 'unassigned',
-        label: 'Sem responsavel',
+        label: 'Sem analista responsável',
         value: unassignedEntries.length,
-        helper: 'Casos ainda sem dono definido.',
+        helper: 'Casos ainda sem analista definido.',
       },
       {
         id: 'overdue',

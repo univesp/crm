@@ -50,13 +50,13 @@ const kpiCards = computed(() => [
     id: 'backlog',
     label: 'Backlog',
     value: overview.value.kpis.backlogTotal,
-    helper: 'Casos ativos da area.',
+    helper: 'Casos ativos da área.',
   },
   {
     id: 'overdue',
     label: 'Vencidos',
     value: overview.value.kpis.overdue,
-    helper: 'Risco imediato de SLA.',
+    helper: 'Risco imediato de prazo.',
   },
   {
     id: 'risk',
@@ -198,7 +198,7 @@ function recommendationPriorityLabel(priority = '') {
       </div>
     </section>
 
-    <OperationalCockpitPanel :cockpit="operationalCockpit" compact title="Cockpit da area" />
+    <OperationalCockpitPanel :cockpit="operationalCockpit" compact title="Cockpit da área" />
 
     <section class="grid gap-3 xl:grid-cols-4">
       <article

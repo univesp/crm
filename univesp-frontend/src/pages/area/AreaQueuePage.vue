@@ -3,10 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRoute } from 'vue-router'
 
 import {
-  AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
   buildAreaManagerBackendReadiness,
 } from '@/contracts/areaManagerOperationalContract'
-import { AREA_OPERATIONAL_SERVER_PARITY_NOTE } from '@/contracts/areaOperationalContracts'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
@@ -302,7 +300,7 @@ const managerQueueCards = computed(() =>
           id: 'overdue',
           label: 'Vencidos',
           value: managerOverview.value.summary.find((item) => item.id === 'overdue')?.value || 0,
-          helper: 'Risco imediato de SLA.',
+          helper: 'Risco imediato de prazo.',
         },
         {
           id: 'risk',
@@ -334,10 +332,6 @@ const queueIntro = computed(() =>
       ? 'Use esta fila única para resolver seus casos em todas as áreas do seu escopo. Reencaminhamentos ficam como exceção operacional.'
       : 'Use a fila para resolver seus casos primeiro. Reencaminhamentos ficam como exceção operacional, não como saída normal.',
 )
-const serverParityNote = computed(() =>
-  isAreaManager.value ? AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE : AREA_OPERATIONAL_SERVER_PARITY_NOTE,
-)
-
 const quickBuckets = computed(() =>
   bucketDefinitions.map((bucket) => ({
     ...bucket,
@@ -776,9 +770,6 @@ onUnmounted(() => {
           {{ queueIntro }}
         </p>
 
-        <p class="rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
-          {{ serverParityNote }}
-        </p>
         <details v-if="isAreaManager" class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
           <summary class="cursor-pointer list-none text-xs font-semibold uppercase tracking-normal text-slate-500">
             Payload minimo esperado para leitura gerencial
@@ -981,7 +972,7 @@ onUnmounted(() => {
           v-if="unassignedCount > 0"
           class="rounded-[8px] border border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.5)] px-4 py-3 text-sm leading-6 text-[#8a5200]"
         >
-          <p class="font-semibold">Sem assignee humano: {{ unassignedCount }} caso(s)</p>
+          <p class="font-semibold">Sem analista responsável: {{ unassignedCount }} caso(s)</p>
           <p class="mt-1">O responsável temático existe, mas falta distribuir o caso para um analista.</p>
         </div>
       </div>
