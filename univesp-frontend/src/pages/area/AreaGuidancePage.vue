@@ -166,6 +166,9 @@ async function loadRemoteKnowledge() {
     )
     remoteBundles.value = details.filter(Boolean)
     remoteSuggestions.value = (await listKnowledgeSuggestions({ page_size: 100 })).data || []
+    if (!selectedSubjectKey.value && searchableRows.value[0]) {
+      selectedSubjectKey.value = searchableRows.value[0].key
+    }
   } catch (error) {
     remoteError.value = error?.message || 'Não foi possível carregar o conteúdo vigente da área.'
   } finally {
