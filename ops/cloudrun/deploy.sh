@@ -241,9 +241,16 @@ gcloud run jobs deploy "${BOOTSTRAP_JOB}" \
 if ! gcloud run jobs execute "${BOOTSTRAP_JOB}" \
 	--project "${PROJECT_ID}" \
 	--region "${REGION}" \
-	--wait; then
+	--wait 2>"${TMPDIR:-/tmp}/bootstrap-exec.err"; then
+	bootstrap_execution=$(
+		grep -oE "${BOOTSTRAP_JOB}-[a-z0-9]+" "${TMPDIR:-/tmp}/bootstrap-exec.err" | tail -1 || true
+	)
 	EVIDENCE_DIR="${EVIDENCE_DIR:-artifacts/homolog/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}}" \
+		EXECUTION_NAME="${bootstrap_execution}" \
 		bash ./ops/cloudrun/collect-bootstrap-failure.sh || true
+	if [[ -n "${bootstrap_execution}" && -n "${GITHUB_ENV:-}" ]]; then
+		printf 'BOOTSTRAP_EXECUTION_NAME=%s\n' "${bootstrap_execution}" >> "${GITHUB_ENV}"
+	fi
 	exit 1
 fi
 

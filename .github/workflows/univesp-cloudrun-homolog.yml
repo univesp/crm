@@ -411,6 +411,7 @@ jobs:
         continue-on-error: true
         env:
           EVIDENCE_DIR: artifacts/homolog/${{ github.run_id }}-${{ github.run_attempt }}
+          EXECUTION_NAME: ${{ env.BOOTSTRAP_EXECUTION_NAME }}
         run: bash ./ops/cloudrun/collect-bootstrap-failure.sh
 
       - name: Restore deployment identity after bootstrap diagnostics

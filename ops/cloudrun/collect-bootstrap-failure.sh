@@ -13,15 +13,18 @@ fi
 
 mkdir -p "${EVIDENCE_DIR}"
 
-execution=$(
-	gcloud run jobs executions list \
-		--job "${BOOTSTRAP_JOB}" \
-		--project "${PROJECT_ID}" \
-		--region "${REGION}" \
-		--sort-by='~metadata.creationTimestamp' \
-		--limit 1 \
-		--format='value(metadata.name)' 2>/dev/null || true
-)
+execution=${EXECUTION_NAME:-}
+if [[ -z "${execution}" ]]; then
+	execution=$(
+		gcloud run jobs executions list \
+			--job "${BOOTSTRAP_JOB}" \
+			--project "${PROJECT_ID}" \
+			--region "${REGION}" \
+			--sort-by='~metadata.creationTimestamp' \
+			--limit 1 \
+			--format='value(metadata.name)' 2>/dev/null || true
+	)
+fi
 
 output="${EVIDENCE_DIR}/bootstrap-failure.log"
 {

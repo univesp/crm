@@ -64,6 +64,21 @@ def configure_initial_access_admin():
 		return {"email": email, "configured": False, "reason": "active-admin-exists"}
 
 	if existing_name:
+		if os.getenv("DEPLOYMENT_ENV", "").strip().lower() == "homolog":
+			profile = frappe.get_doc("Univesp Access Profile", existing_name)
+			profile.user_email = email
+			profile.display_name = profile.display_name or "Administrador Homologacao"
+			profile.profile_key = "admin_central"
+			profile.active = 1
+			profile.provisioning_source = profile.provisioning_source or "manual"
+			profile.approved_by = profile.approved_by or "bootstrap"
+			profile.approved_at = profile.approved_at or frappe.utils.now_datetime()
+			profile.scopes_json = "{}"
+			profile.actions_json = frappe.as_json(actions_for_profile("admin_central"))
+			profile.save(ignore_permissions=True)
+			frappe.db.commit()  # nosemgrep
+			return {"email": email, "configured": True, "reason": "homolog-reactivated"}
+
 		frappe.throw(
 			_("O INITIAL_ADMIN_EMAIL ja possui um perfil inativo ou incompatível."),
 			frappe.ValidationError,
