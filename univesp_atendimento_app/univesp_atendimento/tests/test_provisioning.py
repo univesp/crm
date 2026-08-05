@@ -42,3 +42,24 @@ class TestInitialAccessAdminProvisioning(TestCase):
 	def test_rejects_non_institutional_email(self):
 		with self.assertRaises(frappe.ValidationError):
 			provisioning.configure_initial_access_admin()
+
+	@patch.dict(
+		os.environ,
+		{"INITIAL_ADMIN_EMAIL": "homolog.admin@univesp.br", "DEPLOYMENT_ENV": "homolog"},
+		clear=False,
+	)
+	@patch.object(provisioning.frappe.db, "commit")
+	@patch.object(provisioning.frappe, "get_doc")
+	@patch.object(provisioning.frappe.db, "count", return_value=0)
+	@patch.object(provisioning.frappe.db, "get_value", return_value="PROFILE-1")
+	def test_homolog_reactivates_existing_inactive_admin(self, _get_value, _count, get_doc, commit):
+		profile = MagicMock()
+		get_doc.return_value = profile
+
+		result = provisioning.configure_initial_access_admin()
+
+		self.assertEqual(profile.profile_key, "admin_central")
+		self.assertEqual(profile.active, 1)
+		profile.save.assert_called_once_with(ignore_permissions=True)
+		commit.assert_called_once_with()
+		self.assertEqual(result["reason"], "homolog-reactivated")
