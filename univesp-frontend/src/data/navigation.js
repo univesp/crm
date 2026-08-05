@@ -66,17 +66,17 @@ export function buildNavigationSections(mockContext) {
           ? [
               {
                 id: 'area-cockpit',
-                label: 'Cockpit operacional',
+                label: 'Visão geral',
                 route: '/area/cockpit',
-                description: 'SLAs atrasados, em risco e ação rápida na fila da área.',
+                description: 'Resumo de prazo e criticidade no escopo da área.',
               },
               ...(mockContext.profileKey === 'gestor_area'
                 ? [
                     {
                       id: 'area-manager-home',
-                      label: 'Operação da área',
+                      label: 'Operação',
                       route: '/area/operacao',
-                      description: 'Backlog, gargalos, redistribuição e exceções no escopo atual.',
+                      description: 'Decisões pendentes, distribuição e gargalos da área.',
                     },
                   ]
                 : []),
@@ -85,7 +85,7 @@ export function buildNavigationSections(mockContext) {
                 label: queueLabel,
                 route: '/area/fila',
                 prefixMatches: ['/area/fila/'],
-                description: 'Fila especializada com handoff do OP e análise técnica da área.',
+                description: 'Localize, filtre e abra casos da área.',
               },
               {
                 id: 'area-guidance',

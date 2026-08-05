@@ -2,9 +2,6 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-import {
-  buildAreaManagerBackendReadiness,
-} from '@/contracts/areaManagerOperationalContract'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
@@ -61,7 +58,7 @@ const bucketDefinitions = [
   },
   {
     id: 'rerouted',
-    label: 'Excecoes e reencaminhados',
+    label: 'Exceções e reencaminhados',
     activeClass: 'border-[rgba(8,115,145,0.2)] bg-[rgba(224,242,254,0.92)] text-[#0b6e8c]',
     inactiveClass: 'border-[rgba(8,115,145,0.16)] bg-white text-[#0b6e8c]',
     rowClass: 'bg-[rgba(8,115,145,0.78)]',
@@ -69,7 +66,7 @@ const bucketDefinitions = [
   },
   {
     id: 'completed',
-    label: 'Concluidos',
+    label: 'Concluídos',
     activeClass: 'border-[rgba(26,111,67,0.2)] bg-[rgba(220,252,231,0.9)] text-[var(--color-success)]',
     inactiveClass: 'border-[rgba(26,111,67,0.16)] bg-white text-[var(--color-success)]',
     rowClass: 'bg-[rgba(26,111,67,0.78)]',
@@ -269,65 +266,9 @@ const scopeBadges = computed(() => {
   return badges
 })
 
-const managerOverview = computed(() =>
-  isAreaManager.value ? studentSupportStore.areaManagerOverview(auth.mockContext) : null,
-)
-const managerBackendReadiness = buildAreaManagerBackendReadiness({ hasServerOverview: false })
-const managerBackendFields = computed(() => Object.entries(managerBackendReadiness.minimalOverviewPayload || {}))
-const managerQueueCards = computed(() =>
-  !managerOverview.value
-    ? []
-    : [
-        {
-          id: 'backlog',
-          label: 'Backlog',
-          value: managerOverview.value.summary.find((item) => item.id === 'backlog')?.value || 0,
-          helper: 'Casos ativos da área neste momento.',
-        },
-        {
-          id: 'owner_missing',
-          label: 'Sem responsável temático',
-          value: managerOverview.value.summary.find((item) => item.id === 'owner_missing')?.value || 0,
-          helper: 'Fluxo sem responsável definido.',
-        },
-        {
-          id: 'unassigned',
-          label: 'Sem responsável',
-          value: managerOverview.value.summary.find((item) => item.id === 'unassigned')?.value || 0,
-          helper: 'Casos que exigem intervenção de distribuição.',
-        },
-        {
-          id: 'overdue',
-          label: 'Vencidos',
-          value: managerOverview.value.summary.find((item) => item.id === 'overdue')?.value || 0,
-          helper: 'Risco imediato de prazo.',
-        },
-        {
-          id: 'risk',
-          label: 'Em risco',
-          value: managerOverview.value.summary.find((item) => item.id === 'risk')?.value || 0,
-          helper: 'Casos perto do vencimento.',
-        },
-      ],
-)
-const managerFocusShortcuts = computed(() =>
-  !managerOverview.value
-    ? []
-    : managerOverview.value.operationalQuestions.map((item) => ({
-        id: item.id,
-        label: item.question,
-        helper: item.headline,
-        query: item.routeQuery || {},
-        tone: item.tone || 'info',
-      })),
-)
-const managerPriorityAlerts = computed(() =>
-  !managerOverview.value ? [] : managerOverview.value.interventionQueue.slice(0, 3),
-)
-
 const queueIntro = computed(() =>
   isAreaManager.value
-    ? 'Use esta fila para intervenção gerencial por caso. A visão consolidada continua em Operação da área.'
+    ? 'Use esta tela para localizar, filtrar e abrir casos da área. Para decidir prioridade e distribuição, use Operação da área.'
     : isMultiAreaAnalyst.value
       ? 'Use esta fila única para resolver seus casos em todas as áreas do seu escopo. Reencaminhamentos ficam como exceção operacional.'
       : 'Use a fila para resolver seus casos primeiro. Reencaminhamentos ficam como exceção operacional, não como saída normal.',
@@ -389,54 +330,6 @@ function isAnalystShortcutActive(shortcut) {
   }
 
   return filters.scopeState === 'todos' && filters.bucket === 'all'
-}
-
-function managerShortcutToneClass(tone = '', active = false) {
-  if (active) {
-    if (tone === 'danger') {
-      return 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.88)] text-[var(--color-danger)]'
-    }
-
-    if (tone === 'warning') {
-      return 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.88)] text-[#8a5200]'
-    }
-
-    return 'border-[rgba(8,115,145,0.2)] bg-[rgba(224,242,254,0.92)] text-[#0b6e8c]'
-  }
-
-  return 'border-slate-200 bg-white text-slate-700'
-}
-
-function applyManagerShortcut(shortcut) {
-  if (!shortcut?.query) {
-    return
-  }
-
-  Object.assign(filters, {
-    ...buildDefaultFilters(),
-    ...shortcut.query,
-    pageSize: filters.pageSize,
-  })
-}
-
-function isManagerShortcutActive(shortcut) {
-  if (!shortcut?.query) {
-    return false
-  }
-
-  return Object.entries(shortcut.query).every(([key, value]) => filters[key] === value)
-}
-
-function managerAlertToneClass(tone = '') {
-  if (tone === 'danger') {
-    return 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.72)]'
-  }
-
-  if (tone === 'warning') {
-    return 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.64)]'
-  }
-
-  return 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.62)]'
 }
 
 function managerRowSignals(entry = {}) {
@@ -766,58 +659,16 @@ onUnmounted(() => {
           </span>
         </div>
 
-        <p class="text-sm leading-6 text-slate-600">
-          {{ queueIntro }}
-        </p>
-
-        <details v-if="isAreaManager" class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
-          <summary class="cursor-pointer list-none text-xs font-semibold uppercase tracking-normal text-slate-500">
-            Payload minimo esperado para leitura gerencial
-          </summary>
-          <ul class="mt-3 grid gap-1 text-xs leading-5 text-slate-600">
-            <li v-for="[field, type] in managerBackendFields" :key="field">
-              <strong>{{ field }}:</strong> {{ type }}
-            </li>
-          </ul>
-        </details>
-
-        <div v-if="isAreaManager && managerQueueCards.length" class="crm-stat-grid">
-          <article
-            v-for="card in managerQueueCards"
-            :key="card.id"
-            class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-3"
-          >
-            <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ card.label }}</p>
-            <p class="mt-2 text-xl font-semibold text-slate-950">{{ card.value }}</p>
-            <p class="mt-1 text-xs leading-5 text-slate-600">{{ card.helper }}</p>
-          </article>
-        </div>
-
-        <div v-if="isAreaManager && managerFocusShortcuts.length" class="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          <button
-            v-for="shortcut in managerFocusShortcuts"
-            :key="shortcut.id"
-            type="button"
-            :class="[
-              'rounded-[8px] border px-3 py-3 text-left transition',
-              managerShortcutToneClass(shortcut.tone, isManagerShortcutActive(shortcut)),
-            ]"
-            @click="applyManagerShortcut(shortcut)"
-          >
-            <p class="text-xs font-semibold uppercase tracking-normal">{{ shortcut.label }}</p>
-            <p class="mt-1 text-xs leading-5">{{ shortcut.helper }}</p>
-          </button>
-        </div>
-
-        <div v-if="isAreaManager && managerPriorityAlerts.length" class="grid gap-2 lg:grid-cols-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm leading-6 text-slate-600">
+            {{ queueIntro }}
+          </p>
           <RouterLink
-            v-for="alert in managerPriorityAlerts"
-            :key="alert.id"
-            :to="{ path: '/area/fila', query: alert.routeQuery || {} }"
-            :class="['rounded-[8px] border px-3 py-3 text-sm leading-6 transition hover:opacity-95', managerAlertToneClass(alert.tone)]"
+            v-if="isAreaManager"
+            to="/area/operacao"
+            class="crm-button-secondary shrink-0 px-3 py-2 text-xs"
           >
-            <p class="font-semibold text-slate-900">{{ alert.title }}</p>
-            <p class="mt-1 text-slate-700">{{ alert.description }}</p>
+            Voltar para operação
           </RouterLink>
         </div>
 
