@@ -30,6 +30,7 @@ bootstrap_progress() {
 	if [[ -n "${SITE_DIR:-}" ]]; then
 		mkdir -p "${SITE_DIR}"
 		printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "${SITE_DIR}/bootstrap-progress.log"
+		sync "${SITE_DIR}/bootstrap-progress.log" 2>/dev/null || sync || true
 	fi
 }
 
@@ -138,6 +139,9 @@ wait_for_tcp() {
 		if (( try >= attempts )); then
 			printf 'Timed out waiting for %s:%s\n' "${host}" "${port}" >&2
 			return 1
+		fi
+		if (( try == 1 || try % 15 == 0 )); then
+			log "Waiting for ${host}:${port} (${try}/${attempts})"
 		fi
 		sleep 2
 		try=$((try + 1))
