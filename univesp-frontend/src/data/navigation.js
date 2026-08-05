@@ -64,12 +64,16 @@ export function buildNavigationSections(mockContext) {
         label: sectionLabel,
         items: isAreaProfile
           ? [
-              {
-                id: 'area-cockpit',
-                label: 'Visão geral',
-                route: '/area/cockpit',
-                description: 'Resumo de prazo e criticidade no escopo da área.',
-              },
+              ...(mockContext.profileKey !== 'gestor_area'
+                ? [
+                    {
+                      id: 'area-cockpit',
+                      label: 'Visão geral',
+                      route: '/area/cockpit',
+                      description: 'Resumo de prazo e criticidade no escopo da área.',
+                    },
+                  ]
+                : []),
               ...(mockContext.profileKey === 'gestor_area'
                 ? [
                     {
