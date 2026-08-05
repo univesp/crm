@@ -41,6 +41,7 @@ def update_area_state(payload: dict | str | None = None):
 
 	rules = data.get("rules")
 	availability = data.get("availability")
+	rules, availability = _normalize_state(area, rules, availability)
 	_validate_state(area, rules, availability)
 	doc = _governance_doc(area)
 	current_version = str(doc.modified or "")
@@ -119,7 +120,8 @@ def _validate_state(area, rules, availability):
 	if len(encoded) > MAX_GOVERNANCE_BYTES:
 		raise AreaGovernanceValidationError(_("Governanca da area excede 512 KiB."))
 
-	member_names = _known_area_member_names(area)
+	members = _known_area_members(area)
+	member_ids = set(members)
 	rule_ids = []
 	for rule in rules:
 		if not isinstance(rule, dict):
@@ -127,12 +129,18 @@ def _validate_state(area, rules, availability):
 		rule_id = str(rule.get("id") or "").strip()
 		if not rule_id or str(rule.get("areaLabel") or area).strip() != area:
 			raise AreaGovernanceValidationError(_("Regra sem id ou fora da area."))
-		mode = str(rule.get("accessMode") or "team").strip()
-		if mode not in {"team", "restricted"}:
-			raise AreaGovernanceValidationError(_("Modo de acesso invalido."))
-		allowed = rule.get("allowedAnalysts") or []
-		if not isinstance(allowed, list) or any(str(name).strip() not in member_names for name in allowed):
-			raise AreaGovernanceValidationError(_("Regra referencia analista fora da area."))
+		visibility_mode = str(rule.get("visibilityMode") or rule.get("accessMode") or "team").strip()
+		if visibility_mode not in {"team", "restricted"}:
+			raise AreaGovernanceValidationError(_("Modo de visibilidade invalido."))
+		visibility_users = rule.get("visibilityUsers") or []
+		if not isinstance(visibility_users, list) or any(str(item).strip() not in member_ids for item in visibility_users):
+			raise AreaGovernanceValidationError(_("Regra referencia usuario de visibilidade fora da area."))
+		distribution_mode = str(rule.get("distributionMode") or "automatic").strip()
+		if distribution_mode not in {"automatic", "restricted"}:
+			raise AreaGovernanceValidationError(_("Modo de distribuicao invalido."))
+		distribution_users = rule.get("distributionUsers") or []
+		if not isinstance(distribution_users, list) or any(str(item).strip() not in member_ids for item in distribution_users):
+			raise AreaGovernanceValidationError(_("Regra referencia usuario de distribuicao fora da area."))
 		rule_ids.append(rule_id)
 	if len(rule_ids) != len(set(rule_ids)):
 		raise AreaGovernanceValidationError(_("Regra de assunto duplicada."))
@@ -142,8 +150,8 @@ def _validate_state(area, rules, availability):
 		if not isinstance(record, dict):
 			raise AreaGovernanceValidationError(_("Janela de disponibilidade invalida."))
 		record_id = str(record.get("id") or "").strip()
-		user_name = str(record.get("userName") or "").strip()
-		if not record_id or user_name not in member_names:
+		user_id = str(record.get("userId") or "").strip()
+		if not record_id or user_id not in member_ids:
 			raise AreaGovernanceValidationError(_("Disponibilidade sem id ou pessoa fora da area."))
 		if str(record.get("areaLabel") or "").strip() not in {"", area}:
 			raise AreaGovernanceValidationError(_("Disponibilidade fora da area."))
@@ -160,18 +168,103 @@ def _validate_state(area, rules, availability):
 		raise AreaGovernanceValidationError(_("Disponibilidade duplicada."))
 
 
-def _known_area_member_names(area):
+def _known_area_members(area):
 	rows = frappe.get_all(
 		"Univesp Access Profile",
 		filters={"active": 1, "profile_key": ["in", ["analista_area", "gestor_area"]]},
-		fields=["display_name", "scopes_json"],
+		fields=["name", "user_email", "display_name", "profile_key", "scopes_json"],
 		page_length=500,
 	)
 	return {
-		str(row.get("display_name") or "").strip()
+		str(row.name).strip(): {
+			"id": str(row.name).strip(),
+			"email": str(row.user_email or "").strip().lower(),
+			"display_name": str(row.display_name or row.user_email or row.name).strip(),
+			"profile_key": str(row.profile_key or "").strip(),
+		}
 		for row in rows
-		if area in (frappe.parse_json(row.get("scopes_json") or "{}").get("areas") or [])
+		if area in (frappe.parse_json(row.scopes_json or "{}").get("areas") or [])
 	}
+
+
+def _normalize_member_id(value, members):
+	normalized = str(value or "").strip()
+	if not normalized:
+		return ""
+	if normalized in members:
+		return normalized
+	matches = [
+		member_id
+		for member_id, member in members.items()
+		if normalized.lower() in {member["email"].lower(), member["display_name"].lower()}
+	]
+	if len(matches) == 1:
+		return matches[0]
+	return ""
+
+
+def _normalize_member_values(values, members):
+	result = []
+	for value in values or []:
+		member_id = _normalize_member_id(value, members) or str(value or "").strip()
+		if member_id and member_id not in result:
+			result.append(member_id)
+	return result
+
+
+def _normalize_state(area, rules, availability):
+	if not isinstance(rules, list) or not isinstance(availability, list):
+		return rules, availability
+	members = _known_area_members(area)
+	normalized_rules = []
+	for source in rules:
+		if not isinstance(source, dict):
+			normalized_rules.append(source)
+			continue
+		legacy_visibility = source.get("accessMode") or source.get("visibilityMode") or "team"
+		has_distribution = "distributionMode" in source or "distributionUsers" in source
+		distribution_mode = str(
+			source.get("distributionMode")
+			or ("restricted" if not has_distribution and legacy_visibility == "restricted" else "automatic")
+		).strip()
+		visibility_values = source.get("visibilityUsers")
+		if visibility_values is None:
+			visibility_values = source.get("allowedAnalysts") or []
+		distribution_values = source.get("distributionUsers")
+		if distribution_values is None:
+			distribution_values = source.get("eligibleUsers")
+		if distribution_values is None and not has_distribution and legacy_visibility == "restricted":
+			distribution_values = source.get("allowedAnalysts") or []
+		visibility_ids = _normalize_member_values(visibility_values, members)
+		distribution_ids = _normalize_member_values(distribution_values or [], members)
+		visibility_mode = str(legacy_visibility).strip()
+		normalized_rules.append(
+			{
+				**source,
+				"visibilityMode": visibility_mode,
+				"accessMode": visibility_mode,
+				"visibilityUsers": visibility_ids,
+				"allowedAnalysts": [members.get(item, {}).get("display_name", item) for item in visibility_ids],
+				"distributionMode": distribution_mode,
+				"distributionUsers": distribution_ids,
+				"eligibleUsers": [members.get(item, {}).get("display_name", item) for item in distribution_ids],
+			}
+		)
+	normalized_availability = []
+	for source in availability:
+		if not isinstance(source, dict):
+			normalized_availability.append(source)
+			continue
+		user_id = _normalize_member_id(source.get("userId") or source.get("userName"), members)
+		member = members.get(user_id, {})
+		normalized_availability.append(
+			{
+				**source,
+				"userId": user_id,
+				"userName": member.get("display_name", str(source.get("userName") or "").strip()),
+			}
+		)
+	return normalized_rules, normalized_availability
 
 
 def _json_list(value):
@@ -180,10 +273,15 @@ def _json_list(value):
 
 
 def _serialize(doc, area):
+	rules, availability = _normalize_state(
+		area,
+		_json_list(doc.rules_json),
+		_json_list(doc.availability_json),
+	)
 	return {
 		"area": area,
-		"rules": _json_list(doc.rules_json),
-		"availability": _json_list(doc.availability_json),
+		"rules": rules,
+		"availability": availability,
 		"version": "" if doc.is_new() else str(doc.modified or ""),
 		"updated_by": doc.updated_by_email or "",
 		"updated_at": doc.updated_at,

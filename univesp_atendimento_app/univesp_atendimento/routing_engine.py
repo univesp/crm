@@ -18,6 +18,9 @@ class RoutingDecision:
 	sla_policy_key: str = ""
 	assignee_email: str = ""
 	routing_chain: tuple[str, ...] = ()
+	theme_key: str = ""
+	subsubject_key: str = ""
+	node_id: str = ""
 
 	def as_dict(self, *, public: bool = False) -> dict:
 		data = {
@@ -33,6 +36,9 @@ class RoutingDecision:
 			data["resolved_queue"] = self.resolved_queue
 			data["resolved_area"] = self.resolved_area
 			data["assignee_email"] = self.assignee_email
+			data["theme_key"] = self.theme_key
+			data["subsubject_key"] = self.subsubject_key
+			data["node_id"] = self.node_id
 		return data
 
 
@@ -143,6 +149,9 @@ def resolve_route(
 		sla_policy_key=sla_policy_key,
 		assignee_email=assignee_email,
 		routing_chain=routing_chain or tuple(steps),
+		theme_key=theme_key,
+		subsubject_key=_text(node_operational.get("subsubject_key") or node.get("stable_key") or node_id),
+		node_id=_text(node_id),
 	)
 
 
