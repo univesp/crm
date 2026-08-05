@@ -32,6 +32,10 @@ test('gestor carrega e persiste regra de area pela API institucional', async ({ 
             subjectLabel: 'Matricula institucional',
             accessMode: 'team',
             allowedAnalysts: [],
+            visibilityMode: 'team',
+            visibilityUsers: [],
+            distributionMode: 'automatic',
+            distributionUsers: [],
             isActive: true,
             updatedBy: 'Gestora Area',
           }],
@@ -48,8 +52,8 @@ test('gestor carrega e persiste regra de area pela API institucional', async ({ 
     status: 200,
     json: {
       data: [
-        { email: 'analista@univesp.br', display_name: 'Analista Um', profile_key: 'analista_area' },
-        { email: 'gestora@univesp.br', display_name: 'Gestora Area', profile_key: 'gestor_area' },
+        { profile_id: 'analista@univesp.br', email: 'analista@univesp.br', display_name: 'Analista Um', profile_key: 'analista_area' },
+        { profile_id: 'gestora@univesp.br', email: 'gestora@univesp.br', display_name: 'Gestora Area', profile_key: 'gestor_area' },
       ],
       error: null,
       meta: {},
@@ -64,15 +68,19 @@ test('gestor carrega e persiste regra de area pela API institucional', async ({ 
   await page.goto('/crm/area/governanca')
 
   await expect(page.getByText('Matricula institucional', { exact: true })).toBeVisible()
-  await page.getByLabel('Regra de visibilidade').selectOption('restricted')
+  await page.getByLabel('Quem pode consultar').selectOption('restricted')
   await page.locator('label').filter({ hasText: 'Analista Um' }).getByRole('checkbox').check()
+  await page.getByLabel('Quem recebe novos casos').selectOption('restricted')
+  await page.locator('label').filter({ hasText: 'Analista Um' }).last().getByRole('checkbox').check()
   await page.getByRole('button', { name: 'Salvar regra' }).click()
 
   await expect.poll(() => savedPayload).not.toBeNull()
   expect(savedPayload.version).toBe('governance-v1')
   expect(savedPayload.reason).toContain('Matricula institucional')
-  expect(savedPayload.rules[0].allowedAnalysts).toContain('Analista Um')
-  await expect(page.getByText('Regra de escopo atualizada para Matricula institucional.')).toBeVisible()
+  expect(savedPayload.rules[0].visibilityUsers).toContain('analista@univesp.br')
+  expect(savedPayload.rules[0].distributionMode).toBe('restricted')
+  expect(savedPayload.rules[0].distributionUsers).toContain('analista@univesp.br')
+  await expect(page.getByText('Regra operacional atualizada para Matricula institucional.')).toBeVisible()
 })
 
 test('home do gestor destaca a próxima decisão sem expor jargão técnico', async ({ page }) => {

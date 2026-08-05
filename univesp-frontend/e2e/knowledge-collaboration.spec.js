@@ -1,26 +1,11 @@
 import { expect, test } from '@playwright/test'
 
-test('Analista incorpora sugestão em rascunho sem alterar publicado', async ({ page }) => {
+test('Analista consulta sugestões próprias sem editar nem incorporar rascunho', async ({ page }) => {
   await useProfile(page, 'analista_area')
-  let state = 'received'
-  let incorporated = false
   await page.route('**/api/app/v1/knowledge/v3/suggestions**', async (route) => {
     const request = route.request()
-    const path = new URL(request.url()).pathname
     if (request.method() === 'GET') {
-      return fulfill(route, [suggestion({ state })])
-    }
-    if (path.endsWith('/review')) {
-      state = 'in_review'
-      return fulfill(route, suggestion({ state }))
-    }
-    if (path.endsWith('/incorporate')) {
-      state = 'incorporated'
-      incorporated = true
-      return fulfill(route, {
-        suggestion: suggestion({ state }),
-        draft: { version_id: 'draft-2', lifecycle_state: 'draft' },
-      })
+      return fulfill(route, [suggestion({ state: 'received' })])
     }
     return fulfill(route, {})
   })
@@ -30,12 +15,9 @@ test('Analista incorpora sugestão em rascunho sem alterar publicado', async ({ 
   await expect(page.getByText('A resposta atual é pouco objetiva.')).toBeVisible()
   await expect(page.getByText('Resposta publicada', { exact: true })).toBeVisible()
   await expect(page.getByText('Resposta proposta', { exact: true })).toBeVisible()
-
-  await page.getByRole('button', { name: 'Iniciar análise' }).click()
-  await expect(page.getByText('Sugestão reservada para sua análise.')).toBeVisible()
-  await page.getByRole('button', { name: 'Incorporar ao rascunho' }).click()
-  await expect.poll(() => incorporated).toBe(true)
-  await expect(page.getByRole('button', { name: 'Abrir rascunho' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Iniciar análise' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Incorporar ao rascunho' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Recusar' })).toHaveCount(0)
 })
 
 test('Gestor aprova mas não pode publicar a versão aprovada', async ({ page }) => {
@@ -57,6 +39,15 @@ test('Admin publica uma versão que já foi aprovada pelo Gestor', async ({ page
   await mockEditor(page, () => 'approved', () => {})
   await page.goto('/crm/admin/faq-editor/acesso-ava')
   await expect(page.getByRole('button', { name: 'Publicar versão aprovada' })).toBeVisible()
+})
+
+test('Admin define área, mas não pessoa específica para receber o caso', async ({ page }) => {
+  await useProfile(page, 'admin_central')
+  await mockEditor(page, () => 'draft', () => {})
+  await page.goto('/crm/admin/faq-editor/acesso-ava')
+  await expect(page.getByText('Distribuição do caso', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Quem recebe novos casos é definido pelo gestor/)).toBeVisible()
+  await expect(page.getByText(/Pessoa específica/)).toHaveCount(0)
 })
 
 async function useProfile(page, profile) {
