@@ -56,7 +56,7 @@ async function loadProtocols() {
     listState.rows = filtered.length !== batch.length ? filtered : batch
     return response
   }, {
-    errorFallback: 'Nao foi possivel carregar os protocolos. Tente novamente.',
+    errorFallback: 'Não foi possível carregar os protocolos. Tente novamente.',
   })
 }
 
@@ -102,11 +102,11 @@ watch(
     <section class="surface-panel p-5">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Diretorio institucional</p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Diretório institucional</p>
           <h2 class="mt-2 text-xl font-semibold text-slate-950">Protocolos</h2>
           <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Combine aluno, polo, periodo, assunto, fila, criticidade e status. Use a busca global no cabecalho
-            quando ja souber o numero exato do protocolo.
+            Combine aluno, polo, período, assunto, fila, criticidade e status. Use os filtros desta página
+            para localizar o protocolo no escopo atual.
           </p>
         </div>
       </div>
@@ -165,11 +165,11 @@ watch(
           </select>
         </label>
         <label class="grid gap-1 text-sm">
-          <span class="font-semibold text-slate-700">Periodo - inicio</span>
+          <span class="font-semibold text-slate-700">Período — início</span>
           <input v-model="filters.dateFrom" type="date" class="rounded-ui border border-slate-200 px-3 py-2" />
         </label>
         <label class="grid gap-1 text-sm">
-          <span class="font-semibold text-slate-700">Periodo - fim</span>
+          <span class="font-semibold text-slate-700">Período — fim</span>
           <input v-model="filters.dateTo" type="date" class="rounded-ui border border-slate-200 px-3 py-2" />
         </label>
         <div class="flex items-end gap-2 xl:col-span-4">
@@ -189,10 +189,10 @@ watch(
       :loading="loading"
       :error="error"
       :is-empty="!listState.rows.length"
-      loading-message="Buscando protocolos..."
+      loading-message="Buscando protocolos…"
       empty-title="Nenhum protocolo encontrado"
       empty-message="Ajuste os filtros ou confirme se o protocolo existe no escopo atual."
-      empty-next-step="Use a busca global no cabecalho para abrir um protocolo pelo numero exato."
+      empty-next-step="Use os filtros desta página para localizar o protocolo no escopo atual."
       @retry="loadProtocols"
     >
       <section class="grid gap-3">
@@ -212,7 +212,7 @@ watch(
             <div class="flex flex-wrap gap-2">
               <PriorityBadge :priority="row.priorityLabel || row.criticality" />
               <StatusBadge :label="row.status || row.statusLabel" />
-              <SlaBadge :label="row.sla || row.slaLabel || 'SLA nao calculado'" />
+              <SlaBadge :label="row.sla || row.slaLabel || 'SLA não calculado'" />
             </div>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
@@ -229,7 +229,7 @@ watch(
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
         <p class="text-sm text-slate-600">
           {{ listState.total }} protocolo(s)
-          <span v-if="listState.serverPaginated"> - pagina {{ filters.page }} de {{ listState.totalPages }}</span>
+          <span v-if="listState.serverPaginated"> — página {{ filters.page }} de {{ listState.totalPages }}</span>
         </p>
         <div class="flex gap-2">
           <SgpButton
@@ -246,7 +246,7 @@ watch(
             :disabled="filters.page >= listState.totalPages || loading"
             @click="goToPage(filters.page + 1)"
           >
-            Proxima
+            Próxima
           </SgpButton>
         </div>
       </div>
