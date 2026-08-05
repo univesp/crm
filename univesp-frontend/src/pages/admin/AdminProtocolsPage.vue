@@ -105,8 +105,8 @@ watch(
           <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Diretório institucional</p>
           <h2 class="mt-2 text-xl font-semibold text-slate-950">Protocolos</h2>
           <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Combine aluno, polo, período, assunto, fila, criticidade e status. Use a busca global no cabeçalho
-            quando já souber o número exato do protocolo.
+            Combine aluno, polo, período, assunto, fila, criticidade e status. Use os filtros desta página
+            para localizar o protocolo no escopo atual.
           </p>
         </div>
       </div>
@@ -192,7 +192,7 @@ watch(
       loading-message="Buscando protocolos…"
       empty-title="Nenhum protocolo encontrado"
       empty-message="Ajuste os filtros ou confirme se o protocolo existe no escopo atual."
-      empty-next-step="Use a busca global no cabeçalho para abrir um protocolo pelo número exato."
+      empty-next-step="Use os filtros desta página para localizar o protocolo no escopo atual."
       @retry="loadProtocols"
     >
       <section class="grid gap-3">
