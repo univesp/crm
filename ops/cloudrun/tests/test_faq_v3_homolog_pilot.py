@@ -31,6 +31,8 @@ class FaqV3HomologPilotTest(unittest.TestCase):
 
 	def test_bootstrap_is_guarded_and_idempotent(self):
 		self.assertIn("FAQ_V3_HOMOLOG_PILOT_ENABLED:-false", self.bootstrap)
+		self.assertIn("Phase: bootstrap_site", self.bootstrap)
+		self.assertIn("Bootstrap finished successfully", self.bootstrap)
 		self.assertIn("bootstrap_faq_v3_pilot", self.bootstrap)
 		self.assertIn("inspect_faq_v3_pilot", self.bootstrap)
 		self.assertIn('DEPLOYMENT_ENV", "").strip().lower() != "homolog"', self.seed)
@@ -106,6 +108,8 @@ class FaqV3HomologPilotTest(unittest.TestCase):
 		):
 			self.assertIn(expected, self.common)
 		self.assertIn("verify_public_email_transport", self.bootstrap)
+		self.assertIn("SMTP_BOOTSTRAP_SKIP_LIVE_PROBE=true", self.deploy)
+		self.assertIn("SMTP_BOOTSTRAP_SKIP_LIVE_PROBE", self.seed)
 		self.assertIn("SMTP_PASSWORD_VALUE", self.workflow)
 		self.assertIn('if [[ "${SMTP_NO_AUTHENTICATION}" == "true" ]]', self.workflow)
 		self.assertIn("client.mail(from_email)", self.seed)
