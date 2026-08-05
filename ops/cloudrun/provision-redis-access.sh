@@ -65,7 +65,10 @@ if gcloud compute firewall-rules describe "${REDIS_FIREWALL_RULE}" \
 	exit 0
 fi
 
-gcloud compute firewall-rules create "${REDIS_FIREWALL_RULE}" \
+create_output=$(mktemp)
+trap 'rm -f "${create_output}"' EXIT
+
+if ! gcloud compute firewall-rules create "${REDIS_FIREWALL_RULE}" \
 	--project "${PROJECT_ID}" \
 	--network "${VPC_NETWORK}" \
 	--direction INGRESS \
@@ -73,6 +76,17 @@ gcloud compute firewall-rules create "${REDIS_FIREWALL_RULE}" \
 	--action ALLOW \
 	--rules tcp:6379 \
 	--source-ranges "${VPC_CONNECTOR_RANGE}" \
-	--destination-ranges "${redis_target}/32"
+	--destination-ranges "${redis_target}/32" \
+	2>"${create_output}"; then
+	if grep -q "compute.firewalls.create" "${create_output}"; then
+		printf 'WARNING: deploy identity lacks compute.firewalls.create; skipping Redis firewall provisioning.\n' >&2
+		printf 'WARNING: ensure rule %s allows %s -> %s/32:6379 before bootstrap.\n' \
+			"${REDIS_FIREWALL_RULE}" "${VPC_CONNECTOR_RANGE}" "${redis_target}" >&2
+		cat "${create_output}" >&2
+		exit 0
+	fi
+	cat "${create_output}" >&2
+	exit 1
+fi
 
 printf 'Private Redis firewall rule provisioned for the Cloud Run connector range.\n'

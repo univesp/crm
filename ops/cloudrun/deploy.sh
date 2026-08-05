@@ -240,7 +240,7 @@ if ! gcloud run jobs execute "${BOOTSTRAP_JOB}" \
 	--region "${REGION}" \
 	--wait; then
 	EVIDENCE_DIR="${EVIDENCE_DIR:-artifacts/homolog/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}}" \
-		./ops/cloudrun/collect-bootstrap-failure.sh || true
+		bash ./ops/cloudrun/collect-bootstrap-failure.sh || true
 	exit 1
 fi
 

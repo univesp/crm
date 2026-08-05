@@ -402,9 +402,10 @@ jobs:
 
       - name: Collect bootstrap failure diagnostics
         if: failure()
+        continue-on-error: true
         env:
           EVIDENCE_DIR: artifacts/homolog/${{ github.run_id }}-${{ github.run_attempt }}
-        run: ./ops/cloudrun/collect-bootstrap-failure.sh
+        run: bash ./ops/cloudrun/collect-bootstrap-failure.sh
 
       - name: Verify FAQ v3 homolog pilot state
         run: ./ops/cloudrun/verify-faq-v3-pilot.sh
