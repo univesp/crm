@@ -128,6 +128,7 @@ def get_bundle(bundle_key: str):
 	if bundle.published_version:
 		data["published"] = _serialize_version(
 			frappe.get_doc("Univesp Knowledge Version", bundle.published_version),
+			include_private=can_edit,
 		)
 		if not can_edit:
 			data["published"]["payload"] = _scope_published_payload(
@@ -164,6 +165,7 @@ def list_versions(bundle_key: str, page: int | str = 1, page_size: int | str = 2
 		_serialize_version(
 			frappe.get_doc("Univesp Knowledge Version", row.name),
 			include_payload=False,
+			include_private=context.profile_key != "analista_area",
 		)
 		for row in rows
 	]
@@ -1070,22 +1072,69 @@ def _scope_published_payload(payload, context):
 	if context.profile_key == "admin_central":
 		return payload
 	areas = _context_area_keys(context)
-	visible = [
+	all_nodes = [
 		node
 		for node in payload.get("nodes") or []
-		if isinstance(node, dict) and _node_area(node) in areas
+		if isinstance(node, dict) and str(node.get("node_id") or "").strip()
 	]
 	visible_ids = {
 		str(node.get("node_id") or node.get("stable_key") or "").strip()
-		for node in visible
-		if str(node.get("node_id") or node.get("stable_key") or "").strip()
+		for node in all_nodes
+		if _node_area(node) in areas
 	}
+	if not visible_ids:
+		return {**payload, "nodes": [], "edges": []}
+
+	# Keep the published path from the graph root to each area-owned node. The
+	# collaboration API validates that path, so stripping ancestors would make
+	# a valid read-only reference impossible to submit.
 	edges = [
 		edge
 		for edge in payload.get("edges") or []
 		if isinstance(edge, dict)
-		and str(edge.get("parent_node_id") or "").strip() in visible_ids
-		and str(edge.get("child_node_id") or "").strip() in visible_ids
+		and str(edge.get("parent_node_id") or "").strip()
+		and str(edge.get("child_node_id") or "").strip()
+	]
+	parent_by_child = {}
+	for edge in edges:
+		for audience in edge.get("audiences") or []:
+			key = (str(audience).strip(), str(edge.get("child_node_id") or "").strip())
+			if key[0] and key[1]:
+				parent_by_child[key] = str(edge.get("parent_node_id") or "").strip()
+
+	retained_ids = set(visible_ids)
+	for node_id in list(visible_ids):
+		for audience in ("student", "public", "internal"):
+			current = node_id
+			visited = set()
+			while current and current not in visited:
+				visited.add(current)
+				retained_ids.add(current)
+				current = parent_by_child.get((audience, current), "")
+
+	nodes_by_id = {
+		str(node.get("node_id") or "").strip(): node
+		for node in all_nodes
+		if str(node.get("node_id") or "").strip() in retained_ids
+	}
+	visible = []
+	for node_id, node in nodes_by_id.items():
+		if node_id in visible_ids:
+			visible.append(node)
+			continue
+		# Ancestors are returned only as navigation metadata. Their content and
+		# operational details may belong to another area and must not leak.
+		ancestor = dict(node)
+		ancestor.pop("content", None)
+		ancestor.pop("playbooks", None)
+		ancestor.pop("operational", None)
+		visible.append(ancestor)
+	edges = [
+		edge
+		for edge in edges
+		if isinstance(edge, dict)
+		and str(edge.get("parent_node_id") or "").strip() in retained_ids
+		and str(edge.get("child_node_id") or "").strip() in retained_ids
 	]
 	return {**payload, "nodes": visible, "edges": edges}
 
@@ -1166,7 +1215,7 @@ def _bundle_content_summary(version_name):
 	}
 
 
-def _serialize_version(version, *, include_payload=True):
+def _serialize_version(version, *, include_payload=True, include_private=True):
 	data = {
 		"version_id": version.version_id,
 		"bundle_key": version.bundle,
@@ -1174,9 +1223,9 @@ def _serialize_version(version, *, include_payload=True):
 		"revision": int(version.revision or 1),
 		"lifecycle_state": version.lifecycle_state,
 		"change_summary": version.change_summary or "",
-		"author_email": version.author_email,
-		"approver_email": version.approver_email or "",
-		"publisher_email": version.publisher_email or "",
+		"author_email": version.author_email if include_private else "",
+		"approver_email": version.approver_email or "" if include_private else "",
+		"publisher_email": version.publisher_email or "" if include_private else "",
 		"approved_at": str(version.approved_at or ""),
 		"published_at": str(version.published_at or ""),
 		"valid_from": str(version.valid_from or ""),

@@ -8,8 +8,10 @@ import {
   rejectKnowledgeSuggestion,
   startKnowledgeSuggestionReview,
 } from '@/services/appApi'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(true)
 const busyId = ref('')
 const stateFilter = ref('')
@@ -17,6 +19,7 @@ const suggestions = ref([])
 const errorMessage = ref('')
 const successMessage = ref('')
 const rejectionNotes = ref({})
+const canReview = computed(() => auth.mockContext.profileKey !== 'analista_area')
 
 const stateLabels = {
   received: 'Recebida',
@@ -172,10 +175,10 @@ function formatDate(value) {
           </div>
         </div>
         <p class="suggestion-card__meta">
-          Enviada por {{ item.author_email }} · prazo {{ formatDate(item.sla_due_at) }}
+          Enviada por {{ item.author_name || item.author_email || 'Usuário da área' }} · prazo {{ formatDate(item.sla_due_at) }}
         </p>
 
-        <div v-if="['received', 'in_review'].includes(item.state)" class="suggestion-card__actions">
+        <div v-if="canReview && ['received', 'in_review'].includes(item.state)" class="suggestion-card__actions">
           <button
             v-if="item.state === 'received'"
             type="button"
@@ -211,7 +214,7 @@ function formatDate(value) {
           </button>
         </div>
         <button
-          v-if="item.state === 'incorporated'"
+          v-if="canReview && item.state === 'incorporated'"
           type="button"
           class="crm-button-secondary"
           @click="openDraft(item)"

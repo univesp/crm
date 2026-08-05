@@ -123,8 +123,12 @@ class TestKnowledgeV3Contracts(TestCase):
 		payload["nodes"][1]["operational"] = {"area_key": "sra"}
 		payload["nodes"][2]["operational"] = {"area_key": "outra-area"}
 		scoped = knowledge_v3._scope_published_payload(payload, context)
-		self.assertEqual([node["node_id"] for node in scoped["nodes"]], ["final"])
-		self.assertEqual(scoped["edges"], [])
+		self.assertEqual([node["node_id"] for node in scoped["nodes"]], ["root", "final"])
+		self.assertEqual(
+			[(edge["parent_node_id"], edge["child_node_id"]) for edge in scoped["edges"]],
+			[("root", "final")],
+		)
+		self.assertNotIn("content", scoped["nodes"][0])
 
 	def test_etag_is_version_and_revision(self):
 		self.assertEqual(_etag(_version()), '"version-123-3"')

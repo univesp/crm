@@ -1,7 +1,14 @@
 ﻿<script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import {
+  createKnowledgeSuggestion,
+  getKnowledgeV3Bundle,
+  isMockRuntimeEnabled,
+  listKnowledgeSuggestions,
+  listKnowledgeV3Bundles,
+} from '@/services/appApi'
 import { buildStudentFaqRuntime } from '@/services/faqRuntime'
 import { buildOperatorPlaybookGuide } from '@/services/operatorQueueRuntime'
 import { useAuthStore } from '@/stores/auth'
@@ -11,6 +18,12 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const studentSupportStore = useStudentSupportStore()
+const remoteBundles = ref([])
+const remoteSuggestions = ref([])
+const remoteLoading = ref(false)
+const remoteError = ref('')
+
+const usesRemoteKnowledge = computed(() => !isMockRuntimeEnabled())
 
 const searchQuery = ref('')
 const selectedSubjectKey = ref('')
@@ -51,7 +64,123 @@ function buildSubjectKey(themeKey = '', subsubjectKey = '') {
   return `${normalizeText(themeKey)}::${normalizeText(subsubjectKey)}`
 }
 
-const knowledgeRows = computed(() => studentSupportStore.areaKnowledgeRows(auth.mockContext))
+function graphPath(payload = {}, nodeId = '') {
+  const parentByChild = new Map()
+  for (const edge of payload.edges || []) {
+    if (edge?.child_node_id && edge?.parent_node_id) {
+      parentByChild.set(edge.child_node_id, edge.parent_node_id)
+    }
+  }
+
+  const path = []
+  const visited = new Set()
+  let current = nodeId
+  while (current && !visited.has(current)) {
+    visited.add(current)
+    path.unshift(current)
+    current = parentByChild.get(current) || ''
+  }
+  return path
+}
+
+function firstTextBlock(node, layer = 'student') {
+  return (node?.content?.[layer]?.blocks || []).find(
+    (block) => block?.type === 'text' && block?.block_id,
+  ) || null
+}
+
+function textFromBlocks(node, layer = 'student') {
+  return (node?.content?.[layer]?.blocks || [])
+    .map((block) => block?.body || block?.text || '')
+    .filter(Boolean)
+    .join('\n')
+}
+
+function playbookGuide(node, layer = 'analyst') {
+  const playbook = node?.playbooks?.[layer] || node?.playbooks?.op || {}
+  return {
+    checklist: playbook.checklist || [],
+    systemsToCheck: playbook.systems || [],
+    documentsRequested: playbook.documents_to_request || [],
+    responseTemplate: playbook.suggested_reply || '',
+  }
+}
+
+function buildRemoteRows() {
+  const suggestionsByNode = new Map()
+  for (const suggestion of remoteSuggestions.value) {
+    const key = `${suggestion.bundle_key}::${suggestion.node_id}`
+    suggestionsByNode.set(key, [...(suggestionsByNode.get(key) || []), suggestion])
+  }
+
+  return remoteBundles.value.flatMap((bundle) => {
+    const payload = bundle.published?.payload || {}
+    const nodes = (payload.nodes || []).filter(
+      (node) => node?.node_id && ['final', 'leaf', 'answer'].includes(node.node_kind),
+    )
+    return nodes.map((node) => {
+      const operational = node.operational || {}
+      const themeKey = payload.theme_key || bundle.theme_key || ''
+      const subsubjectKey = operational.subsubject_key || node.display?.title || node.node_id
+      const block = firstTextBlock(node, 'student')
+      const playbook = node.playbooks?.analyst || node.playbooks?.op || {}
+      const targetRef = block
+        ? { type: 'content_block', id: block.block_id, node_id: node.node_id }
+        : { type: 'node', id: node.node_id, node_id: node.node_id }
+
+      return {
+        bundleKey: bundle.bundle_key,
+        versionId: bundle.published?.version_id || bundle.published_version || '',
+        nodeId: node.node_id,
+        targetPath: graphPath(payload, node.node_id),
+        targetRef,
+        currentValue: block || node,
+        themeKey,
+        subsubjectKey,
+        subjectLabel: payload.metadata?.title || bundle.title || themeKey,
+        faqLeaf: { resposta: textFromBlocks(node, 'student') },
+        guide: playbookGuide(node, 'analyst'),
+        playbook,
+        suggestions: suggestionsByNode.get(`${bundle.bundle_key}::${node.node_id}`) || [],
+      }
+    })
+  })
+}
+
+const remoteKnowledgeRows = computed(() => buildRemoteRows())
+
+async function loadRemoteKnowledge() {
+  remoteLoading.value = true
+  remoteError.value = ''
+  try {
+    const bundlesResponse = await listKnowledgeV3Bundles({ status: 'active', page_size: 100 })
+    const bundles = bundlesResponse.data || []
+    const details = await Promise.all(
+      bundles.map(async (bundle) => {
+        try {
+          return (await getKnowledgeV3Bundle(bundle.bundle_key)).data
+        } catch {
+          return null
+        }
+      }),
+    )
+    remoteBundles.value = details.filter(Boolean)
+    remoteSuggestions.value = (await listKnowledgeSuggestions({ page_size: 100 })).data || []
+  } catch (error) {
+    remoteError.value = error?.message || 'Não foi possível carregar o conteúdo vigente da área.'
+  } finally {
+    remoteLoading.value = false
+  }
+}
+
+onMounted(() => {
+  if (usesRemoteKnowledge.value) {
+    loadRemoteKnowledge()
+  }
+})
+
+const localKnowledgeRows = computed(() => studentSupportStore.areaKnowledgeRows(auth.mockContext))
+const knowledgeRows = computed(() => (usesRemoteKnowledge.value ? remoteKnowledgeRows.value : localKnowledgeRows.value))
 const faqRuntime = computed(() => buildStudentFaqRuntime())
 const searchableRows = computed(() =>
   knowledgeRows.value.map((row) => ({
@@ -83,6 +212,10 @@ const activeFaqLeaf = computed(() => {
     return null
   }
 
+  if (usesRemoteKnowledge.value) {
+    return activeRow.value.faqLeaf || null
+  }
+
   const leaves = []
   function walk(nodes = []) {
     for (const node of nodes) {
@@ -106,14 +239,20 @@ const activeFaqLeaf = computed(() => {
   )
 })
 
-const activeGuide = computed(() =>
-  activeRow.value
-    ? buildOperatorPlaybookGuide({
-        theme: activeRow.value.themeKey,
-        subsubject: activeRow.value.subsubjectKey,
-      })
-    : null,
-)
+const activeGuide = computed(() => {
+  if (!activeRow.value) {
+    return null
+  }
+
+  if (usesRemoteKnowledge.value) {
+    return activeRow.value.guide || null
+  }
+
+  return buildOperatorPlaybookGuide({
+    theme: activeRow.value.themeKey,
+    subsubject: activeRow.value.subsubjectKey,
+  })
+})
 
 const guideSections = computed(() => {
   if (!activeGuide.value) {
@@ -142,8 +281,20 @@ const isAreaManager = computed(() => auth.mockContext.profileKey === 'gestor_are
 function formatSuggestionStatus(item) {
   const statusCode = item.statusCode || ''
 
-  if (statusCode === 'Pending Review' || item.status === 'pending') {
+  if (item.state === 'received' || statusCode === 'Pending Review' || item.status === 'pending') {
     return 'Sugestao pendente'
+  }
+
+  if (item.state === 'in_review') {
+    return 'Em analise'
+  }
+
+  if (item.state === 'incorporated') {
+    return 'Incorporada ao rascunho'
+  }
+
+  if (item.state === 'rejected') {
+    return 'Recusada'
   }
 
   if (statusCode === 'Approved' || item.status === 'approved') {
@@ -159,6 +310,27 @@ function formatSuggestionStatus(item) {
   }
 
   return 'Rejeitada'
+}
+
+function suggestionTitle(item) {
+  if (!usesRemoteKnowledge.value) return item.title
+  return String(item.reason || 'Sugestão de melhoria').split(':')[0]
+}
+
+function suggestionProposal(item) {
+  if (!usesRemoteKnowledge.value) return item.proposalText
+  const value = item.proposed_value
+  if (typeof value === 'string') return value
+  if (value?.body) return value.body
+  return JSON.stringify(value || {}, null, 2)
+}
+
+function suggestionAuthor(item) {
+  return item.author_name || item.authorName || 'Você'
+}
+
+function suggestionDate(item) {
+  return item.created_at || item.createdAtLabel || ''
 }
 
 function selectRow(row) {
@@ -216,26 +388,97 @@ function resetForm() {
   form.rationale = ''
 }
 
-function submitSuggestion() {
+function buildRemoteSuggestionPayload() {
+  const layer =
+    form.contentType === 'faq_aluno'
+      ? 'student'
+      : form.contentType === 'orientacao_op'
+        ? 'op'
+        : 'analyst'
+  const target = activeRow.value
+  const targetRef =
+    layer === 'student'
+      ? target.targetRef
+      : {
+          type: 'playbook_field',
+          field: 'suggested_reply',
+          node_id: target.nodeId,
+        }
+  const proposedValue =
+    layer === 'student' && target.targetRef?.type === 'content_block'
+      ? { ...target.currentValue, body: form.proposalText.trim() }
+      : layer === 'student'
+        ? {
+            ...target.currentValue,
+            content: {
+              ...(target.currentValue.content || {}),
+              student: {
+                ...(target.currentValue.content?.student || {}),
+                blocks: [
+                  {
+                    block_id: `${target.nodeId}-suggestion`,
+                    type: 'text',
+                    body: form.proposalText.trim(),
+                  },
+                ],
+              },
+            },
+          }
+        : form.proposalText.trim()
+
+  return {
+    bundle_key: target.bundleKey,
+    version_id: target.versionId,
+    node_id: target.nodeId,
+    audience_layer: layer,
+    target_path: target.targetPath,
+    target_ref: targetRef,
+    proposed_value: proposedValue,
+    reason: `${form.title.trim()}: ${form.rationale.trim()}`,
+  }
+}
+
+async function submitSuggestion() {
   if (!activeRow.value || !form.title.trim() || !form.proposalText.trim() || !form.rationale.trim()) {
     feedback.type = 'error'
     feedback.message = 'Preencha titulo, proposta e justificativa para registrar a sugestao.'
     return
   }
 
-  studentSupportStore.submitKnowledgeSuggestion({
-    areaLabel: auth.mockContext.currentArea,
-    themeKey: activeRow.value.themeKey,
-    subsubjectKey: activeRow.value.subsubjectKey,
-    subjectLabel: activeRow.value.subjectLabel,
-    contentType: form.contentType,
-    title: form.title.trim(),
-    currentContent: activeFaqLeaf.value?.resposta || activeGuide.value?.responseTemplate || '',
-    proposalText: form.proposalText.trim(),
-    rationale: form.rationale.trim(),
-    sourceCaseId: String(route.query.caseId || ''),
-    authorName: auth.mockContext.userName,
-  })
+  if (usesRemoteKnowledge.value) {
+    if (
+      !activeRow.value.bundleKey ||
+      !activeRow.value.versionId ||
+      !activeRow.value.targetPath?.length
+    ) {
+      feedback.type = 'error'
+      feedback.message = 'Esta orientação ainda não possui uma referência publicada para receber sugestões.'
+      return
+    }
+
+    try {
+      const result = await createKnowledgeSuggestion(buildRemoteSuggestionPayload())
+      remoteSuggestions.value = [result.data, ...remoteSuggestions.value]
+    } catch (error) {
+      feedback.type = 'error'
+      feedback.message = error?.message || 'Não foi possível registrar a sugestão.'
+      return
+    }
+  } else {
+    studentSupportStore.submitKnowledgeSuggestion({
+      areaLabel: auth.mockContext.currentArea,
+      themeKey: activeRow.value.themeKey,
+      subsubjectKey: activeRow.value.subsubjectKey,
+      subjectLabel: activeRow.value.subjectLabel,
+      contentType: form.contentType,
+      title: form.title.trim(),
+      currentContent: activeFaqLeaf.value?.resposta || activeGuide.value?.responseTemplate || '',
+      proposalText: form.proposalText.trim(),
+      rationale: form.rationale.trim(),
+      sourceCaseId: String(route.query.caseId || ''),
+      authorName: auth.mockContext.userName,
+    })
+  }
 
   resetForm()
   feedback.type = 'success'
@@ -309,6 +552,13 @@ watch(
         />
       </label>
     </section>
+
+    <p v-if="remoteLoading" class="text-sm text-slate-600" role="status">
+      Carregando conteúdo vigente da área…
+    </p>
+    <p v-if="remoteError" class="crm-alert crm-alert--danger" role="alert">
+      {{ remoteError }}
+    </p>
 
     <section class="crm-split-grid gap-4">
       <article class="rounded-[8px] border border-slate-200 bg-white">
@@ -472,15 +722,15 @@ watch(
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-4"
             >
               <div class="flex flex-wrap items-center justify-between gap-3">
-                <p class="text-sm font-semibold text-slate-950">{{ item.title }}</p>
+                <p class="text-sm font-semibold text-slate-950">{{ suggestionTitle(item) }}</p>
                 <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
                   {{ formatSuggestionStatus(item) }}
                 </span>
               </div>
-              <p class="mt-2 text-sm leading-6 text-slate-700">{{ item.proposalText }}</p>
+              <p class="mt-2 text-sm leading-6 text-slate-700">{{ suggestionProposal(item) }}</p>
               <p class="mt-2 text-xs text-slate-500">
-                {{ item.authorName }} | {{ item.createdAtLabel }}
-                <span v-if="item.reviewedAtLabel"> | {{ item.reviewedAtLabel }}</span>
+                {{ suggestionAuthor(item) }} | {{ suggestionDate(item) }}
+                <span v-if="item.reviewedAtLabel || item.reviewed_at"> | {{ item.reviewedAtLabel || item.reviewed_at }}</span>
               </p>
             </div>
           </div>
