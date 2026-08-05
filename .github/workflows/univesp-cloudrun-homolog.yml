@@ -291,7 +291,8 @@ jobs:
           APPS_JSON=$(jq -cn \
             --arg crm_url "https://github.com/${GITHUB_REPOSITORY}" \
             --arg crm_branch "${GITHUB_REF_NAME}" \
-            '[{url: $crm_url, branch: $crm_branch}, {url: "https://github.com/frappe/helpdesk", branch: "main"}]')
+            --arg helpdesk_ref "6b423f8fba6d4c7f8ff5db56f197243f6549d450" \
+            '[{url: $crm_url, branch: $crm_branch}, {url: "https://github.com/frappe/helpdesk", branch: $helpdesk_ref}]')
           echo "apps_json_base64=$(printf '%s' "${APPS_JSON}" | base64 -w 0)" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push Frappe image
