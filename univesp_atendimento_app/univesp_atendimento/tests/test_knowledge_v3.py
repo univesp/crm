@@ -60,6 +60,7 @@ def _valid_payload():
 				"stable_key": "final",
 				"node_kind": "final",
 				"audiences": ["student"],
+				"operational": {"area_key": "sra"},
 				"content": {"student": {"blocks": [], "outcome_key": "resolved"}, "public": None},
 				"playbooks": {"op": {"objective": "Resolver"}, "bpo": None, "analyst": None},
 			},
@@ -68,6 +69,7 @@ def _valid_payload():
 				"stable_key": "public-root",
 				"node_kind": "final",
 				"audiences": ["public"],
+				"operational": {"area_key": "sra"},
 				"content": {"student": None, "public": {"blocks": [], "outcome_key": "resolved"}},
 				"playbooks": {"op": None, "bpo": None, "analyst": None},
 			},
@@ -355,6 +357,7 @@ class TestKnowledgeV3Lifecycle(IntegrationTestCase):
 				"stable_key": "final",
 				"node_kind": "final",
 				"audiences": ["student", "public"],
+				"operational": {"area_key": "sra"},
 				"presentation": {"public_content_mode": "inherit_student"},
 				"content": {
 					"student": {

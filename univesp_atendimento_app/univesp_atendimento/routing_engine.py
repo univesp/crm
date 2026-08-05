@@ -175,8 +175,6 @@ def validate_final_node_operational(
 		)
 		default_steps = [_text(step) for step in (policy.get("steps") or []) if _text(step)]
 	effective_steps = routing_chain or default_steps
-	if "area" not in effective_steps:
-		return
 	area = _text(node_operational.get("area_key"))
 	owner = metadata.get("operational_owner") if isinstance(metadata.get("operational_owner"), dict) else {}
 	if not area and owner.get("owner_type") == "area":

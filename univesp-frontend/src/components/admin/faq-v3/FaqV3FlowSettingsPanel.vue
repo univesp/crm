@@ -161,7 +161,7 @@ useDialogA11y(toRef(props, 'open'), panelRef, () => emit('close'))
           </select>
         </label>
         <label class="crm-field-label">
-          Responsável
+          Responsável pelo conteúdo
           <input class="crm-field" :value="ownerEmail || 'Não definido'" disabled />
         </label>
         <label class="crm-field-label">

@@ -40,7 +40,6 @@ const createForm = reactive({
   theme_key: '',
   availableStudent: true,
   availablePublic: false,
-  owner_email: '',
   pattern_key: '',
 })
 const themeForm = reactive({
@@ -104,7 +103,6 @@ watch(
   (key) => {
     const theme = catalogs.themes.find((item) => item.theme_key === key)
     if (theme) {
-      createForm.owner_email = theme.owner_email || ''
       themeSearch.value = theme.theme_label
     }
   },
@@ -170,7 +168,6 @@ function resetCreateForm() {
     theme_key: catalogs.themes[0]?.theme_key || '',
     availableStudent: true,
     availablePublic: false,
-    owner_email: catalogs.themes[0]?.owner_email || '',
     pattern_key: catalogs.routing_patterns[0]?.pattern_key || 'op_then_area',
   })
   themeSearch.value = selectedTheme.value?.theme_label || ''
@@ -287,9 +284,6 @@ async function createTheme() {
     themeSearch.value = response.data?.theme_label || themeLabel
     themeModalOpen.value = false
     successMessage.value = `Tema “${response.data?.theme_label || themeLabel}” criado.`
-    if (createModalOpen.value) {
-      createForm.owner_email = response.data?.owner_email || ownerEmail
-    }
   } catch (error) {
     errorMessage.value = error?.message || 'Não foi possível criar o tema.'
   } finally {
@@ -505,7 +499,7 @@ function cloneJson(value) {
           <input
             v-model="filters.search"
             class="crm-field"
-            placeholder="Tema, chave ou responsável"
+            placeholder="Tema, chave ou responsável pelo conteúdo"
           />
         </label>
         <label class="crm-field-label">
@@ -539,7 +533,7 @@ function cloneJson(value) {
               <th scope="col">Disponível em</th>
               <th scope="col">Públicos</th>
               <th scope="col">Playbooks</th>
-              <th scope="col">Responsável</th>
+              <th scope="col">Responsável pelo conteúdo</th>
               <th scope="col">Situação</th>
               <th scope="col">Vigência</th>
               <th scope="col">Última atualização</th>
@@ -721,15 +715,10 @@ function cloneJson(value) {
             </p>
           </fieldset>
 
-          <label class="crm-field-label">
-            Responsável operacional
-            <input
-              v-model="createForm.owner_email"
-              class="crm-field"
-              type="email"
-              :placeholder="selectedTheme?.owner_email || 'E-mail do responsável'"
-            />
-          </label>
+          <p class="faq-library-modal__hint">
+            A área responsável e a distribuição dos casos são definidas no fluxo e nas regras
+            operacionais da área. O responsável editorial é herdado da governança do tema.
+          </p>
 
           <label class="crm-field-label">
             Rota inicial
@@ -817,7 +806,7 @@ function cloneJson(value) {
             />
           </label>
           <label class="crm-field-label">
-            Responsável principal
+            Responsável pelo conteúdo
             <input
               v-model="themeForm.owner_email"
               class="crm-field"
