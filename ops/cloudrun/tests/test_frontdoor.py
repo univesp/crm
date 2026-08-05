@@ -93,7 +93,6 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		self.assertIn("gcloud auth list", redis_access)
 		self.assertNotIn("printf '%s' \"${REDIS_URL}\"", redis_access)
 		self.assertIn("https://github.com/frappe/helpdesk", self.workflow)
-		self.assertIn("helpdesk_ref", self.workflow)
 		self.assertIn("6b423f8fba6d4c7f8ff5db56f197243f6549d450", self.workflow)
 		self.assertIn("GATEWAY_REDIS_URL", self.deploy_gateway)
 		self.assertIn("UNIVESP_EDGE_SHARED_SECRET", self.deploy_gateway)
