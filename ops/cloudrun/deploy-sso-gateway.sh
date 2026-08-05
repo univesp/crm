@@ -83,7 +83,7 @@ gcloud run deploy "${GATEWAY_SERVICE}" \
 	--vpc-egress private-ranges-only \
 	--set-env-vars "${gateway_env}" \
 	--set-secrets "${gateway_secrets}" \
-	--startup-probe=timeoutSeconds=5,periodSeconds=10,failureThreshold=12,httpGet.port=8080,httpGet.path=/health
+	--startup-probe=timeoutSeconds=5,periodSeconds=10,failureThreshold=30,httpGet.port=8080,httpGet.path=/health
 
 gcloud run services describe "${GATEWAY_SERVICE}" \
 	--project "${PROJECT_ID}" \
