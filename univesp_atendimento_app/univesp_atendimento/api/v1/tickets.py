@@ -139,6 +139,20 @@ def create(payload: dict | str | None = None):
 		sla_key = str(data.get("sla_key") or data.get("sla_policy_key") or "").strip()
 		assignee_email = str(data.get("assignee_email") or "").strip().lower()
 
+	assignment_decision = {}
+	assignee_name = str(data.get("assignee_name") or "").strip()
+	if server_routing and area:
+		from univesp_atendimento.assignment_distribution import resolve_area_assignment
+
+		assignment_decision = resolve_area_assignment(
+			area=area,
+			theme_key=routing_decision.get("theme_key") or knowledge.get("theme_key") or knowledge.get("bundle_id"),
+			subsubject_key=routing_decision.get("subsubject_key") or knowledge.get("node_id"),
+		)
+		assignee_email = str(assignment_decision.get("assignee_email") or "").strip().lower()
+		assignee_name = str(assignment_decision.get("assignee_name") or "").strip()
+		routing_decision = {**routing_decision, "assignment": assignment_decision}
+
 	if context.profile_key == "aluno":
 		student = {**student, "email": context.email, "name": context.name, "ra": context.ra}
 	elif context.profile_key not in {"op", "op_externo", "gestor_polos", "admin_central"}:
@@ -176,10 +190,12 @@ def create(payload: dict | str | None = None):
 			"custom_univesp_sla_key": sla_key,
 			"custom_univesp_due_at": due_at,
 			"custom_univesp_assignee_email": assignee_email,
+			"custom_univesp_assignee_name": assignee_name,
 			"custom_univesp_context_json": json.dumps(
 				{
 					**(data.get("triage") if isinstance(data.get("triage"), dict) else {}),
 					"routing": routing_decision,
+					"assignment": assignment_decision,
 				},
 				ensure_ascii=False,
 			),
@@ -197,6 +213,10 @@ def create(payload: dict | str | None = None):
 			"custom_ai_suggestion_json": "",
 		}
 	).insert(ignore_permissions=True)
+	if assignee_email and frappe.db.exists("User", assignee_email):
+		from frappe.desk.form.assign_to import add
+
+		add({"doctype": "HD Ticket", "name": doc.name, "assign_to": [assignee_email]})
 	persist_ticket_protocol(frappe, doc, _public_protocol(doc.name, doc.creation))
 	from univesp_atendimento.api.v1.knowledge_runtime import record_protocol_created
 

@@ -143,3 +143,14 @@ class TestRoutingEngine(TestCase):
 		}
 		with self.assertRaises(RoutingResolutionError):
 			validate_final_node_operational(node, payload)
+
+	def test_validate_final_node_requires_area_even_without_area_step(self):
+		from univesp_atendimento.routing_engine import validate_final_node_operational
+
+		payload = _payload()
+		node = {
+			"node_kind": "final",
+			"operational": {"routing_chain": ["op"]},
+		}
+		with self.assertRaises(RoutingResolutionError):
+			validate_final_node_operational(node, payload)

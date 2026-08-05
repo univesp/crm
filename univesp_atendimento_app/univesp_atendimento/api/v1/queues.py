@@ -47,6 +47,7 @@ def list_area_members(area: str):
 			continue
 		members.append(
 			{
+				"profile_id": row.name,
 				"email": row.user_email,
 				"display_name": row.display_name or row.user_email,
 				"profile_key": row.profile_key,

@@ -2,11 +2,6 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-import {
-  AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE,
-  buildAreaManagerBackendReadiness,
-} from '@/contracts/areaManagerOperationalContract'
-import { AREA_OPERATIONAL_SERVER_PARITY_NOTE } from '@/contracts/areaOperationalContracts'
 import SlaBadge from '@/components/SlaBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { isMockRuntimeEnabled, listTickets } from '@/services/appApi'
@@ -63,7 +58,7 @@ const bucketDefinitions = [
   },
   {
     id: 'rerouted',
-    label: 'Excecoes e reencaminhados',
+    label: 'Exceções e reencaminhados',
     activeClass: 'border-[rgba(8,115,145,0.2)] bg-[rgba(224,242,254,0.92)] text-[#0b6e8c]',
     inactiveClass: 'border-[rgba(8,115,145,0.16)] bg-white text-[#0b6e8c]',
     rowClass: 'bg-[rgba(8,115,145,0.78)]',
@@ -71,7 +66,7 @@ const bucketDefinitions = [
   },
   {
     id: 'completed',
-    label: 'Concluidos',
+    label: 'Concluídos',
     activeClass: 'border-[rgba(26,111,67,0.2)] bg-[rgba(220,252,231,0.9)] text-[var(--color-success)]',
     inactiveClass: 'border-[rgba(26,111,67,0.16)] bg-white text-[var(--color-success)]',
     rowClass: 'bg-[rgba(26,111,67,0.78)]',
@@ -248,96 +243,6 @@ const queueTotals = computed(() => ({
     ? (queueResult.value.query.page - 1) * queueResult.value.query.pageSize + queueResult.value.items.length
     : 0,
 }))
-const ownerMissingCount = computed(() =>
-  utilityFilteredEntries.value.filter((entry) => entry.hasOperationalOwnerError).length,
-)
-const unassignedCount = computed(() =>
-  utilityFilteredEntries.value.filter(
-    (entry) => entry.currentAssigneeLabel === 'Sem responsavel' && !entry.hasOperationalOwnerError,
-  ).length,
-)
-
-const scopeBadges = computed(() => {
-  const badges = []
-
-  if (auth.mockContext.profileKey === 'gestor_area') {
-    badges.push(`Escopo: ${auth.mockContext.currentArea}`)
-  } else if (isMultiAreaAnalyst.value) {
-    badges.push('Escopo: todas as minhas areas')
-  } else {
-    badges.push(auth.mockContext.currentArea)
-  }
-
-  return badges
-})
-
-const managerOverview = computed(() =>
-  isAreaManager.value ? studentSupportStore.areaManagerOverview(auth.mockContext) : null,
-)
-const managerBackendReadiness = buildAreaManagerBackendReadiness({ hasServerOverview: false })
-const managerBackendFields = computed(() => Object.entries(managerBackendReadiness.minimalOverviewPayload || {}))
-const managerQueueCards = computed(() =>
-  !managerOverview.value
-    ? []
-    : [
-        {
-          id: 'backlog',
-          label: 'Backlog',
-          value: managerOverview.value.summary.find((item) => item.id === 'backlog')?.value || 0,
-          helper: 'Casos ativos da area neste momento.',
-        },
-        {
-          id: 'owner_missing',
-          label: 'Sem owner operacional',
-          value: managerOverview.value.summary.find((item) => item.id === 'owner_missing')?.value || 0,
-          helper: 'Fluxo sem responsável definido.',
-        },
-        {
-          id: 'unassigned',
-          label: 'Sem responsavel',
-          value: managerOverview.value.summary.find((item) => item.id === 'unassigned')?.value || 0,
-          helper: 'Casos que exigem intervencao de distribuicao.',
-        },
-        {
-          id: 'overdue',
-          label: 'Vencidos',
-          value: managerOverview.value.summary.find((item) => item.id === 'overdue')?.value || 0,
-          helper: 'Risco imediato de SLA.',
-        },
-        {
-          id: 'risk',
-          label: 'Em risco',
-          value: managerOverview.value.summary.find((item) => item.id === 'risk')?.value || 0,
-          helper: 'Casos perto do vencimento.',
-        },
-      ],
-)
-const managerFocusShortcuts = computed(() =>
-  !managerOverview.value
-    ? []
-    : managerOverview.value.operationalQuestions.map((item) => ({
-        id: item.id,
-        label: item.question,
-        helper: item.headline,
-        query: item.routeQuery || {},
-        tone: item.tone || 'info',
-      })),
-)
-const managerPriorityAlerts = computed(() =>
-  !managerOverview.value ? [] : managerOverview.value.interventionQueue.slice(0, 3),
-)
-
-const queueIntro = computed(() =>
-  isAreaManager.value
-    ? 'Use esta fila para intervencao gerencial por caso. A visao consolidada continua em Operação da area.'
-    : isMultiAreaAnalyst.value
-      ? 'Use esta fila unica para resolver seus casos em todas as areas do seu escopo. Reencaminhamentos ficam como excecao operacional.'
-      : 'Use a fila para resolver seus casos primeiro. Reencaminhamentos ficam como excecao operacional, nao como saida normal.',
-)
-const serverParityNote = computed(() =>
-  isAreaManager.value ? AREA_MANAGER_OPERATIONAL_SERVER_PARITY_NOTE : AREA_OPERATIONAL_SERVER_PARITY_NOTE,
-)
-
 const quickBuckets = computed(() =>
   bucketDefinitions.map((bucket) => ({
     ...bucket,
@@ -351,9 +256,9 @@ const quickBuckets = computed(() =>
 
 const analystScopeShortcuts = computed(() => [
   { id: 'mine', label: 'Meus casos', kind: 'scope', value: 'mine' },
-  { id: 'unassigned', label: 'Sem responsavel', kind: 'scope', value: 'unassigned' },
+  { id: 'unassigned', label: 'Sem responsável', kind: 'scope', value: 'unassigned' },
   { id: 'waiting_complement', label: 'Aguardando complemento', kind: 'scope', value: 'waiting_complement' },
-  { id: 'completed', label: 'Concluidos', kind: 'bucket', value: 'completed' },
+  { id: 'completed', label: 'Concluídos', kind: 'bucket', value: 'completed' },
   { id: 'todos', label: 'Todos do meu escopo', kind: 'reset', value: 'todos' },
 ])
 
@@ -397,110 +302,6 @@ function isAnalystShortcutActive(shortcut) {
   return filters.scopeState === 'todos' && filters.bucket === 'all'
 }
 
-function managerShortcutToneClass(tone = '', active = false) {
-  if (active) {
-    if (tone === 'danger') {
-      return 'border-[rgba(166,31,40,0.2)] bg-[rgba(253,236,237,0.88)] text-[var(--color-danger)]'
-    }
-
-    if (tone === 'warning') {
-      return 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.88)] text-[#8a5200]'
-    }
-
-    return 'border-[rgba(8,115,145,0.2)] bg-[rgba(224,242,254,0.92)] text-[#0b6e8c]'
-  }
-
-  return 'border-slate-200 bg-white text-slate-700'
-}
-
-function applyManagerShortcut(shortcut) {
-  if (!shortcut?.query) {
-    return
-  }
-
-  Object.assign(filters, {
-    ...buildDefaultFilters(),
-    ...shortcut.query,
-    pageSize: filters.pageSize,
-  })
-}
-
-function isManagerShortcutActive(shortcut) {
-  if (!shortcut?.query) {
-    return false
-  }
-
-  return Object.entries(shortcut.query).every(([key, value]) => filters[key] === value)
-}
-
-function managerAlertToneClass(tone = '') {
-  if (tone === 'danger') {
-    return 'border-[rgba(166,31,40,0.18)] bg-[rgba(253,236,237,0.72)]'
-  }
-
-  if (tone === 'warning') {
-    return 'border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.64)]'
-  }
-
-  return 'border-[rgba(8,115,145,0.16)] bg-[rgba(224,242,254,0.62)]'
-}
-
-function managerRowSignals(entry = {}) {
-  if (!isAreaManager.value) {
-    return []
-  }
-
-  const items = []
-
-  if (entry.isUnassigned) {
-    items.push({
-      id: `${entry.id}-unassigned`,
-      label: 'Sem responsavel',
-      toneClass: 'border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.56)] text-[#8a5200]',
-    })
-  }
-
-  if (entry.hasOperationalOwnerError) {
-    items.push({
-      id: `${entry.id}-owner-missing`,
-      label: 'Sem owner operacional',
-      toneClass: 'border-[rgba(166,31,40,0.24)] bg-[rgba(253,236,237,0.76)] text-[var(--color-danger)]',
-    })
-  }
-
-  if (entry.isOverdue) {
-    items.push({
-      id: `${entry.id}-overdue`,
-      label: 'SLA vencido',
-      toneClass: 'border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.72)] text-[var(--color-danger)]',
-    })
-  } else if (entry.isAtRisk) {
-    items.push({
-      id: `${entry.id}-risk`,
-      label: 'SLA em risco',
-      toneClass: 'border-[rgba(202,138,4,0.24)] bg-[rgba(254,243,199,0.56)] text-[#8a5200]',
-    })
-  }
-
-  if (entry.isExceptionRoute) {
-    items.push({
-      id: `${entry.id}-exception`,
-      label: 'Excecao',
-      toneClass: 'border-[rgba(8,115,145,0.22)] bg-[rgba(224,242,254,0.7)] text-[#0b6e8c]',
-    })
-  }
-
-  if (entry.isWaitingComplement) {
-    items.push({
-      id: `${entry.id}-waiting`,
-      label: 'Aguardando complemento',
-      toneClass: 'border-slate-200 bg-slate-100 text-slate-700',
-    })
-  }
-
-  return items
-}
-
 const activeFilterChips = computed(() => {
   const chips = []
 
@@ -521,7 +322,7 @@ const activeFilterChips = computed(() => {
   if (filters.area !== 'todos') {
     chips.push({
       key: 'area',
-      label: `Area: ${filters.area}`,
+      label: `Área: ${filters.area}`,
     })
   }
 
@@ -535,17 +336,17 @@ const activeFilterChips = computed(() => {
   if (filters.owner !== 'todos') {
     chips.push({
       key: 'owner',
-      label: `Responsavel: ${filters.owner}`,
+      label: `Responsável: ${filters.owner}`,
     })
   }
 
   if (filters.scopeState !== 'todos') {
     const scopeLabels = {
       mine: 'Meus casos',
-      unassigned: 'Sem responsavel',
+      unassigned: 'Sem responsável',
       returned_to_me: 'Devolvidos para mim',
       waiting_complement: 'Aguardando complemento',
-      owner_missing: 'Sem owner operacional',
+      owner_missing: 'Sem responsável',
     }
 
     chips.push({
@@ -716,7 +517,7 @@ async function loadLiveQueue() {
       liveQueueMessage.value = `Exibindo os ${protocols.length} atendimentos mais recentes de ${result.meta.total}.`
     }
   } catch (error) {
-    liveQueueMessage.value = error?.message || 'Nao foi possivel carregar a fila da area.'
+    liveQueueMessage.value = error?.message || 'Não foi possível carregar a fila da área.'
   } finally {
     liveQueueLoading.value = false
   }
@@ -749,7 +550,7 @@ onUnmounted(() => {
       aria-live="polite"
       class="rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
     >
-      {{ liveQueueLoading ? 'Carregando fila da area...' : liveQueueMessage }}
+      {{ liveQueueLoading ? 'Carregando fila da área...' : liveQueueMessage }}
     </div>
     <div
       v-if="flashMessage"
@@ -761,75 +562,17 @@ onUnmounted(() => {
     </div>
 
     <section class="rounded-[8px] border border-slate-200 bg-white px-4 py-4">
+      <div class="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 class="crm-page-title text-xl">Casos da área</h1>
+          <p class="mt-1 text-sm leading-6 text-slate-600">Localize, filtre e abra casos da área.</p>
+        </div>
+        <RouterLink v-if="isAreaManager" to="/area/operacao" class="crm-button-secondary shrink-0 px-3 py-2 text-xs">
+          Voltar para Operação
+        </RouterLink>
+      </div>
+
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-center gap-2">
-          <span
-            v-for="badge in scopeBadges"
-            :key="badge"
-            class="rounded-full border border-[rgba(8,115,145,0.12)] bg-[rgba(224,242,254,0.42)] px-3 py-1.5 text-xs font-semibold text-[#0b6e8c]"
-          >
-            {{ badge }}
-          </span>
-        </div>
-
-        <p class="text-sm leading-6 text-slate-600">
-          {{ queueIntro }}
-        </p>
-
-        <p class="rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
-          {{ serverParityNote }}
-        </p>
-        <details v-if="isAreaManager" class="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
-          <summary class="cursor-pointer list-none text-xs font-semibold uppercase tracking-normal text-slate-500">
-            Payload minimo esperado para leitura gerencial
-          </summary>
-          <ul class="mt-3 grid gap-1 text-xs leading-5 text-slate-600">
-            <li v-for="[field, type] in managerBackendFields" :key="field">
-              <strong>{{ field }}:</strong> {{ type }}
-            </li>
-          </ul>
-        </details>
-
-        <div v-if="isAreaManager && managerQueueCards.length" class="crm-stat-grid">
-          <article
-            v-for="card in managerQueueCards"
-            :key="card.id"
-            class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-3"
-          >
-            <p class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ card.label }}</p>
-            <p class="mt-2 text-xl font-semibold text-slate-950">{{ card.value }}</p>
-            <p class="mt-1 text-xs leading-5 text-slate-600">{{ card.helper }}</p>
-          </article>
-        </div>
-
-        <div v-if="isAreaManager && managerFocusShortcuts.length" class="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          <button
-            v-for="shortcut in managerFocusShortcuts"
-            :key="shortcut.id"
-            type="button"
-            :class="[
-              'rounded-[8px] border px-3 py-3 text-left transition',
-              managerShortcutToneClass(shortcut.tone, isManagerShortcutActive(shortcut)),
-            ]"
-            @click="applyManagerShortcut(shortcut)"
-          >
-            <p class="text-xs font-semibold uppercase tracking-normal">{{ shortcut.label }}</p>
-            <p class="mt-1 text-xs leading-5">{{ shortcut.helper }}</p>
-          </button>
-        </div>
-
-        <div v-if="isAreaManager && managerPriorityAlerts.length" class="grid gap-2 lg:grid-cols-3">
-          <RouterLink
-            v-for="alert in managerPriorityAlerts"
-            :key="alert.id"
-            :to="{ path: '/area/fila', query: alert.routeQuery || {} }"
-            :class="['rounded-[8px] border px-3 py-3 text-sm leading-6 transition hover:opacity-95', managerAlertToneClass(alert.tone)]"
-          >
-            <p class="font-semibold text-slate-900">{{ alert.title }}</p>
-            <p class="mt-1 text-slate-700">{{ alert.description }}</p>
-          </RouterLink>
-        </div>
-
         <div v-if="!isAreaManager" class="flex flex-wrap gap-2">
           <button
             v-for="scope in analystScopeShortcuts"
@@ -878,7 +621,7 @@ onUnmounted(() => {
           </label>
 
           <label v-if="isMultiAreaAnalyst" class="crm-filter-field gap-2">
-            <span class="text-sm font-semibold text-slate-700">Area</span>
+            <span class="text-sm font-semibold text-slate-700">Área</span>
             <select
               v-model="filters.area"
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
@@ -914,7 +657,7 @@ onUnmounted(() => {
           </label>
 
           <label v-if="isAreaManager" class="crm-filter-field gap-2">
-            <span class="text-sm font-semibold text-slate-700">Responsavel atual</span>
+            <span class="text-sm font-semibold text-slate-700">Responsável atual</span>
             <select
               v-model="filters.owner"
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
@@ -926,7 +669,7 @@ onUnmounted(() => {
           </label>
 
           <label class="grid min-w-[150px] gap-2">
-            <span class="text-sm font-semibold text-slate-700">Itens por pagina</span>
+            <span class="text-sm font-semibold text-slate-700">Itens por página</span>
             <select
               v-model.number="filters.pageSize"
               class="rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-700"
@@ -968,29 +711,13 @@ onUnmounted(() => {
             <span aria-hidden="true">x</span>
           </button>
         </div>
-
-        <div
-          v-if="ownerMissingCount > 0"
-          class="rounded-[8px] border border-[rgba(166,31,40,0.22)] bg-[rgba(253,236,237,0.66)] px-4 py-3 text-sm leading-6 text-[var(--color-danger)]"
-        >
-          <p class="font-semibold">Sem owner operacional: {{ ownerMissingCount }} caso(s)</p>
-          <p class="mt-1">O fluxo não tem responsável válido. Corrija a FAQ e atualize a fila.</p>
-        </div>
-
-        <div
-          v-if="unassignedCount > 0"
-          class="rounded-[8px] border border-[rgba(202,138,4,0.2)] bg-[rgba(254,243,199,0.5)] px-4 py-3 text-sm leading-6 text-[#8a5200]"
-        >
-          <p class="font-semibold">Sem assignee humano: {{ unassignedCount }} caso(s)</p>
-          <p class="mt-1">Owner operacional existe, mas falta distribuir para analista responsavel.</p>
-        </div>
       </div>
     </section>
 
     <section
       v-if="queueResult.total"
       role="table"
-      aria-label="Fila especializada da area"
+      aria-label="Lista de casos da área"
       class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white"
     >
       <div role="rowgroup" class="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
@@ -1022,7 +749,7 @@ onUnmounted(() => {
           </div>
           <div v-if="showAssigneeColumn" :id="headerId('owner')" role="columnheader" :aria-sort="ariaSort('owner')">
             <button type="button" class="text-left transition hover:text-slate-900" @click="toggleSort('owner')">
-              Responsavel atual <span aria-hidden="true">{{ sortMarker('owner') }}</span>
+              Responsável atual <span aria-hidden="true">{{ sortMarker('owner') }}</span>
             </button>
           </div>
           <div :id="headerId('status')" role="columnheader" :aria-sort="ariaSort('status')">
@@ -1035,7 +762,7 @@ onUnmounted(() => {
               Prazo <span aria-hidden="true">{{ sortMarker('sla') }}</span>
             </button>
           </div>
-          <div role="columnheader" class="text-right">Acao</div>
+          <div role="columnheader" class="text-right">Ação</div>
         </div>
       </div>
 
@@ -1055,16 +782,16 @@ onUnmounted(() => {
                   <p class="text-sm font-semibold text-slate-950">{{ entry.student }}</p>
                 </div>
                 <div :aria-labelledby="headerId('ra')" class="text-sm text-slate-700">
-                  {{ entry.studentRa || 'Nao informado' }}
+                  {{ entry.studentRa || 'Não informado' }}
                 </div>
                 <div :aria-labelledby="headerId('polo')" class="text-sm text-slate-700">
-                  {{ entry.polo || 'Nao informado' }}
+                  {{ entry.polo || 'Não informado' }}
                 </div>
                 <div :aria-labelledby="headerId('subject')">
                   <p class="text-sm font-semibold leading-6 text-slate-900">{{ entry.subject }}</p>
                   <p class="mt-1 text-xs text-slate-500">{{ entry.id }}</p>
                   <p v-if="isMultiAreaAnalyst" class="mt-1 text-xs font-semibold text-[#0b6e8c]">
-                    Area: {{ entry.currentAreaLabel }}
+                    Área: {{ entry.currentAreaLabel }}
                   </p>
                 </div>
                 <div :aria-labelledby="headerId('next_step')">
@@ -1074,27 +801,18 @@ onUnmounted(() => {
                     v-if="entry.hasOperationalOwnerError"
                     class="mt-1 text-xs font-semibold text-[var(--color-danger)]"
                   >
-                    Erro estrutural: sem owner operacional efetivo.
+                    Erro estrutural: sem responsável pelo assunto.
                   </p>
-                  <div v-if="isAreaManager" class="mt-2 flex flex-wrap gap-1.5">
-                    <span
-                      v-for="signal in managerRowSignals(entry)"
-                      :key="signal.id"
-                      :class="['rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-normal', signal.toneClass]"
-                    >
-                      {{ signal.label }}
-                    </span>
-                  </div>
                 </div>
                 <div v-if="showAssigneeColumn" :aria-labelledby="headerId('owner')">
                   <p class="text-sm font-semibold text-slate-900">{{ entry.currentAssigneeLabel }}</p>
                   <p class="mt-1 text-xs text-slate-500">{{ entry.currentAssigneeMeta }}</p>
-                  <p class="mt-1 text-xs text-slate-500">Owner operacional: {{ entry.operationalOwnerLabel || 'Nao resolvido' }}</p>
+                  <p class="mt-1 text-xs text-slate-500">Responsável pelo assunto: {{ entry.operationalOwnerLabel || 'Não definido' }}</p>
                   <p
                     class="mt-1 text-xs font-semibold"
                     :class="entry.hasOperationalOwnerError ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'"
                   >
-                    {{ entry.operationalOwnerStateLabel || (entry.hasOperationalOwnerError ? 'Owner ausente' : 'Owner resolvido') }}
+                    {{ entry.operationalOwnerStateLabel || (entry.hasOperationalOwnerError ? 'Responsável ausente' : 'Responsável definido') }}
                   </p>
                 </div>
                 <div :aria-labelledby="headerId('status')">
@@ -1126,10 +844,10 @@ onUnmounted(() => {
             :disabled="!queueResult.hasPreviousPage"
             @click="previousPage"
           >
-            Pagina anterior
+            Página anterior
           </button>
           <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-            Pagina {{ queueResult.query.page }}
+            Página {{ queueResult.query.page }}
           </span>
           <button
             type="button"
@@ -1137,7 +855,7 @@ onUnmounted(() => {
             :disabled="!queueResult.hasNextPage"
             @click="nextPage"
           >
-            Proxima pagina
+            Próxima página
           </button>
         </div>
       </div>
@@ -1151,7 +869,7 @@ onUnmounted(() => {
         Fila vazia
       </p>
       <h2 class="mt-3 text-2xl font-semibold text-slate-950">
-        Nenhum caso da area foi encontrado neste recorte.
+        Nenhum caso da área foi encontrado neste recorte.
       </h2>
       <p class="mt-3 text-sm leading-7 text-slate-600">
         Ajuste a busca, altere o filtro ou confira a área selecionada.

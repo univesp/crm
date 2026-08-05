@@ -34,8 +34,15 @@ class TestAreaGovernance(TestCase):
 			_authorize_area(self._context(profile_key="admin_central"), "Area Inventada", write=True)
 
 	@patch(
-		"univesp_atendimento.api.v1.governance._known_area_member_names",
-		return_value={"Analista Um", "Gestora Area"},
+		"univesp_atendimento.api.v1.governance._known_area_members",
+		return_value={
+			"profile-analyst": {
+				"id": "profile-analyst",
+				"email": "analista@univesp.br",
+				"display_name": "Analista Um",
+				"profile_key": "analista_area",
+			}
+		},
 	)
 	def test_accepts_scoped_rule_and_availability(self, _members):
 		_validate_state(
@@ -44,14 +51,16 @@ class TestAreaGovernance(TestCase):
 				{
 					"id": "scope-1",
 					"areaLabel": "Suporte Academico Digital",
-					"accessMode": "restricted",
-					"allowedAnalysts": ["Analista Um"],
+					"visibilityMode": "restricted",
+					"visibilityUsers": ["profile-analyst"],
+					"distributionMode": "restricted",
+					"distributionUsers": ["profile-analyst"],
 				}
 			],
 			[
 				{
 					"id": "availability-1",
-					"userName": "Analista Um",
+					"userId": "profile-analyst",
 					"areaLabel": "Suporte Academico Digital",
 					"statusCode": "unavailable",
 					"startsAt": "2026-07-20 10:00:00",
@@ -60,10 +69,7 @@ class TestAreaGovernance(TestCase):
 			],
 		)
 
-	@patch(
-		"univesp_atendimento.api.v1.governance._known_area_member_names",
-		return_value={"Analista Um"},
-	)
+	@patch("univesp_atendimento.api.v1.governance._known_area_members", return_value={})
 	def test_rejects_unknown_analyst(self, _members):
 		with self.assertRaises(AreaGovernanceValidationError):
 			_validate_state(
@@ -72,8 +78,8 @@ class TestAreaGovernance(TestCase):
 					{
 						"id": "scope-1",
 						"areaLabel": "Suporte Academico Digital",
-						"accessMode": "restricted",
-						"allowedAnalysts": ["Pessoa Externa"],
+					"visibilityMode": "restricted",
+					"visibilityUsers": ["profile-external"],
 					}
 				],
 				[],

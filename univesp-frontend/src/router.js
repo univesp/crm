@@ -361,7 +361,7 @@ const routes = [
       requiresAuth: true,
       shellKey: 'operational',
       allowedProfiles: ['analista_area', 'gestor_area'],
-      requiredActions: ['edit_knowledge_draft'],
+      requiredActions: ['suggest_knowledge'],
     },
   },
   {
@@ -373,7 +373,7 @@ const routes = [
       stage: 'area-knowledge-review',
       requiresAuth: true,
       shellKey: 'operational',
-      allowedProfiles: ['analista_area', 'gestor_area'],
+      allowedProfiles: ['gestor_area'],
       requiredActions: ['edit_knowledge_draft'],
     },
   },

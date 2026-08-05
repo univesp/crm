@@ -340,6 +340,7 @@ function routingSummary(node) {
             v-model="selectedNode.operational.area_key"
             class="crm-field"
             :disabled="!canEdit"
+            required
           >
             <option :value="null">Selecione a área</option>
             <option v-for="area in adminAreas" :key="area.value" :value="area.value">
@@ -368,16 +369,17 @@ function routingSummary(node) {
           Caminho operacional: {{ selectedPattern?.steps?.join(' → ') || 'defina em Configurações do assunto' }}.
           A fila exata é confirmada pelo servidor ao abrir o protocolo.
         </p>
-        <label class="crm-field-label">
-          Pessoa específica (opcional)
-          <input
-            v-model="selectedNode.operational.assignee_email"
-            type="email"
-            class="crm-field"
-            :disabled="!canEdit"
-            placeholder="email@univesp.br"
-          />
-        </label>
+        <div class="faq-inheritance">
+          <strong>Distribuição do caso</strong>
+          <p>
+            A área responsável é obrigatória. Quem recebe novos casos é definido pelo gestor
+            em <RouterLink to="/area/governanca">Regras operacionais</RouterLink>.
+          </p>
+          <p class="faq-field-hint">
+            A pessoa responsável pelo conteúdo editorial é uma informação separada da pessoa que
+            recebe o atendimento.
+          </p>
+        </div>
         <label class="crm-field-label">
           Fila fixa (opcional)
           <select

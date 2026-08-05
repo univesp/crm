@@ -56,8 +56,6 @@ PROFILE_DEFINITIONS = {
 			"view_playbook_op",
 			"view_playbook_bpo",
 			"view_playbook_analyst",
-			"edit_knowledge_draft",
-			"submit_knowledge_approval",
 			"view_contact_details",
 		],
 	},

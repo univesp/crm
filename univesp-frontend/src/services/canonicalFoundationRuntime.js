@@ -396,8 +396,12 @@ function normalizeAreaSubjectRule(rule = {}) {
     subjectCode,
     subsubjectId: `subsubject:${subsubjectCode}`,
     subsubjectCode,
-    visibilityMode: rule.accessMode || 'team',
-    eligibleUsers: [...(rule.allowedAnalysts || [])],
+    visibilityMode: rule.visibilityMode || rule.accessMode || 'team',
+    visibilityUsers: [...(rule.visibilityUsers || rule.allowedAnalysts || [])],
+    distributionMode:
+      rule.distributionMode || ((rule.accessMode || rule.visibilityMode) === 'restricted' ? 'restricted' : 'automatic'),
+    distributionUsers: [...(rule.distributionUsers || rule.eligibleUsers || rule.allowedAnalysts || [])],
+    eligibleUsers: [...(rule.distributionUsers || rule.eligibleUsers || rule.allowedAnalysts || [])],
     isActive: true,
   }
 }

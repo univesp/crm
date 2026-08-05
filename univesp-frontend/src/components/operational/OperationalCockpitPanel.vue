@@ -20,6 +20,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
   title: {
     type: String,
     default: 'Cockpit operacional',
@@ -104,7 +108,7 @@ const hasCases = computed(() => overdueCases.value.length || atRiskCases.value.l
                 </div>
               </div>
 
-              <div class="mt-3 flex flex-wrap gap-2">
+              <div v-if="!readonly" class="mt-3 flex flex-wrap gap-2">
                 <RouterLink :to="item.interveneRoute" class="crm-button-primary px-3 py-2 text-xs">
                   Assumir / acelerar
                 </RouterLink>
@@ -153,7 +157,7 @@ const hasCases = computed(() => overdueCases.value.length || atRiskCases.value.l
                 </div>
               </div>
 
-              <div class="mt-3 flex flex-wrap gap-2">
+              <div v-if="!readonly" class="mt-3 flex flex-wrap gap-2">
                 <RouterLink :to="item.interveneRoute" class="crm-button-primary px-3 py-2 text-xs">
                   Assumir / acelerar
                 </RouterLink>
@@ -183,7 +187,12 @@ const hasCases = computed(() => overdueCases.value.length || atRiskCases.value.l
       v-if="!compact"
       class="border-t border-[var(--border-default)] px-5 py-3 text-xs leading-5 text-[var(--color-text-muted)]"
     >
-      Assumir registra a intervenção no histórico do protocolo e mantém o caso na fila correta.
+      <template v-if="!readonly">
+        Assumir registra a intervenção no histórico do protocolo e mantém o caso na fila correta.
+      </template>
+      <template v-else>
+        Esta é uma visão de acompanhamento. Use Operação da área para decidir a próxima ação.
+      </template>
     </div>
   </component>
 </template>

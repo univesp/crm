@@ -3,7 +3,7 @@
   "name": "Univesp Knowledge Theme Editor Area",
   "module": "Univesp Atendimento",
   "istable": 1,
-  "field_order": ["area_key", "area_label", "can_edit_draft"],
+  "field_order": ["area_key", "area_label", "can_view_content", "can_edit_draft"],
   "fields": [
     {
       "fieldname": "area_key",
@@ -17,6 +17,13 @@
       "fieldtype": "Data",
       "label": "Nome da área",
       "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "can_view_content",
+      "fieldtype": "Check",
+      "label": "Pode consultar conteúdo vigente",
+      "default": "1",
       "in_list_view": 1
     },
     {
