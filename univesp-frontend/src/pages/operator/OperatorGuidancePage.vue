@@ -59,20 +59,20 @@ const stageCopy = computed(() => {
   if (!activeNode.value) {
     return {
       title: '',
-      description: 'Escolha o assunto para abrir a mesma orientacao do portal e ver o que o OP deve verificar antes de abrir atendimento.',
+      description: 'Escolha o assunto para consultar a mesma orientação do portal e ver o que o OP deve verificar antes de abrir um atendimento.',
     }
   }
 
   if (!activeNodeIsLeaf.value) {
     return {
       title: activeNode.value.pergunta_exibida || 'Qual assunto descreve melhor a demanda?',
-      description: 'Percorra o caminho do aluno ate chegar na orientacao final.',
+      description: 'Percorra o caminho do aluno até chegar à orientação final.',
     }
   }
 
   return {
       title: activeNode.value.titulo_exibido,
-      description: 'Veja primeiro o que o aluno encontraria no portal e, logo abaixo, como o OP deve conduzir a tratativa.',
+      description: 'Veja primeiro o que o aluno encontra no portal e, logo abaixo, como o OP deve conduzir a tratativa.',
   }
 })
 
@@ -108,7 +108,7 @@ const searchResults = computed(() => {
       return {
         id: node.id,
         title: node.titulo_exibido,
-        description: node.pergunta_exibida || node.descricao_interna || node.resposta || 'Abrir orientacao',
+      description: node.pergunta_exibida || node.descricao_interna || node.resposta || 'Abrir orientação',
         lineage,
         isLeaf: !(node.children?.length),
         highlighted: node.runtime?.isHighlighted,
@@ -265,7 +265,7 @@ watch(
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="max-w-[760px]">
           <p class="text-sm font-semibold text-slate-900">
-            Use esta trilha para percorrer a mesma FAQ do aluno e ver rapidamente como a operacao deve conduzir a tratativa.
+            Consulte a orientação publicada do aluno e veja o que verificar antes de decidir o próximo passo.
           </p>
           <p v-if="activeNode && stageCopy.title" class="mt-3 text-base font-semibold text-slate-950">
             {{ stageCopy.title }}
@@ -293,7 +293,7 @@ watch(
               v-model="searchQuery"
               type="search"
               class="w-full rounded-[8px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
-              placeholder="Tema, subtema ou orientacao"
+              placeholder="Tema, subtema ou orientação"
             />
             <button
               v-if="searchQuery.trim()"
@@ -306,7 +306,7 @@ watch(
           </div>
         </label>
         <p class="text-sm leading-6 text-slate-600">
-          Use a busca quando quiser abrir direto um assunto da FAQ sem percorrer toda a trilha.
+          Use a busca para abrir diretamente um assunto da FAQ sem percorrer toda a trilha.
         </p>
       </div>
 
@@ -329,7 +329,7 @@ watch(
           <div>
             <p class="text-sm font-semibold text-slate-900">Resultados da busca</p>
             <p class="mt-1 text-sm leading-6 text-slate-600">
-              Abra direto o assunto encontrado para consultar a orientacao correspondente.
+              Abra diretamente o assunto encontrado para consultar a orientação correspondente.
             </p>
           </div>
           <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
@@ -375,7 +375,7 @@ watch(
         </div>
 
         <div v-else class="mt-4 rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
-          <p class="text-sm font-semibold text-slate-900">Nenhuma orientacao encontrada</p>
+          <p class="text-sm font-semibold text-slate-900">Nenhuma orientação encontrada</p>
           <p class="mt-2 text-sm leading-6 text-slate-600">
             Tente buscar por tema, subtema ou parte do nome do assunto.
           </p>
@@ -447,12 +447,12 @@ watch(
           </div>
 
           <div class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
-            <p class="text-xs font-semibold tracking-normal text-slate-500">FAQ do aluno</p>
+            <p class="text-xs font-semibold tracking-normal text-slate-500">Orientação publicada para o aluno</p>
             <p class="mt-3 text-sm leading-7 text-slate-700">{{ activeNode.resposta }}</p>
           </div>
 
           <div class="mt-4 rounded-[8px] border border-slate-200 bg-white px-4 py-4">
-            <p class="text-xs font-semibold tracking-normal text-slate-500">Como o OP deve conduzir</p>
+            <p class="text-xs font-semibold tracking-normal text-slate-500">O que o OP deve fazer</p>
 
             <div class="mt-4 grid gap-4">
               <div
@@ -469,7 +469,7 @@ watch(
               </div>
 
               <div class="grid gap-2 rounded-[8px] bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-                <p><span class="font-semibold text-slate-900">Resolver no contato atual:</span> quando a orientacao e a checagem sustentarem uma devolutiva segura.</p>
+                <p><span class="font-semibold text-slate-900">Resolver no contato atual:</span> quando a orientação e a checagem sustentarem uma devolutiva segura.</p>
                 <p><span class="font-semibold text-slate-900">Abrir atendimento:</span> quando a tratativa precisar continuar no portal com registro formal.</p>
               </div>
             </div>
@@ -480,7 +480,7 @@ watch(
               :to="assistedIntakeRoute"
               class="inline-flex items-center justify-center rounded-[8px] bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm"
             >
-              Abrir atendimento em nome do aluno
+              Abrir atendimento
             </RouterLink>
           </div>
         </div>

@@ -170,8 +170,8 @@ const guideSections = computed(() => {
 const actionOptions = computed(() => [
   {
     id: 'open_case',
-    title: 'Abrir atendimento em nome do aluno',
-    description: 'A tratativa precisa continuar no portal com registro formal.',
+    title: 'Abrir atendimento para o aluno',
+    description: 'A tratativa precisa continuar no portal com um registro formal.',
     buttonLabel: 'Confirmar abertura do atendimento',
     toneClass:
       selectedAction.value === 'open_case'
@@ -182,7 +182,7 @@ const actionOptions = computed(() => [
   {
     id: 'request_info',
     title: 'Registrar pedido de complementação',
-    description: 'Ainda faltam informacoes, print, documento ou confirmação do relato.',
+    description: 'Ainda faltam informações, print, documento ou confirmação do relato.',
     buttonLabel: 'Confirmar pedido de complementação',
     toneClass:
       selectedAction.value === 'request_info'
@@ -193,7 +193,7 @@ const actionOptions = computed(() => [
   {
     id: 'escalate',
     title: 'Continuar para escalonamento',
-    description: 'A triagem foi feita, mas a regra do caso exige apoio da area interna.',
+    description: 'A triagem foi feita, mas a regra do caso exige apoio da área interna.',
     buttonLabel: 'Confirmar escalonamento',
     toneClass:
       selectedAction.value === 'escalate'
@@ -230,7 +230,7 @@ const confirmationCopy = computed(() => {
   if (pendingConfirmationAction.value === 'open_case') {
     return {
       title: 'Confirmar abertura do atendimento',
-      consequence: 'Um novo atendimento sera registrado em nome do aluno com a triagem informada.',
+      consequence: 'Um novo atendimento será registrado em nome do aluno com a triagem informada.',
       buttonLabel: activeAction.value.buttonLabel,
       buttonClass: activeAction.value.confirmClass,
     }
@@ -239,7 +239,7 @@ const confirmationCopy = computed(() => {
   if (pendingConfirmationAction.value === 'request_info') {
     return {
       title: 'Confirmar pedido de complementação',
-      consequence: 'O atendimento ja nascera com pedido de complementação ao aluno e aguardando retorno.',
+      consequence: 'O atendimento já será criado com pedido de complementação ao aluno e ficará aguardando retorno.',
       buttonLabel: activeAction.value.buttonLabel,
       buttonClass: activeAction.value.confirmClass,
     }
@@ -247,7 +247,7 @@ const confirmationCopy = computed(() => {
 
   return {
     title: 'Confirmar escalonamento',
-    consequence: 'O atendimento sera aberto e encaminhado para a area interna com os subsidios registrados.',
+    consequence: 'O atendimento será aberto e encaminhado para a área interna com os subsídios registrados.',
     buttonLabel: activeAction.value.buttonLabel,
     buttonClass: activeAction.value.confirmClass,
   }
@@ -411,7 +411,7 @@ function requestActionConfirmation() {
   }
 
   if (!verifiedSummary.value.trim()) {
-    formErrors.verifiedSummary = 'Registre o que ja foi verificado antes de continuar.'
+    formErrors.verifiedSummary = 'Registre o que já foi verificado antes de continuar.'
     nextTick(() => {
       verifiedSummaryRef.value?.focus()
     })
@@ -452,7 +452,7 @@ function submitAssistedAction() {
       type: 'error',
       message:
         result?.errorMessage ||
-        'Não foi possível registrar o atendimento agora. Verifique ownership operacional e tente novamente.',
+        'Não foi possível registrar o atendimento agora. Verifique o responsável pelo atendimento e tente novamente.',
     }
     return
   }
@@ -582,7 +582,7 @@ watch(
               class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               @click="toggleManualEntry"
             >
-              {{ manualStudentEntry ? 'Voltar para busca na base' : 'Aluno nao encontrado?' }}
+              {{ manualStudentEntry ? 'Voltar para busca na base' : 'Aluno não encontrado?' }}
             </button>
           </div>
 
@@ -594,7 +594,7 @@ watch(
             <div class="rounded-[8px] border border-slate-200 bg-slate-50/70 px-4 py-4">
               <p class="text-sm font-semibold text-slate-900">Entrada manual do aluno</p>
               <p class="mt-2 text-sm leading-6 text-slate-600">
-                Use esta opcao somente quando o aluno nao aparecer na base do polo.
+                Use esta opção somente quando o aluno não aparecer na base do polo.
               </p>
 
               <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -663,8 +663,8 @@ watch(
                 >
                   <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <p class="text-sm font-semibold text-slate-950">{{ student.nome }}</p>
-                    <p class="text-sm text-slate-600">RA {{ student.ra || 'Nao informado' }}</p>
-                    <p class="text-sm text-slate-600">{{ student.curso || 'Curso nao informado' }}</p>
+                    <p class="text-sm text-slate-600">RA {{ student.ra || 'Não informado' }}</p>
+                    <p class="text-sm text-slate-600">{{ student.curso || 'Curso não informado' }}</p>
                   </div>
                 </button>
               </div>
@@ -684,9 +684,9 @@ watch(
               {{ selectedCandidate?.nome || lookup.nome || 'Aluno manual' }}
             </p>
             <div class="mt-2 flex flex-wrap items-center gap-y-2 text-sm text-slate-600">
-              <span>RA {{ selectedCandidate?.ra || lookup.ra || 'Nao informado' }}</span>
+              <span>RA {{ selectedCandidate?.ra || lookup.ra || 'Não informado' }}</span>
               <span class="px-2 text-slate-300" aria-hidden="true">|</span>
-              <span>{{ selectedCandidate?.curso || lookup.curso || 'Curso nao informado' }}</span>
+              <span>{{ selectedCandidate?.curso || lookup.curso || 'Curso não informado' }}</span>
               <span class="px-2 text-slate-300" aria-hidden="true">|</span>
               <span>{{ lookup.contactChannel || 'Selecione a forma de atendimento' }}</span>
             </div>
@@ -701,7 +701,7 @@ watch(
                 class="rounded-[8px] bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 @click="confirmStudent"
               >
-                Confirmar que e este aluno
+                Confirmar que é este aluno
               </button>
             </div>
           </div>
@@ -892,19 +892,19 @@ watch(
 
             <div class="rounded-[8px] bg-white px-4 py-4 text-sm leading-6 text-slate-700">
               <p><span class="font-semibold text-slate-900">Abrir atendimento:</span> quando a tratativa precisar continuar no portal.</p>
-              <p class="mt-2"><span class="font-semibold text-slate-900">Pedir complementação:</span> quando ainda faltar documento, evidencia ou confirmação.</p>
-              <p class="mt-2"><span class="font-semibold text-slate-900">Escalar:</span> quando a regra do caso exigir decisao da area interna.</p>
+              <p class="mt-2"><span class="font-semibold text-slate-900">Pedir complementação:</span> quando ainda faltar documento, evidência ou confirmação.</p>
+              <p class="mt-2"><span class="font-semibold text-slate-900">Escalar:</span> quando a regra do caso exigir decisão da área interna.</p>
             </div>
           </div>
         </div>
 
         <div class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">O que ja foi verificado</h3>
+            <h3 class="text-base font-semibold text-slate-950">O que já foi verificado</h3>
           </div>
           <div class="px-4 py-4">
             <p class="text-sm leading-6 text-slate-600">
-              Registre a triagem feita antes de abrir, complementar ou escalar o atendimento.
+              Registre a triagem feita antes de abrir, pedir complementação ou escalar o atendimento.
             </p>
 
             <textarea
@@ -930,7 +930,7 @@ watch(
 
         <div class="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50/70">
           <div class="border-b border-slate-200 bg-slate-100/90 px-4 py-3">
-            <h3 class="text-base font-semibold text-slate-950">Proxima ação</h3>
+            <h3 class="text-base font-semibold text-slate-950">Próxima ação</h3>
           </div>
 
           <div class="px-4 py-4">
@@ -1016,7 +1016,7 @@ watch(
               <p class="text-sm font-semibold text-slate-900">{{ confirmationCopy.title }}</p>
               <div class="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
                 <div>
-                  <p class="text-xs font-semibold tracking-normal text-slate-500">Consequencia</p>
+                  <p class="text-xs font-semibold tracking-normal text-slate-500">Consequência</p>
                   <p class="mt-1">{{ confirmationCopy.consequence }}</p>
                 </div>
                 <div>

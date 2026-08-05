@@ -67,6 +67,20 @@ test('fila OP oferece recuperação quando os filtros não encontram atendimento
   await expect(page.getByText('Atendimento real carregado para o OP', { exact: true }).first()).toBeVisible()
 })
 
+test('fila OP mantém filtros e ação do atendimento acessíveis no mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await selectBypassProfile(page, 'op')
+  await mockTickets(page)
+
+  await page.goto('/crm/op/fila')
+
+  await expect(page.getByRole('link', { name: 'Abrir atendimento UVSP-20260720-9001', exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Refinar atendimentos' })).toBeVisible()
+  await page.getByRole('button', { name: 'Fechar', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Refinar atendimentos' })).toHaveCount(0)
+})
+
 test('fila da area usa ticket live no escopo da area', async ({ page }) => {
   await selectBypassProfile(page, 'analista_area')
   await mockTickets(page)
