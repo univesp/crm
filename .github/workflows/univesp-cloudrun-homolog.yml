@@ -400,12 +400,25 @@ jobs:
           EVIDENCE_DIR: artifacts/homolog/${{ github.run_id }}-${{ github.run_attempt }}
         run: ./ops/cloudrun/deploy.sh
 
+      - name: Authenticate log reader for bootstrap diagnostics
+        if: failure()
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
       - name: Collect bootstrap failure diagnostics
         if: failure()
         continue-on-error: true
         env:
           EVIDENCE_DIR: artifacts/homolog/${{ github.run_id }}-${{ github.run_attempt }}
         run: bash ./ops/cloudrun/collect-bootstrap-failure.sh
+
+      - name: Restore deployment identity after bootstrap diagnostics
+        if: failure()
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
 
       - name: Verify FAQ v3 homolog pilot state
         run: ./ops/cloudrun/verify-faq-v3-pilot.sh

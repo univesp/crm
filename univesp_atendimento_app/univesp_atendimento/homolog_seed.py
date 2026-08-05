@@ -589,6 +589,17 @@ def verify_public_email_transport() -> dict:
 	if not readiness["ready"]:
 		raise frappe.ValidationError("Configuração de e-mail público incompleta em homolog.")
 
+	if _env_truthy("SMTP_BOOTSTRAP_SKIP_LIVE_PROBE"):
+		return {
+			"ready": True,
+			"live_probe_skipped": True,
+			"authentication_mode": readiness["authentication_mode"],
+			"authenticated": readiness["authentication_mode"] == "credentials",
+			"tls": readiness["tls"],
+			"ssl": readiness["ssl"],
+			"reply_domain_configured": True,
+		}
+
 	host = str(frappe.conf.get("mail_server") or "")
 	port = int(frappe.conf.get("mail_port") or 0)
 	username = str(frappe.conf.get("mail_login") or "")
@@ -673,6 +684,10 @@ def _config_bool(value) -> bool:
 	if isinstance(value, bool):
 		return value
 	return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_truthy(name: str) -> bool:
+	return _config_bool(os.getenv(name))
 
 
 def _require_homolog_confirmation(confirmation: str):

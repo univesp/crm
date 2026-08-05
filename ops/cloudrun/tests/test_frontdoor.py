@@ -82,6 +82,7 @@ class CloudRunFrontDoorTest(unittest.TestCase):
 		self.assertIn("./ops/cloudrun/deploy-sso-gateway.sh", self.workflow)
 		self.assertIn("Collect SSO Gateway failure diagnostics", self.workflow)
 		self.assertIn("Collect bootstrap failure diagnostics", self.workflow)
+		self.assertIn("Authenticate log reader for bootstrap diagnostics", self.workflow)
 		self.assertIn("collect-bootstrap-failure.sh", self.workflow)
 		self.assertIn("cloud_run_revision", self.workflow)
 		self.assertIn("sso-gateway-failure.log", self.workflow)
