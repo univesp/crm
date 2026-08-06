@@ -142,7 +142,7 @@ async function loadLibrary() {
     const [bundleResponse, catalogResponse, groupsResponse] = await Promise.all([
       listKnowledgeV3Bundles({ status: filters.status, page_size: 100 }),
       getKnowledgeV3Catalogs(),
-      listAccessGroups(),
+      listAccessGroups().catch(() => ({ data: [] })),
     ])
     rows.value = bundleResponse.data || []
     Object.assign(catalogs, catalogResponse.data || {})

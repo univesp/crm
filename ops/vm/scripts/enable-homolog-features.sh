@@ -17,16 +17,20 @@ set_gateway_flag() {
   fi
 }
 
-printf '1/3 Gateway — perfis/grupos personalizados (FAQ biblioteca usa access-groups)\n'
+printf '1/4 Gateway — perfis/grupos personalizados (FAQ biblioteca usa access-groups)\n'
 set_gateway_flag ENABLE_CUSTOM_PERMISSION_PROFILES true
 set_gateway_flag ENABLE_PRODUCTION_SIMULATOR false
 sudo chown root:www-data "$GATEWAY_ENV"
 sudo chmod 640 "$GATEWAY_ENV"
 
-printf '2/3 Frappe — flags FAQ v3 + upload de mídia\n'
-sudo -u frappe bash -lc "cd '$BENCH_DIR' && bench --site '$SITE' execute univesp_atendimento.homolog_seed.enable_homolog_faq_v3_flags"
+printf '2/4 Frappe — migrate (DocTypes access-groups / permission profiles)\n'
+sudo -u frappe bash -lc "cd '$BENCH_DIR' && bench --site '$SITE' migrate"
 
-printf '3/3 Reiniciar serviços\n'
+printf '3/4 Frappe — flags FAQ v3 + seeds de autorização\n'
+sudo -u frappe bash -lc "cd '$BENCH_DIR' && bench --site '$SITE' execute univesp_atendimento.homolog_seed.enable_homolog_faq_v3_flags"
+sudo -u frappe bash -lc "cd '$BENCH_DIR' && bench --site '$SITE' execute univesp_atendimento.homolog_seed.upsert_homolog_knowledge_authorization"
+
+printf '4/4 Reiniciar serviços\n'
 sudo supervisorctl restart sso-gateway 'frappe-bench:*'
 sleep 4
 curl -sf http://127.0.0.1:4000/health >/dev/null
