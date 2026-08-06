@@ -824,3 +824,90 @@ def diagnose_knowledge_bundle(bundle_key: str) -> dict:
 		"change_summary_length": len(summary),
 		"issues": issues,
 	}
+
+
+def diagnose_institutional_file(file_url: str = "", file_name: str = "") -> dict:
+	"""Verifica registro File no Frappe e resposta HTTP local para /files/."""
+	from urllib.parse import unquote, urlparse
+
+	import requests
+
+	raw = str(file_url or file_name or "").strip()
+	if not raw:
+		return {"ok": False, "issues": ["Informe file_url ou file_name."]}
+
+	parsed = urlparse(raw)
+	path = unquote(parsed.path if parsed.scheme in {"http", "https"} else raw)
+	if not path.startswith("/files/"):
+		path = f"/files/{path.lstrip('/')}"
+
+	issues: list[str] = []
+	file_doc = frappe.db.get_value(
+		"File",
+		{"file_url": path},
+		["name", "file_url", "file_name", "is_private", "file_size"],
+		as_dict=True,
+	)
+	if not file_doc:
+		basename = path.rsplit("/", 1)[-1]
+		file_doc = frappe.db.get_value(
+			"File",
+			{"file_name": basename},
+			["name", "file_url", "file_name", "is_private", "file_size"],
+			as_dict=True,
+		)
+		if file_doc and file_doc.file_url != path:
+			issues.append(f"file_url no banco difere: {file_doc.file_url}")
+
+	result = {
+		"ok": False,
+		"path": path,
+		"file_storage": str(frappe.conf.get("file_storage") or "local"),
+		"s3_bucket": str(frappe.conf.get("s3_bucket") or ""),
+		"host_name": str(frappe.conf.get("host_name") or ""),
+		"public_reply_domain": str(frappe.conf.get("public_reply_domain") or ""),
+		"file": file_doc,
+		"frappe_local_status": None,
+		"nginx_local_status": None,
+		"issues": issues,
+	}
+
+	if not file_doc:
+		issues.append("Arquivo não encontrado na tabela File do Frappe.")
+		return result
+
+	if int(file_doc.is_private or 0):
+		issues.append("Arquivo marcado como privado — /files/ público não deve servir.")
+
+	headers = {"Host": "crm.localhost", "X-Frappe-Site-Name": "crm.localhost"}
+	try:
+		frappe_response = requests.head(
+			f"http://127.0.0.1:8000{path}",
+			headers=headers,
+			timeout=15,
+			allow_redirects=True,
+		)
+		result["frappe_local_status"] = frappe_response.status_code
+		if frappe_response.status_code >= 400:
+			issues.append(f"Frappe (:8000) retornou HTTP {frappe_response.status_code}.")
+	except requests.RequestException as exc:
+		issues.append(f"Frappe local inacessível: {exc}")
+
+	domain = str(frappe.conf.get("host_name") or "homolog-crm.univesp.br").strip()
+	try:
+		nginx_response = requests.head(
+			f"https://127.0.0.1{path}",
+			headers={"Host": domain},
+			timeout=15,
+			allow_redirects=True,
+			verify=False,
+		)
+		result["nginx_local_status"] = nginx_response.status_code
+		if nginx_response.status_code >= 400:
+			issues.append(f"Nginx local retornou HTTP {nginx_response.status_code}.")
+	except requests.RequestException as exc:
+		issues.append(f"Nginx local inacessível: {exc}")
+
+	result["ok"] = not issues
+	result["issues"] = issues
+	return result
