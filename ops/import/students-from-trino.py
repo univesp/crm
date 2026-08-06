@@ -13,6 +13,7 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -66,6 +67,28 @@ WHERE p.email IS NOT NULL
 
 def normalize_cpf(value: str) -> str:
 	return re.sub(r"[^0-9]", "", str(value or ""))
+
+
+def mask_email(value: str) -> str:
+	local, _, domain = str(value or "").partition("@")
+	if not local or not domain:
+		return "[email]"
+	return f"{local[:1]}***@{domain}"
+
+
+def validation_summary(rows: list[dict[str, Any]]) -> dict[str, int]:
+	def duplicate_count(values: list[str]) -> int:
+		return len(values) - len(set(values))
+
+	return {
+		"valid_rows": len(rows),
+		"unique_emails": len({row["email"] for row in rows}),
+		"duplicate_email_rows": duplicate_count([row["email"] for row in rows]),
+		"duplicate_ra_rows": duplicate_count([row["ra"] for row in rows if row["ra"]]),
+		"duplicate_cpf_hash_rows": duplicate_count(
+			[hashlib.sha256(row["cpf"].encode("utf-8")).hexdigest() for row in rows]
+		),
+	}
 
 
 def is_valid_email(value: str) -> bool:
@@ -167,7 +190,12 @@ def resolve_frappe_paths() -> tuple[str, str]:
 	)
 
 
-def apply_via_bench(site: str, rows: list[dict[str, Any]], batch_size: int = 50) -> dict[str, Any]:
+def apply_via_bench(
+	site: str,
+	rows: list[dict[str, Any]],
+	batch_id: str,
+	batch_size: int = 50,
+) -> dict[str, Any]:
 	"""Grava via Frappe Python + arquivo temporario (evita limite de argv do bench --kwargs)."""
 	bench_root, python_bin = resolve_frappe_paths()
 	bench_user = os.environ.get("BENCH_USER", "frappe").strip() or "frappe"
@@ -198,7 +226,7 @@ from univesp_atendimento.import_students import upsert_rows
 
 with open({json.dumps(payload_path)}, encoding="utf-8") as handle:
     payload = json.load(handle)
-print(json.dumps(upsert_rows(payload), ensure_ascii=False))
+print(json.dumps(upsert_rows(payload, batch_id={json.dumps(batch_id)}), ensure_ascii=False))
 frappe.db.commit()
 frappe.destroy()
 """
@@ -234,6 +262,7 @@ def main() -> int:
 	parser.add_argument("--dry-run", action="store_true")
 	parser.add_argument("--apply", action="store_true", help="Upsert via bench execute no Frappe")
 	parser.add_argument("--batch-size", type=int, default=50, help="Linhas por lote no bench execute")
+	parser.add_argument("--batch-id", default="", help="Identificador rastreavel exigido no apply")
 	parser.add_argument("--validate-env", action="store_true", help="Valida env sem conectar ao Trino")
 	parser.add_argument("--site", default=os.environ.get("FRAPPE_SITE_NAME", "homolog-crm.univesp.br"))
 	args = parser.parse_args()
@@ -245,18 +274,32 @@ def main() -> int:
 
 	query = build_query(args.polo_ids, args.limit)
 	rows = fetch_rows(query)
-	print(f"Linhas validas: {len(rows)}")
+	print(json.dumps(validation_summary(rows), ensure_ascii=False))
 	if args.dry_run:
 		for row in rows[:5]:
-			masked = {**row, "cpf": f"***{row['cpf'][-4:]}"}
-			print(masked)
+			print(
+				{
+					"email": mask_email(row["email"]),
+					"ra_hash": hashlib.sha256(row["ra"].encode("utf-8")).hexdigest()[:12],
+					"cpf_hash": hashlib.sha256(row["cpf"].encode("utf-8")).hexdigest()[:12],
+					"polo_id": row["polo_id"],
+				}
+			)
 		return 0
 
 	if args.apply:
 		if not rows:
 			print("Nenhuma linha para importar.")
 			return 1
-		result = apply_via_bench(args.site, rows, batch_size=max(1, args.batch_size))
+		if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{2,80}", args.batch_id.strip()):
+			print("--batch-id obrigatorio no apply e deve ser alfanumerico com . _ -.", file=sys.stderr)
+			return 2
+		result = apply_via_bench(
+			args.site,
+			rows,
+			batch_id=args.batch_id.strip(),
+			batch_size=max(1, args.batch_size),
+		)
 		print(json.dumps(result, ensure_ascii=False))
 		return 0
 

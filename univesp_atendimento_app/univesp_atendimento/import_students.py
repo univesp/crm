@@ -1,5 +1,6 @@
 import json
 import hashlib
+import re
 
 import frappe
 from frappe import _
@@ -10,13 +11,16 @@ from univesp_atendimento.univesp_atendimento.doctype.univesp_student_directory.u
 )
 
 
-def upsert_rows(rows=None):
+def upsert_rows(rows=None, batch_id=None):
 	"""Upsert em Univesp Student Directory. Uso via bench execute."""
 	payload = rows
 	if isinstance(payload, str):
 		payload = json.loads(payload)
 	if not isinstance(payload, list):
 		frappe.throw(_("Lista de alunos obrigatoria."), frappe.ValidationError)
+	batch = str(batch_id or "").strip()
+	if batch and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{2,80}", batch):
+		frappe.throw(_("Identificador de lote invalido."), frappe.ValidationError)
 
 	created = updated = skipped = 0
 	now = now_datetime()
@@ -51,9 +55,15 @@ def upsert_rows(rows=None):
 			"source_updated_at": raw.get("source_updated_at"),
 			"last_import_at": now,
 		}
+		if batch:
+			values["import_batch_id"] = batch
 		values["source_hash"] = hashlib.sha256(
 			json.dumps(
-				{key: value for key, value in values.items() if key not in {"last_import_at", "source_hash"}},
+				{
+					key: value
+					for key, value in values.items()
+					if key not in {"last_import_at", "source_hash", "import_batch_id"}
+				},
 				ensure_ascii=False,
 				sort_keys=True,
 				default=str,
@@ -65,7 +75,13 @@ def upsert_rows(rows=None):
 			if existing:
 				doc = frappe.get_doc("Univesp Student Directory", existing)
 				if doc.source_hash == values["source_hash"]:
-					skipped += 1
+					if batch and doc.import_batch_id != batch:
+						doc.import_batch_id = batch
+						doc.last_import_at = now
+						doc.save(ignore_permissions=True)
+						updated += 1
+					else:
+						skipped += 1
 					continue
 				doc.update(values)
 				doc.save(ignore_permissions=True)

@@ -461,7 +461,9 @@ function enrichDemoUser(user) {
   }
 }
 
-const enrichedDemoUsers = computed(() => demoPermissionUsers.map((user) => enrichDemoUser(user)))
+const enrichedDemoUsers = computed(() =>
+  isMockRuntimeEnabled() ? demoPermissionUsers.map((user) => enrichDemoUser(user)) : [],
+)
 const selectedPermissionUser = computed(
   () =>
     filteredPermissionUsers.value.find((user) => user.id === ui.selectedUserId) ||
@@ -789,7 +791,19 @@ function savePermissionChanges() {
       </form>
     </section>
 
-    <template v-if="ui.activeModule === 'profiles'">
+    <section
+      v-if="!isMockRuntimeEnabled() && (ui.activeModule === 'profiles' || ui.activeModule === 'users')"
+      class="grid gap-2 rounded-[8px] border border-amber-200 bg-amber-50 p-4"
+      role="alert"
+    >
+      <h2 class="font-semibold text-amber-950">Matriz demonstrativa bloqueada neste build</h2>
+      <p class="text-sm leading-6 text-amber-900">
+        Este build usa SSO real e não exibe usuários, métricas ou permissões fictícias. Aguarde a
+        API de grupos e perfis retornar 200 para habilitar esta área.
+      </p>
+    </section>
+
+    <template v-if="ui.activeModule === 'profiles' && isMockRuntimeEnabled()">
       <section
         v-if="!ui.profileDetailOpen"
         class="crm-queue-scroll rounded-[8px] border border-slate-200 bg-white"
@@ -1152,7 +1166,7 @@ function savePermissionChanges() {
       </section>
     </template>
 
-    <template v-else-if="ui.activeModule === 'users'">
+    <template v-else-if="ui.activeModule === 'users' && isMockRuntimeEnabled()">
       <section
         v-if="!ui.userDetailOpen"
         class="grid gap-3"

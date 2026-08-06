@@ -700,7 +700,7 @@ def _member_emails(value):
 
 
 def _serialize_permission_profile(value):
-	row = value.as_dict() if hasattr(value, "as_dict") else value
+	row = _as_row_dict(value)
 	return {
 		"id": row.get("name"),
 		"profile_key": row.get("profile_key"),
@@ -716,7 +716,7 @@ def _serialize_permission_profile(value):
 
 
 def _serialize_group(value):
-	row = value.as_dict() if hasattr(value, "as_dict") else value
+	row = _as_row_dict(value)
 	return {
 		"id": row.get("name"),
 		"group_key": row.get("group_key"),
@@ -729,6 +729,12 @@ def _serialize_group(value):
 		"active": bool(row.get("active")),
 		"version": str(row.get("modified") or ""),
 	}
+
+
+def _as_row_dict(value):
+	"""Normaliza Document e frappe._dict sem chamar um as_dict inexistente."""
+	as_dict = getattr(value, "as_dict", None)
+	return as_dict() if callable(as_dict) else value
 
 
 SIMULATION_CAPABILITIES = {
@@ -924,7 +930,7 @@ def _protect_admin_change(context, doc, next_profile, next_active):
 
 
 def _serialize_profile(value):
-	row = value.as_dict() if hasattr(value, "as_dict") else value
+	row = _as_row_dict(value)
 	return {
 		"id": row.get("name"),
 		"email": row.get("user_email"),
@@ -964,7 +970,7 @@ def _profile_snapshot(doc):
 
 
 def _serialize_request(value):
-	row = value.as_dict() if hasattr(value, "as_dict") else value
+	row = _as_row_dict(value)
 	return {
 		"id": row.get("name"),
 		"email": row.get("user_email"),

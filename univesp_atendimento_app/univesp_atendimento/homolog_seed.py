@@ -37,6 +37,7 @@ FAQ_V2_SEEDS = (
 	"faq-op-seed.json",
 	"faq-publico-seed.json",
 )
+HOMOLOG_BUNDLE_HYGIENE_ALLOWLIST = ("teste", "matricula")
 
 HOMOLOG_ACCESS_PROFILES = [
 	{
@@ -846,6 +847,160 @@ def diagnose_knowledge_bundle(bundle_key: str) -> dict:
 	}
 
 
+def publish_homolog_knowledge_bundle(
+	bundle_key: str,
+	publisher_email: str = "bruno.miyasato@univesp.br",
+) -> dict:
+	"""Publica o rascunho ativo de um bundle FAQ v3 em homolog (bench execute)."""
+	import json
+	from types import SimpleNamespace
+
+	from univesp_atendimento.api.v1.knowledge_v3 import (
+		_activate_version,
+		_bundle,
+		_encode_payload,
+		_set_bundle_pointer,
+		_validate_publishable_payload,
+	)
+	from univesp_atendimento.file_urls import normalize_payload_media_urls
+
+	diagnosis = diagnose_knowledge_bundle(bundle_key)
+	if not diagnosis.get("ok"):
+		return {"ok": False, "stage": "diagnose", "diagnosis": diagnosis}
+
+	bundle = _bundle(bundle_key)
+	version = frappe.get_doc("Univesp Knowledge Version", bundle.draft_version)
+	lifecycle_state = str(version.lifecycle_state or "").strip()
+	if lifecycle_state != "draft":
+		return {
+			"ok": False,
+			"stage": "lifecycle",
+			"issues": [f"Estado atual: {lifecycle_state} — esperado draft."],
+		}
+
+	payload = json.loads(version.payload_json or "{}")
+	normalize_payload_media_urls(payload)
+	_validate_publishable_payload(payload, bundle)
+	version.payload_json = _encode_payload(payload)
+	publisher = str(publisher_email or "bruno.miyasato@univesp.br").strip()
+	now = now_datetime()
+	version.publisher_email = publisher
+	version.approver_email = version.approver_email or publisher
+	version.approved_at = version.approved_at or now
+	version.published_at = now
+
+	context = SimpleNamespace(
+		email=publisher,
+		profile_key="admin_central",
+		request_id=f"homolog-publish:{bundle_key}",
+	)
+	_activate_version(bundle, version, context, approval_mode="admin_direct")
+	_set_bundle_pointer(bundle.name, "draft_version", "")
+	frappe.db.commit()
+
+	validation = validate_homolog_knowledge_publish(bundle_key)
+	bundle.reload()
+	version.reload()
+	return {
+		"ok": bool(validation.get("ok")),
+		"bundle_key": bundle_key,
+		"version_id": version.version_id,
+		"lifecycle_state": version.lifecycle_state,
+		"published_version": bundle.published_version,
+		"audience_profile": bundle.audience_profile,
+		"validation": validation,
+	}
+
+
+def validate_homolog_knowledge_publish(bundle_key: str) -> dict:
+	"""Confirma bundle publicado no runtime v3 e mídia acessível via nginx."""
+	import json
+	from urllib.parse import urlparse
+
+	import requests
+
+	from univesp_atendimento.api.v1.knowledge_runtime import _published_v3_entries
+
+	key = str(bundle_key or "").strip()
+	issues: list[str] = []
+	result: dict = {"ok": False, "bundle_key": key, "personas": {}, "media": [], "issues": issues}
+
+	if not key or not frappe.db.exists("Univesp Knowledge Bundle", key):
+		issues.append("Bundle não encontrado.")
+		return result
+
+	bundle = frappe.get_doc("Univesp Knowledge Bundle", key)
+	if not bundle.published_version:
+		issues.append("Bundle sem published_version.")
+		return result
+
+	version = frappe.get_doc("Univesp Knowledge Version", bundle.published_version)
+	if str(version.lifecycle_state or "").strip() != "published":
+		issues.append(f"Versão publicada em estado inválido: {version.lifecycle_state}.")
+
+	profile = str(bundle.audience_profile or "").strip()
+	for persona in ("student", "public"):
+		expected = persona == "public" and profile in {"public", "mixed"}
+		expected = expected or (persona == "student" and profile in {"student", "mixed"})
+		try:
+			entries = _published_v3_entries(persona)
+			match = next((entry for entry in entries if entry.get("bundle_id") == key), None)
+			result["personas"][persona] = {
+				"expected": expected,
+				"listed": bool(match),
+				"title": (match or {}).get("title", ""),
+			}
+			if expected and not match:
+				issues.append(f"Bundle ausente no runtime v3 ({persona}).")
+		except Exception as exc:  # pragma: no cover - diagnóstico operacional
+			issues.append(f"Runtime {persona}: {type(exc).__name__}: {exc}")
+			result["personas"][persona] = {"expected": expected, "listed": False, "error": str(exc)}
+
+	payload = json.loads(version.payload_json or "{}")
+	domain = str(frappe.conf.get("host_name") or "homolog-crm.univesp.br").strip()
+	media_urls: list[str] = []
+	for node in payload.get("nodes") or []:
+		if not isinstance(node, dict):
+			continue
+		content = node.get("content") or {}
+		for layer in ("student", "public"):
+			layer_content = content.get(layer)
+			if not isinstance(layer_content, dict):
+				continue
+			for block in layer_content.get("blocks") or []:
+				if not isinstance(block, dict):
+					continue
+				url = str(block.get("url") or "").strip()
+				if url and url not in media_urls:
+					media_urls.append(url)
+
+	for url in media_urls:
+		parsed = urlparse(url)
+		path = parsed.path if parsed.scheme in {"http", "https"} else url
+		if not path.startswith("/"):
+			path = f"/{path}"
+		check_url = f"https://127.0.0.1{path}"
+		try:
+			response = requests.head(
+				check_url,
+				headers={"Host": domain},
+				timeout=15,
+				allow_redirects=True,
+				verify=False,
+			)
+			status = response.status_code
+			media_ok = 200 <= status < 300
+			result["media"].append({"url": url, "status": status, "ok": media_ok})
+			if not media_ok:
+				issues.append(f"Mídia HTTP {status}: {url[:120]}")
+		except requests.RequestException as exc:
+			result["media"].append({"url": url, "ok": False, "error": str(exc)})
+			issues.append(f"Mídia inacessível: {url[:120]} ({exc})")
+
+	result["ok"] = not issues
+	return result
+
+
 def diagnose_institutional_file(file_url: str = "", file_name: str = "") -> dict:
 	"""Verifica registro File no Frappe e resposta HTTP local para /files/."""
 	from urllib.parse import unquote, urlparse
@@ -929,6 +1084,12 @@ def diagnose_institutional_file(file_url: str = "", file_name: str = "") -> dict
 		result["frappe_local_status"] = frappe_response.status_code
 		if frappe_response.status_code >= 400:
 			issues.append(f"Frappe (:8000) retornou HTTP {frappe_response.status_code}.")
+			if result.get("local_exists") and frappe_response.status_code == 404:
+				issues.append(
+					"Esperado com gunicorn: frappe.app:application não serve /files/ "
+					"(StaticDataMiddleware só no bench serve). Nginx homolog deve usar alias "
+					"para sites/crm.localhost/public/files/."
+				)
 	except requests.RequestException as exc:
 		issues.append(f"Frappe local inacessível: {exc}")
 
@@ -944,11 +1105,25 @@ def diagnose_institutional_file(file_url: str = "", file_name: str = "") -> dict
 		result["nginx_local_status"] = nginx_response.status_code
 		if nginx_response.status_code >= 400:
 			issues.append(f"Nginx local retornou HTTP {nginx_response.status_code}.")
+			if result.get("local_exists") and nginx_response.status_code == 404:
+				issues.append(
+					"Nginx ainda proxyando /files/ para Frappe? Recarregue ops/vm/nginx/homolog-crm.univesp.br.conf "
+					"(alias para public/files)."
+				)
 	except requests.RequestException as exc:
 		issues.append(f"Nginx local inacessível: {exc}")
 
-	result["ok"] = not issues
 	result["issues"] = issues
+	http_ok = result.get("nginx_local_status") and 200 <= int(result["nginx_local_status"]) < 300
+	result["ok"] = bool(http_ok) and not any(
+		issue
+		for issue in issues
+		if issue.startswith("Arquivo não encontrado")
+		or issue.startswith("Arquivo marcado como privado")
+		or issue.startswith("Arquivo ausente")
+		or issue.startswith("Storage indisponível")
+		or (issue.startswith("Nginx local retornou HTTP") and not http_ok)
+	)
 	return result
 
 
@@ -972,7 +1147,7 @@ def repair_institutional_file(file_url: str = "", file_name: str = "") -> dict:
 	if not content:
 		return {"ok": False, "issues": ["Arquivo local vazio."], "diagnosis": diagnosis}
 
-	file_doc.save_file(content, decode=False)
+	file_doc.save_file(content, decode=False, ignore_existing_file_check=True, overwrite=True)
 	frappe.db.commit()
 	after = diagnose_institutional_file(file_url=file_doc.file_url)
 	return {
@@ -1015,3 +1190,126 @@ def diagnose_access_groups_api() -> dict:
 		return {"ok": True, "count": count, "sample": sample}
 	except Exception as exc:
 		return {"ok": False, "count": count, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def hygienize_homolog_bundles(
+	bundle_keys: list[str] | tuple[str, ...] | None = None,
+	confirmation: str = "",
+	apply: bool = False,
+) -> dict:
+	"""Inspeciona e remove/arquiva somente bundles órfãos autorizados de homolog."""
+	from univesp_atendimento.api.v1.knowledge_v3 import IMMUTABLE_STATES, _audit
+
+	keys = tuple(
+		str(item or "").strip().lower()
+		for item in (bundle_keys or HOMOLOG_BUNDLE_HYGIENE_ALLOWLIST)
+		if str(item or "").strip()
+	)
+	if not keys or any(key not in HOMOLOG_BUNDLE_HYGIENE_ALLOWLIST for key in keys):
+		raise frappe.ValidationError(
+			"Higiene homolog aceita somente os bundles: "
+			+ ", ".join(HOMOLOG_BUNDLE_HYGIENE_ALLOWLIST)
+		)
+	if confirmation != FAQ_V3_PILOT_CONFIRMATION:
+		raise frappe.ValidationError("Confirmação homolog inválida.")
+
+	before = [_homolog_bundle_hygiene_state(key, IMMUTABLE_STATES) for key in keys]
+	actions = [_homolog_bundle_hygiene_action(item, IMMUTABLE_STATES) for item in before]
+	result = {
+		"ok": True,
+		"apply": bool(apply),
+		"allowlist": list(HOMOLOG_BUNDLE_HYGIENE_ALLOWLIST),
+		"before": before,
+		"actions": actions,
+		"snapshot_path": "",
+		"after": None,
+	}
+	if not apply:
+		return result
+
+	snapshot = {
+		"confirmation": confirmation,
+		"created_at": str(now_datetime()),
+		"bundles": before,
+	}
+	snapshot_path = _write_homolog_bundle_snapshot(snapshot)
+	result["snapshot_path"] = snapshot_path
+	for action in actions:
+		if action["action"] == "archive":
+			bundle = frappe.get_doc("Univesp Knowledge Bundle", action["name"])
+			bundle.status = "archived"
+			bundle.archived_at = now_datetime()
+			bundle.archived_by_email = "homolog-hygiene"
+			bundle.save(ignore_permissions=True)
+			_audit(None, "knowledge_bundle_archived", bundle.name, {"reason": "homolog_bundle_hygiene"})
+		elif action["action"] == "delete_unpublished":
+			bundle = frappe.get_doc("Univesp Knowledge Bundle", action["name"])
+			for version in action["versions"]:
+				doc = frappe.get_doc("Univesp Knowledge Version", version["name"])
+				doc.flags.allow_knowledge_draft_delete = True
+				doc.delete(ignore_permissions=True)
+			bundle.delete(ignore_permissions=True)
+			_audit(
+				None,
+				"knowledge_bundle_deleted",
+				action["name"],
+				{"reason": "homolog_bundle_hygiene", "snapshot_path": snapshot_path},
+			)
+	frappe.db.commit()
+	result["after"] = [_homolog_bundle_hygiene_state(key, IMMUTABLE_STATES) for key in keys]
+	return result
+
+
+def _homolog_bundle_hygiene_state(bundle_key, immutable_states):
+	name = frappe.db.get_value("Univesp Knowledge Bundle", bundle_key, "name")
+	if not name:
+		return {"bundle_key": bundle_key, "exists": False, "versions": []}
+	bundle = frappe.get_doc("Univesp Knowledge Bundle", name)
+	versions = frappe.get_all(
+		"Univesp Knowledge Version",
+		filters={"bundle": bundle.name},
+		fields=["name", "version_id", "lifecycle_state", "revision", "published_at", "creation", "modified"],
+		order_by="creation asc",
+		limit_page_length=0,
+	)
+	return {
+		"bundle_key": bundle.bundle_key,
+		"name": bundle.name,
+		"exists": True,
+		"status": bundle.status,
+		"published_version": bundle.published_version or "",
+		"draft_version": bundle.draft_version or "",
+		"versions": [
+			{
+				"name": row.name,
+				"version_id": row.version_id,
+				"lifecycle_state": row.lifecycle_state,
+				"revision": int(row.revision or 0),
+				"published_at": str(row.published_at or ""),
+				"creation": str(row.creation or ""),
+				"modified": str(row.modified or ""),
+			}
+			for row in versions
+		],
+	}
+
+
+def _homolog_bundle_hygiene_action(state, immutable_states):
+	if not state.get("exists"):
+		return {"bundle_key": state["bundle_key"], "action": "skip_missing", "versions": []}
+	if state.get("status") != "active":
+		return {"bundle_key": state["bundle_key"], "name": state["name"], "action": "skip_inactive", "versions": state["versions"]}
+	if state.get("published_version"):
+		return {"bundle_key": state["bundle_key"], "name": state["name"], "action": "skip_published", "versions": state["versions"]}
+	if any(version["lifecycle_state"] in immutable_states for version in state["versions"]):
+		return {"bundle_key": state["bundle_key"], "name": state["name"], "action": "archive", "versions": state["versions"]}
+	return {"bundle_key": state["bundle_key"], "name": state["name"], "action": "delete_unpublished", "versions": state["versions"]}
+
+
+def _write_homolog_bundle_snapshot(snapshot):
+	backup_root = Path(frappe.get_site_path("private", "backups"))
+	backup_root.mkdir(parents=True, exist_ok=True)
+	filename = f"homolog-bundle-hygiene-{now_datetime().strftime('%Y%m%d-%H%M%S')}.json"
+	path = backup_root / filename
+	path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+	return f"private/backups/{filename}"
