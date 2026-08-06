@@ -102,6 +102,28 @@ def configure_initial_access_admin():
 	return {"email": email, "configured": True, "reason": "first-active-admin"}
 
 
+def ensure_frappe_user(email: str, display_name: str | None = None) -> str:
+	"""Garante registro em User exigido por Links institucionais (ex.: assets FAQ)."""
+	normalized = str(email or "").strip().lower()
+	if not normalized or "@" not in normalized:
+		frappe.throw(_("Email institucional invalido."), frappe.ValidationError)
+	if frappe.db.exists("User", normalized):
+		return normalized
+
+	label = str(display_name or normalized.split("@", 1)[0] or "Usuario").strip() or "Usuario"
+	frappe.get_doc(
+		{
+			"doctype": "User",
+			"email": normalized,
+			"first_name": label[:140],
+			"enabled": 1,
+			"user_type": "System User",
+			"send_welcome_email": 0,
+		}
+	).insert(ignore_permissions=True)
+	return normalized
+
+
 def _required(name):
 	value = str(os.environ.get(name) or "")
 	if not value:

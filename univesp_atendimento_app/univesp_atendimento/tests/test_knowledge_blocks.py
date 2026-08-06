@@ -30,3 +30,19 @@ class TestKnowledgeBlocks(TestCase):
 			),
 			[],
 		)
+
+	def test_accepts_institutional_upload_paths(self):
+		self.assertEqual(
+			validate_blocks(
+				[
+					{
+						"block_id": "a",
+						"type": "image",
+						"url": "/files/faq-diagram.png",
+						"asset_id": "asset-deadbeef",
+						"alt": "Diagrama",
+					}
+				]
+			),
+			[],
+		)

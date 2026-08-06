@@ -3,8 +3,6 @@ import secrets
 
 import frappe
 from frappe import _
-from frappe.utils.file_manager import save_file
-
 from univesp_atendimento.api.v1.common import get_request_context, response
 from univesp_atendimento.cloud_service_auth import (
 	allowed_service_endpoint,
@@ -12,6 +10,7 @@ from univesp_atendimento.cloud_service_auth import (
 	service_headers,
 )
 from univesp_atendimento.knowledge_asset_security import signature_matches
+from univesp_atendimento.provisioning import ensure_frappe_user
 
 
 MIME_TYPES = {
@@ -90,7 +89,8 @@ def upload_asset():
 
 	if _scan_document(filename, mime, content) != "clean":
 		frappe.throw(_("Asset rejeitado pelo antimalware."), frappe.ValidationError)
-	file_doc = save_file(filename, content, "", "", is_private=0)
+	file_doc = _save_standalone_public_file(filename, content)
+	creator = ensure_frappe_user(context.email, context.name)
 	key = f"asset-{secrets.token_hex(8)}"
 	doc = frappe.get_doc(
 		{
@@ -104,13 +104,36 @@ def upload_asset():
 			"caption": caption,
 			"transcript": transcript,
 			"status": "active",
-			"created_by": context.email,
+			"created_by": creator,
 		}
 	).insert(ignore_permissions=True)
+	file_doc.db_set(
+		{"attached_to_doctype": doc.doctype, "attached_to_name": doc.name},
+		update_modified=False,
+	)
+	file_url = str(file_doc.file_url or "").strip()
+	if file_url.startswith("/"):
+		from frappe.utils import get_url
+
+		file_url = get_url(file_url)
 	return response(
-		{"asset_id": doc.asset_key, "type": asset_type, "url": file_doc.file_url, "alt": alt},
+		{"asset_id": doc.asset_key, "type": asset_type, "url": file_url, "alt": alt},
 		request_id=context.request_id,
 	)
+
+
+def _save_standalone_public_file(filename: str, content: bytes):
+	"""Grava mídia editorial sem attached_to vazio (evita Link validation quebrada)."""
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"is_private": 0,
+			"content": content,
+		}
+	)
+	file_doc.save(ignore_permissions=True)
+	return file_doc
 
 
 def _convert_gif(filename, content):

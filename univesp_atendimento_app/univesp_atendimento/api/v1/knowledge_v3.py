@@ -899,6 +899,14 @@ def _activate_version(bundle, version, context, approval_mode="approved_path"):
 		current.lifecycle_state = "superseded"
 		current.superseded_at = now_datetime()
 		_save_transition(current)
+	if version.lifecycle_state == "draft":
+		if approval_mode != "admin_direct":
+			raise KnowledgeV3ValidationError(
+				_("Somente rascunho aprovado pode ser publicado pelo fluxo padrão.")
+			)
+		version.lifecycle_state = "approved"
+		version.approved_at = version.approved_at or now_datetime()
+		_save_transition(version)
 	version.lifecycle_state = "published"
 	version.published_at = version.published_at or now_datetime()
 	_save_transition(version)

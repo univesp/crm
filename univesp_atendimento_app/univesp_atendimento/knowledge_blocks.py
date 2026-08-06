@@ -2,6 +2,22 @@ from urllib.parse import urlparse
 
 ALLOWED_BLOCK_TYPES = {"text", "image", "link", "video", "notice", "button", "file", "animation"}
 ALLOWED_BUTTON_ACTIONS = {"open_ticket", "go_login"}
+INSTITUTIONAL_MEDIA_TYPES = {"image", "video", "file", "animation"}
+
+
+def _allowed_block_url(url: str, block: dict) -> bool:
+	parsed = urlparse(url)
+	if parsed.scheme in {"https", "mailto"}:
+		return True
+	if parsed.scheme or not url.startswith("/"):
+		return False
+	# Mídia institucional enviada pelo CRM pode usar /files/ relativo.
+	if url.startswith("/files/") and (
+		str(block.get("asset_id") or "").strip()
+		or str(block.get("type") or "").strip() in INSTITUTIONAL_MEDIA_TYPES
+	):
+		return True
+	return False
 
 
 def validate_blocks(blocks):
@@ -16,7 +32,7 @@ def validate_blocks(blocks):
 		if block_type not in ALLOWED_BLOCK_TYPES:
 			errors.append(f"Tipo de bloco não permitido: {block_type}.")
 		url = str(block.get("url") or "").strip()
-		if url and urlparse(url).scheme not in {"https", "mailto"}:
+		if url and not _allowed_block_url(url, block):
 			errors.append("Links devem usar HTTPS ou mailto.")
 		if block_type in {"image", "animation"} and not str(block.get("alt") or "").strip():
 			errors.append("Imagem ou animação exige texto alternativo.")

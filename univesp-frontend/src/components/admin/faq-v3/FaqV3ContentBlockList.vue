@@ -202,6 +202,15 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocument
 
         <template v-else>
           <p v-if="BLOCK_TYPE_HINTS[block.type]" class="faq-block-hint">{{ BLOCK_TYPE_HINTS[block.type] }}</p>
+          <label v-if="['image', 'animation'].includes(block.type)" class="crm-field-label">
+            Texto alternativo
+            <input
+              v-model="block.alt"
+              class="crm-field"
+              :disabled="!canEdit"
+              placeholder="Descreva a imagem antes de enviar o arquivo"
+            />
+          </label>
           <label
             v-if="mediaUploadEnabled && ['image', 'video'].includes(block.type)"
             class="crm-field-label"
@@ -214,10 +223,16 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocument
                   ? 'image/png,image/jpeg,image/webp,image/gif'
                   : 'video/mp4,video/webm'
               "
-              :disabled="!canEdit || assetBusy"
+              :disabled="!canEdit || assetBusy || (block.type === 'image' && !block.alt?.trim())"
               @change="uploadBlockAsset(layer, block, $event)"
             />
           </label>
+          <p
+            v-if="mediaUploadEnabled && block.type === 'image' && !block.alt?.trim()"
+            class="faq-block-hint"
+          >
+            Preencha o texto alternativo antes de enviar a imagem.
+          </p>
           <label class="crm-field-label">
             Endereço HTTPS
             <input v-model="block.url" type="url" class="crm-field" :disabled="!canEdit" />
@@ -234,10 +249,6 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocument
               @change="setLinkOrFileType(block, $event.target.checked)"
             />
             Documento institucional (PDF ou arquivo oficial)
-          </label>
-          <label v-if="['image', 'animation'].includes(block.type)" class="crm-field-label">
-            Texto alternativo
-            <input v-model="block.alt" class="crm-field" :disabled="!canEdit" />
           </label>
           <label v-if="block.type === 'video'" class="crm-field-label">
             URL da legenda

@@ -15,6 +15,7 @@ from frappe.utils import now_datetime
 from univesp_atendimento.access_control import actions_for_profile
 from univesp_atendimento.import_students import upsert_rows
 from univesp_atendimento.knowledge_graph import assert_valid_knowledge_graph
+from univesp_atendimento.provisioning import ensure_frappe_user
 
 
 FAQ_V3_PILOT_CONFIRMATION = "homolog-faq-v3"
@@ -132,6 +133,17 @@ HOMOLOG_STUDENT_DIRECTORY = [
 ]
 
 
+def sync_homolog_frappe_users() -> dict:
+	created: list[str] = []
+	for row in HOMOLOG_ACCESS_PROFILES:
+		email = str(row["user_email"]).strip().lower()
+		if frappe.db.exists("User", email):
+			continue
+		ensure_frappe_user(email, row.get("display_name"))
+		created.append(email)
+	return {"created": created}
+
+
 def upsert_homolog_access_profiles() -> dict:
 	created: list[str] = []
 	updated: list[str] = []
@@ -159,6 +171,7 @@ def upsert_homolog_access_profiles() -> dict:
 		else:
 			frappe.get_doc(payload).insert(ignore_permissions=True)
 			created.append(row["user_email"])
+		ensure_frappe_user(row["user_email"], row.get("display_name"))
 	return {"created": created, "updated": updated}
 
 
