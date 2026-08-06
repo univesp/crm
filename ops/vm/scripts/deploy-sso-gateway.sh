@@ -22,6 +22,7 @@ fi
 required=(
   SESSION_SECRET JWT_SECRET APP_BASE_URL GATEWAY_REDIS_URL
   FRAPPE_API_KEY FRAPPE_API_SECRET UNIVESP_BFF_SHARED_SECRET
+  UNIVESP_EDGE_SHARED_SECRET
   AZURE_REDIRECT_URI AZURE_ADMIN_CLIENT_ID AZURE_ADMIN_TENANT_ID
   AZURE_ADMIN_CLIENT_SECRET AZURE_ACADEMICO_CLIENT_ID
   AZURE_ACADEMICO_TENANT_ID AZURE_ACADEMICO_CLIENT_SECRET
@@ -44,6 +45,8 @@ if [[ -d "$TARGET_GATEWAY/node_modules" ]]; then
 	chown -R www-data:www-data "$TARGET_GATEWAY/node_modules"
 fi
 cd "$TARGET_GATEWAY"
+sudo chown root:www-data "$TARGET_GATEWAY/.env"
+sudo chmod 640 "$TARGET_GATEWAY/.env"
 sudo -u www-data npm ci --omit=dev
 sudo -u www-data node --check src/index.js
 supervisorctl restart sso-gateway

@@ -28,7 +28,8 @@ gcloud secrets list --project=univesp-201808 --filter="name:crm-"
 | Secret Manager | Formato | Infra relacionada | Montar / usar em |
 |----------------|---------|-------------------|------------------|
 | `crm-homolog-trino-crm-import` | JSON: `user`, `password`, `host`, `port`, `catalog` | Trino RO conta `crm-import` | `ops/import/.env.trino` na VM |
-| `crm-homolog-gcs-sa-key` | JSON Service Account | Bucket **`crm-univesp-uploads`** | `/run/secrets/gcs-sa-homolog.json` + `site_config` homolog |
+| `crm-homolog-gcs-sa-key` | JSON Service Account | Bucket **`crm-univesp-uploads`** | `/run/secrets/gcs-sa-homolog.json` (opcional; HMAC e suficiente p/ Frappe S3) |
+| `crm-homolog-gcs-hmac` | JSON: `accessId`, `secret`, `endpoint`, `bucket` | HMAC GCS homolog | `site_config` homolog — `s3_key` / `s3_secret` |
 | `crm-prod-gcs-sa-key` | JSON Service Account | Bucket **`univesp-crm-attachments-prod`** | `/run/secrets/gcs-sa-prod.json` + `site_config` prod |
 | `crm-prod-redis-password` | texto (senha) | Redis `10.142.0.116:6379` | `bench set-config redis_*` site prod |
 | `crm-prod-db-password` | texto (senha) | Cloud SQL root @ `10.54.1.3` | `mysql -u root` admin one-time |
@@ -63,7 +64,49 @@ PY
 
 Catálogo Trino: usar **`"postgresql-sei"`** (com aspas na query SQL).
 
-### GCS homolog
+### GCS homolog (HMAC — canônico)
+
+Secret **`crm-homolog-gcs-hmac`** (TI 2026-08-06). Campos:
+
+| Campo JSON | `site_config` Frappe |
+|------------|----------------------|
+| `accessId` | `s3_key` |
+| `secret` | `s3_secret` |
+| `endpoint` | `s3_endpoint_url` |
+| `bucket` | `s3_bucket` |
+
+```bash
+# Na VM — aplicar no site crm.localhost (nao imprimir secret)
+# Se (.venv-trino) estiver ativo e quebrado: deactivate  OU  use /usr/bin/python3 abaixo
+eval "$(/usr/bin/python3 <<'PY'
+import json, shlex, subprocess
+raw = subprocess.check_output([
+    "gcloud", "secrets", "versions", "access", "latest",
+    "--secret=crm-homolog-gcs-hmac", "--project=univesp-201808",
+])
+d = json.loads(raw)
+print(f"export S3_KEY={shlex.quote(d['accessId'])}")
+print(f"export S3_SECRET={shlex.quote(d['secret'])}")
+print(f"export S3_BUCKET={shlex.quote(d.get('bucket', 'crm-univesp-uploads'))}")
+print(f"export S3_ENDPOINT={shlex.quote(d.get('endpoint', 'https://storage.googleapis.com'))}")
+PY
+)"
+
+cd /var/crm/frappe-bench
+sudo -u frappe bench --site crm.localhost set-config file_storage s3
+sudo -u frappe bench --site crm.localhost set-config s3_bucket "$S3_BUCKET"
+sudo -u frappe bench --site crm.localhost set-config s3_key "$S3_KEY"
+sudo -u frappe bench --site crm.localhost set-config s3_secret "$S3_SECRET"
+sudo -u frappe bench --site crm.localhost set-config s3_endpoint_url "$S3_ENDPOINT"
+sudo -u frappe bench --site crm.localhost set-config s3_signature_version s3v4
+
+cd /var/crm/repository
+bash ops/vm/scripts/validate-gcs-site-config.sh crm.localhost
+```
+
+Teste funcional: upload de anexo ou mídia na FAQ (Admin). Arquivo deve ir ao bucket, nao ao disco local.
+
+### GCS homolog (SA JSON — opcional)
 
 ```bash
 gcloud secrets versions access latest \
@@ -72,18 +115,22 @@ gcloud secrets versions access latest \
 sudo chmod 600 /run/secrets/gcs-sa-homolog.json
 ```
 
-`site_config` (site homolog `crm.localhost`):
+Para Frappe S3-compat, o par HMAC (`crm-homolog-gcs-hmac`) e suficiente. A SA JSON serve para outros usos (API GCP direta).
+
+`site_config` minimo:
 
 ```json
 {
   "file_storage": "s3",
   "s3_bucket": "crm-univesp-uploads",
+  "s3_key": "<accessId do cofre>",
+  "s3_secret": "<secret do cofre>",
   "s3_endpoint_url": "https://storage.googleapis.com",
   "s3_signature_version": "s3v4"
 }
 ```
 
-Chaves HMAC ou credenciais derivadas do JSON da SA — ver `docs/ops/gcs-frappe-site-config.example.md`.
+Ver `docs/ops/gcs-frappe-site-config.example.md`.
 
 ### GCS prod
 
@@ -143,7 +190,8 @@ Se faltar algum, conferir `ops/vm/HANDOFF_TI.md` e `sso-gateway/.env.example` �
 
 ```text
 [ ] crm-homolog-trino-crm-import → ops/import/.env.trino
-[ ] crm-homolog-gcs-sa-key → /run/secrets/gcs-sa-homolog.json + site homolog
+[ ] crm-homolog-gcs-hmac → site_config homolog (s3_key, s3_secret, bucket) — **OK VM 2026-08-06**
+[ ] crm-homolog-gcs-sa-key → /run/secrets/gcs-sa-homolog.json (opcional)
 [ ] crm-prod-gcs-sa-key → /run/secrets/gcs-sa-prod.json + site prod (quando existir)
 [ ] crm-prod-redis-password → site prod redis_*
 [ ] crm-prod-db-frappe-password → site prod db

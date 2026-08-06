@@ -177,7 +177,30 @@ Browser: **Ctrl+Shift+R** ou aba anônima.
 
 ---
 
-## Import Trino (SEI) — opcional
+## Ativar features homolog (FAQ, upload, access-groups)
+
+Após GCS/gateway OK, se FAQ mostrar **"Perfis personalizados indisponíveis"** ou upload de mídia falhar:
+
+```bash
+cd /var/crm/repository
+git fetch origin fix/bootstrap-homolog-unblock
+git checkout -B fix/bootstrap-homolog-unblock FETCH_HEAD
+git reset --hard origin/fix/bootstrap-homolog-unblock
+
+sudo bash ops/vm/scripts/enable-homolog-features.sh
+```
+
+Validação rápida:
+
+```bash
+curl -sf http://127.0.0.1:4000/api/public/v1/runtime/flags | head -c 200; echo
+curl -sS -w "\nHTTP %{http_code}\n" -H "Cookie: crm_session=SESSAO" \
+  http://127.0.0.1:4000/api/app/v1/knowledge/v3/bundles | tail -3
+```
+
+Diagnóstico 502: `bash ops/vm/scripts/diagnose-api-502.sh`
+
+---
 
 Pré-requisitos: `ops/import/.env.trino` (Secret Manager), venv Python:
 

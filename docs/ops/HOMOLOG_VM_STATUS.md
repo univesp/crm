@@ -17,7 +17,8 @@
 | SSO Gateway | `:4000` OK |
 | Nginx | Upstreams em `/etc/nginx/conf.d/crm-upstreams.conf` (TI) — **único** arquivo |
 | Import SEI piloto | ~273 alunos em `Univesp Student Directory` |
-| GCS / FAQ mídia | **Bloqueado** — aguarda par HMAC TI |
+| GCS / FAQ mídia | HMAC OK — falta `enable-homolog-features.sh` (flags v3 + upload) |
+| Gateway flags | **`ENABLE_CUSTOM_PERMISSION_PROFILES=true`** ausente → FAQ erro "Perfis personalizados" |
 | Prod Cloud SQL/Redis | Provisionado, **não ligado** à app |
 
 ---
@@ -38,7 +39,7 @@ Fluxo: **local → commit → push → VM `git reset --hard` → scripts deploy*
 
 - VM `crm-vm` resize `e2-standard-16`, IAP SSH
 - Trino RO: secret `crm-homolog-trino-crm-import`
-- GCS homolog: bucket `crm-univesp-uploads`, secret `crm-homolog-gcs-sa-key`
+- GCS homolog: bucket `crm-univesp-uploads`, HMAC `crm-homolog-gcs-hmac`, SA `crm-homolog-gcs-sa-key`
 - Prod: Cloud SQL `10.54.1.3`, Redis `10.142.0.116`, GCS `univesp-crm-attachments-prod`
 - Snapshot rollback: `crm-vm-pre-prod-20260805`
 
@@ -54,6 +55,7 @@ Detalhe cofre: `docs/ops/COFRE_SECRETS_CRM.md`
 4. Correção branch VM (simulator → `fix/bootstrap-homolog-unblock`)
 5. Deploy frontend/backend/gateway; nginx upstream duplicado resolvido
 6. Runbooks: `DEPLOY_VM_HOMOLOG`, `COFRE_SECRETS`, `CUTOVER_PROD`, `RETORNO_TI`
+7. GCS homolog: `crm-homolog-gcs-hmac` → `site_config` (`file_storage=s3`, bucket `crm-univesp-uploads`)
 
 ---
 
@@ -61,8 +63,8 @@ Detalhe cofre: `docs/ops/COFRE_SECRETS_CRM.md`
 
 | # | Item | Responsável |
 |---|------|-------------|
-| 1 | Par HMAC GCS (`storage.hmacKeys.create`) | TI |
-| 2 | Import SEI alunos **AT** (filtro situação) | Equipe CRM |
+| 1 | `git pull` + `sudo bash ops/vm/scripts/enable-homolog-features.sh` | Equipe CRM |
+| 2 | Teste FAQ (listar fluxos, salvar rascunho, upload imagem) | Equipe CRM |
 | 3 | Import OPs (`staff-from-trino.py` — branch/PR) | Equipe CRM |
 | 4 | Cutover prod MySQL + site `crm.univesp.br` | Equipe CRM |
 | 5 | Push commits pendentes + VM `git pull` | Equipe CRM |
@@ -84,6 +86,9 @@ Detalhe cofre: `docs/ops/COFRE_SECRETS_CRM.md`
 ## Comandos smoke rápidos
 
 ```bash
+# Ativar FAQ v3 + upload + access-groups (após git pull)
+sudo bash /var/crm/repository/ops/vm/scripts/enable-homolog-features.sh
+
 curl -sf http://127.0.0.1:4000/health
 curl -s --resolve homolog-crm.univesp.br:443:127.0.0.1 \
   https://homolog-crm.univesp.br/index.html | grep -o 'index-[^"]*\.js'
