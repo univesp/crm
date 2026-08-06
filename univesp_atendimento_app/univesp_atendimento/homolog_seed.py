@@ -997,76 +997,13 @@ def add_homolog_knowledge_approver(email: str, group_key: str = "faq-acesso-ava-
 
 
 def diagnose_access_groups_api() -> dict:
-	"""Simula admin.list_access_groups para isolar falhas do gateway."""
-	from univesp_atendimento.api.v1 import admin as admin_api
+	"""Valida leitura/serialização de grupos (isolando falha do gateway)."""
+	from univesp_atendimento.api.v1.admin import _serialize_group
 
+	count = frappe.db.count("Univesp Access Group")
+	rows = frappe.get_all("Univesp Access Group", fields=["name"], limit=1)
 	try:
-		result = admin_api.list_access_groups()
-		rows = result.get("data") if isinstance(result, dict) else result
-		return {"ok": True, "count": len(rows or []), "sample": (rows or [])[:3]}
+		sample = _serialize_group(frappe.get_doc("Univesp Access Group", rows[0].name)) if rows else None
+		return {"ok": True, "count": count, "sample": sample}
 	except Exception as exc:
-		return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-
-
-def repair_institutional_file(file_url: str = "", file_name: str = "") -> dict:
-	"""Reenvia ao GCS um arquivo presente no disco local mas ausente no bucket."""
-	diagnosis = diagnose_institutional_file(file_url=file_url, file_name=file_name)
-	if not diagnosis.get("file"):
-		return diagnosis
-	if not diagnosis.get("local_exists"):
-		return {
-			"ok": False,
-			"issues": [
-				"Arquivo não está no disco local. Remova a mídia do bloco e faça upload novamente.",
-			],
-			"diagnosis": diagnosis,
-		}
-
-	file_doc = frappe.get_doc("File", diagnosis["file"]["name"])
-	with open(file_doc.get_full_path(), "rb") as handle:
-		content = handle.read()
-	if not content:
-		return {"ok": False, "issues": ["Arquivo local vazio."], "diagnosis": diagnosis}
-
-	file_doc.save_file(content, file_doc.file_name, decode=False)
-	frappe.db.commit()
-	after = diagnose_institutional_file(file_url=file_doc.file_url)
-	return {
-		"ok": after.get("ok"),
-		"before": diagnosis,
-		"after": after,
-		"issues": after.get("issues") or [],
-	}
-
-
-def add_homolog_knowledge_approver(email: str, group_key: str = "faq-acesso-ava-aprovadores") -> dict:
-	"""Inclui e-mail no grupo aprovador de um tema FAQ (homolog)."""
-	address = str(email or "").strip().lower()
-	if not address or "@" not in address:
-		raise frappe.ValidationError("Informe um e-mail válido.")
-	if not frappe.db.exists("Univesp Access Group", group_key):
-		raise frappe.ValidationError(f"Grupo não encontrado: {group_key}")
-	group = frappe.get_doc("Univesp Access Group", group_key)
-	members = [
-		str(item).strip().lower()
-		for item in frappe.parse_json(group.members_json or "[]")
-		if str(item).strip()
-	]
-	if address not in members:
-		members.append(address)
-	group.members_json = json.dumps(members)
-	group.save(ignore_permissions=True)
-	frappe.db.commit()
-	return {"group_key": group_key, "members": members}
-
-
-def diagnose_access_groups_api() -> dict:
-	"""Simula admin.list_access_groups para isolar falhas do gateway."""
-	from univesp_atendimento.api.v1 import admin as admin_api
-
-	try:
-		result = admin_api.list_access_groups()
-		rows = result.get("data") if isinstance(result, dict) else result
-		return {"ok": True, "count": len(rows or []), "sample": (rows or [])[:3]}
-	except Exception as exc:
-		return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+		return {"ok": False, "count": count, "error": f"{type(exc).__name__}: {exc}"}
