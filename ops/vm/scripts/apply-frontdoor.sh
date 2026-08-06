@@ -48,14 +48,13 @@ install -m 0644 \
 	"${REPO_ROOT}/ops/vm/nginx/${NGINX_SITE_NAME}" \
 	"${NGINX_AVAILABLE}/${NGINX_SITE_NAME}"
 
-if [[ -f "${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf" ]] \
-	&& [[ ! -f /etc/nginx/conf.d/crm-upstreams.conf ]]; then
+if [[ -f /etc/nginx/conf.d/crm-upstreams.conf ]]; then
+	log "Upstreams TI (crm-upstreams.conf) — site referencia este arquivo"
+elif [[ -f "${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf" ]]; then
 	install -m 0644 \
 		"${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf" \
 		"/etc/nginx/conf.d/univesp-upstreams.conf"
 	log "Upstreams instalados em /etc/nginx/conf.d/univesp-upstreams.conf"
-else
-	log "Upstreams TI (crm-upstreams.conf) preservados — nao duplicar"
 fi
 
 ln -sfn \
