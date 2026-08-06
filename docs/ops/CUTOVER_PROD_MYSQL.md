@@ -2,7 +2,10 @@
 
 **Objetivo:** homolog continua no MariaDB local; site prod já aponta para Cloud SQL MySQL 8.0 + Redis dedicado. Virada = restore de dados + smoke, sem remontar infra.
 
-**Referências:** retorno TI `RETORNO_TI_EQUIPE_CRM.md` (2026-08-06) · chamado `TI_CHAMADO_HOMOLOG_PRODUCAO.md`
+**Referências:**
+
+- Infra + cofre (nomes das entradas): `docs/RETORNO_TI_EQUIPE_CRM.md`
+- **Como montar cada secret na app:** `docs/ops/COFRE_SECRETS_CRM.md`
 
 ---
 
@@ -30,15 +33,12 @@ crm.univesp.br          →  site crm.univesp.br (prod)  [criar]
 | SSH | `gcloud compute ssh bruno.miyasato@crm-vm --project=univesp-201808 --zone=us-east1-b --tunnel-through-iap` |
 | Cloud SQL | `10.54.1.3` — MySQL 8.0 (`crm-prod-db`) |
 | Redis prod | `10.142.0.116:6379` |
-| Secrets | `crm-prod-db-frappe-password`, `crm-prod-redis-password`, `crm-prod-gcs-sa-key`, `crm-homolog-trino-crm-import`, `crm-homolog-gcs-sa-key` |
+| Cofre (Secret Manager) | Ver tabela em `docs/ops/COFRE_SECRETS_CRM.md` |
+| GCS homolog | Bucket **`crm-univesp-uploads`** · secret `crm-homolog-gcs-sa-key` |
+| GCS prod | Bucket **`univesp-crm-attachments-prod`** · secret `crm-prod-gcs-sa-key` |
 | Snapshot rollback | `crm-vm-pre-prod-20260805` |
 
-Ler secret (na VM — `crm-vm-sa` já tem acesso):
-
-```bash
-gcloud secrets versions access latest --secret=crm-prod-db-frappe-password --project=univesp-201808
-gcloud secrets versions access latest --secret=crm-prod-redis-password --project=univesp-201808
-```
+Ler secrets: `docs/ops/COFRE_SECRETS_CRM.md` (comandos `gcloud` + onde montar na VM).
 
 ---
 
@@ -112,7 +112,7 @@ Gateway prod — variável `FRAPPE_SITE_NAME=crm.univesp.br` no server block pro
 
 ## Fase 2 — GCS
 
-Homolog (`crm-univesp-uploads`):
+Homolog (bucket **`crm-univesp-uploads`** — nome confirmado pela TI):
 
 ```bash
 gcloud secrets versions access latest --secret=crm-homolog-gcs-sa-key --project=univesp-201808 \
