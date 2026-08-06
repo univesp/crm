@@ -1,7 +1,7 @@
 # Status homolog VM — handoff operacional
 
 **Atualizado:** 2026-08-06 (noite) — plano faseado de recuperação incorporado
-**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `325f8a66` (publicado e validado na VM)
+**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `74d36a3e` (publicado e validado na VM)
 **Alterações locais pendentes (preservar):** `HOMOLOG_VM_STATUS.md`, nginx `/files/` alias, `homolog_seed.py`, `.tmp-artifacts/`
 **Ambiente:** `https://homolog-crm.univesp.br` na VM `crm-vm` (GCP `univesp-201808`, IAP SSH)  
 **Para agentes:** leia junto com `docs/ops/DEPLOY_VM_HOMOLOG.md`, `docs/RETORNO_TI_EQUIPE_CRM.md`, `docs/ops/COFRE_SECRETS_CRM.md`, `docs/FAQ_V3_INTEGRATED_PILOT.md`
@@ -43,7 +43,7 @@ Prod (`crm.univesp.br`) compartilha a mesma VM/Frappe/MariaDB até cutover Cloud
 | Item | Estado |
 |------|--------|
 | `VITE_ENABLE_MOCKS=false` | Documentado, mas **imports diretos** de `mocks/` persistem — flag sozinha não garante operação real |
-| `.env.production` | Patch local aplicado: `VITE_HOMOLOG_PROFILE_PREVIEW=false` | frontend ainda aguarda deploy separado |
+| `.env.production` | **Publicado** | build real com `VITE_HOMOLOG_PROFILE_PREVIEW=false` |
 | `staff-from-trino.py` | Recuperado seletivamente do commit `0d30be08`; DocType e upsert adicionados localmente |
 | Escopo desta rodada | Planejamento + patches mínimos; sem merge `main`, cutover prod, carga massiva |
 
@@ -80,7 +80,7 @@ Backend: `admin.list_access_groups` → `_serialize_group`.
 
 Inventário por módulo (mock dev | E2E | seed homolog | fallback perigoso | API OK | API ausente). Módulos afetados: FAQ, fila OP, intake, aluno, dashboard, permissões, parâmetros, governança, auth, `studentSupport`, `AdminPermissionsPage.vue`.
 
-Build VM SSO real: `VITE_ENABLE_MOCKS=false`, `VITE_SSO_DEV_BYPASS=false`, `VITE_HOMOLOG_PROFILE_PREVIEW=false`. Preview em trilha separada. Falha de API → estado explícito, **sem** fallback mock silencioso.
+Build VM SSO real: `VITE_ENABLE_MOCKS=false`, `VITE_SSO_DEV_BYPASS=false`, `VITE_HOMOLOG_PROFILE_PREVIEW=false`. Preview em trilha separada. Falha de API → estado explícito, **sem** fallback mock silencioso. Build publicado e painel admin validado sem matriz demonstrativa.
 
 ---
 
@@ -208,9 +208,9 @@ sudo -u frappe bash -lc "cd /var/crm/frappe-bench && bench --site crm.localhost 
 
 VM consultada em modo somente leitura:
 
-- repositório em `983886e6`; gateway `/var/crm/sso-gateway` usa o mesmo `app.js` do repositório por hash;
+- repositório em `74d36a3e`; gateway `/var/crm/sso-gateway` usa o mesmo `app.js` do repositório por hash;
 - gateway ativo em `:4000`, Frappe em `127.0.0.1:8000`, `ENABLE_CUSTOM_PERMISSION_PROFILES=true`;
-- build atualmente servido ainda informa `VITE_ENABLE_MOCKS=false`, `VITE_SSO_DEV_BYPASS=false` e `VITE_HOMOLOG_PROFILE_PREVIEW=true` — o último foi corrigido apenas localmente;
+- build servido após deploy usa `VITE_ENABLE_MOCKS=false`, `VITE_SSO_DEV_BYPASS=false` e `VITE_HOMOLOG_PROFILE_PREVIEW=false`;
 - DocTypes `Univesp Access Group` e `Univesp Permission Profile` existem; os campos usados pela rota também existem;
 - `diagnose_access_groups_api` lê e serializa o grupo diretamente no bench.
 
@@ -220,7 +220,7 @@ Smoke público salvo em `.tmp-artifacts/api-matrix-public-v2.json`:
 |----------|-------|-----------|
 | Público | health, frontend, flags, FAQ pública | `200`; contratos de flags e `acesso-ava-homolog-v1` validados |
 | Sem sessão | access-groups, permission-profiles, assignments, bundles, versões, runtime-settings | `401` |
-| Admin SSO | mesmas rotas | pendente: cookie não fornecido ao script |
+| Admin SSO | mesmas rotas | `200` confirmado no painel autenticado; grupos/perfis reais carregados |
 | Persona sem escopo | access-groups, permission-profiles, assignments | pendente: cookie não fornecido ao script |
 
 Exemplos de request-id registrados: `smoke-f98f7ebfcead4c32855a57f80c014e8b` (flags), `smoke-45532eecb6544a70ac814ecabf226c53` (FAQ pública) e `smoke-f236e88dd2c44fc2b2eaec3b3f1b53e2` (401 access-groups).
@@ -229,14 +229,14 @@ Exemplos de request-id registrados: `smoke-f98f7ebfcead4c32855a57f80c014e8b` (fl
 
 Request direto e assinado ao Frappe retornou `500` com `TypeError: 'NoneType' object is not callable` em `admin.py`, `_serialize_group`, na chamada de `value.as_dict()`. O gateway converte esse `500` interno em `502`. O grupo, JSON e schema estavam válidos; elevar permissão não é solução.
 
-Patch aplicado em `admin.py`: serializers agora aceitam tanto `Document` quanto `frappe._dict` e só chamam `as_dict` quando ele é chamável. O mesmo tratamento foi aplicado aos serializers de perfil, usuário e solicitação. Commit `325f8a66` foi publicado na VM; o diagnóstico interno retornou `ok: true`, a tela `/admin/permissoes` carregou perfis/usuários reais e a aba Conhecimento exibiu o grupo `Aprovadores FAQ — Acesso ao AVA`.
+Patch aplicado em `admin.py`: serializers agora aceitam tanto `Document` quanto `frappe._dict` e só chamam `as_dict` quando ele é chamável. O mesmo tratamento foi aplicado aos serializers de perfil, usuário e solicitação. Commit `325f8a66` foi publicado na VM e o deploy completo posterior em `74d36a3e` manteve a correção; o diagnóstico interno retornou `ok: true`, a tela `/admin/permissoes` carregou perfis/usuários reais e a aba Conhecimento exibiu o grupo `Aprovadores FAQ — Acesso ao AVA`.
 
 ### Fase 2 — mocks e build real
 
-- `.env.production` local agora usa `VITE_HOMOLOG_PROFILE_PREVIEW=false`;
+- `.env.production` publicado usa `VITE_HOMOLOG_PROFILE_PREVIEW=false`;
 - `AdminPermissionsPage.vue` não exibe matriz, métricas ou usuários demonstrativos quando mocks estão desligados; mostra indisponibilidade explícita até as APIs reais responderem;
 - falha de API de usuários/solicitações permanece visível em estado de erro;
-- o inventário de imports diretos em `src/services/*Runtime.js` permanece pendente para uma segunda rodada por módulo, após o `200` de permissões.
+- o inventário de imports diretos em `src/services/*Runtime.js` permanece pendente para uma segunda rodada por módulo; o build real já bloqueia a matriz demonstrativa do Admin.
 
 Inventário inicial de dependências mock/fallback:
 
@@ -249,20 +249,27 @@ Inventário inicial de dependências mock/fallback:
 | `auth.js`, `mockContextRuntime.js`, `canonicalFoundationRuntime.js` | preview/dev | `VITE_HOMOLOG_PROFILE_PREVIEW=false` no build real; preview permanece separado |
 | `AdminPermissionsPage.vue` | mock hardcoded crítico | matriz, usuários e métricas demo bloqueados no build real; erro de API fica explícito |
 
+Auditoria objetiva dos imports diretos em `src/` encontrou dependências de mocks em `IntegrationsPage.vue`, `OverviewPage.vue`, `services/adminDashboardRuntime.js`, `adminFaqBuilderRuntime.js`, `adminParametersRuntime.js`, `adminPermissionsRuntime.js`, `areaGovernanceRuntime.js`, `canonicalFoundationRuntime.js`, `faqBuilderHybridRuntime.js`, `faqRuntime.js`, `mockContextRuntime.js`, `operationalOwnershipReferences.js`, `operatorIntakeRuntime.js`, `operatorQueueRuntime.js`, `studentPortalRuntime.js`, `studentSupportFlow.js`, `stores/journey.js` e `stores/studentSupport.js`.
+
+Classificação operacional: FAQ v3 e `acesso-ava` permanecem como seed/piloto institucional; permissões administrativas estão protegidas no build real; fila OP, intake, aluno, dashboard, parâmetros e governança ainda dependem de APIs/contratos não validados em `200` e não devem ter os mocks removidos nesta rodada. `IntegrationsPage`, `OverviewPage` e `journey` continuam explicitamente demonstrativos, fora da evidência SSO. Remoção ampla foi adiada para evitar transformar telas sem API correspondente em telas quebradas.
+
 ### Fase 2.5 — higiene de bundles
 
-Foi criado `homolog_seed.hygienize_homolog_bundles` com allowlist fixa (`teste`, `matricula`), confirmação `homolog-faq-v3`, `apply=false` por padrão, snapshot privado, retorno antes/depois e decisão segura entre excluir rascunho sem histórico ou arquivar histórico imutável. A VM reportou ambos os alvos como `archived`; nenhuma exclusão foi executada. `acesso-ava` e `bbbbbbbbb` não entram na allowlist.
+Foi publicado `homolog_seed.hygienize_homolog_bundles` com allowlist fixa (`teste`, `matricula`), confirmação `homolog-faq-v3`, `apply=false` por padrão, snapshot privado, retorno antes/depois e decisão segura entre excluir rascunho sem histórico ou arquivar histórico imutável. O dry-run na VM reportou ambos os alvos como `archived` e decidiu `skip_inactive`; nenhuma exclusão foi executada. `acesso-ava` e `bbbbbbbbb` não entram na allowlist.
 
 ### Fase 3 — preparação de dados reais
 
 - alunos: `import_batch_id` adicionado ao diretório; `students-from-trino.py --apply` agora exige `--batch-id` e o dry-run não imprime PII completa;
 - OPs: importador Trino e `Staff Directory` recuperados seletivamente do commit `0d30be08`, sem trazer o commit inteiro;
 - nenhuma consulta Trino com carga nem apply foi executada;
-- migration dos novos campos e carga da coorte continuam bloqueadas até fechar Fase 1 e autorizar publicação na VM.
+- migration dos novos campos foi concluída no deploy; carga da coorte continua pendente e exige dry-run/coorte autorizada.
+- pré-requisitos Trino estavam ausentes no início da sessão; foram montados temporariamente na VM, sem commit e sem exibição de credenciais.
+
+Atualização posterior da Fase 3: o ambiente Trino foi montado na VM sem registrar credenciais no Git. A validação passou; o dry-run aluno com `TRINO_CATALOG=postgresql-sei` retornou 10 linhas válidas, 9 e-mails únicos, 1 duplicidade de e-mail e 1 duplicidade de hash de CPF, com amostras mascaradas. O dry-run OP retornou 10 linhas e 10 e-mails únicos. O segredo atualmente informa `TRINO_CATALOG=univesp-crm-une`, catálogo que contém tabelas de atendimento e não as tabelas acadêmicas; o override foi usado apenas em memória. Nenhum `--apply` foi executado. Antes da carga, corrigir o catálogo no Secret Manager/configuração e definir a coorte autorizada.
 
 ### Rollback e risco residual
 
-O patch backend foi publicado seletivamente, com backup em `/var/crm/backups/homolog-admin.py.20260806-224819`, sem migration ou seed. Frontend, DocTypes/importadores e helper de higiene ainda não foram instalados no bench. A higiene de bundles não deve ser executada com `apply=true` sem primeiro publicar o helper e revisar o dry-run na VM.
+O deploy completo foi protegido por backup em `/var/crm/backups/pre-deploy-20260806T225720Z` e pelo backup do arquivo `/var/crm/backups/homolog-admin.py.20260806-224819`. Backend, DocTypes, importadores, helper de higiene e frontend estão publicados; não houve carga real de alunos/OPs. O build reportou 6 vulnerabilidades npm (3 moderadas, 3 altas) e chunks grandes; o preflight operacional retornou 0 erros e 0 avisos. A migration também registrou avisos legados de hooks `crm.api.event` inexistentes, sem falhar.
 
 ---
 
