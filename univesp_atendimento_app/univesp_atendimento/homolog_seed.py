@@ -789,7 +789,6 @@ def diagnose_knowledge_bundle(bundle_key: str) -> dict:
 
 	from univesp_atendimento.api.v1.knowledge_v3 import (
 		KnowledgeV3ValidationError,
-		_active_draft,
 		_bundle,
 		_validate_publishable_payload,
 	)
@@ -800,7 +799,15 @@ def diagnose_knowledge_bundle(bundle_key: str) -> dict:
 
 	issues: list[str] = []
 	bundle = _bundle(key)
-	version = _active_draft(bundle, "draft")
+	if not bundle.draft_version:
+		return {"ok": False, "bundle_key": key, "issues": ["Bundle sem versão em edição."]}
+	version = frappe.get_doc("Univesp Knowledge Version", bundle.draft_version)
+	lifecycle_state = str(version.lifecycle_state or "").strip()
+	if lifecycle_state == "pending_approval":
+		issues.append(
+			"Versão aguardando aprovação — Admin não publica direto. "
+			"Aprove, ou volte para rascunho antes de publicar."
+		)
 	payload = json.loads(version.payload_json or "{}")
 	try:
 		_validate_publishable_payload(payload, bundle)
@@ -832,6 +839,7 @@ def diagnose_knowledge_bundle(bundle_key: str) -> dict:
 		"ok": not issues,
 		"bundle_key": key,
 		"theme_key": bundle.theme_key,
+		"lifecycle_state": lifecycle_state,
 		"approver_group": governance.approver_group or "",
 		"change_summary_length": len(summary),
 		"issues": issues,
@@ -964,7 +972,7 @@ def repair_institutional_file(file_url: str = "", file_name: str = "") -> dict:
 	if not content:
 		return {"ok": False, "issues": ["Arquivo local vazio."], "diagnosis": diagnosis}
 
-	file_doc.save_file(content, file_doc.file_name, decode=False)
+	file_doc.save_file(content, decode=False)
 	frappe.db.commit()
 	after = diagnose_institutional_file(file_url=file_doc.file_url)
 	return {
