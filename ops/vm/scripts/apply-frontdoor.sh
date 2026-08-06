@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 DOMAIN=${DOMAIN:-homolog-crm.univesp.br}
-REPO_ROOT=${REPO_ROOT:-/var/crm/repo}
+REPO_ROOT=${REPO_ROOT:-/var/crm/repository}
 VUE_APP_DIR=${VUE_APP_DIR:-/var/crm/univesp-frontend}
 NGINX_SITE_NAME=${NGINX_SITE_NAME:-homolog-crm.univesp.br.conf}
 NGINX_AVAILABLE=${NGINX_AVAILABLE:-/etc/nginx/sites-available}
@@ -37,21 +37,26 @@ fi
 require_dir "${VUE_APP_DIR}"
 require_file "${VUE_APP_DIR}/package.json"
 require_file "${REPO_ROOT}/ops/vm/nginx/${NGINX_SITE_NAME}"
-require_file "${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf"
 
 log "Gerando build Vue em ${VUE_APP_DIR}/dist"
-cd "${VUE_APP_DIR}"
-npm ci
-npm run build
+VUE_OWNER="$(stat -c '%U' "${VUE_APP_DIR}")"
+sudo -u "${VUE_OWNER}" bash -lc "cd '${VUE_APP_DIR}' && npm ci && npm run build"
 require_file "${VUE_APP_DIR}/dist/index.html"
 
 log "Aplicando nginx ${DOMAIN}"
 install -m 0644 \
-	"${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf" \
-	"/etc/nginx/conf.d/univesp-upstreams.conf"
-install -m 0644 \
 	"${REPO_ROOT}/ops/vm/nginx/${NGINX_SITE_NAME}" \
 	"${NGINX_AVAILABLE}/${NGINX_SITE_NAME}"
+
+if [[ -f "${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf" ]] \
+	&& [[ ! -f /etc/nginx/conf.d/crm-upstreams.conf ]]; then
+	install -m 0644 \
+		"${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf" \
+		"/etc/nginx/conf.d/univesp-upstreams.conf"
+	log "Upstreams instalados em /etc/nginx/conf.d/univesp-upstreams.conf"
+else
+	log "Upstreams TI (crm-upstreams.conf) preservados — nao duplicar"
+fi
 
 ln -sfn \
 	"${NGINX_AVAILABLE}/${NGINX_SITE_NAME}" \
