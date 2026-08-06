@@ -1,4 +1,7 @@
-# VM interim — homolog-crm.univesp.br
+# VM homolog — homolog-crm.univesp.br
+
+**Runbook deploy:** `docs/ops/DEPLOY_VM_HOMOLOG.md` · **Status:** `docs/ops/HOMOLOG_VM_STATUS.md`  
+Branch deploy: `fix/bootstrap-homolog-unblock`
 
 ## Subir stack (BFF + frontend + Redis)
 

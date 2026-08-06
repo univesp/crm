@@ -47,8 +47,11 @@ Status em **2026-07-23** após wave 3 (PWA, ingress, stubs, TI prep).
 - [x] Script Trino `--dry-run` / `--apply` / `--validate-env` (`ops/import/students-from-trino.py`)
 - [x] Handoff TI: `ops/import/README.md` + `.env.trino.example`
 - [x] Seed homolog sintetico (`homolog_seed.upsert_homolog_student_directory` — 3 alunos HOMOLOG*, sem PII real)
-- [x] `bench migrate` homolog VM (2026-07-23, site `crm.localhost`)
-- [ ] Piloto Trino com credenciais (`TRINO_HOST`/`TRINO_USER`/`TRINO_PASSWORD`)
+- [x] `bench migrate` homolog VM (site `crm.localhost`)
+- [x] Piloto Trino homolog VM (2026-08-06): cofre `crm-homolog-trino-crm-import`, ~273 alunos SEI importados
+- [x] Apply em lotes via `import_students.upsert_rows_from_file` (evita limite argv)
+- [ ] Import SEI completo filtro **AT** (~89k)
+- [ ] Import OPs (`staff-from-trino.py`)
 
 ## Público (Trilha E)
 
@@ -59,13 +62,17 @@ Status em **2026-07-23** após wave 3 (PWA, ingress, stubs, TI prep).
 
 - [x] `docker-compose.vm.yml` + `ops/vm/bootstrap.sh`
 - [x] Deploy VM homolog (`/var/crm`, site `crm.localhost`, migrate OK)
+- [x] Runbook deploy VM: `docs/ops/DEPLOY_VM_HOMOLOG.md` + status `docs/ops/HOMOLOG_VM_STATUS.md`
+- [x] Branch deploy VM: `fix/bootstrap-homolog-unblock` (nao simulator foundation)
 - [x] `ops/vm/scripts/install-atendimento-backend.sh` (rsync + migrate + seeds; git `safe.directory` para telephony)
-- [x] Seeds bench: `univesp_atendimento.homolog_seed.upsert_homolog_access_profiles` / `upsert_homolog_student_directory`
+- [x] Seeds bench: `univesp_atendimento.homolog_seed.upsert_homolog_access_profiles` (`admin_central` exige `areas`)
 - [x] GCS prep: `docs/ops/gcs-frappe-site-config.example.md` + `validate-gcs-site-config.sh` + `gcs_config.py`
+- [x] TI retorno infra + cofre: `docs/RETORNO_TI_EQUIPE_CRM.md`, `docs/ops/COFRE_SECRETS_CRM.md`
 - [x] Cloud Run local readiness: `ops/cloudrun/preflight-local.sh`
-- [ ] `.env.vm` completo (Trino, GCS, IdP, `UNIVESP_INGRESS_SHARED_SECRET`)
-- [ ] Bucket GCS + `site_config` Frappe (TI)
-- [ ] Cloud Run deploy (TI — IAM GCP)
+- [x] `.env.trino` montado na VM (Secret Manager)
+- [ ] Par HMAC GCS homolog (TI) + `site_config` upload
+- [ ] Cutover prod Cloud SQL: `docs/ops/CUTOVER_PROD_MYSQL.md`
+- [ ] Cloud Run deploy (TI — IAM GCP) — pipeline separado da VM
 
 ## Critério de aceite
 

@@ -3,7 +3,7 @@ import hashlib
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, validate_email_address
 
 from univesp_atendimento.univesp_atendimento.doctype.univesp_student_directory.univesp_student_directory import (
 	normalize_cpf,
@@ -33,6 +33,9 @@ def upsert_rows(rows=None):
 		if not email or len(cpf) != 11 or not ra or not polo_id:
 			skipped += 1
 			continue
+		if not validate_email_address(email, throw=False):
+			skipped += 1
+			continue
 
 		values = {
 			"email": email,
@@ -58,16 +61,30 @@ def upsert_rows(rows=None):
 		).hexdigest()
 
 		existing = frappe.db.get_value("Univesp Student Directory", {"email": email}, "name")
-		if existing:
-			doc = frappe.get_doc("Univesp Student Directory", existing)
-			if doc.source_hash == values["source_hash"]:
-				skipped += 1
-				continue
-			doc.update(values)
-			doc.save(ignore_permissions=True)
-			updated += 1
-		else:
-			frappe.get_doc({"doctype": "Univesp Student Directory", **values}).insert(ignore_permissions=True)
-			created += 1
+		try:
+			if existing:
+				doc = frappe.get_doc("Univesp Student Directory", existing)
+				if doc.source_hash == values["source_hash"]:
+					skipped += 1
+					continue
+				doc.update(values)
+				doc.save(ignore_permissions=True)
+				updated += 1
+			else:
+				frappe.get_doc({"doctype": "Univesp Student Directory", **values}).insert(ignore_permissions=True)
+				created += 1
+		except frappe.exceptions.InvalidEmailAddressError:
+			skipped += 1
+			continue
 
 	return {"created": created, "updated": updated, "skipped": skipped, "total": len(payload)}
+
+
+def upsert_rows_from_file(path=None):
+	"""Bench execute — payload grande via arquivo JSON (lista de alunos)."""
+	file_path = str(path or "").strip()
+	if not file_path:
+		frappe.throw(_("Caminho do arquivo obrigatorio."), frappe.ValidationError)
+	with open(file_path, encoding="utf-8") as handle:
+		payload = json.load(handle)
+	return upsert_rows(payload)

@@ -37,6 +37,7 @@ fi
 require_dir "${VUE_APP_DIR}"
 require_file "${VUE_APP_DIR}/package.json"
 require_file "${REPO_ROOT}/ops/vm/nginx/${NGINX_SITE_NAME}"
+require_file "${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf"
 
 log "Gerando build Vue em ${VUE_APP_DIR}/dist"
 cd "${VUE_APP_DIR}"
@@ -45,6 +46,9 @@ npm run build
 require_file "${VUE_APP_DIR}/dist/index.html"
 
 log "Aplicando nginx ${DOMAIN}"
+install -m 0644 \
+	"${REPO_ROOT}/ops/vm/nginx/univesp-upstreams.conf" \
+	"/etc/nginx/conf.d/univesp-upstreams.conf"
 install -m 0644 \
 	"${REPO_ROOT}/ops/vm/nginx/${NGINX_SITE_NAME}" \
 	"${NGINX_AVAILABLE}/${NGINX_SITE_NAME}"

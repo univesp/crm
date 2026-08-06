@@ -2,42 +2,55 @@
 
 Handoff para TI: credenciais, dry-run, apply e rollback.
 
+**Deploy VM:** `docs/ops/DEPLOY_VM_HOMOLOG.md` · **Cofre:** `docs/ops/COFRE_SECRETS_CRM.md`
+
 ## Pre-requisitos
 
-1. Python 3.10+ com `pip install trino`
-2. Variaveis de ambiente (copie `.env.trino.example` para `.env.trino` — **nao commitar**)
-3. Bench Frappe no PATH com site alvo migrado
-4. Doctype `Univesp Student Directory` instalado
+1. Python 3.10+ — na VM Debian use **venv** (`python3 -m venv .venv-trino`)
+2. `pip install trino` dentro do venv
+3. Variaveis em `ops/import/.env.trino` (copie `.env.trino.example` — **nao commitar**)
+4. Site Frappe alvo: **`crm.localhost`** (nao o dominio publico)
+5. Doctype `Univesp Student Directory` instalado
+
+Montar `.env.trino` a partir do Secret Manager `crm-homolog-trino-crm-import` — ver cofre.
 
 ## Validar ambiente (sem conectar ao Trino)
 
 ```bash
+source .venv-trino/bin/activate
+export $(sudo grep -v '^#' ops/import/.env.trino | xargs)
 python ops/import/students-from-trino.py --validate-env
 ```
-
-Verifica presenca de `TRINO_HOST`, `TRINO_USER`, `TRINO_PASSWORD` (opcional em homolog interno) e dependencia `trino`.
 
 ## Dry-run (amostra mascarada)
 
 ```bash
-export $(grep -v '^#' .env.trino | xargs)   # bash
+python ops/import/students-from-trino.py --dry-run --limit 10
 python ops/import/students-from-trino.py --dry-run --limit 10 --polo-id 237
 ```
 
-Imprime ate 5 linhas com CPF mascarado. Nenhuma gravacao.
+Catálogo Trino `postgresql-sei` exige **aspas duplas** na SQL (`"postgresql-sei".public...`).
+
+Filtro opcional: `STUDENT_SITUACOES=AT` no `.env.trino`.
 
 ## Apply (upsert no Frappe)
 
+**Site:** `--site crm.localhost`
+
+Para lotes grandes, usar apply em batches (script usa `upsert_rows_from_file` via bench) ou helper documentado em `docs/ops/HOMOLOG_VM_STATUS.md`.
+
+Apply direto (poucas linhas):
+
 ```bash
-python ops/import/students-from-trino.py --apply --site homolog-crm.univesp.br --limit 100 --polo-id 237
+python ops/import/students-from-trino.py --apply --site crm.localhost --limit 100 --batch-size 50
 ```
 
-Executa `bench execute univesp_atendimento.import_students.upsert_rows`.
+**Nao** reexecutar `homolog_seed.upsert_homolog_student_directory` apos import SEI real.
 
 ## Rollback
 
-- Import piloto: remover linhas importadas via Desk ou script inverso por `ra`/`email`
-- Homolog sintetico: `bench --site SITE execute univesp_atendimento.homolog_seed.upsert_homolog_student_directory` (idempotente)
+- Import piloto: remover linhas via Desk ou script inverso por `ra`/`email`
+- Homolog sintetico: `bench --site crm.localhost execute univesp_atendimento.homolog_seed.upsert_homolog_student_directory`
 
 ## Variaveis
 
@@ -48,7 +61,9 @@ Executa `bench execute univesp_atendimento.import_students.upsert_rows`.
 | `TRINO_PASSWORD` | recomendado | Senha |
 | `TRINO_PORT` | nao (443) | Porta HTTPS |
 | `TRINO_CATALOG` | nao | Default `postgresql-sei` |
-| `FRAPPE_SITE_NAME` | apply | Site bench alvo |
+| `STUDENT_SITUACOES` | nao | Default `AT` (filtro SQL) |
+| `FRAPPE_SITE_NAME` | apply | Site bench alvo (`crm.localhost`) |
+| `FRAPPE_BENCH` | apply lote | Default `/var/crm/frappe-bench` |
 
 ## Smoke pos-import
 
@@ -59,4 +74,4 @@ curl -X POST "$APP_BASE_URL/api/app/v1/students/validate" \
   -d '{"cpf":"11144477735","email":"teste@aluno.univesp.br"}'
 ```
 
-Ver tambem `docs/MVP_CLOSURE_CHECKLIST.md` (Trilha D).
+Ver tambem `docs/MVP_CLOSURE_CHECKLIST.md` (Trilha D) e `docs/ops/HOMOLOG_VM_STATUS.md`.

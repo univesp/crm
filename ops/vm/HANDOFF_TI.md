@@ -68,9 +68,14 @@ Qualquer item marcado como `ERRO` deve ser corrigido.
 
 ```bash
 cd /var/crm/repository
-git fetch origin
-git checkout univesp/cloudrun-homolog
-git pull --ff-only origin univesp/cloudrun-homolog
+git fetch origin fix/bootstrap-homolog-unblock
+git checkout -B fix/bootstrap-homolog-unblock FETCH_HEAD
+git reset --hard origin/fix/bootstrap-homolog-unblock
+```
+
+Runbook completo: `docs/ops/DEPLOY_VM_HOMOLOG.md`. Status: `docs/ops/HOMOLOG_VM_STATUS.md`.
+
+Branch deploy VM: **`fix/bootstrap-homolog-unblock`** (Cloud Run usa `univesp/cloudrun-homolog` — pipeline separado).
 
 BENCH_OWNER="$(stat -c '%U' /var/crm/frappe-bench)"
 sudo -u "$BENCH_OWNER" CRM_ROOT=/var/crm \

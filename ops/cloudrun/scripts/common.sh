@@ -162,7 +162,7 @@ start_cloud_sql_proxy() {
 		"${INSTANCE_CONNECTION_NAME}" &
 	CLOUD_SQL_PROXY_PID=$!
 
-	wait_for_tcp "${DB_HOST}" "${DB_PORT}" 90
+	wait_for_tcp "${DB_HOST}" "${DB_PORT}" 180
 }
 
 configure_common_site() {

@@ -21,6 +21,7 @@ Este arquivo define a governança para agentes de IA neste repositório.
 5. `docs/AI_WORKFLOW.md`
 6. `docs/VALIDATION_PLAYBOOK.md`
 7. Documentação específica do módulo impactado em `docs/`
+8. **Homolog VM (deploy manual):** `docs/ops/HOMOLOG_VM_STATUS.md` → `docs/ops/DEPLOY_VM_HOMOLOG.md`
 
 ## Regras Não Negociáveis
 - Preferir patches pequenos, reversíveis e com baixo raio de impacto.

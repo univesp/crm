@@ -36,6 +36,7 @@ Validar exatamente o que mudou, com evidência suficiente e sem custo operaciona
 - Pós-SSO: `POST /api/app/v1/students/validate` com CPF/email de teste
 - Visitante: `/publico` → registro → FAQ → protocolo (`custom_univesp_source=publico`)
 - VM interim: `ops/vm/bootstrap.sh` + `curl /healthz`
+- **Deploy VM homolog:** `docs/ops/DEPLOY_VM_HOMOLOG.md` + smoke pos-deploy
 - GCS site_config: `ops/vm/scripts/validate-gcs-site-config.sh`
 - Cloud Run artefatos locais: `ops/cloudrun/preflight-local.sh`
 - Checklist completo: `docs/MVP_CLOSURE_CHECKLIST.md`

@@ -18,9 +18,28 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
-STUDENT_QUERY = """
+def trino_catalog() -> str:
+	"""Catalog names with hyphens must be double-quoted in Trino SQL."""
+	catalog = os.environ.get("TRINO_CATALOG", "postgresql-sei").strip() or "postgresql-sei"
+	return f'"{catalog}"'
+
+
+def student_situacoes() -> list[str]:
+	raw = os.environ.get("STUDENT_SITUACOES", "AT").strip()
+	return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def build_student_query() -> str:
+	catalog = trino_catalog()
+	situacoes = student_situacoes()
+	situacao_filter = ""
+	if situacoes:
+		quoted = ", ".join(f"'{code}'" for code in situacoes)
+		situacao_filter = f"\n  AND m.situacao IN ({quoted})"
+	return f"""
 SELECT
   LOWER(TRIM(p.email)) AS email,
   REGEXP_REPLACE(p.cpf, '[^0-9]', '') AS cpf,
@@ -31,17 +50,17 @@ SELECT
   ue.nome AS polo_nome,
   c.nome AS curso,
   m.situacao AS situacao
-FROM postgresql-sei.public.pessoa p
-JOIN postgresql-sei.public.matricula m
+FROM {catalog}.public.pessoa p
+JOIN {catalog}.public.matricula m
   ON m.aluno = p.codigo
-JOIN postgresql-sei.public.unidadeensino ue
+JOIN {catalog}.public.unidadeensino ue
   ON ue.codigo = m.unidadeensino
-LEFT JOIN postgresql-sei.public.curso c
+LEFT JOIN {catalog}.public.curso c
   ON c.codigo = m.curso
 WHERE p.email IS NOT NULL
   AND p.cpf IS NOT NULL
   AND m.unidadeensino IS NOT NULL
-  AND m.situacao IS NOT NULL
+  AND m.situacao IS NOT NULL{situacao_filter}
 """
 
 
@@ -49,8 +68,13 @@ def normalize_cpf(value: str) -> str:
 	return re.sub(r"[^0-9]", "", str(value or ""))
 
 
+def is_valid_email(value: str) -> bool:
+	email = str(value or "").strip().lower()
+	return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
+
+
 def build_query(polo_ids: list[str], limit: int) -> str:
-	query = STUDENT_QUERY
+	query = build_student_query()
 	if polo_ids:
 		ids = ", ".join(f"'{pid}'" for pid in polo_ids)
 		query += f"\n  AND CAST(ue.codigo AS VARCHAR) IN ({ids})"
@@ -107,7 +131,7 @@ def fetch_rows(query: str) -> list[dict[str, Any]]:
 		item = dict(zip(columns, record, strict=True))
 		cpf = normalize_cpf(item.get("cpf"))
 		email = str(item.get("email") or "").strip().lower()
-		if len(cpf) != 11 or not email:
+		if len(cpf) != 11 or not email or not is_valid_email(email):
 			continue
 		rows.append(
 			{
@@ -125,27 +149,82 @@ def fetch_rows(query: str) -> list[dict[str, Any]]:
 	return rows
 
 
-def apply_via_bench(site: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
-	kwargs = json.dumps({"rows": rows}, ensure_ascii=False)
-	cmd = [
-		"bench",
-		"--site",
-		site,
-		"execute",
-		"univesp_atendimento.import_students.upsert_rows",
-		"--kwargs",
-		kwargs,
+def resolve_frappe_paths() -> tuple[str, str]:
+	"""Resolve bench root and its Python binary (bench CLI may not exist on PATH)."""
+	candidates = [
+		os.environ.get("FRAPPE_BENCH", "").strip(),
+		"/var/crm/frappe-bench",
+		"/home/frappe/frappe-bench",
 	]
-	print(f"Executando bench execute ({len(rows)} linhas)...")
-	completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
-	if completed.returncode != 0:
-		print(completed.stderr or completed.stdout, file=sys.stderr)
-		raise SystemExit(completed.returncode)
-	try:
-		return json.loads(completed.stdout.strip() or "{}")
-	except json.JSONDecodeError:
-		print(completed.stdout)
-		return {"stdout": completed.stdout.strip()}
+	for bench_root in candidates:
+		if not bench_root:
+			continue
+		python_bin = os.path.join(bench_root, "env", "bin", "python")
+		if os.path.isfile(python_bin):
+			return bench_root, python_bin
+	raise SystemExit(
+		"Python do bench nao encontrado. Defina FRAPPE_BENCH (ex.: /var/crm/frappe-bench)."
+	)
+
+
+def apply_via_bench(site: str, rows: list[dict[str, Any]], batch_size: int = 50) -> dict[str, Any]:
+	"""Grava via Frappe Python + arquivo temporario (evita limite de argv do bench --kwargs)."""
+	bench_root, python_bin = resolve_frappe_paths()
+	bench_user = os.environ.get("BENCH_USER", "frappe").strip() or "frappe"
+	totals = {"created": 0, "updated": 0, "skipped": 0, "total": len(rows), "batches": 0}
+
+	for offset in range(0, len(rows), batch_size):
+		chunk = rows[offset : offset + batch_size]
+		payload_path = ""
+		try:
+			with tempfile.NamedTemporaryFile(
+				mode="w",
+				suffix=".json",
+				delete=False,
+				dir="/tmp",
+				encoding="utf-8",
+			) as handle:
+				json.dump(chunk, handle, ensure_ascii=False)
+				payload_path = handle.name
+			os.chmod(payload_path, 0o644)
+
+			py_code = f"""
+import json
+import frappe
+
+frappe.init(site={json.dumps(site)})
+frappe.connect()
+from univesp_atendimento.import_students import upsert_rows
+
+with open({json.dumps(payload_path)}, encoding="utf-8") as handle:
+    payload = json.load(handle)
+print(json.dumps(upsert_rows(payload), ensure_ascii=False))
+frappe.db.commit()
+frappe.destroy()
+"""
+			batch_no = (offset // batch_size) + 1
+			print(f"Executando import lote {batch_no} ({len(chunk)} linhas)...")
+			cmd = ["sudo", "-u", bench_user, python_bin, "-c", py_code]
+			completed = subprocess.run(cmd, check=False, capture_output=True, text=True, cwd=bench_root)
+			if completed.returncode != 0:
+				print(completed.stderr or completed.stdout, file=sys.stderr)
+				raise SystemExit(completed.returncode)
+			try:
+				result = json.loads(completed.stdout.strip() or "{}")
+			except json.JSONDecodeError:
+				print(completed.stdout)
+				result = {"stdout": completed.stdout.strip()}
+			for key in ("created", "updated", "skipped"):
+				totals[key] += int(result.get(key) or 0)
+			totals["batches"] += 1
+		finally:
+			if payload_path:
+				try:
+					os.remove(payload_path)
+				except OSError:
+					pass
+
+	return totals
 
 
 def main() -> int:
@@ -154,6 +233,7 @@ def main() -> int:
 	parser.add_argument("--polo-id", action="append", default=[], dest="polo_ids")
 	parser.add_argument("--dry-run", action="store_true")
 	parser.add_argument("--apply", action="store_true", help="Upsert via bench execute no Frappe")
+	parser.add_argument("--batch-size", type=int, default=50, help="Linhas por lote no bench execute")
 	parser.add_argument("--validate-env", action="store_true", help="Valida env sem conectar ao Trino")
 	parser.add_argument("--site", default=os.environ.get("FRAPPE_SITE_NAME", "homolog-crm.univesp.br"))
 	args = parser.parse_args()
@@ -176,7 +256,7 @@ def main() -> int:
 		if not rows:
 			print("Nenhuma linha para importar.")
 			return 1
-		result = apply_via_bench(args.site, rows)
+		result = apply_via_bench(args.site, rows, batch_size=max(1, args.batch_size))
 		print(json.dumps(result, ensure_ascii=False))
 		return 0
 

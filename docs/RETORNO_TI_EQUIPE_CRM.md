@@ -6,7 +6,9 @@
 **Data:** 2026-08-06  
 
 > Mapeamento operacional dos secrets: `docs/ops/COFRE_SECRETS_CRM.md`  
-> Runbook de corte prod: `docs/ops/CUTOVER_PROD_MYSQL.md`
+> Runbook de corte prod: `docs/ops/CUTOVER_PROD_MYSQL.md`  
+> **Deploy homolog VM (manual):** `docs/ops/DEPLOY_VM_HOMOLOG.md`  
+> **Status homolog VM:** `docs/ops/HOMOLOG_VM_STATUS.md`
 
 ---
 

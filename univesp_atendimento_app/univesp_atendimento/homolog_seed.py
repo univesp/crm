@@ -42,13 +42,13 @@ HOMOLOG_ACCESS_PROFILES = [
 		"user_email": "bruno.miyasato@univesp.br",
 		"display_name": "Bruno Miyasato",
 		"profile_key": "admin_central",
-		"scopes_json": {},
+		"scopes_json": {"areas": ["tecnologia"]},
 	},
 	{
 		"user_email": "admin@univesp.br",
 		"display_name": "Admin Central Homolog",
 		"profile_key": "admin_central",
-		"scopes_json": {},
+		"scopes_json": {"areas": ["tecnologia"]},
 	},
 	{
 		"user_email": "teste@aluno.univesp.br",
@@ -94,7 +94,7 @@ HOMOLOG_ACCESS_PROFILES = [
 		"user_email": "publicador.faq@univesp.br",
 		"display_name": "Publicador FAQ Homolog",
 		"profile_key": "admin_central",
-		"scopes_json": {},
+		"scopes_json": {"areas": ["tecnologia"]},
 	},
 ]
 

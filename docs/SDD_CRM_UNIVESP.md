@@ -58,8 +58,17 @@ O front-end em Vue organiza a experiência de atendimento acadêmico em alta esc
 ## Base Cadastro Aluno
 
 - DocType `Univesp Student Directory`
-- Import Trino via `ops/import/students-from-trino.py` (fonte: catalogo-dados-univesp)
+- Import Trino via `ops/import/students-from-trino.py` (fonte: catalogo-dados-univesp / `postgresql-sei`)
 - Validação pós-SSO: `POST /api/app/v1/students/validate`
+- Homolog VM (2026-08): piloto SEI importado; cofre Trino — `docs/ops/COFRE_SECRETS_CRM.md`
+
+## Homologação VM (2026-08)
+
+- Ambiente canônico operacional: `https://homolog-crm.univesp.br` na VM `crm-vm`
+- Deploy manual: branch `fix/bootstrap-homolog-unblock` — `docs/ops/DEPLOY_VM_HOMOLOG.md`
+- Status e pendências: `docs/ops/HOMOLOG_VM_STATUS.md`
+- Cloud Run homolog (`univesp/cloudrun-homolog`) é pipeline **separado** da VM
+- Prod cutover: `docs/ops/CUTOVER_PROD_MYSQL.md`
 
 ## FAQ pública (não-aluno)
 
