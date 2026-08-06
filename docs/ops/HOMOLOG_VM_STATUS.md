@@ -1,7 +1,7 @@
 # Status homolog VM — handoff operacional
 
 **Atualizado:** 2026-08-06 (noite) — plano faseado de recuperação incorporado
-**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `983886e6` (validar commit efetivo na VM)
+**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `325f8a66` (publicado e validado na VM)
 **Alterações locais pendentes (preservar):** `HOMOLOG_VM_STATUS.md`, nginx `/files/` alias, `homolog_seed.py`, `.tmp-artifacts/`
 **Ambiente:** `https://homolog-crm.univesp.br` na VM `crm-vm` (GCP `univesp-201808`, IAP SSH)  
 **Para agentes:** leia junto com `docs/ops/DEPLOY_VM_HOMOLOG.md`, `docs/RETORNO_TI_EQUIPE_CRM.md`, `docs/ops/COFRE_SECRETS_CRM.md`, `docs/FAQ_V3_INTEGRATED_PILOT.md`
@@ -10,7 +10,7 @@
 
 ## Fase atual
 
-**Homolog VM — fluxo admin FAQ v3 validado; próximo bloqueio: `access-groups` 502.**
+**Homolog VM — fluxo admin FAQ v3 e Fase 1 de permissões validados; próximo passo: higiene/auditoria de runtime.**
 
 Prod (`crm.univesp.br`) compartilha a mesma VM/Frappe/MariaDB até cutover Cloud SQL (`docs/ops/CUTOVER_PROD_MYSQL.md`).
 
@@ -27,8 +27,8 @@ Prod (`crm.univesp.br`) compartilha a mesma VM/Frappe/MariaDB até cutover Cloud
 | Mídia HTTP pública | **Validado** | nginx alias → 200 `image/png` |
 | FAQ runtime aluno (`bbbbbbbbb`) | **Publicado** | `audience_profile: student` |
 | FAQ runtime público anônimo | **Pendente** | validar `/publico` + bundle `public`/`mixed` |
-| **`access-groups`** | **Bloqueado** | HTTP **502** — prioridade técnica |
-| **`permission-profiles`** | **Patch local; revalidar** | serializer usa o mesmo padrão defensivo; confirmar após deploy |
+| **`access-groups`** | **Validado após patch** | diagnóstico interno `ok: true`; grupo carregado na tela admin |
+| **`permission-profiles`** | **Validado após patch** | perfis e usuários reais carregados em `/admin/permissoes` |
 | Usuários / personas / seeds | **Auditoria inicial** | imports mock/hardcode identificados; OP Trino recuperado localmente |
 | Jornadas por persona | **Não validado** | após grupos + perfis |
 
@@ -43,7 +43,7 @@ Prod (`crm.univesp.br`) compartilha a mesma VM/Frappe/MariaDB até cutover Cloud
 | Item | Estado |
 |------|--------|
 | `VITE_ENABLE_MOCKS=false` | Documentado, mas **imports diretos** de `mocks/` persistem — flag sozinha não garante operação real |
-| `.env.production` | Patch local aplicado: `VITE_HOMOLOG_PROFILE_PREVIEW=false`; ainda não publicado na VM |
+| `.env.production` | Patch local aplicado: `VITE_HOMOLOG_PROFILE_PREVIEW=false` | frontend ainda aguarda deploy separado |
 | `staff-from-trino.py` | Recuperado seletivamente do commit `0d30be08`; DocType e upsert adicionados localmente |
 | Escopo desta rodada | Planejamento + patches mínimos; sem merge `main`, cutover prod, carga massiva |
 
@@ -225,11 +225,11 @@ Smoke público salvo em `.tmp-artifacts/api-matrix-public-v2.json`:
 
 Exemplos de request-id registrados: `smoke-f98f7ebfcead4c32855a57f80c014e8b` (flags), `smoke-45532eecb6544a70ac814ecabf226c53` (FAQ pública) e `smoke-f236e88dd2c44fc2b2eaec3b3f1b53e2` (401 access-groups).
 
-### Fase 1 — causa comprovada do `access-groups`
+### Fase 1 — causa comprovada e correção validada do `access-groups`
 
 Request direto e assinado ao Frappe retornou `500` com `TypeError: 'NoneType' object is not callable` em `admin.py`, `_serialize_group`, na chamada de `value.as_dict()`. O gateway converte esse `500` interno em `502`. O grupo, JSON e schema estavam válidos; elevar permissão não é solução.
 
-Patch local aplicado em `admin.py`: serializers agora aceitam tanto `Document` quanto `frappe._dict` e só chamam `as_dict` quando ele é chamável. O mesmo tratamento foi aplicado aos serializers de perfil, usuário e solicitação. Ainda falta publicar/reiniciar o runtime para confirmar `200` no browser.
+Patch aplicado em `admin.py`: serializers agora aceitam tanto `Document` quanto `frappe._dict` e só chamam `as_dict` quando ele é chamável. O mesmo tratamento foi aplicado aos serializers de perfil, usuário e solicitação. Commit `325f8a66` foi publicado na VM; o diagnóstico interno retornou `ok: true`, a tela `/admin/permissoes` carregou perfis/usuários reais e a aba Conhecimento exibiu o grupo `Aprovadores FAQ — Acesso ao AVA`.
 
 ### Fase 2 — mocks e build real
 
@@ -262,7 +262,7 @@ Foi criado `homolog_seed.hygienize_homolog_bundles` com allowlist fixa (`teste`,
 
 ### Rollback e risco residual
 
-Os patches estão somente no working tree local, sem commit, merge, migration ou deploy. O risco imediato é o runtime da VM continuar no código anterior ao serializer; o próximo passo operacional é publicar essa correção na branch homolog, reiniciar apenas os processos necessários e repetir a matriz autenticada. A higiene de bundles não deve ser executada com `apply=true` sem primeiro revisar o dry-run na VM.
+O patch backend foi publicado seletivamente, com backup em `/var/crm/backups/homolog-admin.py.20260806-224819`, sem migration ou seed. Frontend, DocTypes/importadores e helper de higiene ainda não foram instalados no bench. A higiene de bundles não deve ser executada com `apply=true` sem primeiro publicar o helper e revisar o dry-run na VM.
 
 ---
 
