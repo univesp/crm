@@ -602,15 +602,17 @@ export async function appRequest(path, options = {}) {
 
   if (!response.ok || payload?.error) {
     const error = payload?.error || {}
-    throw new AppApiError(
-      error.user_message || error.message || `A API respondeu com erro HTTP ${response.status}.`,
-      {
-        status: response.status,
-        code: error.code || 'APP_API_ERROR',
-        requestId,
-        payload,
-      },
-    )
+    const message =
+      error.details ||
+      error.user_message ||
+      error.message ||
+      `A API respondeu com erro HTTP ${response.status}.`
+    throw new AppApiError(message, {
+      status: response.status,
+      code: error.code || 'APP_API_ERROR',
+      requestId,
+      payload,
+    })
   }
 
   return {

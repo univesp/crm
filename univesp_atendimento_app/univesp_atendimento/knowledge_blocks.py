@@ -5,17 +5,31 @@ ALLOWED_BUTTON_ACTIONS = {"open_ticket", "go_login"}
 INSTITUTIONAL_MEDIA_TYPES = {"image", "video", "file", "animation"}
 
 
+def _is_institutional_host(hostname: str | None) -> bool:
+	host = str(hostname or "").strip().lower().split(":")[0]
+	return host == "univesp.br" or host.endswith(".univesp.br")
+
+
+def _is_institutional_media_url(url: str, block: dict) -> bool:
+	path = urlparse(url).path if "://" in url else url
+	if not path.startswith("/files/"):
+		return False
+	return bool(
+		str(block.get("asset_id") or "").strip()
+		or str(block.get("type") or "").strip() in INSTITUTIONAL_MEDIA_TYPES
+	)
+
+
 def _allowed_block_url(url: str, block: dict) -> bool:
 	parsed = urlparse(url)
 	if parsed.scheme in {"https", "mailto"}:
 		return True
+	if parsed.scheme == "http" and _is_institutional_host(parsed.hostname):
+		return _is_institutional_media_url(url, block)
 	if parsed.scheme or not url.startswith("/"):
 		return False
 	# Mídia institucional enviada pelo CRM pode usar /files/ relativo.
-	if url.startswith("/files/") and (
-		str(block.get("asset_id") or "").strip()
-		or str(block.get("type") or "").strip() in INSTITUTIONAL_MEDIA_TYPES
-	):
+	if _is_institutional_media_url(url, block):
 		return True
 	return False
 

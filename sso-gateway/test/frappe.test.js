@@ -84,3 +84,26 @@ test('falha fechada quando a credencial tecnica nao esta configurada', async () 
     (error) => error instanceof FrappeApiError && error.code === 'BFF_CONFIG_ERROR',
   )
 })
+
+test('expoe mensagem real de KnowledgeV3ValidationError', async () => {
+  process.env.FRAPPE_API_KEY = 'gateway-key'
+  process.env.FRAPPE_API_SECRET = 'gateway-secret'
+  process.env.UNIVESP_BFF_SHARED_SECRET = 'shared-test-secret'
+  process.env.UNIVESP_EDGE_SHARED_SECRET = 'a'.repeat(64)
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        exc_type: 'KnowledgeV3ValidationError',
+        exception:
+          'univesp_atendimento.api.v1.knowledge_v3.KnowledgeV3ValidationError: Playbook OP obrigatório nos nós finais: final.',
+      }),
+      { status: 422, headers: { 'Content-Type': 'application/json' } },
+    )
+
+  await assert.rejects(
+    () => callFrappe('knowledge_v3.publish', { user: { email: 'admin@example.edu' }, body: {} }),
+    (error) =>
+      error instanceof FrappeApiError
+      && error.message === 'Playbook OP obrigatório nos nós finais: final.',
+  )
+})

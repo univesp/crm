@@ -11,7 +11,7 @@ IMMUTABLE_STATES = {"approved", "published", "superseded", "rejected"}
 ACTIVE_DRAFT_STATES = {"draft", "pending_approval"}
 LIFECYCLE_STATES = ACTIVE_DRAFT_STATES | IMMUTABLE_STATES
 ALLOWED_TRANSITIONS = {
-	"draft": {"pending_approval"},
+	"draft": {"pending_approval", "approved"},
 	"pending_approval": {"draft", "approved", "rejected"},
 	"approved": {"published"},
 	"published": {"superseded"},

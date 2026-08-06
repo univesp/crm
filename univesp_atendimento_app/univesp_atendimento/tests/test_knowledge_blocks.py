@@ -46,3 +46,19 @@ class TestKnowledgeBlocks(TestCase):
 			),
 			[],
 		)
+
+	def test_accepts_http_institutional_media_urls(self):
+		self.assertEqual(
+			validate_blocks(
+				[
+					{
+						"block_id": "a",
+						"type": "image",
+						"url": "http://homolog-crm.univesp.br/files/faq-diagram.png",
+						"asset_id": "asset-deadbeef",
+						"alt": "Diagrama",
+					}
+				]
+			),
+			[],
+		)

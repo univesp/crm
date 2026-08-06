@@ -171,6 +171,52 @@ class TestKnowledgeV3Contracts(TestCase):
 		with self.assertRaises(KnowledgeV3ValidationError):
 			_validate_publishable_payload(payload, _bundle())
 
+	@patch("univesp_atendimento.api.v1.knowledge_v3.frappe.db.exists", return_value=True)
+	@patch(
+		"univesp_atendimento.api.v1.knowledge_v3.frappe.db.get_value",
+		side_effect=lambda doctype, *args, **kwargs: (
+			SimpleNamespace(
+				name="op_then_area",
+				steps_json='["op", "area"]',
+				allowed_routing_keys_json='["atendimento-geral"]',
+			)
+			if doctype == "Univesp Knowledge Routing Pattern"
+			else ("atendimento-geral" if doctype == "HD Team" else None)
+		),
+	)
+	def test_publishable_payload_accepts_https_image_on_path_node(self, _get_value, _exists):
+		payload = _valid_payload()
+		payload["nodes"][0]["content"]["student"]["blocks"] = [
+			{
+				"block_id": "img-1",
+				"type": "image",
+				"url": "https://homolog-crm.univesp.br/files/diagram.png",
+				"asset_id": "asset-deadbeef",
+				"alt": "Diagrama",
+			}
+		]
+		_validate_publishable_payload(payload, _bundle())
+
+	@patch("univesp_atendimento.api.v1.knowledge_v3.frappe.db.exists", return_value=True)
+	@patch(
+		"univesp_atendimento.api.v1.knowledge_v3.frappe.db.get_value",
+		side_effect=lambda doctype, *args, **kwargs: (
+			SimpleNamespace(
+				name="op_then_area",
+				steps_json='["op", "area"]',
+				allowed_routing_keys_json='["atendimento-geral"]',
+			)
+			if doctype == "Univesp Knowledge Routing Pattern"
+			else ("atendimento-geral" if doctype == "HD Team" else None)
+		),
+	)
+	def test_publishable_payload_requires_op_playbook_on_final_nodes(self, _get_value, _exists):
+		payload = _valid_payload()
+		payload["nodes"][1]["playbooks"]["op"] = None
+		with self.assertRaises(KnowledgeV3ValidationError) as ctx:
+			_validate_publishable_payload(payload, _bundle())
+		self.assertIn("Playbook OP obrigatório", str(ctx.exception))
+
 
 class TestKnowledgeV3Lifecycle(IntegrationTestCase):
 	def setUp(self):

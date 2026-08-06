@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { Router } from 'express'
 
-import { callFrappe, FrappeApiError } from '../lib/frappe.js'
+import { callFrappe, extractDiagnosticDetails, FrappeApiError } from '../lib/frappe.js'
 import {
   activeSimulation,
   createSimulation,
@@ -435,20 +435,29 @@ function requestIdFor(req) {
 
 function handleError(res, error, requestId) {
   const known = error instanceof FrappeApiError
+  const frappePayload = known ? error.payload : null
+  let message = known ? error.message : 'Falha interna no Gateway.'
+  const details = extractDiagnosticDetails(frappePayload)
+  if (details && /^KnowledgeV3|^ValidationError|^RoutingValidation|^UnivespValidation/i.test(message)) {
+    message = details
+  }
   return sendError(
     res,
     known ? error.status : 500,
     known ? error.code : 'INTERNAL_ERROR',
-    known ? error.message : 'Falha interna no Gateway.',
+    message,
     requestId,
+    details,
   )
 }
 
-function sendError(res, status, code, message, requestId = randomUUID()) {
+function sendError(res, status, code, message, requestId = randomUUID(), details = '') {
   res.setHeader('X-Request-ID', requestId)
+  const error = { code, message, user_message: message }
+  if (details && details !== message) error.details = details
   return res.status(status).json({
     data: null,
-    error: { code, message, user_message: message },
+    error,
     meta: {},
     request_id: requestId,
   })

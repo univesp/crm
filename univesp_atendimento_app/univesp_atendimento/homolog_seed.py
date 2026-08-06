@@ -769,3 +769,58 @@ def inspect_homolog_state() -> dict:
 			limit_page_length=0,
 		),
 	}
+
+
+def diagnose_knowledge_bundle(bundle_key: str) -> dict:
+	"""Lista bloqueios reais de submit/publish para um fluxo FAQ v3."""
+	import json
+
+	from univesp_atendimento.api.v1.knowledge_v3 import (
+		KnowledgeV3ValidationError,
+		_active_draft,
+		_bundle,
+		_validate_publishable_payload,
+	)
+
+	key = str(bundle_key or "").strip()
+	if not key:
+		return {"ok": False, "issues": ["Informe bundle_key."]}
+
+	issues: list[str] = []
+	bundle = _bundle(key)
+	version = _active_draft(bundle, "draft")
+	payload = json.loads(version.payload_json or "{}")
+	try:
+		_validate_publishable_payload(payload, bundle)
+	except KnowledgeV3ValidationError as exc:
+		issues.append(str(exc))
+	except Exception as exc:  # pragma: no cover - diagnóstico operacional
+		issues.append(f"{type(exc).__name__}: {exc}")
+
+	governance = frappe.get_doc("Univesp Knowledge Theme Governance", bundle.theme_key)
+	if not str(governance.approver_group or "").strip():
+		issues.append("Configure o grupo aprovador do tema antes de enviar para revisão.")
+
+	for node in payload.get("nodes") or []:
+		if not isinstance(node, dict):
+			continue
+		title = (node.get("display") or {}).get("title") or node.get("node_id") or "?"
+		for layer in ("student", "public"):
+			content = (node.get("content") or {}).get(layer) or {}
+			for block in content.get("blocks") or []:
+				url = str((block or {}).get("url") or "").strip()
+				if url.startswith("http://"):
+					issues.append(f'{title}: URL HTTP em bloco ({url[:80]}...) — use HTTPS.')
+
+	summary = str(version.change_summary or "").strip()
+	if len(summary) < 20:
+		issues.append("Resumo das mudanças deve ter ao menos 20 caracteres.")
+
+	return {
+		"ok": not issues,
+		"bundle_key": key,
+		"theme_key": bundle.theme_key,
+		"approver_group": governance.approver_group or "",
+		"change_summary_length": len(summary),
+		"issues": issues,
+	}

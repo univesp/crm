@@ -123,9 +123,40 @@ async function parsePayload(response) {
   }
 }
 
-function extractMessage(payload) {
-  const serverMessage = parseServerMessage(payload?._server_messages)
+export function extractDiagnosticDetails(payload) {
+  if (!payload || typeof payload !== 'object') return ''
+  const serverMessage = parseServerMessage(payload._server_messages)
   if (serverMessage) return serverMessage
+  const nested = payload.message
+  if (nested && typeof nested === 'object') {
+    const nestedMessage = parseServerMessage(nested._server_messages) || nested.message
+    if (nestedMessage && nestedMessage !== nested.exc_type) return String(nestedMessage).trim()
+  }
+  const exception = String(payload.exception || '').trim()
+  if (exception) {
+    const match = exception.match(/(?:ValidationError|PermissionError|ConflictError):\s*(.+)$/m)
+    if (match?.[1]) return match[1].trim()
+    const colonIndex = exception.lastIndexOf(':')
+    if (colonIndex !== -1) {
+      const detail = exception.slice(colonIndex + 1).trim().split('\n')[0]
+      if (detail && detail !== payload.exc_type) return detail
+    }
+  }
+  const exc = String(payload.exc || '').trim()
+  if (exc) {
+    const line = exc
+      .split('\n')
+      .map((item) => item.trim())
+      .find((item) => /ValidationError:/.test(item))
+    if (line) return line.split('ValidationError:').pop().trim()
+  }
+  return ''
+}
+
+function extractMessage(payload) {
+  const diagnostic = extractDiagnosticDetails(payload)
+  if (diagnostic) return diagnostic
+
   if (typeof payload?.message === 'string' && payload.message && payload.message !== payload?.exc_type) {
     return payload.message
   }

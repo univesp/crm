@@ -462,6 +462,10 @@ async function confirmPublish() {
   if (!versionId || saving.value) return
 
   if (isDraftPublish) {
+    if (blockers.value.length) {
+      errorMessage.value = blockers.value[0]
+      return
+    }
     if (dirty.value && !(await saveDraft({ silent: true }))) return
     payload.value = applyChannelsToPayload(payload.value, channelFlags)
   }
@@ -862,6 +866,19 @@ function collectIssues() {
     })
   }
   const patternHasOp = selectedPattern.value?.steps?.includes('op')
+  const theme = (catalogs.themes || []).find(
+    (item) => item.theme_key === payload.value.theme_key,
+  )
+  if (canSubmitReview.value && !String(theme?.approver_group || '').trim()) {
+    issues.push({
+      id: 'approver-group-missing',
+      severity: 'error',
+      message: 'Configure o grupo aprovador do tema antes de enviar para revisão.',
+      nodeId: null,
+      layer: null,
+      fieldKey: 'approver_group',
+    })
+  }
   payload.value.nodes.forEach((node) => {
     if (!node.display?.title?.trim()) {
       issues.push({
@@ -872,6 +889,21 @@ function collectIssues() {
         layer: null,
         fieldKey: 'title',
       })
+    }
+    for (const layer of ['student', 'public']) {
+      for (const block of (node.content?.[layer]?.blocks || [])) {
+        const url = String(block?.url || '').trim()
+        if (url.startsWith('http://')) {
+          issues.push({
+            id: `http-url:${node.node_id}:${block.block_id || layer}`,
+            severity: 'error',
+            message: `Use HTTPS no endereço da mídia em “${node.display?.title}”.`,
+            nodeId: node.node_id,
+            layer,
+            fieldKey: 'media_url',
+          })
+        }
+      }
     }
     if (node.node_kind === 'final') {
       if (channelFlags.availableStudent) {

@@ -7,7 +7,8 @@ from frappe import _
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from univesp_atendimento.api.v1.common import get_request_context, response
-from univesp_atendimento.api.v1.routing import validate_payload_routing
+from univesp_atendimento.api.v1.routing import RoutingValidationError, validate_payload_routing
+from univesp_atendimento.file_urls import normalize_payload_media_urls
 from univesp_atendimento.knowledge_graph import KnowledgeGraphError, assert_valid_knowledge_graph
 from univesp_atendimento.knowledge_migration import extract_v2_packages, plan_v2_migration
 
@@ -408,6 +409,7 @@ def save_draft(bundle_key: str, payload: dict | str | None = None, if_match: str
 	if not isinstance(new_payload, dict):
 		raise KnowledgeV3ValidationError(_("Conteúdo do rascunho é obrigatório."))
 	_validate_payload_identity(new_payload, bundle)
+	normalize_payload_media_urls(new_payload)
 	version.payload_json = _encode_payload(new_payload)
 	version.version_label = str(data.get("version_label") or version.version_label).strip()
 	version.change_summary = str(data.get("change_summary") or version.change_summary or "").strip()
@@ -453,7 +455,9 @@ def submit_for_approval(bundle_key: str, payload: dict | str | None = None):
 	summary = str(data.get("change_summary") or version.change_summary or "").strip()
 	if len(summary) < 20:
 		raise KnowledgeV3ValidationError(_("Resumo das mudanças deve ter ao menos 20 caracteres."))
-	_validate_publishable_payload(json.loads(version.payload_json), bundle)
+	payload = json.loads(version.payload_json)
+	_validate_publishable_payload(payload, bundle)
+	version.payload_json = _encode_payload(payload)
 	governance = frappe.get_doc("Univesp Knowledge Theme Governance", bundle.theme_key)
 	if not str(governance.approver_group or "").strip():
 		raise KnowledgeV3ValidationError(
@@ -552,7 +556,9 @@ def publish(version_id: str, payload: dict | str | None = None):
 		version.change_summary = summary
 		approval_mode = "admin_direct"
 
-	_validate_publishable_payload(json.loads(version.payload_json), bundle)
+	payload = json.loads(version.payload_json)
+	_validate_publishable_payload(payload, bundle)
+	version.payload_json = _encode_payload(payload)
 	version.publisher_email = context.email
 	version.published_at = now_datetime()
 	if approval_mode == "admin_direct" and not version.approver_email:
@@ -922,6 +928,7 @@ def _activate_version(bundle, version, context, approval_mode="approved_path"):
 
 def _validate_publishable_payload(payload, bundle):
 	_validate_payload_identity(payload, bundle)
+	normalize_payload_media_urls(payload)
 	try:
 		assert_valid_knowledge_graph(payload)
 	except KnowledgeGraphError as exc:
@@ -987,7 +994,10 @@ def _validate_publishable_payload(payload, bundle):
 	)
 	if not pattern:
 		raise KnowledgeV3ValidationError(_("Padrão de roteamento não está ativo no catálogo."))
-	validate_payload_routing(payload, pattern)
+	try:
+		validate_payload_routing(payload, pattern)
+	except RoutingValidationError as exc:
+		raise KnowledgeV3ValidationError(str(exc)) from exc
 	steps = set(frappe.parse_json(pattern.steps_json or "[]"))
 	if "op" in steps:
 		missing_playbook = [
