@@ -11,6 +11,7 @@ from univesp_atendimento.cloud_service_auth import (
 	configured_value,
 	service_headers,
 )
+from univesp_atendimento.file_urls import resolve_institutional_file_url
 from univesp_atendimento.knowledge_asset_security import signature_matches
 from univesp_atendimento.provisioning import ensure_frappe_user
 
@@ -45,7 +46,7 @@ def list_assets():
 		)
 	}
 	return response(
-		[{**dict(row), "url": files.get(row.file, "")} for row in rows],
+		[{**dict(row), "url": resolve_institutional_file_url(files.get(row.file, ""))} for row in rows],
 		request_id=context.request_id,
 	)
 
@@ -113,13 +114,13 @@ def upload_asset():
 		{"attached_to_doctype": doc.doctype, "attached_to_name": doc.name},
 		update_modified=False,
 	)
-	file_url = str(file_doc.file_url or "").strip()
-	if file_url.startswith("/"):
-		from frappe.utils import get_url
-
-		file_url = get_url(file_url)
 	return response(
-		{"asset_id": doc.asset_key, "type": asset_type, "url": file_url, "alt": alt},
+		{
+			"asset_id": doc.asset_key,
+			"type": asset_type,
+			"url": resolve_institutional_file_url(file_doc.file_url),
+			"alt": alt,
+		},
 		request_id=context.request_id,
 	)
 

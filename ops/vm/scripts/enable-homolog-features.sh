@@ -32,6 +32,9 @@ sudo -u frappe bash -lc "cd '$BENCH_DIR' && bench --site '$SITE' execute univesp
 sudo -u frappe bash -lc "cd '$BENCH_DIR' && bench --site '$SITE' execute univesp_atendimento.homolog_seed.upsert_homolog_knowledge_authorization"
 sudo -u frappe bash -lc "cd '$BENCH_DIR' && bench --site '$SITE' execute univesp_atendimento.homolog_seed.sync_homolog_frappe_users"
 
+printf '3b/5 Frappe — host_name público (URLs de mídia FAQ)\n'
+sudo -u frappe bash -lc "cd '$BENCH_DIR' && bench --site '$SITE' set-config host_name 'homolog-crm.univesp.br'"
+
 printf '4/5 Reiniciar serviços\n'
 sudo supervisorctl restart sso-gateway 'frappe-bench:*'
 sleep 4

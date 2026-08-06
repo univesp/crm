@@ -126,6 +126,14 @@ async function parsePayload(response) {
 function extractMessage(payload) {
   const serverMessage = parseServerMessage(payload?._server_messages)
   if (serverMessage) return serverMessage
+  if (typeof payload?.message === 'string' && payload.message && payload.message !== payload?.exc_type) {
+    return payload.message
+  }
+  const exceptionLine = String(payload?.exception || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith('Traceback') && !line.includes('File "'))
+  if (exceptionLine && exceptionLine !== payload?.exc_type) return exceptionLine
   if (typeof payload?.message === 'string') return payload.message
   if (payload?.exc_type) return payload.exc_type
   return 'Falha ao processar a solicitacao no Frappe.'
