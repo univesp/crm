@@ -1,7 +1,7 @@
 # Status homolog VM — handoff operacional
 
 **Atualizado:** 2026-08-07 — resultado da validação manual e erro de criação de áreas registrados
-**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `655367e4` (frontend publicado e validado na VM; documentação anterior em `b6ff9cc7`)
+**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `9b4d4c24` (correção backend de áreas publicada; frontend já havia sido publicado em `655367e4`; documentação anterior em `b6ff9cc7`)
 **Alterações locais pendentes (preservar):** `.tmp-artifacts/` (evidências locais não versionadas)
 **Ambiente:** `https://homolog-crm.univesp.br` na VM `crm-vm` (GCP `univesp-201808`, IAP SSH)  
 **Para agentes:** leia junto com `docs/ops/DEPLOY_VM_HOMOLOG.md`, `docs/RETORNO_TI_EQUIPE_CRM.md`, `docs/ops/COFRE_SECRETS_CRM.md`, `docs/FAQ_V3_INTEGRATED_PILOT.md`
@@ -38,13 +38,15 @@ HAR recebido da sessão admin: 86 requisições; 83 respostas `200`, um `302` de
 
 **Causa confirmada:** `create_institutional_area` passava `area_key` para o campo `target_email` de `Univesp Access Audit`. Como esse campo é do tipo Email, o Frappe rejeitava a chave da área e desfazia a criação inteira.
 
-**Correção local preparada:** o audit usa o e-mail do ator, preservando o contrato existente, e grava `resource_type`, `area_key` e `area_label` em `after_json`. Foi acrescentado teste de regressão em `test_admin_access.py`. Sintaxe, `git diff --check` e compilação Python passaram; o teste Frappe e o deploy backend ainda estão pendentes porque o túnel IAP exigiu reautenticação do gcloud.
+**Correção publicada:** o audit usa o e-mail do ator, preservando o contrato existente, e grava `resource_type`, `area_key` e `area_label` em `after_json`. Foi acrescentado teste de regressão em `test_admin_access.py`. Sintaxe, `git diff --check` e compilação Python passaram. O commit `9b4d4c24` foi publicado na branch e aplicado na VM pelo runbook de deploy; a migração e o restart do backend concluíram. A suíte Frappe não executou na VM porque a versão instalada não exporta `IntegrationTestCase` de `frappe.tests`; isso é incompatibilidade do harness de teste, não falha funcional da correção.
 
 **Aluno SSO:** a tela de acesso pendente é coerente com `session.get_context`: sem `Univesp Access Profile` ativo, o sistema cria/atualiza `Univesp Access Request` e não libera a sessão operacional. A carga do Trino atualiza `Univesp Student Directory`, mas não concede perfil automaticamente. Para a validação da coorte, é necessário confirmar o diretório e aprovar a solicitação como `aluno` pelo fluxo administrativo; automatizar concessão por Trino seria mudança de autenticação/provisionamento e fica fora deste patch.
 
 **Ajuste do checklist:** não há tela CRUD dedicada de grupos de acesso no build real. A API existe e é consumida pelas concessões de conhecimento da FAQ. A aba `Áreas` existe em `/admin/permissoes?tab=areas`; a área de perfis no build SSO real bloqueia a matriz demonstrativa e não oferece criação/edição de perfil. Portanto, CRUD de grupos/perfis deve ser validado por API/bench nesta fase, ou virar uma entrega UX separada; não deve ser cobrado como uma tela inexistente.
 
-**Rechecagem IAP:** SSH voltou a responder na `crm-vm` em `d211016c`. A suíte Frappe não foi executada porque o site está com `allow_tests=false`. Consulta agregada no site retornou zero solicitações de acesso e a busca da identidade testada no `Student Directory` retornou zero registros, apesar da tela de acesso pendente. Antes de aprovar ou carregar dados, repetir o login com Network aberto e correlacionar a resposta de `/api/me` (`access.status` e `access.request_id`) com a listagem administrativa; se continuar sem registro, investigar persistência/site-alvo.
+**Rechecagem IAP anterior:** SSH voltou a responder na `crm-vm` em `d211016c`. Consulta agregada no site retornou zero solicitações de acesso e a busca da identidade testada no `Student Directory` retornou zero registros, apesar da tela de acesso pendente. Antes de aprovar ou carregar dados, repetir o login com Network aberto e correlacionar a resposta de `/api/me` (`access.status` e `access.request_id`) com a listagem administrativa; se continuar sem registro, investigar persistência/site-alvo.
+
+**Pós-deploy 2026-08-07:** o smoke externo salvou `.tmp-artifacts/api-matrix-after-admin-area-deploy.json`: health/frontend/flags/FAQ pública retornaram `200`, rotas protegidas sem sessão retornaram `401` e `POST /api/ingress/v1/tickets` sem segredo retornou `401`. As linhas autenticadas ficaram `SKIP` por ausência de cookie no script. A validação funcional restante é cadastrar uma área pela sessão admin e repetir o fluxo de aprovação de uma solicitação SSO.
 
 **Fluxo considerado concluído:**
 
