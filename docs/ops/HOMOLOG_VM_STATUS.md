@@ -1,8 +1,8 @@
 # Status homolog VM — handoff operacional
 
 **Atualizado:** 2026-08-06 (noite) — plano faseado de recuperação incorporado
-**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `74d36a3e` (publicado e validado na VM)
-**Alterações locais pendentes (preservar):** `HOMOLOG_VM_STATUS.md`, nginx `/files/` alias, `homolog_seed.py`, `.tmp-artifacts/`
+**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `b6ff9cc7` (documentação mais recente; VM funcional validada em `74d36a3e`)
+**Alterações locais pendentes (preservar):** `.tmp-artifacts/` (evidências locais não versionadas)
 **Ambiente:** `https://homolog-crm.univesp.br` na VM `crm-vm` (GCP `univesp-201808`, IAP SSH)  
 **Para agentes:** leia junto com `docs/ops/DEPLOY_VM_HOMOLOG.md`, `docs/RETORNO_TI_EQUIPE_CRM.md`, `docs/ops/COFRE_SECRETS_CRM.md`, `docs/FAQ_V3_INTEGRATED_PILOT.md`
 
@@ -10,7 +10,7 @@
 
 ## Fase atual
 
-**Homolog VM — fluxo admin FAQ v3 e Fase 1 de permissões validados; próximo passo: higiene/auditoria de runtime.**
+**Homolog VM — FAQ v3, permissões, higiene em dry-run e telas admin/públicas validados; próximo passo: completar personas SSO. Dados Trino adiados.**
 
 Prod (`crm.univesp.br`) compartilha a mesma VM/Frappe/MariaDB até cutover Cloud SQL (`docs/ops/CUTOVER_PROD_MYSQL.md`).
 
@@ -26,11 +26,11 @@ Prod (`crm.univesp.br`) compartilha a mesma VM/Frappe/MariaDB até cutover Cloud
 | Publicação admin (`teste 2`) | **Validado** | status Publicado, versão publicada, sem rascunho pendente |
 | Mídia HTTP pública | **Validado** | nginx alias → 200 `image/png` |
 | FAQ runtime aluno (`bbbbbbbbb`) | **Publicado** | `audience_profile: student` |
-| FAQ runtime público anônimo | **Pendente** | validar `/publico` + bundle `public`/`mixed` |
+| FAQ runtime público anônimo | **Validado** | `/publico` carregou `Acesso ao AVA`; API pública e flags já validadas |
 | **`access-groups`** | **Validado após patch** | diagnóstico interno `ok: true`; grupo carregado na tela admin |
 | **`permission-profiles`** | **Validado após patch** | perfis e usuários reais carregados em `/admin/permissoes` |
 | Usuários / personas / seeds | **Auditoria inicial** | imports mock/hardcode identificados; OP Trino recuperado localmente |
-| Jornadas por persona | **Não validado** | após grupos + perfis |
+| Jornadas por persona | **Parcial** | admin e visitante validados; aprovador, OP e aluno SSO permanecem pendentes |
 
 **Fluxo considerado concluído:**
 
@@ -82,11 +82,13 @@ Inventário por módulo (mock dev | E2E | seed homolog | fallback perigoso | API
 
 Build VM SSO real: `VITE_ENABLE_MOCKS=false`, `VITE_SSO_DEV_BYPASS=false`, `VITE_HOMOLOG_PROFILE_PREVIEW=false`. Preview em trilha separada. Falha de API → estado explícito, **sem** fallback mock silencioso. Build publicado e painel admin validado sem matriz demonstrativa.
 
+Validação adicional na sessão admin real: Dashboard, Protocolos, Validação de vínculo, Parâmetros, Permissões e Biblioteca FAQ carregaram sem erros de console. Permissões exibiu usuários e perfis vindos da API, e a aba Conhecimento exibiu o grupo real `Aprovadores FAQ — Acesso ao AVA` e concessões ativas para o tema `Acesso ao AVA`. O Dashboard mostrou zero atendimentos porque a base operacional ainda não foi carregada; isso não foi tratado como dado demo.
+
 ---
 
-### Fase 3 — Dados reais em lotes rastreáveis
+### Fase 3 — Dados reais em lotes rastreáveis (adiada por decisão operacional)
 
-**Alunos:** coorte pequena → dry-run → dup e-mail/RA/CPF → `batch_id` → apply → validar → expandir. Descarte por lote, não `HOMOLOG%` cego. Script: `ops/import/students-from-trino.py`.
+**Alunos:** coorte pequena → dry-run → dup e-mail/RA/CPF → `batch_id` → apply → validar → expandir. Descarte por lote, não `HOMOLOG%` cego. Script: `ops/import/students-from-trino.py`. A carga foi explicitamente deixada para depois; nenhum `--apply` será executado nesta rodada.
 
 **OPs:** recuperar `staff-from-trino.py` de `0d30be08` (seletivo). CLI: `--validate-env`, `--dry-run`, `--apply`, `--sync-profiles`, etc.
 
@@ -96,7 +98,7 @@ Build VM SSO real: `VITE_ENABLE_MOCKS=false`, `VITE_SSO_DEV_BYPASS=false`, `VITE
 
 ### Fase 4 — Validação por persona (SSO real)
 
-Admin, aprovador, OP, aluno, visitante `/publico` — testes positivos e negativos (401/403/409/404). FAQ pública anônima + mídia sem cookie admin.
+Admin e visitante `/publico` já foram validados. Ficam para a próxima rodada: aprovador, OP e aluno SSO, incluindo testes negativos (401/403/409/404). FAQ pública anônima + mídia sem cookie admin já têm evidência de API/HTTP; falta completar a jornada autenticada de aluno.
 
 ---
 
@@ -156,13 +158,13 @@ Detalhe cofre: `docs/ops/COFRE_SECRETS_CRM.md`
 
 | # | Item | Fase |
 |---|------|------|
-| 1 | **Fase 0:** matriz API + baseline VM | 0 |
-| 2 | **Fase 1:** corrigir `access-groups` 502 + permission-profiles | 1 |
-| 3 | Confirmar higiene idempotente dos bundles `teste`/`matricula` (VM já os reporta arquivados) | pré-runtime |
-| 4 | **Fase 2:** inventário mocks + build SSO real | 2 |
-| 5 | **Fase 3:** coorte alunos + recuperar `staff-from-trino.py` | 3 |
-| 6 | **Fase 4:** personas SSO real | 4 |
-| 7 | Commit/push patches nginx + homolog_seed; VM sync `983886e6+` | 5 |
+| 1 | **Fase 0:** matriz API + baseline VM | concluída; smoke público/401 e evidências registradas |
+| 2 | **Fase 1:** corrigir `access-groups` 502 + permission-profiles | concluída; 200 e UI admin validados |
+| 3 | Higiene dos bundles `teste`/`matricula` | concluída em dry-run; sem exclusão porque já estão arquivados |
+| 4 | **Fase 2:** inventário mocks + build SSO real | fallbacks críticos bloqueados; OP/área ainda aguardam APIs e personas reais |
+| 5 | **Fase 3:** coorte alunos + OPs via Trino | adiada; nenhum apply |
+| 6 | **Fase 4:** aprovador, OP e aluno SSO | próxima rodada |
+| 7 | Smoke autenticado completo e atualização final deste relatório | próxima rodada |
 | 8 | Cutover prod MySQL | fora de escopo |
 
 ---
@@ -252,6 +254,23 @@ Inventário inicial de dependências mock/fallback:
 Auditoria objetiva dos imports diretos em `src/` encontrou dependências de mocks em `IntegrationsPage.vue`, `OverviewPage.vue`, `services/adminDashboardRuntime.js`, `adminFaqBuilderRuntime.js`, `adminParametersRuntime.js`, `adminPermissionsRuntime.js`, `areaGovernanceRuntime.js`, `canonicalFoundationRuntime.js`, `faqBuilderHybridRuntime.js`, `faqRuntime.js`, `mockContextRuntime.js`, `operationalOwnershipReferences.js`, `operatorIntakeRuntime.js`, `operatorQueueRuntime.js`, `studentPortalRuntime.js`, `studentSupportFlow.js`, `stores/journey.js` e `stores/studentSupport.js`.
 
 Classificação operacional: FAQ v3 e `acesso-ava` permanecem como seed/piloto institucional; permissões administrativas estão protegidas no build real; fila OP, intake, aluno, dashboard, parâmetros e governança ainda dependem de APIs/contratos não validados em `200` e não devem ter os mocks removidos nesta rodada. `IntegrationsPage`, `OverviewPage` e `journey` continuam explicitamente demonstrativos, fora da evidência SSO. Remoção ampla foi adiada para evitar transformar telas sem API correspondente em telas quebradas.
+
+Patches adicionais desta rodada bloquearam dois vazamentos de dados demo no build real: `studentPortalRuntime` agora usa protocolos seed somente quando `VITE_ENABLE_MOCKS=true`, protegendo listagem, busca e detalhe do portal do aluno; `AdminParametersPage` inicia vazio quando mocks estão desligados, evitando exibir níveis/SLAs demo se a API falhar. A aba Conhecimento também deixou de engolir falhas de catálogo e passou a exibir alerta explícito. Nenhum contrato, rota ou permissão foi alterado.
+
+#### Validação de telas na sessão SSO real
+
+| Tela/entrada | Resultado | Observação |
+|---|---|---|
+| `/admin/dashboard` | **200/UI OK** | sem erro de console; dados operacionais zerados por ausência de carga real |
+| `/admin/protocolos` | **200/UI OK** | diretório vazio, sem seed demo exibido |
+| `/admin/validacao-vinculo` | **200/UI OK** | estado de pendências carregado sem erro |
+| `/admin/parametros` | **200/UI OK** | catálogos e SLAs carregados |
+| `/admin/permissoes` | **200/UI OK** | usuários, perfis, grupos e concessões reais carregados |
+| `/admin/faq` | **200/UI OK** | três bundles publicados, incluindo `acesso-ava` |
+| `/publico` | **200/UI OK** | consulta anônima exibiu `Acesso ao AVA` |
+| `/op/fila`, `/area/operacao` com admin | **guard OK** | redirecionamento para `/admin/dashboard`, como esperado para persona sem perfil operacional |
+
+Observação: `/admin/auditoria` e `/admin/publicacao` também redirecionam para as telas canônicas de protocolos e FAQ. Não foram tratados como falha de API, mas são aliases/rotas a revisar se a navegação continuar apontando para esses caminhos.
 
 ### Fase 2.5 — higiene de bundles
 

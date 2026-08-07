@@ -49,6 +49,7 @@ const {
 } = useFaqKnowledgeGrants()
 const knowledgeThemes = ref([])
 const knowledgeThemeFilter = ref('')
+const knowledgeErrorMessage = ref('')
 const knowledgeActionCatalog = Object.values(KNOWLEDGE_ACTION_CATALOG)
 const demoUserAreaOverrides = ref({})
 const studentSupportStore = useStudentSupportStore()
@@ -227,6 +228,7 @@ onMounted(async () => {
 })
 
 async function loadKnowledgeTab() {
+  knowledgeErrorMessage.value = ''
   try {
     const catalogResponse = await getKnowledgeV3Catalogs()
     knowledgeThemes.value = catalogResponse.data?.themes || []
@@ -234,8 +236,10 @@ async function loadKnowledgeTab() {
     if (knowledgeThemeFilter.value) {
       prefillTheme(knowledgeThemeFilter.value)
     }
-  } catch {
+  } catch (error) {
     knowledgeThemes.value = []
+    knowledgeErrorMessage.value =
+      error?.message || 'Não foi possível carregar os temas de conhecimento. Tente novamente.'
   }
 }
 
@@ -1380,6 +1384,9 @@ function savePermissionChanges() {
           <p class="mt-1 text-sm text-slate-600">
             Concessões de sugestão por tema para OP e BPO. Alterações aqui refletem na biblioteca e
             no editor.
+          </p>
+          <p v-if="knowledgeErrorMessage" class="mt-2 text-sm font-semibold text-red-700" role="alert">
+            {{ knowledgeErrorMessage }}
           </p>
         </div>
 

@@ -1,4 +1,9 @@
 import { studentProtocols as seededStudentProtocols } from '../../mocks/operations'
+import { isMockRuntimeEnabled } from '@/services/appApi'
+
+function runtimeSeededProtocols() {
+  return isMockRuntimeEnabled() ? seededStudentProtocols : []
+}
 
 export const STUDENT_REQUEST_STATES = {
   DRAFT: 'draft',
@@ -315,7 +320,7 @@ export function buildStudentPortalRequestEntries({
   protocolDraft = null,
   records = [],
   protocols = [],
-  seededProtocols = seededStudentProtocols,
+  seededProtocols = runtimeSeededProtocols(),
 } = {}) {
   const entries = uniqueEntriesById([
     buildDraftEntry(protocolDraft),
@@ -362,7 +367,7 @@ export function buildStudentRequestSections({
   protocolDraft = null,
   records = [],
   protocols = [],
-  seededProtocols = seededStudentProtocols,
+  seededProtocols = runtimeSeededProtocols(),
   query = '',
   period = 'all',
 } = {}) {
@@ -462,7 +467,7 @@ export function buildStudentPortalSearch({
   protocolDraft = null,
   records = [],
   protocols = [],
-  seededProtocols = seededStudentProtocols,
+  seededProtocols = runtimeSeededProtocols(),
   query = '',
   limit = 4,
 } = {}) {
@@ -586,7 +591,7 @@ export function buildStudentRequestDetail({
   protocolDraft = null,
   records = [],
   protocols = [],
-  seededProtocols = seededStudentProtocols,
+  seededProtocols = runtimeSeededProtocols(),
 } = {}) {
   const normalizedId = String(requestId || '')
 

@@ -22,7 +22,19 @@ import {
 import { resolveDueAt } from '@/services/businessCalendar'
 import { getRuntimeSettings, isMockRuntimeEnabled, updateRuntimeSettings } from '@/services/appApi'
 
-const parameterDraft = reactive(cloneAdminParametersDraft())
+const parameterDraft = reactive(
+  isMockRuntimeEnabled()
+    ? cloneAdminParametersDraft()
+    : {
+        criticalityLevels: [],
+        slaLevels: [],
+        businessCalendar: {
+          weeklyOff: [0, 6],
+          entries: [],
+          businessHours: { start: '09:00', end: '18:00' },
+        },
+      },
+)
 const settingsVersion = ref('')
 
 const loadState = reactive({
