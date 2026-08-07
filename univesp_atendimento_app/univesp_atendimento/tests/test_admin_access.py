@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 import frappe
@@ -84,6 +85,30 @@ class TestAdminAccess(IntegrationTestCase):
 		)
 		self.assertEqual(audit.operation, "user_created")
 		self.assertNotIn("secret", (audit.before_json or "") + (audit.after_json or ""))
+
+	@patch("univesp_atendimento.api.v1.admin.get_request_context")
+	def test_create_institutional_area_writes_audit_with_area_reference(self, context_mock):
+		context_mock.return_value = self.context
+		area_key = "area-audit-tests"
+		try:
+			result = admin.create_institutional_area(
+				{
+					"area_label": "Area de auditoria",
+					"area_key": area_key,
+					"reason": "Cadastro para teste automatizado",
+				}
+			)
+			self.assertEqual(result["data"]["area_key"], area_key)
+			audit = frappe.get_last_doc(
+				"Univesp Access Audit", {"operation": "institutional_area_created"}
+			)
+			self.assertEqual(audit.target_email, self.context.email)
+			after = json.loads(audit.after_json)
+			self.assertEqual(after["resource_type"], "institutional_area")
+			self.assertEqual(after["area_key"], area_key)
+		finally:
+			if frappe.db.exists("Univesp Institutional Area", area_key):
+				frappe.delete_doc("Univesp Institutional Area", area_key, force=True)
 
 	@patch("univesp_atendimento.api.v1.admin.get_request_context")
 	def test_update_rejects_stale_version(self, context_mock):

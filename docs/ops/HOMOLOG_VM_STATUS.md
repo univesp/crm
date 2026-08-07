@@ -1,6 +1,6 @@
 # Status homolog VM — handoff operacional
 
-**Atualizado:** 2026-08-06 (noite) — plano faseado de recuperação incorporado
+**Atualizado:** 2026-08-07 — resultado da validação manual e erro de criação de áreas registrados
 **Branch alvo:** `fix/bootstrap-homolog-unblock` @ `655367e4` (frontend publicado e validado na VM; documentação anterior em `b6ff9cc7`)
 **Alterações locais pendentes (preservar):** `.tmp-artifacts/` (evidências locais não versionadas)
 **Ambiente:** `https://homolog-crm.univesp.br` na VM `crm-vm` (GCP `univesp-201808`, IAP SSH)  
@@ -31,6 +31,20 @@ Prod (`crm.univesp.br`) compartilha a mesma VM/Frappe/MariaDB até cutover Cloud
 | **`permission-profiles`** | **Validado após patch** | perfis e usuários reais carregados em `/admin/permissoes` |
 | Usuários / personas / seeds | **Auditoria inicial** | imports mock/hardcode identificados; OP Trino recuperado localmente |
 | Jornadas por persona | **Parcial** | admin e visitante validados; aprovador, OP e aluno SSO permanecem pendentes |
+
+### Validação manual adicional — 2026-08-07
+
+HAR recebido da sessão admin: 86 requisições; 83 respostas `200`, um `302` de logout e um `401` esperado em `/api/me` após a saída. O único erro funcional foi `POST /api/app/v1/admin/areas`, `417`, request-id `40a8ec0e-2171-4f59-a095-b191b886f29a`.
+
+**Causa confirmada:** `create_institutional_area` passava `area_key` para o campo `target_email` de `Univesp Access Audit`. Como esse campo é do tipo Email, o Frappe rejeitava a chave da área e desfazia a criação inteira.
+
+**Correção local preparada:** o audit usa o e-mail do ator, preservando o contrato existente, e grava `resource_type`, `area_key` e `area_label` em `after_json`. Foi acrescentado teste de regressão em `test_admin_access.py`. Sintaxe, `git diff --check` e compilação Python passaram; o teste Frappe e o deploy backend ainda estão pendentes porque o túnel IAP exigiu reautenticação do gcloud.
+
+**Aluno SSO:** a tela de acesso pendente é coerente com `session.get_context`: sem `Univesp Access Profile` ativo, o sistema cria/atualiza `Univesp Access Request` e não libera a sessão operacional. A carga do Trino atualiza `Univesp Student Directory`, mas não concede perfil automaticamente. Para a validação da coorte, é necessário confirmar o diretório e aprovar a solicitação como `aluno` pelo fluxo administrativo; automatizar concessão por Trino seria mudança de autenticação/provisionamento e fica fora deste patch.
+
+**Ajuste do checklist:** não há tela CRUD dedicada de grupos de acesso no build real. A API existe e é consumida pelas concessões de conhecimento da FAQ. A aba `Áreas` existe em `/admin/permissoes?tab=areas`; a área de perfis no build SSO real bloqueia a matriz demonstrativa e não oferece criação/edição de perfil. Portanto, CRUD de grupos/perfis deve ser validado por API/bench nesta fase, ou virar uma entrega UX separada; não deve ser cobrado como uma tela inexistente.
+
+**Rechecagem IAP:** SSH voltou a responder na `crm-vm` em `d211016c`. A suíte Frappe não foi executada porque o site está com `allow_tests=false`. Consulta agregada no site retornou zero solicitações de acesso e a busca da identidade testada no `Student Directory` retornou zero registros, apesar da tela de acesso pendente. Antes de aprovar ou carregar dados, repetir o login com Network aberto e correlacionar a resposta de `/api/me` (`access.status` e `access.request_id`) com a listagem administrativa; se continuar sem registro, investigar persistência/site-alvo.
 
 **Fluxo considerado concluído:**
 

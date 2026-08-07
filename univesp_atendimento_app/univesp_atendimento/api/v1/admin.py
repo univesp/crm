@@ -321,11 +321,15 @@ def create_institutional_area(payload: dict | str | None = None):
 	).insert(ignore_permissions=True)
 	_write_audit(
 		context,
-		doc.area_key,
+		context.email,
 		"institutional_area_created",
 		reason,
 		None,
-		{"area_key": doc.area_key, "area_label": doc.area_label},
+		{
+			"resource_type": "institutional_area",
+			"area_key": doc.area_key,
+			"area_label": doc.area_label,
+		},
 	)
 	return response(
 		{
