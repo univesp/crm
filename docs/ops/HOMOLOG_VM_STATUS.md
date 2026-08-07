@@ -1,7 +1,7 @@
 # Status homolog VM — handoff operacional
 
 **Atualizado:** 2026-08-06 (noite) — plano faseado de recuperação incorporado
-**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `b6ff9cc7` (documentação mais recente; VM funcional validada em `74d36a3e`)
+**Branch alvo:** `fix/bootstrap-homolog-unblock` @ `655367e4` (frontend publicado e validado na VM; documentação anterior em `b6ff9cc7`)
 **Alterações locais pendentes (preservar):** `.tmp-artifacts/` (evidências locais não versionadas)
 **Ambiente:** `https://homolog-crm.univesp.br` na VM `crm-vm` (GCP `univesp-201808`, IAP SSH)  
 **Para agentes:** leia junto com `docs/ops/DEPLOY_VM_HOMOLOG.md`, `docs/RETORNO_TI_EQUIPE_CRM.md`, `docs/ops/COFRE_SECRETS_CRM.md`, `docs/FAQ_V3_INTEGRATED_PILOT.md`
@@ -256,6 +256,8 @@ Auditoria objetiva dos imports diretos em `src/` encontrou dependências de mock
 Classificação operacional: FAQ v3 e `acesso-ava` permanecem como seed/piloto institucional; permissões administrativas estão protegidas no build real; fila OP, intake, aluno, dashboard, parâmetros e governança ainda dependem de APIs/contratos não validados em `200` e não devem ter os mocks removidos nesta rodada. `IntegrationsPage`, `OverviewPage` e `journey` continuam explicitamente demonstrativos, fora da evidência SSO. Remoção ampla foi adiada para evitar transformar telas sem API correspondente em telas quebradas.
 
 Patches adicionais desta rodada bloquearam dois vazamentos de dados demo no build real: `studentPortalRuntime` agora usa protocolos seed somente quando `VITE_ENABLE_MOCKS=true`, protegendo listagem, busca e detalhe do portal do aluno; `AdminParametersPage` inicia vazio quando mocks estão desligados, evitando exibir níveis/SLAs demo se a API falhar. A aba Conhecimento também deixou de engolir falhas de catálogo e passou a exibir alerta explícito. Nenhum contrato, rota ou permissão foi alterado.
+
+O patch foi publicado somente no frontend da VM em `655367e4`: sincronização do repositório, build Vite e reload nginx concluídos. Hash servido e hash de `dist/index.html`: `index-v1O-dV7s.js`. Gateway `:4000`, `healthz` e processos Supervisor permaneceram saudáveis. Smoke pós-deploy salvo em `.tmp-artifacts/api-matrix-after-fallback-patch.json`: rotas públicas `200` e rotas protegidas sem sessão `401`; linhas autenticadas continuam `SKIP` por ausência de cookie no script.
 
 #### Validação de telas na sessão SSO real
 
