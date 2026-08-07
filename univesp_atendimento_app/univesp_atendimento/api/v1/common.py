@@ -102,7 +102,15 @@ def ticket_scope_filters(context: RequestContext):
 	if context.profile_key == "aluno":
 		return [["HD Ticket", "custom_student_email", "=", context.email]]
 	if context.profile_key == "op":
+		filters = []
 		queues = _scope_values(context.scopes, "queues", "filas")
+		polos = _scope_values(context.scopes, "polos")
+		if queues:
+			filters.extend(_required_scope_filter("custom_univesp_queue", queues))
+		if polos:
+			filters.extend(_required_scope_filter("custom_student_polo", polos))
+		if filters:
+			return filters
 		return _required_scope_filter("custom_univesp_queue", queues)
 	if context.profile_key == "op_externo":
 		return _combined_scope_filters(
