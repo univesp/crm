@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { SNAPSHOT_OPTS } from './helpers/faq-v3-visual-helpers.js'
+
 const profileCatalog = [
   {
     key: 'op',
@@ -22,6 +24,7 @@ const user = {
   ra: '',
   profile_key: 'admin_central',
   active: true,
+  status: 'active',
   scopes: {},
   actions: ['view_ticket', 'manage_users', 'view_audit'],
   version: '2026-07-14 10:00:00.000000',
@@ -55,14 +58,51 @@ test('edita e desativa usuario com motivo auditavel', async ({ page }) => {
 
   await page.goto('/crm/admin/permissoes')
   await expect(page.getByRole('heading', { name: 'Pessoas e acessos' })).toBeVisible()
+  await page.getByRole('button', { name: 'Usuarios' }).click()
   await page.getByRole('button', { name: /Ana Administradora/ }).click()
-  await page.getByLabel('Usuario ativo').uncheck()
-  await page.getByPlaceholder('Obrigatorio para auditoria').fill('Desativacao solicitada pela gestao')
-  await page.getByRole('button', { name: 'Salvar' }).click()
+  await page.getByLabel('Usuário ativo').uncheck()
+  await page.getByPlaceholder('Obrigatório para auditoria').fill('Desativação solicitada pela gestão')
+  await page.getByRole('button', { name: 'Salvar status' }).click()
 
   await expect.poll(() => patchPayload).not.toBeNull()
   expect(patchPayload.active).toBe(false)
   expect(patchPayload.version).toBe(user.version)
+})
+
+test('exibe pessoa, status e áreas em detalhe compacto', async ({ page }) => {
+  await mockAdminApi(page)
+
+  await page.goto('/crm/admin/permissoes')
+  await page.getByRole('button', { name: 'Usuarios' }).click()
+  await page.getByRole('button', { name: /Ana Administradora/ }).click()
+  await expect(page.getByRole('heading', { name: 'Áreas desta pessoa' })).toBeVisible()
+  await expect(page.getByText('Secretaria de Registro Acadêmico', { exact: true })).toBeVisible()
+  await expect(page).toHaveScreenshot('admin-pessoas-e-acessos-selecionada.png', {
+    ...SNAPSHOT_OPTS,
+    fullPage: true,
+    animations: 'disabled',
+    caret: 'hide',
+  })
+})
+
+test('salva as áreas da pessoa com motivo de auditoria', async ({ page }) => {
+  let patchPayload = null
+  await mockAdminApi(page, {
+    onPatch(payload) {
+      patchPayload = payload
+    },
+  })
+
+  await page.goto('/crm/admin/permissoes')
+  await page.getByRole('button', { name: 'Usuarios' }).click()
+  await page.getByRole('button', { name: /Ana Administradora/ }).click()
+  await page.getByText('Secretaria de Registro Acadêmico', { exact: true }).locator('..').getByRole('checkbox').check()
+  await page.getByPlaceholder('Ex.: atribuição inicial ao gestor').fill('Atribuição inicial ao gestor')
+  await page.getByRole('button', { name: 'Salvar áreas da pessoa' }).click()
+
+  await expect.poll(() => patchPayload).not.toBeNull()
+  expect(patchPayload.scopes).toEqual({ areas: ['sra'] })
+  expect(patchPayload.reason).toBe('Atribuição inicial ao gestor')
 })
 
 test('aprova solicitacao pendente com perfil e fila', async ({ page }) => {
@@ -74,7 +114,8 @@ test('aprova solicitacao pendente com perfil e fila', async ({ page }) => {
   })
 
   await page.goto('/crm/admin/permissoes')
-  await page.getByRole('button', { name: 'Solicitacoes pendentes' }).click()
+  await page.getByRole('button', { name: 'Usuarios' }).click()
+  await page.getByRole('button', { name: /Solicitações pendentes/ }).click()
   await page.getByRole('button', { name: /Operador Pendente/ }).click()
   await page.getByLabel('Perfil').selectOption('op')
   await page.getByText('Atendimento Geral', { exact: true }).locator('..').getByRole('checkbox').check()
@@ -103,6 +144,8 @@ async function mockAdminApi(page, hooks = {}) {
         polos: [],
         areas: [],
       }
+    } else if (path.endsWith('/admin/areas') && method === 'GET') {
+      data = [{ area_key: 'sra', area_label: 'Secretaria de Registro Acadêmico' }]
     } else if (path.endsWith('/admin/users') && method === 'GET') {
       data = [user]
       meta = { page: 1, page_size: 25, total: 1 }
@@ -110,7 +153,7 @@ async function mockAdminApi(page, hooks = {}) {
       data = user
     } else if (path.endsWith('/admin/users/ana%40univesp.br') && method === 'PATCH') {
       hooks.onPatch?.(body)
-      data = { ...user, active: body.active }
+      data = { ...user, active: body.active, status: body.active ? 'active' : 'inactive', scopes: body.scopes || user.scopes }
     } else if (path.endsWith('/admin/access-requests') && method === 'GET') {
       data = [accessRequest]
       meta = { page: 1, page_size: 25, total: 1 }

@@ -55,6 +55,7 @@ const demoUserAreaOverrides = ref({})
 const studentSupportStore = useStudentSupportStore()
 const liveUsers = ref([])
 const liveAccessRequests = ref([])
+const liveUserSearch = ref('')
 const liveCatalogs = ref({ profiles: [], queues: [], polos: [], areas: [] })
 const livePanel = reactive({
   loading: false,
@@ -113,6 +114,35 @@ const approvalScopeSummary = computed(() => {
   }
   return `Efeito combinado (intersecao): ${parts.join(' · ')}`
 })
+
+const filteredLiveUsers = computed(() => {
+  const search = liveUserSearch.value.trim().toLowerCase()
+  if (!search) return liveUsers.value
+  return liveUsers.value.filter((user) =>
+    [user.display_name, user.email, user.ra, user.profile_key]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(search)),
+  )
+})
+
+function liveProfileLabel(profileKey) {
+  return liveCatalogs.value.profiles.find((profile) => profile.key === profileKey)?.label || profileKey || 'Sem perfil'
+}
+
+function liveScopeLabel(dimension, value) {
+  return scopeCatalogFor(dimension).find((entry) => entry.value === value)?.label || value
+}
+
+function liveScopeSummary(user) {
+  const scopes = user?.scopes || {}
+  const parts = [
+    ...(scopes.areas || []).map((value) => `Área: ${liveScopeLabel('areas', value)}`),
+    ...(scopes.polos || []).map((value) => `Polo: ${liveScopeLabel('polos', value)}`),
+    ...(scopes.queues || []).map((value) => `Fila: ${liveScopeLabel('queues', value)}`),
+    ...(scopes.regional_pools || []).map((value) => `Região: ${liveScopeLabel('regional_pools', value)}`),
+  ]
+  return parts.length ? parts.join(' · ') : 'Sem escopo atribuído'
+}
 
 function scopeCatalogFor(dimension) {
   if (dimension === 'queues') return liveCatalogs.value.queues || []
@@ -246,7 +276,14 @@ async function loadKnowledgeTab() {
 function setActiveModule(module) {
   ui.activeModule = module
   if (module === 'profiles') ui.profileDetailOpen = false
-  if (module === 'users') ui.userDetailOpen = false
+  if (module === 'users') {
+    ui.userDetailOpen = false
+    livePanel.mode = 'users'
+    livePanel.selectedRequest = null
+  } else {
+    livePanel.selectedUser = null
+    livePanel.selectedRequest = null
+  }
   if (module === 'knowledge') void loadKnowledgeTab()
   syncPermissionsQuery()
 }
@@ -557,8 +594,15 @@ function onDemoUserAreasSaved({ userId, areas }) {
   }
 }
 
-async function onLiveUserAreasSaved() {
+async function onLiveUserAreasSaved({ user } = {}) {
   if (!livePanel.selectedUser) return
+  if (user) {
+    livePanel.selectedUser = user
+    liveUsers.value = liveUsers.value.map((entry) =>
+      entry.id === user.id ? user : entry,
+    )
+    return
+  }
   try {
     const result = await getAdminUser(livePanel.selectedUser.email || livePanel.selectedUser.id)
     livePanel.selectedUser = result.data || livePanel.selectedUser
@@ -649,14 +693,18 @@ function savePermissionChanges() {
     </section>
 
     <section
-      v-if="!isMockRuntimeEnabled()"
+      v-if="!isMockRuntimeEnabled() && ui.activeModule === 'users'"
       class="grid gap-4 rounded-[8px] border border-slate-200 bg-white p-4"
       aria-label="Acessos institucionais"
     >
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-lg font-semibold text-slate-950">Pessoas e solicitações institucionais</h2>
-          <p class="text-sm text-slate-500">Dados carregados da API com alterações auditáveis.</p>
+          <h2 class="text-lg font-semibold text-slate-950">Pessoas e acessos</h2>
+          <p class="text-sm text-slate-500">Escolha uma pessoa para revisar perfil, status e escopos.</p>
+          <div class="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+            <span class="rounded-full bg-slate-100 px-2.5 py-1">{{ liveUsers.length }} pessoas carregadas</span>
+            <span class="rounded-full bg-amber-100 px-2.5 py-1 text-amber-900">{{ liveAccessRequests.length }} solicitações pendentes</span>
+          </div>
         </div>
         <div class="flex gap-2">
           <button
@@ -671,7 +719,15 @@ function savePermissionChanges() {
             class="rounded-[8px] border border-slate-200 px-3 py-2 text-sm font-semibold"
             @click="livePanel.mode = 'requests'; livePanel.selectedUser = null"
           >
-            Solicitacoes pendentes
+            Solicitações pendentes ({{ liveAccessRequests.length }})
+          </button>
+          <button
+            type="button"
+            class="rounded-[8px] border border-slate-200 px-3 py-2 text-sm font-semibold"
+            :disabled="livePanel.loading"
+            @click="loadInstitutionalAccess"
+          >
+            {{ livePanel.loading ? 'Atualizando...' : 'Atualizar' }}
           </button>
         </div>
       </div>
@@ -680,50 +736,89 @@ function savePermissionChanges() {
         {{ livePanel.error }}
       </p>
 
-      <div v-if="livePanel.mode === 'users'" class="grid gap-2">
-        <button
-          v-for="user in liveUsers"
-          :key="user.id"
-          type="button"
-          class="rounded-[8px] border border-slate-200 px-3 py-3 text-left hover:bg-slate-50"
-          @click="openLiveUser(user)"
-        >
-          <span class="block font-semibold text-slate-950">{{ user.display_name }}</span>
-          <span class="block text-xs text-slate-500">{{ user.email }}</span>
-        </button>
-      </div>
-
-      <form
-        v-if="livePanel.selectedUser"
-        class="grid gap-3 rounded-[8px] bg-slate-50 p-4"
-        @submit.prevent="saveLiveUser"
-      >
-        <h3 class="font-semibold text-slate-950">{{ livePanel.selectedUser.display_name }}</h3>
-        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <input v-model="livePanel.userActive" type="checkbox" />
-          Usuario ativo
+      <div v-if="livePanel.mode === 'users'" class="grid gap-3">
+        <label class="grid gap-1 text-sm font-semibold text-slate-700">
+          <span>Buscar pessoa</span>
+          <input
+            v-model="liveUserSearch"
+            type="search"
+            class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm"
+            placeholder="Nome, e-mail, RA ou perfil"
+          />
         </label>
-        <input
-          v-model="livePanel.userReason"
-          type="text"
-          class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm"
-          placeholder="Obrigatorio para auditoria"
-        />
-        <button type="submit" class="w-fit rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
-          Salvar
-        </button>
-      </form>
 
-      <AdminUserAreasAssignment
-        v-if="livePanel.selectedUser"
-        mode="live"
-        class="rounded-[8px] border border-slate-200 bg-white p-4"
-        :user="{
-          ...livePanel.selectedUser,
-          profileKey: livePanel.selectedUser.profile_key,
-        }"
-        @saved="onLiveUserAreasSaved"
-      />
+        <div class="grid gap-4 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.4fr)]">
+          <div class="grid content-start gap-2">
+            <button
+              v-for="user in filteredLiveUsers"
+              :key="user.id"
+              type="button"
+              class="rounded-[8px] border px-3 py-3 text-left hover:bg-slate-50"
+              :class="livePanel.selectedUser?.id === user.id ? 'border-[var(--color-primary)] bg-[rgba(209,50,57,0.06)]' : 'border-slate-200'"
+              @click="openLiveUser(user)"
+            >
+              <span class="block font-semibold text-slate-950">{{ user.display_name }}</span>
+              <span class="mt-1 block text-xs text-slate-500">{{ user.email }}</span>
+              <span class="mt-2 block text-xs font-semibold text-slate-700">
+                {{ liveProfileLabel(user.profile_key) }} · {{ user.status === 'active' ? 'Ativo' : 'Inativo' }}
+              </span>
+              <span class="mt-1 block truncate text-xs text-slate-500">{{ liveScopeSummary(user) }}</span>
+            </button>
+            <p v-if="!filteredLiveUsers.length" class="rounded-[8px] bg-slate-50 px-3 py-4 text-sm text-slate-600">
+              Nenhuma pessoa encontrada. Tente outro nome, e-mail, RA ou perfil.
+            </p>
+          </div>
+
+          <div class="grid content-start gap-4">
+            <form
+              v-if="livePanel.selectedUser"
+              class="grid gap-3 rounded-[8px] bg-slate-50 p-4"
+              @submit.prevent="saveLiveUser"
+            >
+              <div>
+                <h3 class="font-semibold text-slate-950">{{ livePanel.selectedUser.display_name }}</h3>
+                <p class="mt-1 text-sm text-slate-600">{{ livePanel.selectedUser.email }}</p>
+                <p class="mt-2 text-xs font-semibold text-slate-700">
+                  {{ liveProfileLabel(livePanel.selectedUser.profile_key) }} · {{ liveScopeSummary(livePanel.selectedUser) }}
+                </p>
+              </div>
+              <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input v-model="livePanel.userActive" type="checkbox" />
+                Usuário ativo
+              </label>
+              <label class="grid gap-1 text-sm font-semibold text-slate-700">
+                <span>Motivo da alteração</span>
+                <input
+                  v-model="livePanel.userReason"
+                  type="text"
+                  minlength="5"
+                  required
+                  class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Obrigatório para auditoria"
+                />
+              </label>
+              <button type="submit" class="w-fit rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+                Salvar status
+              </button>
+            </form>
+
+            <AdminUserAreasAssignment
+              v-if="livePanel.selectedUser"
+              mode="live"
+              class="rounded-[8px] border border-slate-200 bg-white p-4"
+              :user="{
+                ...livePanel.selectedUser,
+                profileKey: livePanel.selectedUser.profile_key,
+              }"
+              @saved="onLiveUserAreasSaved"
+            />
+
+            <p v-else class="rounded-[8px] bg-slate-50 px-4 py-6 text-sm text-slate-600">
+              Selecione uma pessoa para visualizar e alterar o acesso.
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div v-if="livePanel.mode === 'requests'" class="grid gap-2">
         <button
@@ -736,6 +831,9 @@ function savePermissionChanges() {
           <span class="block font-semibold text-slate-950">{{ request.display_name }}</span>
           <span class="block text-xs text-slate-500">{{ request.email }}</span>
         </button>
+        <p v-if="!liveAccessRequests.length" class="rounded-[8px] bg-slate-50 px-3 py-4 text-sm text-slate-600">
+          Nenhuma solicitação pendente. Quando uma pessoa sem perfil acessar pelo SSO, atualize esta lista.
+        </p>
       </div>
 
       <form
@@ -796,7 +894,7 @@ function savePermissionChanges() {
     </section>
 
     <section
-      v-if="!isMockRuntimeEnabled() && (ui.activeModule === 'profiles' || ui.activeModule === 'users')"
+      v-if="!isMockRuntimeEnabled() && ui.activeModule === 'profiles'"
       class="grid gap-2 rounded-[8px] border border-amber-200 bg-amber-50 p-4"
       role="alert"
     >

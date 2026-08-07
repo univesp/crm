@@ -6,6 +6,7 @@ import {
   mockKnowledgeV3,
   prepareAdminFaqSession,
   prepareProfile,
+  SNAPSHOT_OPTS,
 } from './helpers/faq-v3-visual-helpers.js'
 
 test.beforeEach(async ({ page }) => prepareAdminFaqSession(page))
@@ -19,11 +20,18 @@ test('deep link abre aba Conhecimento com tema pré-selecionado', async ({ page 
   await expect(page.getByRole('heading', { name: 'Conhecimento e FAQ' })).toBeVisible()
   await expect(page.getByLabel('Filtrar por tema')).toHaveValue('acesso-ava')
   await expect(page.getByText('Carregando permissões…')).toBeHidden()
+  await page.getByRole('button', { name: 'Conceder acesso de sugestão' }).click()
   await expect(page.getByRole('button', { name: 'Conceder permissão' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'Acesso ao AVA' })).toBeChecked()
+  await expect(page).toHaveScreenshot('admin-conhecimento-permissoes-compacto.png', {
+    ...SNAPSHOT_OPTS,
+    fullPage: true,
+    animations: 'disabled',
+    caret: 'hide',
+  })
 })
 
-test('editor: permissões unificadas — admin publica; analista edita sem publicar', async ({ page }) => {
+test('editor: permissões unificadas — admin publica; gestor edita sem publicar', async ({ page }) => {
   const payload = flowPayload('acesso-ava')
   await mockKnowledgeV3(page, { payload })
 
@@ -32,7 +40,7 @@ test('editor: permissões unificadas — admin publica; analista edita sem publi
   await expect(page.getByRole('button', { name: 'Salvar rascunho' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Publicar', exact: true })).toBeVisible()
 
-  await prepareProfile(page, 'analista_area')
+  await prepareProfile(page, 'gestor_area')
   await page.goto('/crm/area/faq/acesso-ava')
   await expect(page.getByRole('button', { name: 'Salvar rascunho' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Publicar', exact: true })).toHaveCount(0)

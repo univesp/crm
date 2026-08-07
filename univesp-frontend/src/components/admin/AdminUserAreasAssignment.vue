@@ -37,6 +37,8 @@ const areaOptions = computed(() =>
   })),
 )
 
+const reasonValid = computed(() => reason.value.trim().length >= 5)
+
 function currentAreaKeys() {
   if (Array.isArray(props.user.areas)) return [...props.user.areas]
   const scopes = props.user.scopes || {}
@@ -89,22 +91,30 @@ async function saveAreas() {
   try {
     if (props.mode === 'live') {
       const scopes = { ...(props.user.scopes || {}), areas: [...selectedAreas.value] }
-      await updateAdminUser(props.user.email || props.user.id, {
+      const result = await updateAdminUser(props.user.email || props.user.id, {
         version: props.user.version,
         reason: reason.value.trim(),
         scopes,
         active: props.user.active,
       })
+      emit('saved', {
+        userId: props.user.id || props.user.email,
+        user: result.data,
+        areas: [...selectedAreas.value],
+        reason: reason.value.trim(),
+      })
+    } else {
+      emit('saved', {
+        userId: props.user.id || props.user.email,
+        areas: [...selectedAreas.value],
+        reason: reason.value.trim(),
+      })
     }
-    emit('saved', {
-      userId: props.user.id || props.user.email,
-      areas: [...selectedAreas.value],
-      reason: reason.value.trim(),
-    })
     successMessage.value = 'Áreas atualizadas para esta pessoa.'
     reason.value = ''
   } catch (error) {
-    errorMessage.value = error?.message || 'Não foi possível salvar as áreas desta pessoa.'
+    const message = error?.message || 'Não foi possível salvar as áreas desta pessoa.'
+    errorMessage.value = error?.requestId ? `${message} (request-id: ${error.requestId})` : message
   } finally {
     saving.value = false
   }
@@ -180,16 +190,21 @@ onMounted(() => {
       <input
         v-model="reason"
         class="rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-sm"
-        placeholder="Ex.: Carla passará a cobrir SRA e Financeiro"
+        aria-describedby="user-areas-reason-help"
+        placeholder="Ex.: atribuição inicial ao gestor"
         minlength="5"
         required
       />
+      <span id="user-areas-reason-help" class="text-xs text-slate-500">
+        Informe pelo menos 5 caracteres para registrar a alteração na auditoria.
+      </span>
     </label>
 
     <button
       type="button"
-      class="justify-self-start rounded-[8px] bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white"
-      :disabled="saving || !areaOptions.length || reason.trim().length < 5"
+      class="justify-self-start rounded-[8px] bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+      :disabled="saving || !areaOptions.length || !reasonValid"
+      :title="!reasonValid ? 'Informe o motivo da alteração.' : ''"
       @click="saveAreas"
     >
       {{ saving ? 'Salvando...' : 'Salvar áreas da pessoa' }}
